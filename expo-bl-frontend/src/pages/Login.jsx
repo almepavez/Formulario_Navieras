@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import logoBroom from "../img/logo_broom.png";
+import logoBroom from "../img/SGA Logo Oscuro.png";
 import Naviera from "../img/naviera.jpg";
 
 const Login = () => {
@@ -53,7 +53,7 @@ const Login = () => {
             <img
               src={logoBroom}
               alt="Broom Group"
-              className="h-10 object-contain"
+              className="w-full max-w-[250px] h-auto object-contain"
             />
           </div>
 
