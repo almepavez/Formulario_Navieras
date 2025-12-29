@@ -28,14 +28,27 @@ app.get("/health", async (_req, res) => {
 
 app.get("/manifiestos", async (_req, res) => {
   const [rows] = await pool.query(
-    `SELECT id, service, nave, viaje,
-            puerto_central AS puertoCentral,
-            ets, estado,
-            numero_manifiesto_aduana AS numeroManifiestoAduana
+    `SELECT
+        id,
+        servicio,
+        nave,
+        viaje,
+        puerto_central AS puertoCentral,
+        tipo_operacion AS tipoOperacion,
+        operador_nave AS operadorNave,
+        status,
+        remark,
+        emisor_documento AS emisorDocumento,
+        representante,
+        fecha_manifiesto_aduana AS fechaManifiestoAduana,
+        numero_manifiesto_aduana AS numeroManifiestoAduana,
+        created_at AS createdAt,
+        updated_at AS updatedAt
      FROM manifiestos
      ORDER BY created_at DESC
      LIMIT 20`
   );
+
   res.json(rows);
 });
 
