@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Login from "./pages/Login";
-import Viajes from "./pages/Viajes";
+import Manifiestos from "./pages/Manifiestos";
 import Expo from "./pages/Expo";
 
 function App() {
@@ -8,7 +8,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Login />} />
-        <Route path="/viajes" element={<Viajes />} />
+        <Route path="/Manifiestos" element={<Manifiestos />} />
         <Route path="/expo/:blNumber" element={<Expo />} />
       </Routes>
     </BrowserRouter>

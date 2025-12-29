@@ -14,7 +14,7 @@ const Login = () => {
 
     // 🔐 Login mock (luego backend real)
     if (email && password) {
-      navigate("/viajes");
+      navigate("/Manifiestos");
     }
   };
 
