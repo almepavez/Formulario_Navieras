@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import logo from "../img/logo_broom.png";
+import logo from "../img/SGA Logo 3.png";
 
 const Sidebar = () => {
   return (
@@ -7,7 +7,7 @@ const Sidebar = () => {
       
       {/* Logo */}
       <div className="flex justify-center mb-10">
-        <img src={logo} alt="Broom Group" className="h-10" />
+        <img src={logo} alt="Broom Group" className="h-30" />
       </div>
 
       {/* Menú */}
