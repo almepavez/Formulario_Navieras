@@ -2,12 +2,37 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const mysql = require("mysql2/promise");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
 dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Configuración JWT
+const JWT_SECRET = process.env.JWT_SECRET || 'tu_secreto_super_seguro_cambialo';
+const JWT_EXPIRES = '7d';
+
+// ============================================
+// MIDDLEWARE: Verificar JWT
+// ============================================
+const verificarToken = (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: 'Token no proporcionado' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.usuario = decoded;
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Token inválido o expirado' });
+  }
+};
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
@@ -25,6 +50,103 @@ app.get("/health", async (_req, res) => {
   conn.release();
   res.json({ ok: true });
 });
+// ============================================
+// AUTH: LOGIN
+// ============================================
+
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email y contraseña son requeridos' });
+    }
+
+    const [usuarios] = await pool.query(
+      'SELECT * FROM usuarios WHERE email = ? AND activo = true',
+      [email.toLowerCase()]
+    );
+
+    if (usuarios.length === 0) {
+      return res.status(401).json({ error: 'Credenciales incorrectas' });
+    }
+
+    const usuario = usuarios[0];
+
+    if (!usuario.password) {
+      return res.status(401).json({ 
+        error: 'Esta cuenta fue creada con Google. Usa login de Google.' 
+      });
+    }
+
+    const passwordValida = await bcrypt.compare(password, usuario.password);
+
+    if (!passwordValida) {
+      return res.status(401).json({ error: 'Credenciales incorrectas' });
+    }
+
+    await pool.query(
+      'UPDATE usuarios SET ultimo_acceso = NOW() WHERE id = ?',
+      [usuario.id]
+    );
+
+    const token = jwt.sign(
+      { 
+        id: usuario.id, 
+        email: usuario.email, 
+        rol: usuario.rol,
+        nombre: usuario.nombre
+      },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES }
+    );
+
+    res.json({
+      success: true,
+      token,
+      usuario: {
+        id: usuario.id,
+        nombre: usuario.nombre,
+        email: usuario.email,
+        rol: usuario.rol,
+        foto_perfil: usuario.foto_perfil
+      }
+    });
+
+  } catch (error) {
+    console.error('Error en login:', error);
+    res.status(500).json({ error: 'Error al iniciar sesión' });
+  }
+});
+
+// ============================================
+// AUTH: VERIFICAR TOKEN
+// ============================================
+app.get("/api/auth/verificar", verificarToken, async (req, res) => {
+  try {
+    const [usuarios] = await pool.query(
+      'SELECT id, nombre, email, rol, foto_perfil FROM usuarios WHERE id = ?',
+      [req.usuario.id]
+    );
+
+    if (usuarios.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    res.json({ success: true, usuario: usuarios[0] });
+  } catch (error) {
+    console.error('Error al verificar token:', error);
+    res.status(500).json({ error: 'Error al verificar sesión' });
+  }
+});
+
+// ============================================
+// AUTH: LOGOUT
+// ============================================
+app.post("/api/auth/logout", verificarToken, async (req, res) => {
+  res.json({ success: true, message: 'Sesión cerrada' });
+});
+
 
 app.get("/manifiestos", async (_req, res) => {
   const [rows] = await pool.query(
