@@ -83,6 +83,101 @@ LOCK TABLES `manifiestos` WRITE;
 INSERT INTO `manifiestos` VALUES (1,'SWA','EVER FEAT','028W','Valparaíso','EX','OP123','En edición','Primer manifiesto de prueba','EMI456','AJBROOM','2025-11-25','MFT-889922','2025-12-29 18:48:02','2025-12-29 19:01:07'),(2,'SWA','EVER FEAT','029W','Valparaíso','EX','OP123','En edición',NULL,'EMI456','AJBROOM','2025-12-29','MFT-1234','2025-12-29 21:03:44','2025-12-29 21:03:44');
 /*!40000 ALTER TABLE `manifiestos` ENABLE KEYS */;
 UNLOCK TABLES;
+
+--
+-- Table structure for table `naves`
+--
+
+DROP TABLE IF EXISTS `naves`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `naves` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(100) NOT NULL COMMENT 'EVER FEAT, MSC GULSUN',
+  `imo` varchar(20) DEFAULT NULL COMMENT 'IMO Number',
+  `bandera` varchar(50) DEFAULT NULL,
+  `capacidad_teus` int DEFAULT NULL COMMENT 'Capacidad en TEUs',
+  `activo` tinyint(1) DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `imo` (`imo`),
+  KEY `idx_nombre` (`nombre`)
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `naves`
+--
+
+LOCK TABLES `naves` WRITE;
+/*!40000 ALTER TABLE `naves` DISABLE KEYS */;
+INSERT INTO `naves` VALUES (1,'EVER FEAT','IMO9876543','Panamá',14000,1,'2025-12-30 14:02:47','2025-12-30 14:02:47'),(2,'MSC GULSUN','IMO9811000','Liberia',23756,1,'2025-12-30 14:02:47','2025-12-30 14:02:47'),(3,'MAERSK ESSEX','IMO9632100','Dinamarca',13092,1,'2025-12-30 14:02:47','2025-12-30 14:02:47'),(4,'CMA CGM KERGUELEN','IMO9454436','Francia',999,1,'2025-12-30 14:02:47','2025-12-30 14:03:07');
+/*!40000 ALTER TABLE `naves` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `puertos`
+--
+
+DROP TABLE IF EXISTS `puertos`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `puertos` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `codigo` varchar(20) NOT NULL COMMENT 'Código UN/LOCODE: CLVAP, CNHKG',
+  `nombre` varchar(100) NOT NULL COMMENT 'VALPARAISO, HONG KONG',
+  `pais` varchar(50) NOT NULL,
+  `activo` tinyint(1) DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `codigo` (`codigo`),
+  KEY `idx_codigo` (`codigo`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `puertos`
+--
+
+LOCK TABLES `puertos` WRITE;
+/*!40000 ALTER TABLE `puertos` DISABLE KEYS */;
+INSERT INTO `puertos` VALUES (1,'CLVAP','VALPARAISO','Chile',1,'2025-12-30 14:02:47','2025-12-30 14:02:47'),(2,'CLSAI','SAN ANTONIO','Chile',1,'2025-12-30 14:02:47','2025-12-30 14:02:47'),(3,'CNHKG','HONG KONG','China',1,'2025-12-30 14:02:47','2025-12-30 14:02:47'),(4,'CNYTN','YANTIAN','China',1,'2025-12-30 14:02:47','2025-12-30 14:02:47'),(5,'TWKHH','KAOHSIUNG','Taiwan',1,'2025-12-30 14:02:47','2025-12-30 14:02:47'),(6,'CNSHA','SHANGHAI','China',1,'2025-12-30 14:02:47','2025-12-30 14:02:47'),(7,'CNNGB','NINGBO','China',1,'2025-12-30 14:02:47','2025-12-30 14:02:47'),(8,'GUGUM','GUAM','Guam',1,'2025-12-30 14:02:47','2025-12-30 14:02:47'),(9,'CNJXN','JIAOXIN','China',1,'2025-12-30 14:02:47','2025-12-30 14:02:47'),(10,'CNSWM','SHANTOU','China',1,'2025-12-30 14:02:47','2025-12-30 14:02:47');
+/*!40000 ALTER TABLE `puertos` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `servicios`
+--
+
+DROP TABLE IF EXISTS `servicios`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `servicios` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `codigo` varchar(20) NOT NULL COMMENT 'WSA, WS6, PAX, etc',
+  `nombre` varchar(100) NOT NULL COMMENT 'South West Asia Service',
+  `descripcion` text,
+  `frecuencia` varchar(50) DEFAULT NULL COMMENT 'Weekly, Bi-weekly',
+  `activo` tinyint(1) DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `codigo` (`codigo`),
+  KEY `idx_codigo` (`codigo`)
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `servicios`
+--
+
+LOCK TABLES `servicios` WRITE;
+/*!40000 ALTER TABLE `servicios` DISABLE KEYS */;
+INSERT INTO `servicios` VALUES (1,'WSA','South West Asia Service','Servicio Chile - Asia','Weekly',1,'2025-12-30 14:02:47','2025-12-30 14:02:47'),(2,'WS6','West Coast South America 6','Servicio Costa Oeste Sudamérica','Weekly',1,'2025-12-30 14:02:47','2025-12-30 14:02:47'),(3,'PAX','Pacific Express','Servicio Pacífico Express','Bi-weekly',1,'2025-12-30 14:02:47','2025-12-30 14:02:47');
+/*!40000 ALTER TABLE `servicios` ENABLE KEYS */;
+UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -93,4 +188,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-12-30  9:36:19
+-- Dump completed on 2025-12-30 11:51:07
