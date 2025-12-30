@@ -221,12 +221,14 @@ app.get("/manifiestos/:id", async (req, res) => {
 });
 
 // ============================================
-// CRUD PUERTOS
+// CRUD PUERTOS (codigo, nombre)
 // ============================================
 
-app.get("/api/mantenedores/puertos", async (req, res) => {
+app.get("/api/mantenedores/puertos", async (_req, res) => {
   try {
-    const [rows] = await pool.query("SELECT * FROM puertos ORDER BY codigo");
+    const [rows] = await pool.query(
+      "SELECT id, codigo, nombre, created_at, updated_at FROM puertos ORDER BY codigo"
+    );
     res.json(rows);
   } catch (error) {
     console.error("Error al obtener puertos:", error);
@@ -236,10 +238,11 @@ app.get("/api/mantenedores/puertos", async (req, res) => {
 
 app.get("/api/mantenedores/puertos/:id", async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT * FROM puertos WHERE id = ?", [req.params.id]);
-    if (rows.length === 0) {
-      return res.status(404).json({ error: "Puerto no encontrado" });
-    }
+    const [rows] = await pool.query(
+      "SELECT id, codigo, nombre, created_at, updated_at FROM puertos WHERE id = ?",
+      [req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: "Puerto no encontrado" });
     res.json(rows[0]);
   } catch (error) {
     console.error("Error al obtener puerto:", error);
@@ -249,23 +252,18 @@ app.get("/api/mantenedores/puertos/:id", async (req, res) => {
 
 app.post("/api/mantenedores/puertos", async (req, res) => {
   try {
-    const { codigo, nombre, pais } = req.body;
-    
-    if (!codigo || !nombre || !pais) {
-      return res.status(400).json({ error: "Campos obligatorios faltantes" });
+    const { codigo, nombre } = req.body;
+
+    if (!codigo || !nombre) {
+      return res.status(400).json({ error: "codigo y nombre son obligatorios" });
     }
 
     const [result] = await pool.query(
-      "INSERT INTO puertos (codigo, nombre, pais) VALUES (?, ?, ?)",
-      [codigo, nombre, pais]
+      "INSERT INTO puertos (codigo, nombre) VALUES (?, ?)",
+      [codigo.trim(), nombre.trim()]
     );
 
-    res.status(201).json({ 
-      id: result.insertId, 
-      codigo, 
-      nombre, 
-      pais
-    });
+    res.status(201).json({ id: result.insertId, codigo: codigo.trim(), nombre: nombre.trim() });
   } catch (error) {
     console.error("Error al crear puerto:", error);
     res.status(500).json({ error: "Error al crear puerto" });
@@ -274,19 +272,21 @@ app.post("/api/mantenedores/puertos", async (req, res) => {
 
 app.put("/api/mantenedores/puertos/:id", async (req, res) => {
   try {
-    const { codigo, nombre, pais } = req.body;
+    const { codigo, nombre } = req.body;
     const { id } = req.params;
 
-    const [result] = await pool.query(
-      "UPDATE puertos SET codigo = ?, nombre = ?, pais = ? WHERE id = ?",
-      [codigo, nombre, pais, id]
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "Puerto no encontrado" });
+    if (!codigo || !nombre) {
+      return res.status(400).json({ error: "codigo y nombre son obligatorios" });
     }
 
-    res.json({ id, codigo, nombre, pais });
+    const [result] = await pool.query(
+      "UPDATE puertos SET codigo = ?, nombre = ? WHERE id = ?",
+      [codigo.trim(), nombre.trim(), id]
+    );
+
+    if (result.affectedRows === 0) return res.status(404).json({ error: "Puerto no encontrado" });
+
+    res.json({ id: Number(id), codigo: codigo.trim(), nombre: nombre.trim() });
   } catch (error) {
     console.error("Error al actualizar puerto:", error);
     res.status(500).json({ error: "Error al actualizar puerto" });
@@ -296,11 +296,7 @@ app.put("/api/mantenedores/puertos/:id", async (req, res) => {
 app.delete("/api/mantenedores/puertos/:id", async (req, res) => {
   try {
     const [result] = await pool.query("DELETE FROM puertos WHERE id = ?", [req.params.id]);
-    
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "Puerto no encontrado" });
-    }
-
+    if (result.affectedRows === 0) return res.status(404).json({ error: "Puerto no encontrado" });
     res.json({ message: "Puerto eliminado correctamente" });
   } catch (error) {
     console.error("Error al eliminar puerto:", error);
@@ -308,13 +304,16 @@ app.delete("/api/mantenedores/puertos/:id", async (req, res) => {
   }
 });
 
+
 // ============================================
-// CRUD SERVICIOS
+// CRUD SERVICIOS (codigo, nombre, descripcion)
 // ============================================
 
-app.get("/api/mantenedores/servicios", async (req, res) => {
+app.get("/api/mantenedores/servicios", async (_req, res) => {
   try {
-    const [rows] = await pool.query("SELECT * FROM servicios ORDER BY codigo");
+    const [rows] = await pool.query(
+      "SELECT id, codigo, nombre, descripcion, created_at, updated_at FROM servicios ORDER BY codigo"
+    );
     res.json(rows);
   } catch (error) {
     console.error("Error al obtener servicios:", error);
@@ -324,10 +323,11 @@ app.get("/api/mantenedores/servicios", async (req, res) => {
 
 app.get("/api/mantenedores/servicios/:id", async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT * FROM servicios WHERE id = ?", [req.params.id]);
-    if (rows.length === 0) {
-      return res.status(404).json({ error: "Servicio no encontrado" });
-    }
+    const [rows] = await pool.query(
+      "SELECT id, codigo, nombre, descripcion, created_at, updated_at FROM servicios WHERE id = ?",
+      [req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: "Servicio no encontrado" });
     res.json(rows[0]);
   } catch (error) {
     console.error("Error al obtener servicio:", error);
@@ -337,23 +337,22 @@ app.get("/api/mantenedores/servicios/:id", async (req, res) => {
 
 app.post("/api/mantenedores/servicios", async (req, res) => {
   try {
-    const { codigo, nombre, descripcion, frecuencia } = req.body;
-    
+    const { codigo, nombre, descripcion } = req.body;
+
     if (!codigo || !nombre) {
-      return res.status(400).json({ error: "Campos obligatorios faltantes" });
+      return res.status(400).json({ error: "codigo y nombre son obligatorios" });
     }
 
     const [result] = await pool.query(
-      "INSERT INTO servicios (codigo, nombre, descripcion, frecuencia) VALUES (?, ?, ?, ?)",
-      [codigo, nombre, descripcion, frecuencia]
+      "INSERT INTO servicios (codigo, nombre, descripcion) VALUES (?, ?, ?)",
+      [codigo.trim(), nombre.trim(), descripcion ?? null]
     );
 
-    res.status(201).json({ 
-      id: result.insertId, 
-      codigo, 
-      nombre, 
-      descripcion, 
-      frecuencia 
+    res.status(201).json({
+      id: result.insertId,
+      codigo: codigo.trim(),
+      nombre: nombre.trim(),
+      descripcion: descripcion ?? null,
     });
   } catch (error) {
     console.error("Error al crear servicio:", error);
@@ -363,19 +362,26 @@ app.post("/api/mantenedores/servicios", async (req, res) => {
 
 app.put("/api/mantenedores/servicios/:id", async (req, res) => {
   try {
-    const { codigo, nombre, descripcion, frecuencia } = req.body;
+    const { codigo, nombre, descripcion } = req.body;
     const { id } = req.params;
 
-    const [result] = await pool.query(
-      "UPDATE servicios SET codigo = ?, nombre = ?, descripcion = ?, frecuencia = ? WHERE id = ?",
-      [codigo, nombre, descripcion, frecuencia, id]
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "Servicio no encontrado" });
+    if (!codigo || !nombre) {
+      return res.status(400).json({ error: "codigo y nombre son obligatorios" });
     }
 
-    res.json({ id, codigo, nombre, descripcion, frecuencia });
+    const [result] = await pool.query(
+      "UPDATE servicios SET codigo = ?, nombre = ?, descripcion = ? WHERE id = ?",
+      [codigo.trim(), nombre.trim(), descripcion ?? null, id]
+    );
+
+    if (result.affectedRows === 0) return res.status(404).json({ error: "Servicio no encontrado" });
+
+    res.json({
+      id: Number(id),
+      codigo: codigo.trim(),
+      nombre: nombre.trim(),
+      descripcion: descripcion ?? null,
+    });
   } catch (error) {
     console.error("Error al actualizar servicio:", error);
     res.status(500).json({ error: "Error al actualizar servicio" });
@@ -385,11 +391,7 @@ app.put("/api/mantenedores/servicios/:id", async (req, res) => {
 app.delete("/api/mantenedores/servicios/:id", async (req, res) => {
   try {
     const [result] = await pool.query("DELETE FROM servicios WHERE id = ?", [req.params.id]);
-    
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "Servicio no encontrado" });
-    }
-
+    if (result.affectedRows === 0) return res.status(404).json({ error: "Servicio no encontrado" });
     res.json({ message: "Servicio eliminado correctamente" });
   } catch (error) {
     console.error("Error al eliminar servicio:", error);
@@ -397,13 +399,16 @@ app.delete("/api/mantenedores/servicios/:id", async (req, res) => {
   }
 });
 
+
 // ============================================
-// CRUD NAVES
+// CRUD NAVES (codigo, nombre)
 // ============================================
 
-app.get("/api/mantenedores/naves", async (req, res) => {
+app.get("/api/mantenedores/naves", async (_req, res) => {
   try {
-    const [rows] = await pool.query("SELECT * FROM naves ORDER BY nombre");
+    const [rows] = await pool.query(
+      "SELECT id, codigo, nombre, created_at, updated_at FROM naves ORDER BY nombre"
+    );
     res.json(rows);
   } catch (error) {
     console.error("Error al obtener naves:", error);
@@ -413,10 +418,11 @@ app.get("/api/mantenedores/naves", async (req, res) => {
 
 app.get("/api/mantenedores/naves/:id", async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT * FROM naves WHERE id = ?", [req.params.id]);
-    if (rows.length === 0) {
-      return res.status(404).json({ error: "Nave no encontrada" });
-    }
+    const [rows] = await pool.query(
+      "SELECT id, codigo, nombre, created_at, updated_at FROM naves WHERE id = ?",
+      [req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: "Nave no encontrada" });
     res.json(rows[0]);
   } catch (error) {
     console.error("Error al obtener nave:", error);
@@ -426,23 +432,21 @@ app.get("/api/mantenedores/naves/:id", async (req, res) => {
 
 app.post("/api/mantenedores/naves", async (req, res) => {
   try {
-    const { nombre, imo, bandera, capacidad_teus } = req.body;
-    
-    if (!nombre) {
-      return res.status(400).json({ error: "El nombre es obligatorio" });
+    const { codigo, nombre } = req.body;
+
+    if (!codigo || !nombre) {
+      return res.status(400).json({ error: "codigo y nombre son obligatorios" });
     }
 
     const [result] = await pool.query(
-      "INSERT INTO naves (nombre, imo, bandera, capacidad_teus) VALUES (?, ?, ?, ?)",
-      [nombre, imo, bandera, capacidad_teus]
+      "INSERT INTO naves (codigo, nombre) VALUES (?, ?)",
+      [codigo.trim(), nombre.trim()]
     );
 
-    res.status(201).json({ 
-      id: result.insertId, 
-      nombre, 
-      imo, 
-      bandera, 
-      capacidad_teus 
+    res.status(201).json({
+      id: result.insertId,
+      codigo: codigo.trim(),
+      nombre: nombre.trim(),
     });
   } catch (error) {
     console.error("Error al crear nave:", error);
@@ -452,19 +456,25 @@ app.post("/api/mantenedores/naves", async (req, res) => {
 
 app.put("/api/mantenedores/naves/:id", async (req, res) => {
   try {
-    const { nombre, imo, bandera, capacidad_teus } = req.body;
+    const { codigo, nombre } = req.body;
     const { id } = req.params;
 
-    const [result] = await pool.query(
-      "UPDATE naves SET nombre = ?, imo = ?, bandera = ?, capacidad_teus = ? WHERE id = ?",
-      [nombre, imo, bandera, capacidad_teus, id]
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "Nave no encontrada" });
+    if (!codigo || !nombre) {
+      return res.status(400).json({ error: "codigo y nombre son obligatorios" });
     }
 
-    res.json({ id, nombre, imo, bandera, capacidad_teus });
+    const [result] = await pool.query(
+      "UPDATE naves SET codigo = ?, nombre = ? WHERE id = ?",
+      [codigo.trim(), nombre.trim(), id]
+    );
+
+    if (result.affectedRows === 0) return res.status(404).json({ error: "Nave no encontrada" });
+
+    res.json({
+      id: Number(id),
+      codigo: codigo.trim(),
+      nombre: nombre.trim(),
+    });
   } catch (error) {
     console.error("Error al actualizar nave:", error);
     res.status(500).json({ error: "Error al actualizar nave" });
@@ -474,17 +484,14 @@ app.put("/api/mantenedores/naves/:id", async (req, res) => {
 app.delete("/api/mantenedores/naves/:id", async (req, res) => {
   try {
     const [result] = await pool.query("DELETE FROM naves WHERE id = ?", [req.params.id]);
-    
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "Nave no encontrada" });
-    }
-
+    if (result.affectedRows === 0) return res.status(404).json({ error: "Nave no encontrada" });
     res.json({ message: "Nave eliminada correctamente" });
   } catch (error) {
     console.error("Error al eliminar nave:", error);
     res.status(500).json({ error: "Error al eliminar nave" });
   }
 });
+
 
 const port = Number(process.env.PORT || 4000);
 app.listen(port, () => console.log(`API running on http://localhost:${port}`));
