@@ -38,8 +38,12 @@ const Sidebar = () => {
         </NavLink>
 
         <NavLink
-          to="#"
-          className="px-4 py-2 rounded-lg opacity-40 cursor-not-allowed"
+           to="/mantenedores"
+          className={({ isActive }) =>
+            `px-4 py-2 rounded-lg ${
+              isActive ? "bg-white/20" : "hover:bg-white/10"
+            }`
+          }
         >
           ⚙️ Mantenedores
         </NavLink>
