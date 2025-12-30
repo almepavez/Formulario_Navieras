@@ -16,6 +16,38 @@
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
 --
+-- Table structure for table `itinerarios`
+--
+
+DROP TABLE IF EXISTS `itinerarios`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `itinerarios` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `manifiesto_id` int NOT NULL,
+  `port` varchar(80) NOT NULL,
+  `port_type` enum('LOAD','DISCHARGE') NOT NULL,
+  `eta` datetime DEFAULT NULL,
+  `ets` datetime DEFAULT NULL,
+  `orden` int NOT NULL DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `fk_itinerarios_manifiestos` (`manifiesto_id`),
+  CONSTRAINT `fk_itinerarios_manifiestos` FOREIGN KEY (`manifiesto_id`) REFERENCES `manifiestos` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `itinerarios`
+--
+
+LOCK TABLES `itinerarios` WRITE;
+/*!40000 ALTER TABLE `itinerarios` DISABLE KEYS */;
+INSERT INTO `itinerarios` VALUES (1,2,'VALPARAISO','LOAD','2023-01-01 00:00:00','2025-01-01 00:00:00',1,'2025-12-29 21:03:44'),(2,2,'HONG KONG','DISCHARGE','2025-01-03 00:00:00','2025-01-03 00:00:00',2,'2025-12-29 21:03:44'),(3,2,'GUAM','DISCHARGE','2025-01-03 00:00:00','2025-01-03 00:00:00',3,'2025-12-29 21:03:44');
+/*!40000 ALTER TABLE `itinerarios` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `manifiestos`
 --
 
@@ -39,7 +71,7 @@ CREATE TABLE `manifiestos` (
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -48,7 +80,7 @@ CREATE TABLE `manifiestos` (
 
 LOCK TABLES `manifiestos` WRITE;
 /*!40000 ALTER TABLE `manifiestos` DISABLE KEYS */;
-INSERT INTO `manifiestos` VALUES (1,'SWA','EVER FEAT','028W','Valparaíso','EX','OP123','En edición','Primer manifiesto de prueba','EMI456','AJBROOM','2025-11-25','MFT-889922','2025-12-29 18:48:02','2025-12-29 19:01:07');
+INSERT INTO `manifiestos` VALUES (1,'SWA','EVER FEAT','028W','Valparaíso','EX','OP123','En edición','Primer manifiesto de prueba','EMI456','AJBROOM','2025-11-25','MFT-889922','2025-12-29 18:48:02','2025-12-29 19:01:07'),(2,'SWA','EVER FEAT','029W','Valparaíso','EX','OP123','En edición',NULL,'EMI456','AJBROOM','2025-12-29','MFT-1234','2025-12-29 21:03:44','2025-12-29 21:03:44');
 /*!40000 ALTER TABLE `manifiestos` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -61,4 +93,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-12-29 16:16:38
+-- Dump completed on 2025-12-30  9:36:19
