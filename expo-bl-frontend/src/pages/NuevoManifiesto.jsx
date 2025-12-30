@@ -1,18 +1,26 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
+
+const API_BASE_URL = "http://localhost:4000";
 
 const NuevoManifiesto = () => {
   const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // FORM manifiesto
+  // Catálogos (mantenedores)
+  const [servicios, setServicios] = useState([]);
+  const [naves, setNaves] = useState([]);
+  const [puertos, setPuertos] = useState([]);
+  const [loadingCatalogs, setLoadingCatalogs] = useState(true);
+
+  // FORM manifiesto (guardamos CÓDIGOS)
   const [form, setForm] = useState({
-    servicio: "",
-    nave: "",
+    servicio: "", // codigo servicio (ej: WSACL)
+    nave: "", // codigo nave (ej: EVLOY)
     viaje: "",
-    puertoCentral: "Valparaíso",
+    puertoCentral: "", // codigo puerto (ej: CLVAP)
     tipoOperacion: "EX", // EX | IM | CROSS
     operadorNave: "",
     status: "En edición",
@@ -23,10 +31,62 @@ const NuevoManifiesto = () => {
     numeroManifiestoAduana: "",
   });
 
-  // ITINERARIO (filas dinámicas)
+  const todayAtMidnightLocal = () => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0); // 00:00 local
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}T00:00`;
+  };
+
+
+  // ITINERARIO (filas dinámicas) -> port = codigo puerto
   const [itinerario, setItinerario] = useState([
-    { port: "", portType: "LOAD", eta: "", ets: "" }, // eta/ets = datetime-local (string)
+    { port: "", portType: "LOAD", eta: todayAtMidnightLocal(), ets: todayAtMidnightLocal() },
   ]);
+
+  // Cargar catálogos
+  useEffect(() => {
+    const loadCatalogs = async () => {
+      setLoadingCatalogs(true);
+      setError("");
+      try {
+        const [sRes, nRes, pRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/mantenedores/servicios`),
+          fetch(`${API_BASE_URL}/api/mantenedores/naves`),
+          fetch(`${API_BASE_URL}/api/mantenedores/puertos`),
+        ]);
+
+        if (!sRes.ok) throw new Error(`Error servicios HTTP ${sRes.status}`);
+        if (!nRes.ok) throw new Error(`Error naves HTTP ${nRes.status}`);
+        if (!pRes.ok) throw new Error(`Error puertos HTTP ${pRes.status}`);
+
+        const [sData, nData, pData] = await Promise.all([
+          sRes.json(),
+          nRes.json(),
+          pRes.json(),
+        ]);
+
+        setServicios(Array.isArray(sData) ? sData : []);
+        setNaves(Array.isArray(nData) ? nData : []);
+        setPuertos(Array.isArray(pData) ? pData : []);
+
+        // set default puerto central si existe CLVAP
+        const hasCLVAP = Array.isArray(pData) && pData.some((x) => x.codigo === "CLVAP");
+        setForm((prev) => ({
+          ...prev,
+          puertoCentral: prev.puertoCentral || (hasCLVAP ? "CLVAP" : ""),
+        }));
+      } catch (e) {
+        setError(e?.message || "Error cargando mantenedores");
+      } finally {
+        setLoadingCatalogs(false);
+      }
+    };
+
+    loadCatalogs();
+  }, []);
 
   const onChange = (key) => (e) => {
     setForm((prev) => ({ ...prev, [key]: e.target.value }));
@@ -35,18 +95,17 @@ const NuevoManifiesto = () => {
   const addRow = () =>
     setItinerario((prev) => [
       ...prev,
-      { port: "", portType: "LOAD", eta: "", ets: "" },
+      { port: "", portType: "LOAD", eta: todayAtMidnightLocal(), ets: todayAtMidnightLocal() },
     ]);
+
 
   const removeRow = (idx) =>
     setItinerario((prev) => prev.filter((_, i) => i !== idx));
 
   const updateRow = (idx, key, value) =>
-    setItinerario((prev) =>
-      prev.map((r, i) => (i === idx ? { ...r, [key]: value } : r))
-    );
+    setItinerario((prev) => prev.map((r, i) => (i === idx ? { ...r, [key]: value } : r)));
 
-  // Validación simple: campos principales obligatorios
+  // Validación simple
   const requiredMissing =
     !form.servicio ||
     !form.nave ||
@@ -59,7 +118,11 @@ const NuevoManifiesto = () => {
     !form.fechaManifiestoAduana ||
     !form.numeroManifiestoAduana;
 
-  // Guardar (por ahora manda también "itinerario" al backend)
+  const hasAtLeastOnePort = useMemo(
+    () => itinerario.some((r) => r.port?.trim()),
+    [itinerario]
+  );
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -69,8 +132,6 @@ const NuevoManifiesto = () => {
       return;
     }
 
-    // Si quieres, exigir al menos 1 puerto con nombre:
-    const hasAtLeastOnePort = itinerario.some((r) => r.port?.trim());
     if (!hasAtLeastOnePort) {
       setError("Agrega al menos un puerto en el itinerario.");
       return;
@@ -79,8 +140,7 @@ const NuevoManifiesto = () => {
     try {
       setSaving(true);
 
-      // ⚠️ Esto requiere que exista POST /manifiestos en tu API.
-      const res = await fetch("http://localhost:4000/manifiestos", {
+      const res = await fetch(`${API_BASE_URL}/manifiestos`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -88,9 +148,9 @@ const NuevoManifiesto = () => {
           itinerario: itinerario
             .filter((r) => r.port.trim())
             .map((r, i) => ({
-              port: r.port.trim(),
-              portType: r.portType, // LOAD | DISCHARGE
-              eta: r.eta || null,   // "YYYY-MM-DDTHH:mm" o null
+              port: r.port.trim(), // codigo puerto
+              portType: r.portType,
+              eta: r.eta || null,
               ets: r.ets || null,
               orden: i + 1,
             })),
@@ -102,8 +162,6 @@ const NuevoManifiesto = () => {
         throw new Error(text || `HTTP ${res.status}`);
       }
 
-      // const created = await res.json();
-      // navigate(`/manifiestos/${created.id}`);
       navigate("/manifiestos");
     } catch (err) {
       setError(err?.message || "Error al guardar el manifiesto.");
@@ -141,18 +199,51 @@ const NuevoManifiesto = () => {
           </div>
         )}
 
+        {loadingCatalogs && (
+          <div className="mb-4 text-sm text-slate-600">
+            Cargando servicios, naves y puertos...
+          </div>
+        )}
+
         <form
           onSubmit={handleSubmit}
           className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8"
         >
+          {/* DATALISTS (sugerencias filtrables) */}
+          <datalist id="serviciosList">
+            {servicios.map((s) => (
+              <option key={s.id} value={s.codigo}>
+                {s.codigo} — {s.nombre}
+              </option>
+            ))}
+          </datalist>
+
+          <datalist id="navesList">
+            {naves.map((n) => (
+              <option key={n.id} value={n.codigo}>
+                {n.codigo} — {n.nombre}
+              </option>
+            ))}
+          </datalist>
+
+          <datalist id="puertosList">
+            {puertos.map((p) => (
+              <option key={p.id} value={p.codigo}>
+                {p.codigo} — {p.nombre}
+              </option>
+            ))}
+          </datalist>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Field label="Servicio *">
               <input
+                list="serviciosList"
                 value={form.servicio}
                 onChange={onChange("servicio")}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Ej: EVERGREEN"
+                placeholder="Escribe para buscar (ej: WSACL)"
               />
+              <Hint text="Tip: escribe el código (WSACL) y te sugiere el nombre." />
             </Field>
 
             <Field label="Operación (EX/IM/CROSS) *">
@@ -169,10 +260,11 @@ const NuevoManifiesto = () => {
 
             <Field label="Nave *">
               <input
+                list="navesList"
                 value={form.nave}
                 onChange={onChange("nave")}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Ej: EVER FEAT"
+                placeholder="Escribe para buscar (ej: EVLOY)"
               />
             </Field>
 
@@ -187,10 +279,11 @@ const NuevoManifiesto = () => {
 
             <Field label="Puerto central *">
               <input
+                list="puertosList"
                 value={form.puertoCentral}
                 onChange={onChange("puertoCentral")}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Ej: Valparaíso"
+                placeholder="Escribe para buscar (ej: CLVAP)"
               />
             </Field>
 
@@ -294,19 +387,18 @@ const NuevoManifiesto = () => {
                     <tr key={idx} className="border-t">
                       <td className="px-4 py-2">
                         <input
+                          list="puertosList"
                           value={row.port}
                           onChange={(e) => updateRow(idx, "port", e.target.value)}
                           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                          placeholder="Ej: Valparaíso"
+                          placeholder="Escribe código (ej: CNHKG)"
                         />
                       </td>
 
                       <td className="px-4 py-2">
                         <select
                           value={row.portType}
-                          onChange={(e) =>
-                            updateRow(idx, "portType", e.target.value)
-                          }
+                          onChange={(e) => updateRow(idx, "portType", e.target.value)}
                           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
                         >
                           <option value="LOAD">LOAD</option>
@@ -350,7 +442,7 @@ const NuevoManifiesto = () => {
             </div>
 
             <p className="text-xs text-slate-500 mt-2">
-              Puedes agregar, editar o eliminar filas. ETA/ETS pueden quedar vacíos.
+              Puedes escribir para filtrar. ETA/ETS pueden quedar vacíos.
             </p>
           </div>
 
@@ -373,11 +465,13 @@ const NuevoManifiesto = () => {
 
 const Field = ({ label, children }) => (
   <div>
-    <label className="block text-xs font-medium text-slate-600 mb-2">
-      {label}
-    </label>
+    <label className="block text-xs font-medium text-slate-600 mb-2">{label}</label>
     {children}
   </div>
+);
+
+const Hint = ({ text }) => (
+  <p className="mt-1 text-[11px] text-slate-500">{text}</p>
 );
 
 export default NuevoManifiesto;
