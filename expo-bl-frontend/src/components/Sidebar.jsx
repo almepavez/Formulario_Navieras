@@ -13,7 +13,7 @@ const Sidebar = () => {
       {/* Menú */}
       <nav className="flex flex-col gap-3 text-sm">
         <NavLink
-          to="/viajes"
+          to="/manifiestos"
           className={({ isActive }) =>
             `px-4 py-2 rounded-lg ${
               isActive ? "bg-white/20" : "hover:bg-white/10"
