@@ -292,7 +292,7 @@ const NuevoManifiesto = () => {
                 value={form.operadorNave}
                 onChange={onChange("operadorNave")}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Ej: OP123"
+                placeholder="Ej: 006011"
               />
             </Field>
 
@@ -301,7 +301,7 @@ const NuevoManifiesto = () => {
                 value={form.emisorDocumento}
                 onChange={onChange("emisorDocumento")}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Ej: EMI456"
+                placeholder="Ej: 000001"
               />
             </Field>
 
@@ -328,7 +328,7 @@ const NuevoManifiesto = () => {
                 value={form.numeroManifiestoAduana}
                 onChange={onChange("numeroManifiestoAduana")}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Ej: MFT-889922"
+                placeholder="Ej: 261001"
               />
             </Field>
 
@@ -391,7 +391,7 @@ const NuevoManifiesto = () => {
                           value={row.port}
                           onChange={(e) => updateRow(idx, "port", e.target.value)}
                           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                          placeholder="Escribe código (ej: CNHKG)"
+                          placeholder="Escribe código (ej: CLVAP)"
                         />
                       </td>
 
