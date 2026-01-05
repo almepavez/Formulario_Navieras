@@ -4,6 +4,10 @@ const dotenv = require("dotenv");
 const mysql = require("mysql2/promise");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+
 
 dotenv.config();
 
@@ -644,6 +648,78 @@ app.delete("/api/mantenedores/naves/:id", async (req, res) => {
   }
 });
 
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    const dir = path.join(__dirname, "uploads", "pms");
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname || "");
+    cb(null, `manifiesto_${req.params.id}_${Date.now()}${ext}`);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
+});
+
+app.post("/manifiestos/:id/pms", upload.single("pms"), async (req, res) => {
+  const { id } = req.params;
+
+  if (!req.file) {
+    return res.status(400).json({ error: "Archivo no recibido (campo: pms)" });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // Validar que el manifiesto exista
+    const [mRows] = await conn.query("SELECT id FROM manifiestos WHERE id = ?", [id]);
+    if (mRows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: "Manifiesto no existe" });
+    }
+
+    // Guardar registro del archivo
+    await conn.query(
+      `INSERT INTO pms_archivos (manifiesto_id, nombre_original, path_archivo)
+       VALUES (?, ?, ?)`,
+      [id, req.file.originalname, req.file.path]
+    );
+
+    await conn.commit();
+    res.json({ ok: true });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ error: err?.message || "Error guardando PMS" });
+  } finally {
+    conn.release();
+  }
+});
+
+app.get("/manifiestos/:id/pms", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, nombre_original AS nombreOriginal, path_archivo AS pathArchivo, created_at AS createdAt
+       FROM pms_archivos
+       WHERE manifiesto_id = ?
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [id]
+    );
+
+    if (rows.length === 0) return res.json(null);
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err?.message || "Error cargando PMS" });
+  }
+});
 
 const port = Number(process.env.PORT || 4000);
 app.listen(port, () => console.log(`API running on http://localhost:${port}`));
