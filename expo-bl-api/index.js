@@ -762,54 +762,43 @@ function pickAll(lines, code) {
 
 function extractServiceCodeFrom12(line12) {
   // Ej: "... TWKHHCLVAPFF  YY ..." -> FF
-  // Buscamos: POD(5) + POL(5) + COD(2) + espacio + cond(2)
   const m = String(line12).match(/([A-Z]{5})([A-Z]{5})([A-Z]{2})\s+[A-Z]{2}/);
   return m ? normalizeStr(m[3]) : "";
 }
 
 function extractBLNumber(line12) {
-  // Ej: "12SCL500494400 ...."
   const m = String(line12).match(/^12\s*([A-Z0-9]+)/);
   return normalizeStr(m?.[1] || "");
 }
 
 function extractPOLPOD(line13) {
-  // Ej: "13   CLVAPTWKHH     TWKHHKAOHSIUNG"
-  // Tomamos los 10 chars después del código: POL(5) POD(5)
   const m = String(line13).match(/13\s+([A-Z]{5})([A-Z]{5})/);
   if (!m) return { pol: "", pod: "" };
   return { pol: normalizeStr(m[1]), pod: normalizeStr(m[2]) };
 }
 
 function extractWeightFrom12(line12) {
-  // "... KGS22722.55"
   const m = String(line12).match(/KGS\s*([0-9.,]+)/i);
   return safeNumberFromText(m?.[1] || null);
 }
 
-// Extrae el nombre desde línea tipo 16/21/26
 function extractPartyName(line) {
   if (!line) return "";
   const body = line.slice(2);
-  // ID + nombre (heurística)
   const m = body.match(/[A-Z0-9]{2,}\s+([A-Z0-9][A-Z0-9\s\.,&'\-\/]{5,})/i);
   return normalizeStr(m?.[1] || "");
 }
 
 function extractDescripcionFrom41(line41) {
-  // Mejor que antes: guardamos "lo que venga después" normalizado
-  // (en tus ejemplos viene peso/volumen/desc en esa línea)
   return normalizeStr(String(line41 || "").slice(2));
 }
 
 function extractItemNoFrom41(line41) {
-  // "41   001  ...." => 001
   const m = String(line41).match(/^41\s+(\d{3})\b/);
   return m ? m[1] : "";
 }
 
 function countItemsFrom41(lines41) {
-  // total_item = cantidad de items distintos (001,002,...)
   const set = new Set();
   for (const l of lines41) {
     const it = extractItemNoFrom41(l);
@@ -818,34 +807,28 @@ function countItemsFrom41(lines41) {
   return set.size || null;
 }
 
-function extractTotalContainersFrom47(lines47) {
-  // Objetivo: bultos = total contenedores
-  // Busca patrones como "1X40RH", "3X40HC", "1 X 20 DRY", etc.
-  const text = normalizeStr(lines47.join(" "));
-  if (!text) return null;
+/**
+ * ✅ BULTOS = TOTAL CONTENEDORES
+ * Lo más fiable en PMS es leer líneas 51.
+ * Cada 51 corresponde a un contenedor (trae sigla+numero+digito).
+ * Contamos contenedores únicos por código: ABCD1234567 (o ABCD1234560 etc)
+ */
+function extractContainerCodeFrom51(line51) {
+  // Ej: "51   002003BSIU8004381N45G1F..."
+  // Buscamos: 4 letras + 7 dígitos (formato estándar contenedor)
+  const m = String(line51).match(/\b([A-Z]{4}\d{7})\b/);
+  return m ? m[1] : "";
+}
 
-  // matches: 1X20ST, 3X40HC, 1 X 40 HC, 1 X 20 DRY, etc.
-  const re = /(\d+)\s*X\s*(\d{2}\s*[A-Z0-9]{2,4})/gi;
-
-  let sum = 0;
-  let found = false;
-  let m;
-  while ((m = re.exec(text)) !== null) {
-    found = true;
-    sum += Number(m[1]);
+function countContainersFrom51(lines51) {
+  const set = new Set();
+  for (const l of lines51) {
+    const code = extractContainerCodeFrom51(l);
+    if (code) set.add(code);
   }
-
-  // fallback: "CONTAINER(S)" sin desglose -> intenta "(\d+)X"
-  if (!found) {
-    const re2 = /(\d+)\s*X\s*[A-Z0-9]{2,}/gi;
-    let m2;
-    while ((m2 = re2.exec(text)) !== null) {
-      found = true;
-      sum += Number(m2[1]);
-    }
-  }
-
-  return found ? sum : null;
+  // Si por algún motivo no matchea el patrón, fallback a "cantidad de líneas 51"
+  if (set.size > 0) return set.size;
+  return lines51.length || null;
 }
 
 // Agrupa en bloques: cada BL empieza en 12 y termina antes del siguiente 12 o 99
@@ -897,19 +880,18 @@ function parsePmsTxt(content) {
       const lines41 = pickAll(bLines, "41");
       const totalItems = countItemsFrom41(lines41);
 
-      // Descripción: si hay varias 41 (varios ítems), concatenamos (útil para revisar)
       const descripcion = lines41.length
         ? lines41.map(extractDescripcionFrom41).filter(Boolean).join(" | ")
         : null;
 
-      const lines47 = pickAll(bLines, "47");
-      const totalContainers = extractTotalContainersFrom47(lines47);
+      const lines51 = pickAll(bLines, "51");
+      const totalContainers = countContainersFrom51(lines51); // ✅ AQUÍ ESTÁ LA CORRECCIÓN
 
       const weightKgs = extractWeightFrom12(l12);
 
       return {
         blNumber,
-        tipoServicioCod,      // FF / MM
+        tipoServicioCod,       // FF / MM
         pol,
         pod,
         shipper,
@@ -917,16 +899,16 @@ function parsePmsTxt(content) {
         notify,
         descripcion_carga: descripcion,
         peso_bruto: weightKgs,
-        bultos: totalContainers, // ✅ total contenedores
-        total_items: totalItems, // ✅ cantidad de items (41)
-        volumen: null,           // si luego definimos regla real, lo sacamos
+        bultos: totalContainers, // ✅ total contenedores (51)
+        total_items: totalItems, // ✅ items (41)
+        volumen: null,
       };
     })
     .filter(Boolean);
 }
 
 function parsePmsByFile(filename, content) {
-  const ext = (require("path").extname(filename || "") || "").toLowerCase();
+  const ext = (path.extname(filename || "") || "").toLowerCase();
   if (!ext || ext === ".txt" || ext === ".pms" || ext === ".dat") return parsePmsTxt(content);
   throw new Error(`Formato no soportado: ${ext}. Usa .txt (PMS por líneas)`);
 }
@@ -953,14 +935,12 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    // 1) validar manifiesto
     const [mRows] = await conn.query("SELECT id FROM manifiestos WHERE id = ?", [id]);
     if (mRows.length === 0) {
       await conn.rollback();
       return res.status(404).json({ error: "Manifiesto no existe" });
     }
 
-    // 2) buscar último PMS cargado
     const [pRows] = await conn.query(
       `SELECT id, nombre_original AS nombreOriginal, path_archivo AS pathArchivo
        FROM pms_archivos
@@ -976,9 +956,6 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
 
     const pms = pRows[0];
 
-    // 3) leer archivo
-    const path = require("path");
-    const fs = require("fs");
     const absPath = path.isAbsolute(pms.pathArchivo)
       ? pms.pathArchivo
       : path.join(__dirname, pms.pathArchivo);
@@ -990,17 +967,14 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
 
     const content = fs.readFileSync(absPath, "utf-8");
 
-    // 4) parsear
     const bls = parsePmsByFile(pms.nombreOriginal, content);
     if (!Array.isArray(bls) || bls.length === 0) {
       await conn.rollback();
       return res.status(400).json({ error: "No se encontraron BLs en el PMS" });
     }
 
-    // 5) borrar BLs anteriores
     await conn.query("DELETE FROM bls WHERE manifiesto_id = ?", [id]);
 
-    // 6) insertar BLs
     const insertSql = `
       INSERT INTO bls
         (manifiesto_id, bl_number, tipo_servicio_id,
@@ -1022,7 +996,7 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
       await conn.query(insertSql, [
         id,
         b.blNumber,
-        tipoServicioId,                 // ✅ FK (puede ser null si no existe el código)
+        tipoServicioId,
         b.shipper || null,
         b.consignee || null,
         b.notify || null,
@@ -1031,8 +1005,8 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
         b.descripcion_carga || null,
         b.peso_bruto,
         b.volumen,
-        b.bultos,                       // ✅ total contenedores
-        b.total_items,                  // ✅ total items
+        b.bultos,        // ✅ ahora correcto
+        b.total_items,
       ]);
     }
 
