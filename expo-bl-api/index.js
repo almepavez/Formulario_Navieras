@@ -7,7 +7,8 @@ const jwt = require("jsonwebtoken");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
-
+const { XMLParser } = require("fast-xml-parser");
+const { parse: csvParse } = require("csv-parse/sync");
 
 dotenv.config();
 
@@ -720,6 +721,331 @@ app.get("/manifiestos/:id/pms", async (req, res) => {
     res.status(500).json({ error: err?.message || "Error cargando PMS" });
   }
 });
+
+// ===============================
+// PMS TXT (00/11/12/13/.../99)
+// ===============================
+
+function normalizeStr(v) {
+  if (v === undefined || v === null) return "";
+  return String(v).replace(/\s+/g, " ").trim();
+}
+
+function safeNumberFromText(v) {
+  if (v === undefined || v === null) return null;
+  const s = String(v).replace(",", ".").trim();
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function splitLines(content) {
+  return String(content || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .filter((l) => l.trim().length > 0);
+}
+
+function lineCode(line) {
+  return String(line || "").slice(0, 2);
+}
+
+function pickFirst(lines, code) {
+  return lines.find((l) => lineCode(l) === code) || "";
+}
+
+function pickAll(lines, code) {
+  return lines.filter((l) => lineCode(l) === code);
+}
+
+// --------- Extractores PMS ---------
+
+function extractServiceCodeFrom12(line12) {
+  // Ej: "... TWKHHCLVAPFF  YY ..." -> FF
+  // Buscamos: POD(5) + POL(5) + COD(2) + espacio + cond(2)
+  const m = String(line12).match(/([A-Z]{5})([A-Z]{5})([A-Z]{2})\s+[A-Z]{2}/);
+  return m ? normalizeStr(m[3]) : "";
+}
+
+function extractBLNumber(line12) {
+  // Ej: "12SCL500494400 ...."
+  const m = String(line12).match(/^12\s*([A-Z0-9]+)/);
+  return normalizeStr(m?.[1] || "");
+}
+
+function extractPOLPOD(line13) {
+  // Ej: "13   CLVAPTWKHH     TWKHHKAOHSIUNG"
+  // Tomamos los 10 chars después del código: POL(5) POD(5)
+  const m = String(line13).match(/13\s+([A-Z]{5})([A-Z]{5})/);
+  if (!m) return { pol: "", pod: "" };
+  return { pol: normalizeStr(m[1]), pod: normalizeStr(m[2]) };
+}
+
+function extractWeightFrom12(line12) {
+  // "... KGS22722.55"
+  const m = String(line12).match(/KGS\s*([0-9.,]+)/i);
+  return safeNumberFromText(m?.[1] || null);
+}
+
+// Extrae el nombre desde línea tipo 16/21/26
+function extractPartyName(line) {
+  if (!line) return "";
+  const body = line.slice(2);
+  // ID + nombre (heurística)
+  const m = body.match(/[A-Z0-9]{2,}\s+([A-Z0-9][A-Z0-9\s\.,&'\-\/]{5,})/i);
+  return normalizeStr(m?.[1] || "");
+}
+
+function extractDescripcionFrom41(line41) {
+  // Mejor que antes: guardamos "lo que venga después" normalizado
+  // (en tus ejemplos viene peso/volumen/desc en esa línea)
+  return normalizeStr(String(line41 || "").slice(2));
+}
+
+function extractItemNoFrom41(line41) {
+  // "41   001  ...." => 001
+  const m = String(line41).match(/^41\s+(\d{3})\b/);
+  return m ? m[1] : "";
+}
+
+function countItemsFrom41(lines41) {
+  // total_item = cantidad de items distintos (001,002,...)
+  const set = new Set();
+  for (const l of lines41) {
+    const it = extractItemNoFrom41(l);
+    if (it) set.add(it);
+  }
+  return set.size || null;
+}
+
+function extractTotalContainersFrom47(lines47) {
+  // Objetivo: bultos = total contenedores
+  // Busca patrones como "1X40RH", "3X40HC", "1 X 20 DRY", etc.
+  const text = normalizeStr(lines47.join(" "));
+  if (!text) return null;
+
+  // matches: 1X20ST, 3X40HC, 1 X 40 HC, 1 X 20 DRY, etc.
+  const re = /(\d+)\s*X\s*(\d{2}\s*[A-Z0-9]{2,4})/gi;
+
+  let sum = 0;
+  let found = false;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    found = true;
+    sum += Number(m[1]);
+  }
+
+  // fallback: "CONTAINER(S)" sin desglose -> intenta "(\d+)X"
+  if (!found) {
+    const re2 = /(\d+)\s*X\s*[A-Z0-9]{2,}/gi;
+    let m2;
+    while ((m2 = re2.exec(text)) !== null) {
+      found = true;
+      sum += Number(m2[1]);
+    }
+  }
+
+  return found ? sum : null;
+}
+
+// Agrupa en bloques: cada BL empieza en 12 y termina antes del siguiente 12 o 99
+function splitIntoBLBlocks(lines) {
+  const blocks = [];
+  let current = null;
+
+  for (const line of lines) {
+    const code = lineCode(line);
+
+    if (code === "12") {
+      if (current && current.length) blocks.push(current);
+      current = [line];
+      continue;
+    }
+
+    if (code === "99") {
+      if (current && current.length) blocks.push(current);
+      current = null;
+      continue;
+    }
+
+    if (current) current.push(line);
+  }
+
+  if (current && current.length) blocks.push(current);
+  return blocks;
+}
+
+function parsePmsTxt(content) {
+  const lines = splitLines(content);
+  const blocks = splitIntoBLBlocks(lines);
+
+  return blocks
+    .map((bLines) => {
+      const l12 = pickFirst(bLines, "12");
+      const blNumber = extractBLNumber(l12);
+      if (!blNumber) return null;
+
+      const tipoServicioCod = extractServiceCodeFrom12(l12);
+
+      const l13 = pickFirst(bLines, "13");
+      const { pol, pod } = extractPOLPOD(l13);
+
+      const shipper = extractPartyName(pickFirst(bLines, "16"));
+      const consignee = extractPartyName(pickFirst(bLines, "21"));
+      const notify = extractPartyName(pickFirst(bLines, "26"));
+
+      const lines41 = pickAll(bLines, "41");
+      const totalItems = countItemsFrom41(lines41);
+
+      // Descripción: si hay varias 41 (varios ítems), concatenamos (útil para revisar)
+      const descripcion = lines41.length
+        ? lines41.map(extractDescripcionFrom41).filter(Boolean).join(" | ")
+        : null;
+
+      const lines47 = pickAll(bLines, "47");
+      const totalContainers = extractTotalContainersFrom47(lines47);
+
+      const weightKgs = extractWeightFrom12(l12);
+
+      return {
+        blNumber,
+        tipoServicioCod,      // FF / MM
+        pol,
+        pod,
+        shipper,
+        consignee,
+        notify,
+        descripcion_carga: descripcion,
+        peso_bruto: weightKgs,
+        bultos: totalContainers, // ✅ total contenedores
+        total_items: totalItems, // ✅ cantidad de items (41)
+        volumen: null,           // si luego definimos regla real, lo sacamos
+      };
+    })
+    .filter(Boolean);
+}
+
+function parsePmsByFile(filename, content) {
+  const ext = (require("path").extname(filename || "") || "").toLowerCase();
+  if (!ext || ext === ".txt" || ext === ".pms" || ext === ".dat") return parsePmsTxt(content);
+  throw new Error(`Formato no soportado: ${ext}. Usa .txt (PMS por líneas)`);
+}
+
+async function getPuertoIdByCodigo(conn, codigo) {
+  const c = normalizeStr(codigo).toUpperCase();
+  if (!c) return null;
+  const [rows] = await conn.query("SELECT id FROM puertos WHERE codigo = ? LIMIT 1", [c]);
+  return rows.length ? rows[0].id : null;
+}
+
+async function getTipoServicioIdByCodigo(conn, codigo2) {
+  const c = normalizeStr(codigo2).toUpperCase();
+  if (!c) return null;
+  const [rows] = await conn.query("SELECT id FROM tipos_servicio WHERE codigo = ? LIMIT 1", [c]);
+  return rows.length ? rows[0].id : null;
+}
+
+// ✅ POST para procesar el PMS TXT y crear BLs
+app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
+  const { id } = req.params;
+  const conn = await pool.getConnection();
+
+  try {
+    await conn.beginTransaction();
+
+    // 1) validar manifiesto
+    const [mRows] = await conn.query("SELECT id FROM manifiestos WHERE id = ?", [id]);
+    if (mRows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: "Manifiesto no existe" });
+    }
+
+    // 2) buscar último PMS cargado
+    const [pRows] = await conn.query(
+      `SELECT id, nombre_original AS nombreOriginal, path_archivo AS pathArchivo
+       FROM pms_archivos
+       WHERE manifiesto_id = ?
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [id]
+    );
+    if (pRows.length === 0) {
+      await conn.rollback();
+      return res.status(400).json({ error: "Este manifiesto no tiene PMS cargado" });
+    }
+
+    const pms = pRows[0];
+
+    // 3) leer archivo
+    const path = require("path");
+    const fs = require("fs");
+    const absPath = path.isAbsolute(pms.pathArchivo)
+      ? pms.pathArchivo
+      : path.join(__dirname, pms.pathArchivo);
+
+    if (!fs.existsSync(absPath)) {
+      await conn.rollback();
+      return res.status(400).json({ error: "Archivo PMS no encontrado en disco" });
+    }
+
+    const content = fs.readFileSync(absPath, "utf-8");
+
+    // 4) parsear
+    const bls = parsePmsByFile(pms.nombreOriginal, content);
+    if (!Array.isArray(bls) || bls.length === 0) {
+      await conn.rollback();
+      return res.status(400).json({ error: "No se encontraron BLs en el PMS" });
+    }
+
+    // 5) borrar BLs anteriores
+    await conn.query("DELETE FROM bls WHERE manifiesto_id = ?", [id]);
+
+    // 6) insertar BLs
+    const insertSql = `
+      INSERT INTO bls
+        (manifiesto_id, bl_number, tipo_servicio_id,
+         shipper, consignee, notify_party,
+         puerto_origen_id, puerto_destino_id,
+         descripcion_carga, peso_bruto, volumen, bultos, total_items, status)
+      VALUES
+        (?, ?, ?,
+         ?, ?, ?,
+         ?, ?,
+         ?, ?, ?, ?, ?, 'CREADO')
+    `;
+
+    for (const b of bls) {
+      const puertoOrigenId = await getPuertoIdByCodigo(conn, b.pol);
+      const puertoDestinoId = await getPuertoIdByCodigo(conn, b.pod);
+      const tipoServicioId = await getTipoServicioIdByCodigo(conn, b.tipoServicioCod);
+
+      await conn.query(insertSql, [
+        id,
+        b.blNumber,
+        tipoServicioId,                 // ✅ FK (puede ser null si no existe el código)
+        b.shipper || null,
+        b.consignee || null,
+        b.notify || null,
+        puertoOrigenId,
+        puertoDestinoId,
+        b.descripcion_carga || null,
+        b.peso_bruto,
+        b.volumen,
+        b.bultos,                       // ✅ total contenedores
+        b.total_items,                  // ✅ total items
+      ]);
+    }
+
+    await conn.commit();
+    res.json({ ok: true, pmsId: pms.id, inserted: bls.length, sample: bls.slice(0, 2) });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ error: err?.message || "Error procesando PMS" });
+  } finally {
+    conn.release();
+  }
+});
+
 
 const port = Number(process.env.PORT || 4000);
 app.listen(port, () => console.log(`API running on http://localhost:${port}`));
