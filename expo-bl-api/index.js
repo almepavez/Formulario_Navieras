@@ -725,6 +725,44 @@ app.get("/manifiestos/:id/pms", async (req, res) => {
 // ===============================
 // PMS TXT (00/11/12/13/.../99)
 // ===============================
+function extractUnitsFrom41(line41) {
+  // En tus ejemplos termina con "...KGMMTQY"
+  const s = String(line41 || "");
+  const m = s.match(/([A-Z]{3})([A-Z]{3})Y\s*$/);
+  if (!m) return { unidadPeso: null, unidadVolumen: null };
+  return { unidadPeso: m[1], unidadVolumen: m[2] };
+}
+
+function extractWeightVolumeFrom41(line41) {
+  // Ejemplo:
+  // 41 001 Y000001000100011646000 00000179200000017920....KGMMTQY
+  const s = String(line41 || "");
+
+  // 1) bloque que viene después de la Y (termina antes del siguiente espacio)
+  const y = s.match(/Y(\d{10,})/);
+  let peso = null;
+  if (y && y[1]) {
+    const digits = y[1];
+    const last9 = digits.slice(-9); // peso * 1000 con padding
+    const n = Number(last9);
+    if (Number.isFinite(n)) peso = n / 1000;
+  }
+
+  // 2) siguiente bloque numérico grande (volumen * 1000 con padding)
+  // buscamos el primer "token" de dígitos grande después del bloque Y...
+  // y tomamos sus últimos 8 dígitos (ej: 00017920 => 17.920)
+  let volumen = null;
+  const afterY = y ? s.slice(s.indexOf(y[0]) + y[0].length) : s;
+  const v = afterY.match(/\s(\d{8,})/);
+  if (v && v[1]) {
+    const digits = v[1];
+    const last8 = digits.slice(-8);
+    const n = Number(last8);
+    if (Number.isFinite(n)) volumen = n / 1000;
+  }
+
+  return { peso, volumen };
+}
 
 function normalizeStr(v) {
   if (v === undefined || v === null) return "";
@@ -831,6 +869,48 @@ function countContainersFrom51(lines51) {
   return lines51.length || null;
 }
 
+// ---- UNIDADES (desde línea 51) ----
+// En PMS PIL suele venir "...KGMMTQ" (unidad peso KGM, unidad volumen MTQ)
+function extractUnitsFrom51(lines51) {
+  const text = normalizeStr(lines51.join(" "));
+  const m = text.match(/\b([A-Z]{3})([A-Z]{3})\b/); // KGM MTQ
+  if (!m) return { unidadPeso: null, unidadVolumen: null };
+  return { unidadPeso: m[1], unidadVolumen: m[2] };
+}
+
+// ---- VOLUMEN por contenedor (desde línea 51) ----
+// En ejemplos: ...000000000017920 CS  => 17.920
+//             ...000000000050000 CT  => 50.000
+function extractVolumeFrom51(line51) {
+  if (!line51) return null;
+
+  // buscamos el ÚLTIMO grupo de 6 dígitos antes del "CT/CS/.."
+  const matches = Array.from(String(line51).matchAll(/(\d{6})\s+[A-Z]{2}\b/g));
+  if (!matches.length) return null;
+
+  const last = matches[matches.length - 1][1]; // ej "017920"
+  const n = Number(last);
+  if (!Number.isFinite(n)) return null;
+
+  return n / 1000; // 017920 => 17.920
+}
+
+function sumVolumeFrom51(lines51) {
+  let sum = 0;
+  let found = false;
+
+  for (const l of lines51) {
+    const v = extractVolumeFrom51(l);
+    if (typeof v === "number") {
+      sum += v;
+      found = true;
+    }
+  }
+
+  // redondeo a 3 decimales para decimal(12,3)
+  return found ? Math.round(sum * 1000) / 1000 : null;
+}
+
 // Agrupa en bloques: cada BL empieza en 12 y termina antes del siguiente 12 o 99
 function splitIntoBLBlocks(lines) {
   const blocks = [];
@@ -884,14 +964,32 @@ function parsePmsTxt(content) {
         ? lines41.map(extractDescripcionFrom41).filter(Boolean).join(" | ")
         : null;
 
+      // ✅ unidades + sumas desde 41
+      let unidadPeso = null;
+      let unidadVolumen = null;
+      let totalVolumen = 0;
+      let foundVol = false;
+
+      for (const l41 of lines41) {
+        const u = extractUnitsFrom41(l41);
+        if (!unidadPeso && u.unidadPeso) unidadPeso = u.unidadPeso;
+        if (!unidadVolumen && u.unidadVolumen) unidadVolumen = u.unidadVolumen;
+
+        const { volumen } = extractWeightVolumeFrom41(l41);
+        if (volumen !== null) {
+          foundVol = true;
+          totalVolumen += volumen;
+        }
+      }
+
       const lines51 = pickAll(bLines, "51");
-      const totalContainers = countContainersFrom51(lines51); // ✅ AQUÍ ESTÁ LA CORRECCIÓN
+      const totalContainers = countContainersFrom51(lines51);
 
       const weightKgs = extractWeightFrom12(l12);
 
       return {
         blNumber,
-        tipoServicioCod,       // FF / MM
+        tipoServicioCod,
         pol,
         pod,
         shipper,
@@ -899,9 +997,11 @@ function parsePmsTxt(content) {
         notify,
         descripcion_carga: descripcion,
         peso_bruto: weightKgs,
-        bultos: totalContainers, // ✅ total contenedores (51)
-        total_items: totalItems, // ✅ items (41)
-        volumen: null,
+        unidad_peso: unidadPeso,       // ✅ NUEVO
+        volumen: totalVolumen,         // ✅ NUEVO (total volumen)
+        unidad_volumen: unidadVolumen, // ✅ NUEVO
+        bultos: totalContainers,
+        total_items: totalItems,
       };
     })
     .filter(Boolean);
@@ -978,36 +1078,41 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
     const insertSql = `
       INSERT INTO bls
         (manifiesto_id, bl_number, tipo_servicio_id,
-         shipper, consignee, notify_party,
-         puerto_origen_id, puerto_destino_id,
-         descripcion_carga, peso_bruto, volumen, bultos, total_items, status)
+        shipper, consignee, notify_party,
+        puerto_origen_id, puerto_destino_id,
+        descripcion_carga, peso_bruto, unidad_peso, volumen, unidad_volumen,
+        bultos, total_items, status)
       VALUES
         (?, ?, ?,
-         ?, ?, ?,
-         ?, ?,
-         ?, ?, ?, ?, ?, 'CREADO')
+        ?, ?, ?,
+        ?, ?,
+        ?, ?, ?, ?, ?,
+        ?, ?, 'CREADO')
     `;
+
 
     for (const b of bls) {
       const puertoOrigenId = await getPuertoIdByCodigo(conn, b.pol);
       const puertoDestinoId = await getPuertoIdByCodigo(conn, b.pod);
       const tipoServicioId = await getTipoServicioIdByCodigo(conn, b.tipoServicioCod);
 
-      await conn.query(insertSql, [
-        id,
-        b.blNumber,
-        tipoServicioId,
-        b.shipper || null,
-        b.consignee || null,
-        b.notify || null,
-        puertoOrigenId,
-        puertoDestinoId,
-        b.descripcion_carga || null,
-        b.peso_bruto,
-        b.volumen,
-        b.bultos,        // ✅ ahora correcto
-        b.total_items,
-      ]);
+    await conn.query(insertSql, [
+      id,
+      b.blNumber,
+      tipoServicioId,
+      b.shipper || null,
+      b.consignee || null,
+      b.notify || null,
+      puertoOrigenId,
+      puertoDestinoId,
+      b.descripcion_carga || null,
+      b.peso_bruto,
+      b.unidad_peso || null,      // ✅
+      b.volumen,                  // ✅ total volumen
+      b.unidad_volumen || null,   // ✅
+      b.bultos,
+      b.total_items,
+    ]);
     }
 
     await conn.commit();
