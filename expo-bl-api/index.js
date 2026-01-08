@@ -760,19 +760,12 @@ function pickBest14(bLines) {
 }
 
 function extractFEMBFrom14(line14) {
-  const m = String(line14 || "").match(/(\d{12})(\d{12})/);
+  const m = String(line14 || "").match(/(\d{12})\s*(\d{12})/);
   return m ? parseYYYYMMDDHHMM(m[1]) : null;
 }
 
 function extractFZARPEFrom14(line14) {
-  const m = String(line14 || "").match(/(\d{12})(\d{12})/);
-  return m ? parseYYYYMMDDHHMM(m[1]) : null;
-}
-
-// FZARPE: en tus ejemplos coincide con la primera fecha-hora del 14
-function extractFZARPEFrom14(lines14) {
-  const line14 = pickFirst14WithDates(lines14);
-  const m = String(line14 || "").match(/\b(\d{12})(\d{12})\b/);
+  const m = String(line14 || "").match(/(\d{12})\s*(\d{12})/);
   return m ? parseYYYYMMDDHHMM(m[1]) : null;
 }
 
@@ -1006,6 +999,24 @@ function splitIntoBLBlocks(lines) {
   return blocks;
 }
 
+function cleanMysqlDate(v) {
+  if (!v) return null;
+  const s = String(v)
+    .replace(/\u00A0/g, " ")     // NBSP -> space
+    .replace(/\s+/g, " ")       // colapsa espacios raros
+    .trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+}
+
+function cleanMysqlDateTime(v) {
+  if (!v) return null;
+  const s = String(v)
+    .replace(/\u00A0/g, " ")     // NBSP -> space
+    .replace(/\s+/g, " ")       // colapsa espacios raros
+    .trim();
+  return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s) ? s : null;
+}
+
 function parsePmsTxt(content) {
   const lines = splitLines(content);
   const blocks = splitIntoBLBlocks(lines);
@@ -1063,7 +1074,7 @@ function parsePmsTxt(content) {
       // ✅ Fechas: FPRES/FEM globales + FEMB/FZARPE desde 14
       const lines14 = pickAll(bLines, "14");
       // nos quedamos con el 14 que tenga 2 timestamps (YYYYMMDDHHMMYYYYMMDDHHMM)
-      const l14 = lines14.find((l) => /\b\d{12}\d{12}\b/.test(l)) || "";
+      const l14 = lines14.find((l) => /(\d{12})\s*(\d{12})/.test(l)) || pickBest14(bLines) || "";
 
       const fechaPresentacion = fechaPresentacionGlobal; // FPRES
       const fechaEmision = fechaEmisionGlobal;           // FEM (DATE)
@@ -1219,10 +1230,10 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
         b.bultos ?? null,
         b.total_items ?? null,
 
-        b.fecha_emision || null,
-        b.fecha_presentacion || null,
-        b.fecha_embarque || null,
-        b.fecha_zarpe || null,
+        cleanMysqlDate(b.fecha_emision),
+        cleanMysqlDateTime(b.fecha_presentacion),
+        cleanMysqlDateTime(b.fecha_embarque),
+        cleanMysqlDateTime(b.fecha_zarpe),
       ]);
     }
 
