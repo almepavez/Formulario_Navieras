@@ -1236,6 +1236,88 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
   }
 });
 
+// ============================================
+// 🆕 PUT /manifiestos/:id - Actualizar manifiesto
+// ============================================
+app.put("/manifiestos/:id", async (req, res) => {
+  const { id } = req.params;
+  const {
+    operadorNave,
+    status,
+    remark,
+    emisorDocumento,
+    representante,
+    fechaManifiestoAduana,
+    numeroManifiestoAduana,
+    itinerario = [],
+  } = req.body || {};
+
+  // Validación mínima
+  if (!operadorNave || !emisorDocumento || !representante || !fechaManifiestoAduana || !numeroManifiestoAduana) {
+    return res.status(400).json({ error: "Faltan campos obligatorios" });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // Verificar que el manifiesto existe
+    const [mRows] = await conn.query("SELECT id FROM manifiestos WHERE id = ?", [id]);
+    if (mRows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: "Manifiesto no encontrado" });
+    }
+
+    // Actualizar manifiesto
+    await conn.query(
+      `UPDATE manifiestos 
+       SET operador_nave = ?,
+           status = ?,
+           remark = ?,
+           emisor_documento = ?,
+           representante = ?,
+           fecha_manifiesto_aduana = ?,
+           numero_manifiesto_aduana = ?
+       WHERE id = ?`,
+      [
+        String(operadorNave).trim(),
+        status || "En edición",
+        remark || null,
+        String(emisorDocumento).trim(),
+        String(representante).trim(),
+        fechaManifiestoAduana,
+        String(numeroManifiestoAduana).trim(),
+        id,
+      ]
+    );
+
+    // Actualizar itinerario (solo fechas ETA y ETS)
+    if (Array.isArray(itinerario) && itinerario.length > 0) {
+      for (const it of itinerario) {
+        if (!it.id) continue;
+
+        // Convertir fechas ISO del frontend a MySQL DATETIME
+        const etaMysql = it.eta ? String(it.eta).replace("T", " ") + ":00" : null;
+        const etsMysql = it.ets ? String(it.ets).replace("T", " ") + ":00" : null;
+
+        await conn.query(
+          `UPDATE itinerarios 
+           SET eta = ?, ets = ?
+           WHERE id = ? AND manifiesto_id = ?`,
+          [etaMysql, etsMysql, it.id, id]
+        );
+      }
+    }
+
+    await conn.commit();
+    res.json({ success: true, message: "Manifiesto actualizado correctamente" });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ error: err?.message || "Error actualizando manifiesto" });
+  } finally {
+    conn.release();
+  }
+});
 
 const port = Number(process.env.PORT || 4000);
 app.listen(port, () => console.log(`API running on http://localhost:${port}`));
