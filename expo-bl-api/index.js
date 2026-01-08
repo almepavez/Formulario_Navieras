@@ -79,8 +79,8 @@ app.post("/api/auth/login", async (req, res) => {
     const usuario = usuarios[0];
 
     if (!usuario.password) {
-      return res.status(401).json({ 
-        error: 'Esta cuenta fue creada con Google. Usa login de Google.' 
+      return res.status(401).json({
+        error: 'Esta cuenta fue creada con Google. Usa login de Google.'
       });
     }
 
@@ -96,9 +96,9 @@ app.post("/api/auth/login", async (req, res) => {
     );
 
     const token = jwt.sign(
-      { 
-        id: usuario.id, 
-        email: usuario.email, 
+      {
+        id: usuario.id,
+        email: usuario.email,
         rol: usuario.rol,
         nombre: usuario.nombre
       },
@@ -725,6 +725,57 @@ app.get("/manifiestos/:id/pms", async (req, res) => {
 // ===============================
 // PMS TXT (00/11/12/13/.../99)
 // ===============================
+function parseYYYYMMDD(s) {
+  const m = String(s || "").match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (!m) return null;
+  return `${m[1]}-${m[2]}-${m[3]}`;
+}
+
+function parseYYYYMMDDHHMM(s) {
+  const m = String(s || "").match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})$/);
+  if (!m) return null;
+  return `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}:00`;
+}
+
+// FPRES desde línea 00 (12 dígitos: YYYYMMDDHHMM)
+function extractFPRESFrom00(line00) {
+  const m = String(line00 || "").match(/\b(\d{12})\b/);
+  return m ? parseYYYYMMDDHHMM(m[1]) : null;
+}
+
+// FEM desde línea 11 (toma el 2do YYYYMMDD del bloque 16 dígitos)
+function extractFEMFrom11(line11) {
+  const m = String(line11 || "").match(/(\d{8})(\d{8})/); // sin \b para evitar casos pegados a letras
+  if (!m) return null;
+  return parseYYYYMMDD(m[2]);
+}
+
+// Busca la 14 "buena" que tenga dos fechas-hora de 12 dígitos
+function pickBest14(bLines) {
+  return (
+    bLines.find((l) => lineCode(l) === "14" && /\d{12}\d{12}/.test(l)) ||
+    bLines.find((l) => lineCode(l) === "14") ||
+    ""
+  );
+}
+
+function extractFEMBFrom14(line14) {
+  const m = String(line14 || "").match(/(\d{12})(\d{12})/);
+  return m ? parseYYYYMMDDHHMM(m[1]) : null;
+}
+
+function extractFZARPEFrom14(line14) {
+  const m = String(line14 || "").match(/(\d{12})(\d{12})/);
+  return m ? parseYYYYMMDDHHMM(m[1]) : null;
+}
+
+// FZARPE: en tus ejemplos coincide con la primera fecha-hora del 14
+function extractFZARPEFrom14(lines14) {
+  const line14 = pickFirst14WithDates(lines14);
+  const m = String(line14 || "").match(/\b(\d{12})(\d{12})\b/);
+  return m ? parseYYYYMMDDHHMM(m[1]) : null;
+}
+
 function extractUnitsFrom41(line41) {
   // En tus ejemplos termina con "...KGMMTQY"
   const s = String(line41 || "");
@@ -911,17 +962,34 @@ function sumVolumeFrom51(lines51) {
   return found ? Math.round(sum * 1000) / 1000 : null;
 }
 
-// Agrupa en bloques: cada BL empieza en 12 y termina antes del siguiente 12 o 99
+// Agrupa en bloques BL, pero “arrastra” el último 00 y 11 hacia cada bloque
 function splitIntoBLBlocks(lines) {
   const blocks = [];
   let current = null;
 
+  let last00 = "";
+  let last11 = "";
+
   for (const line of lines) {
     const code = lineCode(line);
 
+    if (code === "00") {
+      last00 = line;
+      continue;
+    }
+
+    if (code === "11") {
+      last11 = line;
+      continue;
+    }
+
     if (code === "12") {
       if (current && current.length) blocks.push(current);
-      current = [line];
+
+      current = [];
+      if (last00) current.push(last00);
+      if (last11) current.push(last11);
+      current.push(line);
       continue;
     }
 
@@ -941,6 +1009,13 @@ function splitIntoBLBlocks(lines) {
 function parsePmsTxt(content) {
   const lines = splitLines(content);
   const blocks = splitIntoBLBlocks(lines);
+
+  // ✅ Header global (viene una sola vez en el archivo)
+  const header00 = pickFirst(lines, "00");
+  const header11 = pickFirst(lines, "11");
+
+  const fechaPresentacionGlobal = extractFPRESFrom00(header00); // FPRES
+  const fechaEmisionGlobal = extractFEMFrom11(header11);        // FEM (DATE)
 
   return blocks
     .map((bLines) => {
@@ -976,11 +1051,24 @@ function parsePmsTxt(content) {
         if (!unidadVolumen && u.unidadVolumen) unidadVolumen = u.unidadVolumen;
 
         const { volumen } = extractWeightVolumeFrom41(l41);
-        if (volumen !== null) {
+        if (typeof volumen === "number") {
           foundVol = true;
           totalVolumen += volumen;
         }
       }
+
+      // redondeo a 3 decimales (decimal(12,3))
+      totalVolumen = Math.round(totalVolumen * 1000) / 1000;
+
+      // ✅ Fechas: FPRES/FEM globales + FEMB/FZARPE desde 14
+      const lines14 = pickAll(bLines, "14");
+      // nos quedamos con el 14 que tenga 2 timestamps (YYYYMMDDHHMMYYYYMMDDHHMM)
+      const l14 = lines14.find((l) => /\b\d{12}\d{12}\b/.test(l)) || "";
+
+      const fechaPresentacion = fechaPresentacionGlobal; // FPRES
+      const fechaEmision = fechaEmisionGlobal;           // FEM (DATE)
+      const fechaEmbarque = l14 ? extractFEMBFrom14(l14) : null; // FEMB
+      const fechaZarpe = l14 ? extractFZARPEFrom14(l14) : null;  // FZARPE (provisional)
 
       const lines51 = pickAll(bLines, "51");
       const totalContainers = countContainersFrom51(lines51);
@@ -997,15 +1085,20 @@ function parsePmsTxt(content) {
         notify,
         descripcion_carga: descripcion,
         peso_bruto: weightKgs,
-        unidad_peso: unidadPeso,       // ✅ NUEVO
-        volumen: totalVolumen,         // ✅ NUEVO (total volumen)
-        unidad_volumen: unidadVolumen, // ✅ NUEVO
+        unidad_peso: unidadPeso,                 // ✅
+        volumen: foundVol ? totalVolumen : 0,    // ✅ (si no encontró, queda 0 como acordamos)
+        unidad_volumen: unidadVolumen,           // ✅
         bultos: totalContainers,
         total_items: totalItems,
+        fecha_presentacion: fechaPresentacion,
+        fecha_emision: fechaEmision,
+        fecha_embarque: fechaEmbarque,
+        fecha_zarpe: fechaZarpe,
       };
     })
     .filter(Boolean);
 }
+
 
 function parsePmsByFile(filename, content) {
   const ext = (path.extname(filename || "") || "").toLowerCase();
@@ -1080,39 +1173,57 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
         (manifiesto_id, bl_number, tipo_servicio_id,
         shipper, consignee, notify_party,
         puerto_origen_id, puerto_destino_id,
-        descripcion_carga, peso_bruto, unidad_peso, volumen, unidad_volumen,
-        bultos, total_items, status)
+        descripcion_carga,
+        peso_bruto, unidad_peso,
+        volumen, unidad_volumen,
+        bultos, total_items,
+        fecha_emision, fecha_presentacion, fecha_embarque, fecha_zarpe,
+        status)
       VALUES
         (?, ?, ?,
         ?, ?, ?,
         ?, ?,
-        ?, ?, ?, ?, ?,
-        ?, ?, 'CREADO')
+        ?,
+        ?, ?,
+        ?, ?,
+        ?, ?,
+        ?, ?, ?, ?,
+        'CREADO')
     `;
-
 
     for (const b of bls) {
       const puertoOrigenId = await getPuertoIdByCodigo(conn, b.pol);
       const puertoDestinoId = await getPuertoIdByCodigo(conn, b.pod);
       const tipoServicioId = await getTipoServicioIdByCodigo(conn, b.tipoServicioCod);
 
-    await conn.query(insertSql, [
-      id,
-      b.blNumber,
-      tipoServicioId,
-      b.shipper || null,
-      b.consignee || null,
-      b.notify || null,
-      puertoOrigenId,
-      puertoDestinoId,
-      b.descripcion_carga || null,
-      b.peso_bruto,
-      b.unidad_peso || null,      // ✅
-      b.volumen,                  // ✅ total volumen
-      b.unidad_volumen || null,   // ✅
-      b.bultos,
-      b.total_items,
-    ]);
+      await conn.query(insertSql, [
+        id,
+        b.blNumber,
+        tipoServicioId,
+
+        b.shipper || null,
+        b.consignee || null,
+        b.notify || null,
+
+        puertoOrigenId,
+        puertoDestinoId,
+
+        b.descripcion_carga || null,
+
+        b.peso_bruto ?? null,
+        b.unidad_peso || null,
+
+        b.volumen ?? null,
+        b.unidad_volumen || null,
+
+        b.bultos ?? null,
+        b.total_items ?? null,
+
+        b.fecha_emision || null,
+        b.fecha_presentacion || null,
+        b.fecha_embarque || null,
+        b.fecha_zarpe || null,
+      ]);
     }
 
     await conn.commit();
