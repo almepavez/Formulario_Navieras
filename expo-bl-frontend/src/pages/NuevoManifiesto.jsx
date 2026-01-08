@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Swal from "sweetalert2";
 import Sidebar from "../components/Sidebar";
 
 const API_BASE_URL = "http://localhost:4000";
@@ -17,31 +18,30 @@ const NuevoManifiesto = () => {
 
   // FORM manifiesto (guardamos CÓDIGOS)
   const [form, setForm] = useState({
-    servicio: "", // codigo servicio (ej: WSACL)
-    nave: "", // codigo nave (ej: EVLOY)
+    servicio: "",
+    nave: "",
     viaje: "",
-    puertoCentral: "", // codigo puerto (ej: CLVAP)
-    tipoOperacion: "EX", // EX | IM | CROSS
+    puertoCentral: "",
+    tipoOperacion: "EX",
     operadorNave: "",
     status: "En edición",
     remark: "",
     emisorDocumento: "",
     representante: "AJBROOM",
-    fechaManifiestoAduana: "", // YYYY-MM-DD
+    fechaManifiestoAduana: "",
     numeroManifiestoAduana: "",
   });
 
   const todayAtMidnightLocal = () => {
     const d = new Date();
-    d.setHours(0, 0, 0, 0); // 00:00 local
+    d.setHours(0, 0, 0, 0);
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     const dd = String(d.getDate()).padStart(2, "0");
     return `${yyyy}-${mm}-${dd}T00:00`;
   };
 
-
-  // ITINERARIO (filas dinámicas) -> port = codigo puerto
+  // ITINERARIO (filas dinámicas)
   const [itinerario, setItinerario] = useState([
     { port: "", portType: "LOAD", eta: todayAtMidnightLocal(), ets: todayAtMidnightLocal() },
   ]);
@@ -72,7 +72,6 @@ const NuevoManifiesto = () => {
         setNaves(Array.isArray(nData) ? nData : []);
         setPuertos(Array.isArray(pData) ? pData : []);
 
-        // set default puerto central si existe CLVAP
         const hasCLVAP = Array.isArray(pData) && pData.some((x) => x.codigo === "CLVAP");
         setForm((prev) => ({
           ...prev,
@@ -98,45 +97,126 @@ const NuevoManifiesto = () => {
       { port: "", portType: "LOAD", eta: todayAtMidnightLocal(), ets: todayAtMidnightLocal() },
     ]);
 
-
   const removeRow = (idx) =>
     setItinerario((prev) => prev.filter((_, i) => i !== idx));
 
   const updateRow = (idx, key, value) =>
     setItinerario((prev) => prev.map((r, i) => (i === idx ? { ...r, [key]: value } : r)));
 
-  // Validación simple
-  const requiredMissing =
-    !form.servicio ||
-    !form.nave ||
-    !form.viaje ||
-    !form.puertoCentral ||
-    !form.tipoOperacion ||
-    !form.operadorNave ||
-    !form.emisorDocumento ||
-    !form.representante ||
-    !form.fechaManifiestoAduana ||
-    !form.numeroManifiestoAduana;
+  // 🆕 Función para validar campos obligatorios y obtener lista de faltantes
+  const getMissingFields = () => {
+    const missing = [];
+
+    if (!form.servicio.trim()) missing.push("Servicio");
+    if (!form.nave.trim()) missing.push("Nave");
+    if (!form.viaje.trim()) missing.push("Viaje");
+    if (!form.puertoCentral.trim()) missing.push("Puerto central");
+    if (!form.tipoOperacion) missing.push("Tipo de operación");
+    if (!form.operadorNave.trim()) missing.push("Operador Nave");
+    if (!form.emisorDocumento.trim()) missing.push("Emisor Doc");
+    if (!form.representante.trim()) missing.push("Representante");
+    if (!form.fechaManifiestoAduana) missing.push("Fecha Mfto Aduana CL");
+    if (!form.numeroManifiestoAduana.trim()) missing.push("Nro Mfto Aduana CL");
+
+    return missing;
+  };
 
   const hasAtLeastOnePort = useMemo(
     () => itinerario.some((r) => r.port?.trim()),
     [itinerario]
   );
 
+  // 🆕 Construir resumen del manifiesto para mostrar en confirmación
+  const buildSummary = () => {
+    const servicioObj = servicios.find((s) => s.codigo === form.servicio);
+    const naveObj = naves.find((n) => n.codigo === form.nave);
+    const puertoCentralObj = puertos.find((p) => p.codigo === form.puertoCentral);
+
+    const puertosItinerario = itinerario
+      .filter((r) => r.port.trim())
+      .map((r) => {
+        const puerto = puertos.find((p) => p.codigo === r.port);
+        return `${r.port}${puerto ? ` (${puerto.nombre})` : ""} - ${r.portType}`;
+      })
+      .join("<br>");
+
+    return `
+      <div style="text-align: left; font-size: 14px;">
+        <p><strong>Servicio:</strong> ${form.servicio}${servicioObj ? ` - ${servicioObj.nombre}` : ""}</p>
+        <p><strong>Nave:</strong> ${form.nave}${naveObj ? ` - ${naveObj.nombre}` : ""}</p>
+        <p><strong>Viaje:</strong> ${form.viaje}</p>
+        <p><strong>Puerto Central:</strong> ${form.puertoCentral}${puertoCentralObj ? ` - ${puertoCentralObj.nombre}` : ""}</p>
+        <p><strong>Operación:</strong> ${form.tipoOperacion}</p>
+        <p><strong>Operador Nave:</strong> ${form.operadorNave}</p>
+        <p><strong>Fecha Mfto Aduana:</strong> ${form.fechaManifiestoAduana}</p>
+        <p><strong>N° Mfto Aduana:</strong> ${form.numeroManifiestoAduana}</p>
+        <hr style="margin: 12px 0; border: none; border-top: 1px solid #e2e8f0;">
+        <p><strong>Puertos en itinerario:</strong></p>
+        <div style="padding-left: 12px; font-size: 13px;">${puertosItinerario || "Ninguno"}</div>
+      </div>
+    `;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
-    if (requiredMissing) {
-      setError("Completa todos los campos obligatorios (*) antes de guardar.");
+    // 🆕 PASO 1: Validar campos obligatorios
+    const missingFields = getMissingFields();
+    if (missingFields.length > 0) {
+      await Swal.fire({
+        title: "⚠️ Campos obligatorios faltantes",
+        html: `
+          <p style="margin-bottom: 12px;">Por favor completa los siguientes campos antes de continuar:</p>
+          <ul style="text-align: left; padding-left: 24px; color: #dc2626;">
+            ${missingFields.map((field) => `<li><strong>${field}</strong></li>`).join("")}
+          </ul>
+        `,
+        icon: "warning",
+        confirmButtonColor: "#0F2A44",
+        confirmButtonText: "Entendido",
+      });
       return;
     }
 
+    // 🆕 PASO 2: Validar que haya al menos un puerto en itinerario
     if (!hasAtLeastOnePort) {
-      setError("Agrega al menos un puerto en el itinerario.");
+      await Swal.fire({
+        title: "⚠️ Itinerario vacío",
+        text: "Debes agregar al menos un puerto en el itinerario.",
+        icon: "warning",
+        confirmButtonColor: "#0F2A44",
+        confirmButtonText: "Entendido",
+      });
       return;
     }
 
+    // 🆕 PASO 3: Mostrar confirmación con resumen
+    const result = await Swal.fire({
+      title: "📋 Revisar información del manifiesto",
+      html: `
+        <div style="margin-bottom: 16px;">
+          <p style="color: #64748b; margin-bottom: 12px;">
+            Por favor verifica que toda la información sea correcta antes de crear el manifiesto:
+          </p>
+          ${buildSummary()}
+        </div>
+      `,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#0F2A44",
+      cancelButtonColor: "#64748b",
+      confirmButtonText: "✅ Sí, crear manifiesto",
+      cancelButtonText: "❌ Cancelar",
+      width: "600px",
+      customClass: {
+        htmlContainer: "swal-summary-container",
+      },
+    });
+
+    if (!result.isConfirmed) return;
+
+    // 🆕 PASO 4: Proceder con la creación
     try {
       setSaving(true);
 
@@ -148,7 +228,7 @@ const NuevoManifiesto = () => {
           itinerario: itinerario
             .filter((r) => r.port.trim())
             .map((r, i) => ({
-              port: r.port.trim(), // codigo puerto
+              port: r.port.trim(),
               portType: r.portType,
               eta: r.eta || null,
               ets: r.ets || null,
@@ -162,13 +242,65 @@ const NuevoManifiesto = () => {
         throw new Error(text || `HTTP ${res.status}`);
       }
 
-      navigate("/manifiestos");
+      const data = await res.json();
+
+      // 🆕 Mostrar éxito con opción de ir al manifiesto creado
+      const successResult = await Swal.fire({
+        title: "✅ ¡Manifiesto creado!",
+        html: `
+          <p>El manifiesto se ha creado correctamente.</p>
+          <p style="margin-top: 8px; color: #64748b; font-size: 14px;">
+            ID del manifiesto: <strong>#${data.id}</strong>
+          </p>
+        `,
+        icon: "success",
+        confirmButtonColor: "#0F2A44",
+        showCancelButton: true,
+        confirmButtonText: "Ver manifiesto",
+        cancelButtonText: "Volver a lista",
+      });
+
+      // Navegar según la opción elegida
+      if (successResult.isConfirmed) {
+        navigate(`/manifiestos/${data.id}`);
+      } else {
+        navigate("/manifiestos");
+      }
     } catch (err) {
+      await Swal.fire({
+        title: "❌ Error al crear manifiesto",
+        text: err?.message || "No se pudo guardar el manifiesto. Por favor intenta nuevamente.",
+        icon: "error",
+        confirmButtonColor: "#0F2A44",
+      });
       setError(err?.message || "Error al guardar el manifiesto.");
     } finally {
       setSaving(false);
     }
   };
+
+  // 🆕 Protección al salir sin guardar (opcional)
+  useEffect(() => {
+    const hasData =
+      form.servicio ||
+      form.nave ||
+      form.viaje ||
+      form.operadorNave ||
+      form.numeroManifiestoAduana;
+
+    const handleBeforeUnload = (e) => {
+      if (hasData && !saving) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [form, saving]);
 
   return (
     <div className="flex min-h-screen bg-slate-100">
@@ -209,7 +341,7 @@ const NuevoManifiesto = () => {
           onSubmit={handleSubmit}
           className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8"
         >
-          {/* DATALISTS (sugerencias filtrables) */}
+          {/* DATALISTS */}
           <datalist id="serviciosList">
             {servicios.map((s) => (
               <option key={s.id} value={s.codigo}>

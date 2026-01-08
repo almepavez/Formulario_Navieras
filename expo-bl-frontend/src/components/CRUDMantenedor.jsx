@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import Swal from "sweetalert2";
 import {
   PlusCircle,
   Edit2,
-  Trash2,
   Search,
   X,
   Save,
@@ -17,7 +17,7 @@ import Sidebar from "../components/Sidebar";
 
 const API_BASE_URL = "http://localhost:4000";
 
-// ✅ Clases Tailwind NO dinámicas (para que compile bien)
+// ✅ Clases Tailwind NO dinámicas
 const colorStyles = {
   teal: {
     badgeBg: "bg-teal-100",
@@ -45,7 +45,7 @@ const CRUDMantenedor = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // ✅ Configuración ajustada a tus tablas NUEVAS
+  // ✅ Configuración
   const configs = {
     puertos: {
       title: "Puertos",
@@ -119,32 +119,77 @@ const CRUDMantenedor = () => {
 
   const handleEdit = (item) => {
     setEditingItem(item);
-    // 👇 solo toma los campos que existen en config.fields (evita meter created_at, etc)
     const clean = config.fields.reduce((acc, f) => ({ ...acc, [f.key]: item[f.key] ?? "" }), {});
     setFormData(clean);
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm(`¿Está seguro de eliminar este registro?`)) return;
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/mantenedores/${tipo}/${id}`, { method: "DELETE" });
-      if (!response.ok) throw new Error("Error al eliminar");
-      setItems((prev) => prev.filter((it) => it.id !== id));
-    } catch (err) {
-      alert(`Error al eliminar: ${err.message}`);
+  // 🆕 Validación de campos con SweetAlert
+  const validateForm = () => {
+    const requiredFields = config.fields.filter((f) => f.required);
+    const missingFields = requiredFields.filter((f) => !String(formData[f.key] ?? "").trim());
+
+    if (missingFields.length > 0) {
+      Swal.fire({
+        title: "⚠️ Campos obligatorios faltantes",
+        html: `
+          <p style="margin-bottom: 12px;">Por favor completa los siguientes campos:</p>
+          <ul style="text-align: left; padding-left: 24px; color: #dc2626;">
+            ${missingFields.map((field) => `<li><strong>${field.label}</strong></li>`).join("")}
+          </ul>
+        `,
+        icon: "warning",
+        confirmButtonColor: "#0F2A44",
+        confirmButtonText: "Entendido",
+      });
+      return false;
     }
+
+    return true;
+  };
+
+  // 🆕 Construir resumen para confirmación
+  const buildSummary = () => {
+    return `
+      <div style="text-align: left; font-size: 14px;">
+        ${config.fields
+          .map((field) => {
+            const value = formData[field.key] || "—";
+            return `<p><strong>${field.label}:</strong> ${value}</p>`;
+          })
+          .join("")}
+      </div>
+    `;
   };
 
   const handleSave = async () => {
-    const requiredFields = config.fields.filter((f) => f.required);
-    const isValid = requiredFields.every((f) => String(formData[f.key] ?? "").trim());
+    // 🆕 PASO 1: Validar campos
+    if (!validateForm()) return;
 
-    if (!isValid) {
-      alert("Por favor complete todos los campos obligatorios");
-      return;
-    }
+    // 🆕 PASO 2: Confirmar con resumen
+    const action = editingItem ? "actualizar" : "crear";
+    const result = await Swal.fire({
+      title: `¿${action === "crear" ? "Crear" : "Actualizar"} ${config.singular}?`,
+      html: `
+        <div style="margin-bottom: 16px;">
+          <p style="color: #64748b; margin-bottom: 12px;">
+            Verifica que la información sea correcta:
+          </p>
+          ${buildSummary()}
+        </div>
+      `,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#62c755ff",
+      cancelButtonColor: "#ff5353ff",
+      confirmButtonText: `Sí, ${action}`,
+      cancelButtonText: "Cancelar",
+      width: "500px",
+    });
 
+    if (!result.isConfirmed) return;
+
+    // 🆕 PASO 3: Guardar
     setLoading(true);
     try {
       const url = editingItem
@@ -164,6 +209,15 @@ const CRUDMantenedor = () => {
         throw new Error(errorData.error || "Error al guardar");
       }
 
+      // 🆕 PASO 4: Mostrar éxito
+      await Swal.fire({
+        title: "✅ ¡Guardado!",
+        text: `${config.singular} ${action === "crear" ? "creado" : "actualizado"} correctamente`,
+        icon: "success",
+        confirmButtonColor: "#0F2A44",
+        timer: 2000,
+      });
+
       if (editingItem) {
         setItems((prev) =>
           prev.map((it) => (it.id === editingItem.id ? { ...it, ...formData } : it))
@@ -176,7 +230,12 @@ const CRUDMantenedor = () => {
       setFormData({});
       setEditingItem(null);
     } catch (err) {
-      alert(`Error al guardar: ${err.message}`);
+      await Swal.fire({
+        title: "❌ Error al guardar",
+        text: err.message || "No se pudo guardar el registro",
+        icon: "error",
+        confirmButtonColor: "#0F2A44",
+      });
     } finally {
       setLoading(false);
     }
@@ -234,6 +293,18 @@ const CRUDMantenedor = () => {
             </div>
           </div>
 
+          {/* 🆕 Info sobre NO eliminar */}
+          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+            <AlertCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
+            <div className="text-sm">
+              <p className="text-blue-800 font-semibold mb-1">ℹ️ Información importante</p>
+              <p className="text-blue-700">
+                Los registros <strong>no se pueden eliminar</strong> porque pueden estar siendo utilizados en manifiestos o BLs. 
+                Solo puedes crear nuevos o editar los existentes.
+              </p>
+            </div>
+          </div>
+
           {/* Error */}
           {error && (
             <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
@@ -287,7 +358,7 @@ const CRUDMantenedor = () => {
                   ) : filteredItems.length === 0 ? (
                     <tr>
                       <td colSpan={config.fields.length + 1} className="px-6 py-12 text-center text-slate-500">
-                        No se encontraron registros
+                        {searchTerm ? "No se encontraron resultados para tu búsqueda" : "No hay registros aún"}
                       </td>
                     </tr>
                   ) : (
@@ -298,9 +369,9 @@ const CRUDMantenedor = () => {
                             {field.key === "codigo" ? (
                               <span className="font-mono font-semibold text-[#0F2A44]">{item[field.key]}</span>
                             ) : field.type === "textarea" ? (
-                              <span className="line-clamp-2">{item[field.key] || "-"}</span>
+                              <span className="line-clamp-2">{item[field.key] || "—"}</span>
                             ) : (
-                              item[field.key] || "-"
+                              item[field.key] || "—"
                             )}
                           </td>
                         ))}
@@ -314,13 +385,7 @@ const CRUDMantenedor = () => {
                             >
                               <Edit2 size={18} />
                             </button>
-                            <button
-                              onClick={() => handleDelete(item.id)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                              title="Eliminar"
-                            >
-                              <Trash2 size={18} />
-                            </button>
+                            {/* 🆕 Ya NO hay botón de eliminar */}
                           </div>
                         </td>
                       </tr>
