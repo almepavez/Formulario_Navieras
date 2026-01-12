@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
+import { Pencil } from "lucide-react";
 
 const estadoStyles = {
     "CREADO": "bg-blue-100 text-blue-800 ring-blue-200",
@@ -121,6 +122,11 @@ const ExpoBL = () => {
         return pages;
     };
 
+    const handleEdit = (e, blNumber) => {
+        e.stopPropagation();
+        navigate(`/expo/${blNumber}/edit`);
+    };
+
     return (
         <div className="flex min-h-screen bg-slate-100">
             <Sidebar />
@@ -156,7 +162,7 @@ const ExpoBL = () => {
                             <div className="md:col-span-1">
                                 <input
                                     type="text"
-                                    placeholder="🔍 Buscar BL, Shipper, Consignee..."
+                                    placeholder="Buscar BL, Shipper, Consignee..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     className="w-full px-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
@@ -170,7 +176,7 @@ const ExpoBL = () => {
                                     onChange={(e) => setViajeFilter(e.target.value)}
                                     className="w-full px-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
                                 >
-                                    <option value="TODOS">🚢 Todos los viajes</option>
+                                    <option value="TODOS">Todos los viajes</option>
                                     {viajes.map(viaje => (
                                         <option key={viaje} value={viaje}>{viaje}</option>
                                     ))}
@@ -184,7 +190,7 @@ const ExpoBL = () => {
                                     onChange={(e) => setStatusFilter(e.target.value)}
                                     className="w-full px-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
                                 >
-                                    <option value="TODOS">📊 Todos los estados</option>
+                                    <option value="TODOS">Todos los estados</option>
                                     <option value="CREADO">Creado</option>
                                     <option value="VALIDADO">Validado</option>
                                     <option value="ENVIADO">Enviado</option>
@@ -246,6 +252,7 @@ const ExpoBL = () => {
                                     <th className="text-right px-6 py-3 font-semibold">Peso (KG)</th>
                                     <th className="text-center px-6 py-3 font-semibold">Bultos</th>
                                     <th className="text-left px-6 py-3 font-semibold">Status</th>
+                              
                                 </tr>
                             </thead>
 
@@ -296,12 +303,13 @@ const ExpoBL = () => {
                                                     {bl.status}
                                                 </span>
                                             </td>
+                                            
                                         </tr>
                                     ))}
 
                                 {!loading && filteredBLs.length === 0 && (
                                     <tr>
-                                        <td className="px-6 py-10 text-center text-slate-500" colSpan={9}>
+                                        <td className="px-6 py-10 text-center text-slate-500" colSpan={10}>
                                             {searchTerm || statusFilter !== "TODOS" || viajeFilter !== "TODOS"
                                                 ? "No se encontraron BLs con los filtros aplicados"
                                                 : "No hay BLs registrados aún"}
