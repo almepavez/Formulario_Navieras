@@ -162,7 +162,7 @@ const ExpoBL = () => {
                             <div className="md:col-span-1">
                                 <input
                                     type="text"
-                                    placeholder="🔍 Buscar BL, Shipper, Consignee..."
+                                    placeholder="Buscar BL, Shipper, Consignee..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     className="w-full px-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
@@ -176,7 +176,7 @@ const ExpoBL = () => {
                                     onChange={(e) => setViajeFilter(e.target.value)}
                                     className="w-full px-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
                                 >
-                                    <option value="TODOS">🚢 Todos los viajes</option>
+                                    <option value="TODOS">Todos los viajes</option>
                                     {viajes.map(viaje => (
                                         <option key={viaje} value={viaje}>{viaje}</option>
                                     ))}
@@ -190,7 +190,7 @@ const ExpoBL = () => {
                                     onChange={(e) => setStatusFilter(e.target.value)}
                                     className="w-full px-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
                                 >
-                                    <option value="TODOS">📊 Todos los estados</option>
+                                    <option value="TODOS">Todos los estados</option>
                                     <option value="CREADO">Creado</option>
                                     <option value="VALIDADO">Validado</option>
                                     <option value="ENVIADO">Enviado</option>

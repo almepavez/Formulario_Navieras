@@ -32,7 +32,7 @@ const Sidebar = () => {
           {isExpanded ? (
             <img src={logo} alt="Broom Group" className="h-25" />
           ) : (
-            <img src={logo} alt="Broom Group" className="h-10 w-10 object-contain" />
+            <img src={logo} alt="Broom Group" className="h-20 w-15 object-contain" />
           )}
         </div>
         
