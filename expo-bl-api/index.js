@@ -1446,8 +1446,11 @@ app.get("/bls", async (req, res) => {
         b.shipper,
         b.consignee,
         b.notify_party,
-        po.nombre as puerto_origen,
-        pd.nombre as puerto_destino,
+
+        le.nombre  AS lugar_emision,
+        pe.nombre  AS puerto_embarque,
+        pd.nombre  AS puerto_descarga,
+
         b.fecha_emision,
         b.fecha_presentacion,
         b.fecha_embarque,
@@ -1463,10 +1466,12 @@ app.get("/bls", async (req, res) => {
         b.created_at,
         b.updated_at,
         ts.nombre as tipo_servicio
+
       FROM bls b
       LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
-      LEFT JOIN puertos po ON b.puerto_origen_id = po.id
-      LEFT JOIN puertos pd ON b.puerto_destino_id = pd.id
+      LEFT JOIN puertos le ON b.lugar_emision_id   = le.id
+      LEFT JOIN puertos pe ON b.puerto_embarque_id = pe.id
+      LEFT JOIN puertos pd ON b.puerto_descarga_id = pd.id
       LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
       ORDER BY b.created_at DESC
     `;
@@ -1486,42 +1491,49 @@ app.get("/bls", async (req, res) => {
 app.get("/bls/:blNumber", async (req, res) => {
   try {
     const { blNumber } = req.params;
-    
+
     const query = `
-      SELECT 
+      SELECT
         b.*,
         m.viaje,
         m.tipo_operacion,
-        po.codigo as puerto_origen_codigo,
-        po.nombre as puerto_origen,
-        po.pais as puerto_origen_pais,
-        pd.codigo as puerto_destino_codigo,
-        pd.nombre as puerto_destino,
-        pd.pais as puerto_destino_pais,
-        ts.nombre as tipo_servicio,
-        n.nombre as nave_nombre
+
+        le.codigo  AS lugar_emision_codigo,
+        le.nombre  AS lugar_emision,
+        le.pais    AS lugar_emision_pais,
+
+        pe.codigo  AS puerto_origen_codigo,
+        pe.nombre  AS puerto_origen,
+        pe.pais    AS puerto_origen_pais,
+
+        pd.codigo  AS puerto_destino_codigo,
+        pd.nombre  AS puerto_destino,
+        pd.pais    AS puerto_destino_pais,
+
+        ts.nombre  AS tipo_servicio,
+        n.nombre   AS nave_nombre
+
       FROM bls b
       LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
-      LEFT JOIN puertos po ON b.puerto_origen_id = po.id
-      LEFT JOIN puertos pd ON b.puerto_destino_id = pd.id
+
+      LEFT JOIN puertos le ON b.lugar_emision_id   = le.id
+      LEFT JOIN puertos pe ON b.puerto_embarque_id = pe.id
+      LEFT JOIN puertos pd ON b.puerto_descarga_id = pd.id
+
       LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
       LEFT JOIN naves n ON m.nave_id = n.id
       WHERE b.bl_number = ?
+      LIMIT 1
     `;
 
     const [rows] = await pool.query(query, [blNumber]);
-    
-    if (rows.length === 0) {
-      return res.status(404).json({ error: "BL no encontrado" });
-    }
-    
+
+    if (rows.length === 0) return res.status(404).json({ error: "BL no encontrado" });
+
     res.json(rows[0]);
   } catch (error) {
     console.error("Error al obtener BL:", error);
-    res.status(500).json({ 
-      error: "Error al obtener BL",
-      details: error.message 
-    });
+    res.status(500).json({ error: "Error al obtener BL", details: error.message });
   }
 });
 
@@ -1529,16 +1541,21 @@ app.get("/bls/:blNumber", async (req, res) => {
 app.get("/manifiestos/:id/bls", async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const query = `
-      SELECT 
+      SELECT
         b.*,
-        po.nombre as puerto_origen,
-        pd.nombre as puerto_destino,
-        ts.nombre as tipo_servicio
+
+        le.nombre AS lugar_emision,
+        pe.nombre AS puerto_origen,
+        pd.nombre AS puerto_destino,
+
+        ts.nombre AS tipo_servicio
+
       FROM bls b
-      LEFT JOIN puertos po ON b.puerto_origen_id = po.id
-      LEFT JOIN puertos pd ON b.puerto_destino_id = pd.id
+      LEFT JOIN puertos le ON b.lugar_emision_id   = le.id
+      LEFT JOIN puertos pe ON b.puerto_embarque_id = pe.id
+      LEFT JOIN puertos pd ON b.puerto_descarga_id = pd.id
       LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
       WHERE b.manifiesto_id = ?
       ORDER BY b.bl_number
@@ -1548,12 +1565,10 @@ app.get("/manifiestos/:id/bls", async (req, res) => {
     res.json(rows);
   } catch (error) {
     console.error("Error al obtener BLs del manifiesto:", error);
-    res.status(500).json({ 
-      error: "Error al obtener BLs del manifiesto",
-      details: error.message 
-    });
+    res.status(500).json({ error: "Error al obtener BLs del manifiesto", details: error.message });
   }
 });
+
 
 
 // ============================================
@@ -1633,18 +1648,26 @@ app.put("/bls/:blNumber", async (req, res) => {
 
     // Retornar el BL actualizado
     const [updated] = await pool.query(
-      `SELECT 
+      `
+      SELECT
         b.*,
         m.viaje,
-        po.nombre as puerto_origen,
-        pd.nombre as puerto_destino
-       FROM bls b
-       LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
-       LEFT JOIN puertos po ON b.puerto_origen_id = po.id
-       LEFT JOIN puertos pd ON b.puerto_destino_id = pd.id
-       WHERE b.bl_number = ?`,
+
+        le.nombre AS lugar_emision,
+        pe.nombre AS puerto_origen,
+        pd.nombre AS puerto_destino
+
+      FROM bls b
+      LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
+      LEFT JOIN puertos le ON b.lugar_emision_id   = le.id
+      LEFT JOIN puertos pe ON b.puerto_embarque_id = pe.id
+      LEFT JOIN puertos pd ON b.puerto_descarga_id = pd.id
+      WHERE b.bl_number = ?
+      LIMIT 1
+      `,
       [blNumber]
     );
+
 
     res.json({ 
       message: "BL actualizado exitosamente",

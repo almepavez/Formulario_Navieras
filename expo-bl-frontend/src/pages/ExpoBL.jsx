@@ -273,7 +273,7 @@ const ExpoBL = () => {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className="text-slate-700">
-                                                    {bl.puerto_origen || "—"} → {bl.puerto_destino || "—"}
+                                                    {bl.puerto_embarque || "—"} → {bl.puerto_descarga || "—"}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4">

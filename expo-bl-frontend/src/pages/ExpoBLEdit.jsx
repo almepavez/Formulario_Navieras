@@ -203,7 +203,6 @@ const ExpoBLEdit = () => {
     const handleSave = async () => {
         // ✅ Confirmación antes de guardar
         const result = await Swal.fire({
-            icon: "question",
             title: "¿Guardar cambios?",
             html: `
                 <p class="text-sm text-gray-600 mb-3">Estás por guardar los cambios del BL:</p>
@@ -667,7 +666,7 @@ const ExpoBLEdit = () => {
                                     Guardando...
                                 </span>
                             ) : (
-                                "💾 Guardar Cambios"
+                                "Guardar Cambios"
                             )}
                         </button>
                     )}

@@ -180,8 +180,8 @@ const ManifiestoDetalle = () => {
         text: "Los cambios no guardados se perderán",
         icon: "warning",
         showCancelButton: true,
-        confirmButtonColor: "#0F2A44",
-        cancelButtonColor: "#64748b",
+        confirmButtonColor: "#10b981",
+        cancelButtonColor: "#e43a3aff",
         confirmButtonText: "Sí, cancelar",
         cancelButtonText: "No, continuar editando",
       });
@@ -198,7 +198,7 @@ const ManifiestoDetalle = () => {
         title: "Cancelado",
         text: "Se han descartado los cambios",
         icon: "info",
-        confirmButtonColor: "#0F2A44",
+        confirmButtonColor: "#10b981",
         timer: 2000,
       });
     }
@@ -210,8 +210,8 @@ const ManifiestoDetalle = () => {
       text: "Se actualizará el manifiesto con la información editada",
       icon: "question",
       showCancelButton: true,
-      confirmButtonColor: "#0F2A44",
-      cancelButtonColor: "#64748b",
+      confirmButtonColor: "#10b981",
+      cancelButtonColor: "#e43a3aff",
       confirmButtonText: "Sí, guardar",
       cancelButtonText: "Cancelar",
     });
@@ -253,7 +253,7 @@ const ManifiestoDetalle = () => {
         title: "¡Guardado!",
         text: "El manifiesto ha sido actualizado correctamente",
         icon: "success",
-        confirmButtonColor: "#0F2A44",
+        confirmButtonColor: "#10b981",
         timer: 2000,
       });
 
@@ -265,7 +265,7 @@ const ManifiestoDetalle = () => {
         title: "Error",
         text: e?.message || "No se pudo guardar el manifiesto",
         icon: "error",
-        confirmButtonColor: "#0F2A44",
+        confirmButtonColor: "#10b981",
       });
     }
   };
@@ -319,7 +319,7 @@ const ManifiestoDetalle = () => {
         title: "¡PMS cargado!",
         text: "El archivo se ha subido correctamente",
         icon: "success",
-        confirmButtonColor: "#0F2A44",
+        confirmButtonColor: "#10b981",
         timer: 2000,
       });
 
@@ -364,7 +364,7 @@ const ManifiestoDetalle = () => {
                 onClick={handleEdit}
                 className="px-4 py-2 rounded-lg bg-[#0F2A44] text-white text-sm font-medium hover:bg-[#1a3f5f]"
               >
-                ✏️ Editar
+                Editar
               </button>
             ) : (
               <>
@@ -378,7 +378,7 @@ const ManifiestoDetalle = () => {
                   onClick={handleSaveChanges}
                   className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700"
                 >
-                  💾 Guardar cambios
+                  Guardar cambios
                 </button>
               </>
             )}
