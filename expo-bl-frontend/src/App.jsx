@@ -3,10 +3,13 @@ import Login from "./pages/Login";
 import Manifiestos from "./pages/Manifiestos";
 import Mantenedores from "./pages/Mantenedores";
 import NuevoManifiesto from "./pages/NuevoManifiesto";
-import Expo from "./pages/Expo";
+import Expo from "./pages/ExpoBLDetail";
 import ManifiestoDetalle from "./pages/ManifiestoDetalle";
 import CRUDMantenedor from "./components/CRUDMantenedor";
 import ProtectedRoute from "./components/ProtectedRoute";
+import ExpoBL from "./pages/ExpoBL"; 
+import ExpoBLDetail from "./pages/ExpoBLDetail"; // Detalle
+import ExpoBLEdit from "./pages/ExpoBLEdit";     // Edición
 
 function App() {
   return (
@@ -46,6 +49,17 @@ function App() {
           } 
         />
         
+         
+        {/* 👇 Nueva ruta para el listado de EXPO BL */}
+        <Route 
+          path="/expo-bl" 
+          element={
+            <ProtectedRoute>
+              <ExpoBL />
+            </ProtectedRoute>
+          } 
+        />
+        
         <Route 
           path="/expo/:blNumber" 
           element={
@@ -54,7 +68,25 @@ function App() {
             </ProtectedRoute>
           } 
         />
+ {/* Detalle de un BL específico */}
+        <Route 
+          path="/expo/detail/:blNumber" 
+          element={
+            <ProtectedRoute>
+              <ExpoBLDetail />
+            </ProtectedRoute>
+          } 
+        />
         
+        {/* Edición de un BL específico */}
+        <Route 
+          path="/expo/:blNumber/edit" 
+          element={
+            <ProtectedRoute>
+              <ExpoBLEdit />
+            </ProtectedRoute>
+          } 
+        />        
         <Route 
           path="/mantenedores" 
           element={
