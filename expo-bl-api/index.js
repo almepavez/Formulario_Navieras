@@ -842,6 +842,13 @@ function pickAll(lines, code) {
 
 // --------- Extractores PMS ---------
 
+function extractLugarEmisionFrom74(lines) {
+  const l74 = pickFirst(lines, "74");
+  // 74   CLSCL20251125...
+  const m = String(l74 || "").match(/^74\s+([A-Z]{5})/);
+  return m ? m[1] : "";
+}
+
 function extractServiceCodeFrom12(line12) {
   // Ej: "... TWKHHCLVAPFF  YY ..." -> FF
   const m = String(line12).match(/([A-Z]{5})([A-Z]{5})([A-Z]{2})\s+[A-Z]{2}/);
@@ -1028,6 +1035,8 @@ function parsePmsTxt(content) {
   const fechaPresentacionGlobal = extractFPRESFrom00(header00); // FPRES
   const fechaEmisionGlobal = extractFEMFrom11(header11);        // FEM (DATE)
 
+  const lugarEmisionCod = extractLugarEmisionFrom74(lines);
+
   return blocks
     .map((bLines) => {
       const l12 = pickFirst(bLines, "12");
@@ -1105,6 +1114,10 @@ function parsePmsTxt(content) {
         fecha_emision: fechaEmision,
         fecha_embarque: fechaEmbarque,
         fecha_zarpe: fechaZarpe,
+        pol, pod,
+        lugar_emision_cod: lugarEmisionCod, // NUEVO
+        puerto_embarque_cod: pol,           // NUEVO (PE)
+        puerto_descarga_cod: pod,
       };
     })
     .filter(Boolean);
@@ -1183,7 +1196,8 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
       INSERT INTO bls
         (manifiesto_id, bl_number, tipo_servicio_id,
         shipper, consignee, notify_party,
-        puerto_origen_id, puerto_destino_id,
+        lugar_emision_id, puerto_embarque_id, puerto_descarga_id,
+        lugar_destino_id, lugar_entrega_id, lugar_recepcion_id,
         descripcion_carga,
         peso_bruto, unidad_peso,
         volumen, unidad_volumen,
@@ -1193,7 +1207,8 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
       VALUES
         (?, ?, ?,
         ?, ?, ?,
-        ?, ?,
+        ?, ?, ?,
+        ?, ?, ?,
         ?,
         ?, ?,
         ?, ?,
@@ -1203,8 +1218,10 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
     `;
 
     for (const b of bls) {
-      const puertoOrigenId = await getPuertoIdByCodigo(conn, b.pol);
-      const puertoDestinoId = await getPuertoIdByCodigo(conn, b.pod);
+      const lugarEmisionId   = await getPuertoIdByCodigo(conn, b.lugar_emision_cod);
+      const puertoEmbarqueId = await getPuertoIdByCodigo(conn, b.puerto_embarque_cod);
+      const puertoDescargaId = await getPuertoIdByCodigo(conn, b.puerto_descarga_cod);
+
       const tipoServicioId = await getTipoServicioIdByCodigo(conn, b.tipoServicioCod);
 
       await conn.query(insertSql, [
@@ -1216,8 +1233,13 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
         b.consignee || null,
         b.notify || null,
 
-        puertoOrigenId,
-        puertoDestinoId,
+        lugarEmisionId,
+        puertoEmbarqueId,
+        puertoDescargaId,
+
+        null, // lugar_destino_id (por ahora)
+        null, // lugar_entrega_id (por ahora)
+        null, // lugar_recepcion_id (por ahora)
 
         b.descripcion_carga || null,
 
