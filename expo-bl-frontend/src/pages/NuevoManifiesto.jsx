@@ -204,10 +204,10 @@ const NuevoManifiesto = () => {
       `,
       icon: "question",
       showCancelButton: true,
-      confirmButtonColor: "#0F2A44",
-      cancelButtonColor: "#64748b",
-      confirmButtonText: "✅ Sí, crear manifiesto",
-      cancelButtonText: "❌ Cancelar",
+      confirmButtonColor: "#2cdf3bff",
+      cancelButtonColor: "#eb4e4eff",
+      confirmButtonText: "Sí, crear manifiesto",
+      cancelButtonText: "Cancelar",
       width: "600px",
       customClass: {
         htmlContainer: "swal-summary-container",
@@ -246,7 +246,7 @@ const NuevoManifiesto = () => {
 
       // 🆕 Mostrar éxito con opción de ir al manifiesto creado
       const successResult = await Swal.fire({
-        title: "✅ ¡Manifiesto creado!",
+        title: "¡Manifiesto creado!",
         html: `
           <p>El manifiesto se ha creado correctamente.</p>
           <p style="margin-top: 8px; color: #64748b; font-size: 14px;">

@@ -1432,6 +1432,261 @@ app.put("/manifiestos/:id", async (req, res) => {
     conn.release();
   }
 });
+// Agregar esta ruta en tu archivo de rutas (index.js o routes/bls.js)
 
+// GET todos los BLs con información completa
+app.get("/bls", async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        b.id,
+        b.bl_number,
+        b.manifiesto_id,
+        m.viaje,
+        b.shipper,
+        b.consignee,
+        b.notify_party,
+        po.nombre as puerto_origen,
+        pd.nombre as puerto_destino,
+        b.fecha_emision,
+        b.fecha_presentacion,
+        b.fecha_embarque,
+        b.fecha_zarpe,
+        b.descripcion_carga,
+        b.peso_bruto,
+        b.unidad_peso,
+        b.volumen,
+        b.unidad_volumen,
+        b.bultos,
+        b.total_items,
+        b.status,
+        b.created_at,
+        b.updated_at,
+        ts.nombre as tipo_servicio
+      FROM bls b
+      LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
+      LEFT JOIN puertos po ON b.puerto_origen_id = po.id
+      LEFT JOIN puertos pd ON b.puerto_destino_id = pd.id
+      LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
+      ORDER BY b.created_at DESC
+    `;
+
+    const [rows] = await pool.query(query);
+    res.json(rows);
+  } catch (error) {
+    console.error("Error al obtener BLs:", error);
+    res.status(500).json({ 
+      error: "Error al obtener BLs",
+      details: error.message 
+    });
+  }
+});
+
+// GET un BL específico por número
+app.get("/bls/:blNumber", async (req, res) => {
+  try {
+    const { blNumber } = req.params;
+    
+    const query = `
+      SELECT 
+        b.*,
+        m.viaje,
+        m.tipo_operacion,
+        po.codigo as puerto_origen_codigo,
+        po.nombre as puerto_origen,
+        po.pais as puerto_origen_pais,
+        pd.codigo as puerto_destino_codigo,
+        pd.nombre as puerto_destino,
+        pd.pais as puerto_destino_pais,
+        ts.nombre as tipo_servicio,
+        n.nombre as nave_nombre
+      FROM bls b
+      LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
+      LEFT JOIN puertos po ON b.puerto_origen_id = po.id
+      LEFT JOIN puertos pd ON b.puerto_destino_id = pd.id
+      LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
+      LEFT JOIN naves n ON m.nave_id = n.id
+      WHERE b.bl_number = ?
+    `;
+
+    const [rows] = await pool.query(query, [blNumber]);
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "BL no encontrado" });
+    }
+    
+    res.json(rows[0]);
+  } catch (error) {
+    console.error("Error al obtener BL:", error);
+    res.status(500).json({ 
+      error: "Error al obtener BL",
+      details: error.message 
+    });
+  }
+});
+
+// GET BLs por manifiesto
+app.get("/manifiestos/:id/bls", async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const query = `
+      SELECT 
+        b.*,
+        po.nombre as puerto_origen,
+        pd.nombre as puerto_destino,
+        ts.nombre as tipo_servicio
+      FROM bls b
+      LEFT JOIN puertos po ON b.puerto_origen_id = po.id
+      LEFT JOIN puertos pd ON b.puerto_destino_id = pd.id
+      LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
+      WHERE b.manifiesto_id = ?
+      ORDER BY b.bl_number
+    `;
+
+    const [rows] = await pool.query(query, [id]);
+    res.json(rows);
+  } catch (error) {
+    console.error("Error al obtener BLs del manifiesto:", error);
+    res.status(500).json({ 
+      error: "Error al obtener BLs del manifiesto",
+      details: error.message 
+    });
+  }
+});
+
+
+// ============================================
+// ENDPOINTS PARA EDICIÓN DE BLs
+// ============================================
+
+// PUT - Actualizar un BL completo
+app.put("/bls/:blNumber", async (req, res) => {
+  const { blNumber } = req.params;
+  const {
+    viaje,
+    tipo_servicio,
+    fecha_emision,
+    fecha_zarpe,
+    fecha_embarque,
+    shipper,
+    consignee,
+    notify_party,
+    descripcion_carga,
+    peso_bruto,
+    volumen,
+    bultos,
+    observaciones,
+    prepaid_collect,
+    freight_amount,
+    payable_at
+  } = req.body;
+
+  try {
+    // Obtener el tipo_servicio_id si viene el código
+    let tipo_servicio_id = null;
+    if (tipo_servicio) {
+      const [tsRows] = await pool.query(
+        "SELECT id FROM tipos_servicio WHERE codigo = ?",
+        [tipo_servicio]
+      );
+      if (tsRows.length > 0) {
+        tipo_servicio_id = tsRows[0].id;
+      }
+    }
+
+    // Actualizar el BL (solo campos que existen en tu BD)
+    const [result] = await pool.query(`
+      UPDATE bls 
+      SET 
+        tipo_servicio_id = COALESCE(?, tipo_servicio_id),
+        fecha_emision = COALESCE(?, fecha_emision),
+        fecha_zarpe = COALESCE(?, fecha_zarpe),
+        fecha_embarque = COALESCE(?, fecha_embarque),
+        shipper = COALESCE(?, shipper),
+        consignee = COALESCE(?, consignee),
+        notify_party = COALESCE(?, notify_party),
+        descripcion_carga = COALESCE(?, descripcion_carga),
+        peso_bruto = COALESCE(?, peso_bruto),
+        volumen = COALESCE(?, volumen),
+        bultos = COALESCE(?, bultos),
+        updated_at = NOW()
+      WHERE bl_number = ?
+    `, [
+      tipo_servicio_id,
+      fecha_emision,
+      fecha_zarpe,
+      fecha_embarque,
+      shipper,
+      consignee,
+      notify_party,
+      descripcion_carga,
+      peso_bruto,
+      volumen,
+      bultos,
+      blNumber
+    ]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "BL no encontrado" });
+    }
+
+    // Retornar el BL actualizado
+    const [updated] = await pool.query(
+      `SELECT 
+        b.*,
+        m.viaje,
+        po.nombre as puerto_origen,
+        pd.nombre as puerto_destino
+       FROM bls b
+       LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
+       LEFT JOIN puertos po ON b.puerto_origen_id = po.id
+       LEFT JOIN puertos pd ON b.puerto_destino_id = pd.id
+       WHERE b.bl_number = ?`,
+      [blNumber]
+    );
+
+    res.json({ 
+      message: "BL actualizado exitosamente",
+      bl: updated[0]
+    });
+  } catch (error) {
+    console.error("Error al actualizar BL:", error);
+    res.status(500).json({ error: "Error al actualizar BL" });
+  }
+});
+
+// PATCH - Actualizar solo el status del BL
+app.patch("/bls/:blNumber/status", async (req, res) => {
+  const { blNumber } = req.params;
+  const { status } = req.body;
+
+  // Validar status
+  const validStatuses = ['CREADO', 'VALIDADO', 'ENVIADO', 'ANULADO'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ 
+      error: "Status inválido. Debe ser: CREADO, VALIDADO, ENVIADO o ANULADO" 
+    });
+  }
+
+  try {
+    const [result] = await pool.query(
+      "UPDATE bls SET status = ?, updated_at = NOW() WHERE bl_number = ?",
+      [status, blNumber]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "BL no encontrado" });
+    }
+
+    res.json({ 
+      message: "Status actualizado exitosamente",
+      status 
+    });
+  } catch (error) {
+    console.error("Error al actualizar status:", error);
+    res.status(500).json({ error: "Error al actualizar status" });
+  }
+});
 const port = Number(process.env.PORT || 4000);
 app.listen(port, () => console.log(`API running on http://localhost:${port}`));
