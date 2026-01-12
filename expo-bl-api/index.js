@@ -840,14 +840,80 @@ function pickAll(lines, code) {
   return lines.filter((l) => lineCode(l) === code);
 }
 
-// --------- Extractores PMS ---------
 
+// ===============================
+// LOCACIONES desde PMS
+// ===============================
+
+// LE desde línea 74: "74   CLSCL20251125..."
+// => devuelve "CLSCL"
 function extractLugarEmisionFrom74(lines) {
-  const l74 = pickFirst(lines, "74");
-  // 74   CLSCL20251125...
-  const m = String(l74 || "").match(/^74\s+([A-Z]{5})/);
+  const l74 = [...lines].reverse().find((l) => lineCode(l) === "74") || "";
+  const m = String(l74).match(/^74\s+([A-Z]{5})/);
   return m ? m[1] : "";
 }
+
+// Elige la 14 "principal" para fechas: 01SH si existe; si no, primera con 2 timestamps
+function pickMain14ForDates(lines14) {
+  if (!Array.isArray(lines14) || lines14.length === 0) return "";
+  const withDates = lines14.filter((l) => /(\d{12})\s*(\d{12})/.test(l));
+  if (withDates.length === 0) return lines14[0] || "";
+
+  const main = withDates.find((l) => /\b01SH/.test(l));
+  return main || withDates[0] || "";
+}
+
+// Extrae PE/PD desde una línea 14:
+// "14   01SHCLVAPTWKHH..." => PE=CLVAP, PD=TWKHH
+function extractPEPDFrom14(line14) {
+  const s = String(line14 || "");
+  const m = s.match(/\b\d{2}SH([A-Z]{5})([A-Z]{5})/);
+  if (!m) return { pe: "", pd: "" };
+  return { pe: m[1], pd: m[2] };
+}
+
+// Reglas:
+// - Normal (1 sola 14): PE/PD = esa 14
+// - Transbordo (varias 14): PE = primera 14 (01SH si existe, si no la primera válida)
+//                           PD = última 14 válida (mayor "xxSH", o última por orden de aparición)
+function pickPEPD(lines14) {
+  const arr = Array.isArray(lines14) ? lines14 : [];
+  const parsed = arr
+    .map((l, idx) => {
+      const step = (() => {
+        const m = String(l).match(/\b(\d{2})SH/);
+        return m ? Number(m[1]) : null;
+      })();
+
+      const { pe, pd } = extractPEPDFrom14(l);
+      return { idx, step, pe, pd, raw: l };
+    })
+    .filter((x) => x.pe && x.pd);
+
+  if (parsed.length === 0) return { pe: "", pd: "" };
+
+  // Preferir orden por step si existe, si no por idx
+  const hasSteps = parsed.some((x) => Number.isFinite(x.step));
+  const ordered = [...parsed].sort((a, b) => {
+    if (hasSteps) {
+      const sa = Number.isFinite(a.step) ? a.step : 999;
+      const sb = Number.isFinite(b.step) ? b.step : 999;
+      if (sa !== sb) return sa - sb;
+    }
+    return a.idx - b.idx;
+  });
+
+  // PE: idealmente la 01SH si está
+  const first01 = ordered.find((x) => x.step === 1);
+  const first = first01 || ordered[0];
+
+  // PD: última del orden
+  const last = ordered[ordered.length - 1];
+
+  return { pe: first.pe, pd: last.pd };
+}
+
+// --------- Extractores PMS ---------
 
 function extractServiceCodeFrom12(line12) {
   // Ej: "... TWKHHCLVAPFF  YY ..." -> FF
@@ -1024,18 +1090,22 @@ function cleanMysqlDateTime(v) {
   return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s) ? s : null;
 }
 
+// ===============================
+// parsePmsTxt CORREGIDA
+// ===============================
 function parsePmsTxt(content) {
   const lines = splitLines(content);
   const blocks = splitIntoBLBlocks(lines);
 
-  // ✅ Header global (viene una sola vez en el archivo)
+  // Header global (1 vez)
   const header00 = pickFirst(lines, "00");
   const header11 = pickFirst(lines, "11");
 
-  const fechaPresentacionGlobal = extractFPRESFrom00(header00); // FPRES
-  const fechaEmisionGlobal = extractFEMFrom11(header11);        // FEM (DATE)
+  const fechaPresentacionGlobal = extractFPRESFrom00(header00); // FPRES (datetime)
+  const fechaEmisionGlobal = extractFEMFrom11(header11);        // FEM (date)
 
-  const lugarEmisionCod = extractLugarEmisionFrom74(lines);
+  // LE global desde 74
+  const lugarEmisionCodGlobal = extractLugarEmisionFrom74(lines);
 
   return blocks
     .map((bLines) => {
@@ -1045,12 +1115,15 @@ function parsePmsTxt(content) {
 
       const tipoServicioCod = extractServiceCodeFrom12(l12);
 
-      const l13 = pickFirst(bLines, "13");
-      const { pol, pod } = extractPOLPOD(l13);
-
       const shipper = extractPartyName(pickFirst(bLines, "16"));
       const consignee = extractPartyName(pickFirst(bLines, "21"));
       const notify = extractPartyName(pickFirst(bLines, "26"));
+
+      // Fallback (por si 14 viene rara): POL/POD desde 13
+      const l13 = pickFirst(bLines, "13");
+      const { pol, pod } = (typeof extractPOLPOD === "function")
+        ? extractPOLPOD(l13)
+        : { pol: "", pod: "" };
 
       const lines41 = pickAll(bLines, "41");
       const totalItems = countItemsFrom41(lines41);
@@ -1059,7 +1132,7 @@ function parsePmsTxt(content) {
         ? lines41.map(extractDescripcionFrom41).filter(Boolean).join(" | ")
         : null;
 
-      // ✅ unidades + sumas desde 41
+      // unidades + volumen desde 41
       let unidadPeso = null;
       let unidadVolumen = null;
       let totalVolumen = 0;
@@ -1076,20 +1149,25 @@ function parsePmsTxt(content) {
           totalVolumen += volumen;
         }
       }
-
-      // redondeo a 3 decimales (decimal(12,3))
       totalVolumen = Math.round(totalVolumen * 1000) / 1000;
 
-      // ✅ Fechas: FPRES/FEM globales + FEMB/FZARPE desde 14
+      // ---------- 14: FECHAS y LOCACIONES ----------
       const lines14 = pickAll(bLines, "14");
-      // nos quedamos con el 14 que tenga 2 timestamps (YYYYMMDDHHMMYYYYMMDDHHMM)
-      const l14 = lines14.find((l) => /(\d{12})\s*(\d{12})/.test(l)) || pickBest14(bLines) || "";
 
-      const fechaPresentacion = fechaPresentacionGlobal; // FPRES
-      const fechaEmision = fechaEmisionGlobal;           // FEM (DATE)
-      const fechaEmbarque = l14 ? extractFEMBFrom14(l14) : null; // FEMB
-      const fechaZarpe = l14 ? extractFZARPEFrom14(l14) : null;  // FZARPE (provisional)
+      // Fechas desde 14 principal (01SH si existe)
+      const main14 = pickMain14ForDates(lines14);
 
+      const fechaPresentacion = fechaPresentacionGlobal;
+      const fechaEmision = fechaEmisionGlobal;
+      const fechaEmbarque = main14 ? extractFEMBFrom14(main14) : null;
+      const fechaZarpe = main14 ? extractFZARPEFrom14(main14) : null;
+
+      // Locaciones PE/PD desde 14 (con fallback a 13)
+      const { pe, pd } = pickPEPD(lines14);
+      const puertoEmbarqueCod = pe || pol || "";
+      const puertoDescargaCod = pd || pod || "";
+
+      // ---------- otros ----------
       const lines51 = pickAll(bLines, "51");
       const totalContainers = countContainersFrom51(lines51);
 
@@ -1098,26 +1176,29 @@ function parsePmsTxt(content) {
       return {
         blNumber,
         tipoServicioCod,
-        pol,
-        pod,
+
         shipper,
         consignee,
         notify,
         descripcion_carga: descripcion,
+
         peso_bruto: weightKgs,
-        unidad_peso: unidadPeso,                 // ✅
-        volumen: foundVol ? totalVolumen : 0,    // ✅ (si no encontró, queda 0 como acordamos)
-        unidad_volumen: unidadVolumen,           // ✅
+        unidad_peso: unidadPeso,
+        volumen: foundVol ? totalVolumen : 0,
+        unidad_volumen: unidadVolumen,
+
         bultos: totalContainers,
         total_items: totalItems,
+
         fecha_presentacion: fechaPresentacion,
         fecha_emision: fechaEmision,
         fecha_embarque: fechaEmbarque,
         fecha_zarpe: fechaZarpe,
-        pol, pod,
-        lugar_emision_cod: lugarEmisionCod, // NUEVO
-        puerto_embarque_cod: pol,           // NUEVO (PE)
-        puerto_descarga_cod: pod,
+
+        // Códigos para resolver a puertos (FKs)
+        lugar_emision_cod: lugarEmisionCodGlobal, // LE (74)
+        puerto_embarque_cod: puertoEmbarqueCod,   // PE (14, fallback 13)
+        puerto_descarga_cod: puertoDescargaCod,   // PD (14, fallback 13)
       };
     })
     .filter(Boolean);
@@ -1237,9 +1318,9 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
         puertoEmbarqueId,
         puertoDescargaId,
 
-        null, // lugar_destino_id (por ahora)
-        null, // lugar_entrega_id (por ahora)
-        null, // lugar_recepcion_id (por ahora)
+        null, // lugar_destino_id (pendiente)
+        null, // lugar_entrega_id (pendiente)
+        null, // lugar_recepcion_id (pendiente)
 
         b.descripcion_carga || null,
 
