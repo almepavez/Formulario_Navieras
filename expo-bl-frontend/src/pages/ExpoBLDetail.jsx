@@ -75,7 +75,7 @@ const ExpoBLDetail = () => {
                         Error: <span className="font-medium">{error || "BL no encontrado"}</span>
                     </div>
                     <button
-                        onClick={() => navigate("/expo")}
+                        onClick={() => navigate("/expo-bl")}
                         className="text-sm text-slate-500 hover:text-[#0F2A44]"
                     >
                         ← Volver al listado
@@ -95,7 +95,7 @@ const ExpoBLDetail = () => {
                     <div className="flex items-start justify-between gap-6 mb-4">
                         <div>
                             <button
-                                onClick={() => navigate("/expo")}
+                                onClick={() => navigate("/expo-bl")}
                                 className="text-sm text-slate-500 hover:text-[#0F2A44] mb-2"
                             >
                                 ← Volver al listado

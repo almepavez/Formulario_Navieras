@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
+import { Pencil } from "lucide-react";
 
 const estadoStyles = {
     "CREADO": "bg-blue-100 text-blue-800 ring-blue-200",
@@ -119,6 +120,11 @@ const ExpoBL = () => {
         }
 
         return pages;
+    };
+
+    const handleEdit = (e, blNumber) => {
+        e.stopPropagation();
+        navigate(`/expo/${blNumber}/edit`);
     };
 
     return (
@@ -246,6 +252,7 @@ const ExpoBL = () => {
                                     <th className="text-right px-6 py-3 font-semibold">Peso (KG)</th>
                                     <th className="text-center px-6 py-3 font-semibold">Bultos</th>
                                     <th className="text-left px-6 py-3 font-semibold">Status</th>
+                              
                                 </tr>
                             </thead>
 
@@ -296,12 +303,13 @@ const ExpoBL = () => {
                                                     {bl.status}
                                                 </span>
                                             </td>
+                                            
                                         </tr>
                                     ))}
 
                                 {!loading && filteredBLs.length === 0 && (
                                     <tr>
-                                        <td className="px-6 py-10 text-center text-slate-500" colSpan={9}>
+                                        <td className="px-6 py-10 text-center text-slate-500" colSpan={10}>
                                             {searchTerm || statusFilter !== "TODOS" || viajeFilter !== "TODOS"
                                                 ? "No se encontraron BLs con los filtros aplicados"
                                                 : "No hay BLs registrados aún"}

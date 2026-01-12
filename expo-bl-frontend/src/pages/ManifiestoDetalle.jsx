@@ -180,8 +180,8 @@ const ManifiestoDetalle = () => {
         text: "Los cambios no guardados se perderán",
         icon: "warning",
         showCancelButton: true,
-        confirmButtonColor: "#0F2A44",
-        cancelButtonColor: "#64748b",
+        confirmButtonColor: "#b13030ff",
+        cancelButtonColor: "#3a8a30ff",
         confirmButtonText: "Sí, cancelar",
         cancelButtonText: "No, continuar editando",
       });
