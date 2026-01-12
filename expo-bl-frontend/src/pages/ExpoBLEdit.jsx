@@ -589,7 +589,7 @@ const ExpoBLEdit = () => {
                         <div className="space-y-6">
                             <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
                                 <h3 className="font-semibold text-blue-900 mb-4 text-lg">
-                                    📋 Resumen de cambios
+                                    Resumen de cambios
                                 </h3>
                                 <div className="grid grid-cols-2 gap-4 text-sm">
                                     <div>
@@ -624,7 +624,7 @@ const ExpoBLEdit = () => {
                             </div>
 
                             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
-                                <strong>⚠️ Atención:</strong> Al confirmar, los cambios se aplicarán inmediatamente en el sistema SIDEMAR.
+                                <strong>Atención:</strong> Al confirmar, los cambios se aplicarán inmediatamente en el sistema SIDEMAR.
                             </div>
                         </div>
                     )}

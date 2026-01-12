@@ -75,7 +75,7 @@ const ExpoBLDetail = () => {
                         Error: <span className="font-medium">{error || "BL no encontrado"}</span>
                     </div>
                     <button
-                        onClick={() => navigate("/expo")}
+                        onClick={() => navigate("/expo-bl")}
                         className="text-sm text-slate-500 hover:text-[#0F2A44]"
                     >
                         ← Volver al listado
@@ -95,7 +95,7 @@ const ExpoBLDetail = () => {
                     <div className="flex items-start justify-between gap-6 mb-4">
                         <div>
                             <button
-                                onClick={() => navigate("/expo")}
+                                onClick={() => navigate("/expo-bl")}
                                 className="text-sm text-slate-500 hover:text-[#0F2A44] mb-2"
                             >
                                 ← Volver al listado
@@ -147,7 +147,9 @@ const ExpoBLDetail = () => {
 
                         <div>
                             <p className="text-xs text-slate-500 mb-1">Tipo de Servicio</p>
-                            <p className="text-sm font-medium text-slate-900">{bl.tipo_servicio_id || "—"}</p>
+                            <p className="text-sm font-medium text-slate-900">
+                            {bl.tipo_servicio_codigo || bl.tipo_servicio || "—"}
+                            </p>
                         </div>
 
                         <div>
@@ -200,12 +202,12 @@ const ExpoBLDetail = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <p className="text-xs text-slate-500 mb-1">Puerto Origen</p>
-                            <p className="text-sm font-medium text-slate-900">{bl.puerto_origen || "—"}</p>
+                            <p className="text-sm font-medium text-slate-900">{bl.puerto_embarque || "—"}</p>
                         </div>
 
                         <div>
                             <p className="text-xs text-slate-500 mb-1">Puerto Destino</p>
-                            <p className="text-sm font-medium text-slate-900">{bl.puerto_destino || "—"}</p>
+                            <p className="text-sm font-medium text-slate-900">{bl.puerto_descarga || "—"}</p>
                         </div>
                     </div>
                 </div>
