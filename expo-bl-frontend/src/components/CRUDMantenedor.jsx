@@ -297,7 +297,7 @@ const CRUDMantenedor = () => {
           <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
             <AlertCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
             <div className="text-sm">
-              <p className="text-blue-800 font-semibold mb-1">ℹ️ Información importante</p>
+              <p className="text-blue-800 font-semibold mb-1">Información importante</p>
               <p className="text-blue-700">
                 Los registros <strong>no se pueden eliminar</strong> porque pueden estar siendo utilizados en manifiestos o BLs. 
                 Solo puedes crear nuevos o editar los existentes.

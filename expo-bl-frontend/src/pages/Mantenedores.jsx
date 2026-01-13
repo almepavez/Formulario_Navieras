@@ -112,7 +112,7 @@ const Mantenedores = () => {
           {/* Info */}
           <div className="mt-8 sm:mt-10 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6">
             <h3 className="text-sm sm:text-base font-semibold text-[#0F2A44] mb-2">
-              ℹ️ Información
+              Información
             </h3>
             <p className="text-slate-600 text-sm">
               Los mantenedores permiten configurar y gestionar los datos base del sistema.
