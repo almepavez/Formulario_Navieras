@@ -3,9 +3,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import Sidebar from "../components/Sidebar";
 
-// Simulación de Sidebar (reemplaza con tu componente real)
-
-
 const steps = [
     { id: 1, name: "General", description: "Información básica del BL" },
     { id: 2, name: "Addr.", description: "Shipper, Consignee, Notify" },
@@ -20,8 +17,9 @@ const ExpoBLEdit = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
+    const [puertos, setPuertos] = useState([]); 
 
-    // Estado del formulario (solo campos que EXISTEN en la BD)
+    // Estado del formulario
     const [formData, setFormData] = useState({
         bl_number: "",
         viaje: "",
@@ -29,6 +27,8 @@ const ExpoBLEdit = () => {
         fecha_emision: "",
         fecha_zarpe: "",
         fecha_embarque: "",
+        puerto_embarque: "",      
+        puerto_descarga: "",      
         shipper: "",
         consignee: "",
         notify_party: "",
@@ -39,17 +39,23 @@ const ExpoBLEdit = () => {
     });
 
     useEffect(() => {
-        const fetchBL = async () => {
+        const fetchData = async () => {
             setLoading(true);
             setError("");
             try {
-                const res = await fetch(`http://localhost:4000/bls/${blNumber}`);
-                
-                if (!res.ok) {
-                    throw new Error(`Error ${res.status}: No se pudo cargar el BL`);
+                // 🆕 Cargar BL
+                const resBL = await fetch(`http://localhost:4000/bls/${blNumber}`);
+                if (!resBL.ok) {
+                    throw new Error(`Error ${resBL.status}: No se pudo cargar el BL`);
                 }
+                const dataBL = await resBL.json();
                 
-                const data = await res.json();
+                // 🆕 Cargar lista de puertos
+                const resPuertos = await fetch(`http://localhost:4000/puertos`);
+                if (resPuertos.ok) {
+                    const dataPuertos = await resPuertos.json();
+                    setPuertos(dataPuertos);
+                }
                 
                 // Función para convertir fecha MySQL a formato input[type="date"]
                 const formatDate = (mysqlDate) => {
@@ -65,25 +71,26 @@ const ExpoBLEdit = () => {
                 
                 // Mapear datos del BL al formulario
                 setFormData({
-                    bl_number: data.bl_number || "",
-                    viaje: data.viaje || "",
-                    tipo_servicio: data.tipo_servicio_id === 1 ? "FF" : "MM",
-                    fecha_emision: formatDate(data.fecha_emision),
-                    fecha_zarpe: formatDateTime(data.fecha_zarpe),
-                    fecha_embarque: formatDateTime(data.fecha_embarque),
-                    shipper: data.shipper || "",
-                    consignee: data.consignee || "",
-                    notify_party: data.notify_party || "",
-                    descripcion_carga: data.descripcion_carga || "",
-                    peso_bruto: data.peso_bruto || "",
-                    volumen: data.volumen || "",
-                    bultos: data.bultos || ""
+                    bl_number: dataBL.bl_number || "",
+                    viaje: dataBL.viaje || "",
+                    tipo_servicio: dataBL.tipo_servicio_id === 1 ? "FF" : "MM",
+                    fecha_emision: formatDate(dataBL.fecha_emision),
+                    fecha_zarpe: formatDateTime(dataBL.fecha_zarpe),
+                    fecha_embarque: formatDateTime(dataBL.fecha_embarque),
+                    puerto_embarque: dataBL.puerto_embarque_codigo || "",  // 🆕 NUEVO
+                    puerto_descarga: dataBL.puerto_descarga_codigo || "",  
+                    shipper: dataBL.shipper || "",
+                    consignee: dataBL.consignee || "",
+                    notify_party: dataBL.notify_party || "",
+                    descripcion_carga: dataBL.descripcion_carga || "",
+                    peso_bruto: dataBL.peso_bruto || "",
+                    volumen: dataBL.volumen || "",
+                    bultos: dataBL.bultos || ""
                 });
             } catch (e) {
                 console.error("Error completo:", e);
                 setError(e?.message || "Error desconocido");
                 
-                // SweetAlert para error de carga
                 Swal.fire({
                     icon: "error",
                     title: "Error al cargar BL",
@@ -96,7 +103,7 @@ const ExpoBLEdit = () => {
         };
 
         if (blNumber) {
-            fetchBL();
+            fetchData();
         }
     }, [blNumber]);
 
@@ -122,6 +129,25 @@ const ExpoBLEdit = () => {
                         icon: "warning",
                         title: "Campo requerido",
                         text: "La fecha de emisión es obligatoria",
+                        confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
+                }
+                // 🆕 VALIDACIÓN DE PUERTOS
+                if (!formData.puerto_embarque) {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "Campo requerido",
+                        text: "Debes seleccionar el puerto de embarque",
+                        confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
+                }
+                if (!formData.puerto_descarga) {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "Campo requerido",
+                        text: "Debes seleccionar el puerto de descarga",
                         confirmButtonColor: "#0F2A44"
                     });
                     return false;
@@ -201,7 +227,6 @@ const ExpoBLEdit = () => {
     };
 
     const handleSave = async () => {
-        // ✅ Confirmación antes de guardar
         const result = await Swal.fire({
             title: "¿Guardar cambios?",
             html: `
@@ -223,18 +248,19 @@ const ExpoBLEdit = () => {
         setError("");
         
         try {
-            // Convertir fechas datetime-local a formato MySQL
             const formatToMysql = (dateTimeLocal) => {
                 if (!dateTimeLocal) return null;
                 return dateTimeLocal.replace("T", " ") + ":00";
             };
 
-            // Preparar datos para enviar
+            // 🆕 Preparar datos con puertos
             const dataToSend = {
                 tipo_servicio: formData.tipo_servicio,
                 fecha_emision: formData.fecha_emision || null,
                 fecha_zarpe: formatToMysql(formData.fecha_zarpe),
                 fecha_embarque: formatToMysql(formData.fecha_embarque),
+                puerto_embarque: formData.puerto_embarque || null,  // 🆕 NUEVO
+                puerto_descarga: formData.puerto_descarga || null,  // 🆕 NUEVO
                 shipper: formData.shipper || null,
                 consignee: formData.consignee || null,
                 notify_party: formData.notify_party || null,
@@ -257,7 +283,6 @@ const ExpoBLEdit = () => {
                 throw new Error(errorData.error || "Error al guardar");
             }
             
-            // ✅ SweetAlert de éxito
             await Swal.fire({
                 icon: "success",
                 title: "¡Cambios guardados!",
@@ -268,14 +293,12 @@ const ExpoBLEdit = () => {
                 showConfirmButton: false
             });
             
-            // Redirigir al detalle
             navigate(`/expo/detail/${blNumber}`);
             
         } catch (e) {
             console.error("Error al guardar:", e);
             setError(e?.message || "Error al guardar");
             
-            // ✅ SweetAlert de error
             Swal.fire({
                 icon: "error",
                 title: "Error al guardar",
@@ -288,7 +311,6 @@ const ExpoBLEdit = () => {
     };
 
     const nextStep = () => {
-        // Validar antes de avanzar
         if (!validateStep(currentStep)) {
             return;
         }
@@ -329,7 +351,7 @@ const ExpoBLEdit = () => {
                         <strong>Error al cargar BL:</strong> {error}
                     </div>
                     <button
-                        onClick={() => navigate("/expo")}
+                        onClick={() => navigate("/expo-bl")}
                         className="text-sm text-slate-500 hover:text-slate-800"
                     >
                         ← Volver al listado
@@ -476,6 +498,44 @@ const ExpoBLEdit = () => {
                                     className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
                                 />
                             </div>
+
+                            {/* 🆕 PUERTO EMBARQUE */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">
+                                    Puerto Embarque <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                    value={formData.puerto_embarque}
+                                    onChange={(e) => updateField("puerto_embarque", e.target.value)}
+                                    className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
+                                >
+                                    <option value="">Seleccionar puerto...</option>
+                                    {puertos.map(puerto => (
+                                        <option key={puerto.id} value={puerto.codigo}>
+                                            {puerto.codigo} - {puerto.nombre}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* 🆕 PUERTO DESCARGA */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">
+                                    Puerto Descarga <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                    value={formData.puerto_descarga}
+                                    onChange={(e) => updateField("puerto_descarga", e.target.value)}
+                                    className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
+                                >
+                                    <option value="">Seleccionar puerto...</option>
+                                    {puertos.map(puerto => (
+                                        <option key={puerto.id} value={puerto.codigo}>
+                                            {puerto.codigo} - {puerto.nombre}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
                     )}
 
@@ -607,6 +667,15 @@ const ExpoBLEdit = () => {
                                     <div>
                                         <p className="text-blue-700 font-medium">Fecha Emisión:</p>
                                         <p className="text-blue-900">{formData.fecha_emision || "—"}</p>
+                                    </div>
+                                    {/* 🆕 PUERTOS EN RESUMEN */}
+                                    <div>
+                                        <p className="text-blue-700 font-medium">Puerto Embarque:</p>
+                                        <p className="text-blue-900">{formData.puerto_embarque || "—"}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-blue-700 font-medium">Puerto Descarga:</p>
+                                        <p className="text-blue-900">{formData.puerto_descarga || "—"}</p>
                                     </div>
                                     <div>
                                         <p className="text-blue-700 font-medium">Peso Bruto:</p>
