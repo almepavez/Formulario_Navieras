@@ -1,22 +1,33 @@
 import { useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { 
   FileText, 
   Ship, 
   Package,
   Settings,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  LogOut
 } from "lucide-react";
 import logo from "../img/SGA Logo 3.png";
 
 const Sidebar = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
   // El sidebar está expandido si no está colapsado O si está en hover
   const isExpanded = !isCollapsed || isHovered;
+
+  const handleLogout = () => {
+    // Limpiar token del localStorage
+    localStorage.removeItem("token");
+    localStorage.removeItem("usuario");
+    
+    // Redirigir al login
+    navigate("/login");
+  };
 
   return (
     <aside 
@@ -138,14 +149,31 @@ const Sidebar = () => {
         </NavLink>
       </nav>
 
-      {/* Footer */}
-      {isExpanded && (
-        <div className="p-4 border-t border-white/10">
-          <div className="text-xs text-slate-400">
+      {/* Footer con Logout */}
+      <div className="p-4 border-t border-white/10">
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group relative w-full text-slate-300 hover:bg-red-500/20 hover:text-red-400"
+          title={!isExpanded ? "Cerrar Sesión" : ""}
+        >
+          <LogOut size={20} className="flex-shrink-0" />
+          {isExpanded && <span className="text-sm">Cerrar Sesión</span>}
+          
+          {/* Tooltip cuando está colapsado */}
+          {!isExpanded && (
+            <div className="absolute left-full ml-2 px-3 py-2 bg-slate-800 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
+              Cerrar Sesión
+              <div className="absolute right-full top-1/2 -translate-y-1/2 border-8 border-transparent border-r-slate-800"></div>
+            </div>
+          )}
+        </button>
+
+        {isExpanded && (
+          <div className="mt-3 text-xs text-slate-400 text-center">
             © Broom Group · Uso interno
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </aside>
   );
 };

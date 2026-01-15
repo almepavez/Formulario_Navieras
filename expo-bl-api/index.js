@@ -9,14 +9,48 @@ const path = require("path");
 const fs = require("fs");
 const { XMLParser } = require("fast-xml-parser");
 const { parse: csvParse } = require("csv-parse/sync");
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const session = require('express-session');
+const nodemailer = require('nodemailer');
+const crypto = require('crypto');
 
 dotenv.config();
 
 const app = express();
+
+// ============================================
+// CONFIGURACIÓN DE MIDDLEWARE
+// ============================================
 app.use(cors());
 app.use(express.json());
 
-// Configuración JWT
+app.use(session({
+  secret: process.env.SESSION_SECRET || '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',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false }
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+// ============================================
+// CONFIGURAR EMAIL TRANSPORTER
+// ============================================
+const transporter = nodemailer.createTransport({
+  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+  port: Number(process.env.EMAIL_PORT) || 587,
+  secure: false,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASSWORD,
+  },
+});
+
+// ============================================
+// JWT CONFIG
+// ============================================
 const JWT_SECRET = process.env.JWT_SECRET || 'tu_secreto_super_seguro_cambialo';
 const JWT_EXPIRES = '7d';
 
@@ -39,6 +73,9 @@ const verificarToken = (req, res, next) => {
   }
 };
 
+// ============================================
+// DATABASE POOL
+// ============================================
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -49,16 +86,151 @@ const pool = mysql.createPool({
   connectionLimit: 10,
 });
 
+// ============================================
+// LISTA BLANCA DE EMAILS
+// ============================================
+const EMAILS_PERMITIDOS = {
+  'inunez@broomgroup.com': 'admin',
+  'apavez@broomgroup.com': 'admin',
+  'iriffo@broomgroup.com': 'admin',
+  'iriffo@broomgroup.cl': 'operador',
+};
+
+// 🔒 FUNCIÓN AUXILIAR: Verificar email autorizado
+function esEmailAutorizado(email) {
+  const emailLower = String(email || '').toLowerCase().trim();
+  return EMAILS_PERMITIDOS.hasOwnProperty(emailLower);
+}
+// ============================================
+// GOOGLE STRATEGY
+// ============================================
+passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL: "http://localhost:4000/api/auth/google/callback"
+  },
+  async function(accessToken, refreshToken, profile, cb) {
+    try {
+      const email = profile.emails[0].value.toLowerCase();
+      const nombre = profile.displayName;
+      const foto = profile.photos[0]?.value || null;
+      const googleId = profile.id;
+
+      if (!EMAILS_PERMITIDOS[email]) {
+        console.log(`❌ Acceso denegado: ${email}`);
+        return cb(null, false, { 
+          message: 'No tienes autorización para acceder a este sistema' 
+        });
+      }
+
+      const rolAsignado = EMAILS_PERMITIDOS[email];
+      console.log(`✅ Acceso permitido: ${email} (${rolAsignado})`);
+
+      const [usuarios] = await pool.query(
+        'SELECT * FROM usuarios WHERE email = ?',
+        [email]
+      );
+
+      let usuario;
+
+      if (usuarios.length > 0) {
+        usuario = usuarios[0];
+        
+        if (!usuario.activo) {
+          console.log(`⚠️ Usuario desactivado: ${email}`);
+          return cb(null, false, { 
+            message: 'Tu cuenta ha sido desactivada. Contacta al administrador.' 
+          });
+        }
+        
+        await pool.query(
+          `UPDATE usuarios 
+           SET google_id = ?, 
+               foto_perfil = ?,
+               rol = ?,
+               ultimo_acceso = NOW()
+           WHERE id = ?`,
+          [googleId, foto, rolAsignado, usuario.id]
+        );
+
+        usuario.foto_perfil = foto;
+        usuario.rol = rolAsignado;
+      } else {
+        console.log(`🆕 Creando nuevo usuario: ${email}`);
+        
+        const [result] = await pool.query(
+          `INSERT INTO usuarios 
+           (nombre, email, google_id, foto_perfil, rol, activo, ultimo_acceso)
+           VALUES (?, ?, ?, ?, ?, true, NOW())`,
+          [nombre, email, googleId, foto, rolAsignado]
+        );
+
+        usuario = {
+          id: result.insertId,
+          nombre,
+          email,
+          google_id: googleId,
+          foto_perfil: foto,
+          rol: rolAsignado,
+          activo: true
+        };
+      }
+
+      return cb(null, usuario);
+    } catch (error) {
+      console.error('Error en Google Strategy:', error);
+      return cb(error);
+    }
+  }
+));
+
+passport.serializeUser((user, done) => {
+  done(null, user.id);
+});
+
+passport.deserializeUser(async (id, done) => {
+  try {
+    const [usuarios] = await pool.query(
+      'SELECT id, nombre, email, rol, foto_perfil FROM usuarios WHERE id = ?',
+      [id]
+    );
+    done(null, usuarios[0]);
+  } catch (error) {
+    done(error);
+  }
+});
+
+// ============================================
+// HELPER: Enviar Email
+// ============================================
+async function enviarEmail(to, subject, html) {
+  try {
+    const info = await transporter.sendMail({
+      from: process.env.EMAIL_FROM || '"SGA Broom Group" <noreply@broomgroup.cl>',
+      to,
+      subject,
+      html,
+    });
+    console.log('✅ Email enviado:', info.messageId);
+    return true;
+  } catch (error) {
+    console.error('❌ Error enviando email:', error);
+    return false;
+  }
+}
+
+// ============================================
+// RUTAS DE AUTENTICACIÓN
+// ============================================
+
 app.get("/health", async (_req, res) => {
   const conn = await pool.getConnection();
   await conn.ping();
   conn.release();
   res.json({ ok: true });
 });
-// ============================================
-// AUTH: LOGIN
-// ============================================
 
+// Login tradicional
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -124,9 +296,38 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
-// ============================================
-// AUTH: VERIFICAR TOKEN
-// ============================================
+// Google OAuth
+app.get('/api/auth/google',
+  passport.authenticate('google', { 
+    scope: ['profile', 'email'] ,
+      prompt: 'select_account'  // 🆕 Fuerza a elegir cuenta
+  })
+);
+
+app.get('/api/auth/google/callback',
+  passport.authenticate('google', { failureRedirect: 'http://localhost:5173/login?error=auth_failed' }),
+  async (req, res) => {
+    try {
+      const token = jwt.sign(
+        {
+          id: req.user.id,
+          email: req.user.email,
+          rol: req.user.rol,
+          nombre: req.user.nombre
+        },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRES }
+      );
+
+      res.redirect(`http://localhost:5173/auth/callback?token=${token}`);
+    } catch (error) {
+      console.error('Error en callback de Google:', error);
+      res.redirect('http://localhost:5173/login?error=auth_failed');
+    }
+  }
+);
+
+// Verificar token
 app.get("/api/auth/verificar", verificarToken, async (req, res) => {
   try {
     const [usuarios] = await pool.query(
@@ -145,14 +346,243 @@ app.get("/api/auth/verificar", verificarToken, async (req, res) => {
   }
 });
 
-// ============================================
-// AUTH: LOGOUT
-// ============================================
+// Logout
 app.post("/api/auth/logout", verificarToken, async (req, res) => {
   res.json({ success: true, message: 'Sesión cerrada' });
 });
 
+// ============================================
+// 🆕 RUTAS DE RECUPERACIÓN DE CONTRASEÑA
+// ============================================
 
+// POST /api/auth/forgot-password
+app.post("/api/auth/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'El email es requerido' });
+    }
+
+    const emailLower = email.toLowerCase().trim();
+
+    // 🔒 SEGURIDAD: Verificar que el email esté en la lista blanca
+    if (!esEmailAutorizado(emailLower)) {
+      // Retornar el mismo mensaje para no revelar si el email existe o no
+      return res.json({ 
+        success: true, 
+        message: 'Si el correo existe, recibirás un código de recuperación' 
+      });
+    }
+
+    // Verificar que el usuario existe y está activo
+    const [usuarios] = await pool.query(
+      'SELECT id, nombre, email, activo FROM usuarios WHERE email = ?',
+      [emailLower]
+    );
+
+    if (usuarios.length === 0 || !usuarios[0].activo) {
+      return res.json({ 
+        success: true, 
+        message: 'Si el correo existe, recibirás un código de recuperación' 
+      });
+    }
+
+    const usuario = usuarios[0];
+    const codigo = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiracion = new Date();
+    expiracion.setMinutes(expiracion.getMinutes() + 15);
+
+    await pool.query(
+      `UPDATE usuarios 
+       SET reset_code = ?,
+           reset_code_expires = ?
+       WHERE id = ?`,
+      [codigo, expiracion, usuario.id]
+    );
+
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #0F2A44; color: white; padding: 20px; text-align: center; }
+          .content { background-color: #f9f9f9; padding: 30px; }
+          .code-box { 
+            background-color: white; 
+            border: 2px dashed #0F2A44; 
+            padding: 20px; 
+            text-align: center; 
+            font-size: 32px; 
+            font-weight: bold; 
+            letter-spacing: 5px;
+            color: #0F2A44;
+            margin: 20px 0;
+          }
+          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Recuperación de Contraseña</h1>
+          </div>
+          <div class="content">
+            <p>Hola <strong>${usuario.nombre}</strong>,</p>
+            <p>Tu código de verificación es:</p>
+            <div class="code-box">${codigo}</div>
+            <p>Este código es válido por <strong>15 minutos</strong>.</p>
+            <p>Si no solicitaste este código, ignora este mensaje.</p>
+          </div>
+          <div class="footer">
+            <p>© ${new Date().getFullYear()} Broom Group</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await enviarEmail(
+      usuario.email,
+      'Código de recuperación - SGA Broom Group',
+      emailHtml
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Si el correo existe, recibirás un código de recuperación' 
+    });
+
+  } catch (error) {
+    console.error('Error en forgot-password:', error);
+    res.status(500).json({ error: 'Error al procesar la solicitud' });
+  }
+});
+
+
+// POST /api/auth/reset-password
+app.post("/api/auth/reset-password", async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ 
+        error: 'Email, código y nueva contraseña son requeridos' 
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ 
+        error: 'La contraseña debe tener al menos 6 caracteres' 
+      });
+    }
+
+    const emailLower = email.toLowerCase().trim();
+
+    // 🔒 SEGURIDAD: Verificar que el email esté en la lista blanca
+    if (!esEmailAutorizado(emailLower)) {
+      return res.status(400).json({ 
+        error: 'Código inválido o expirado' 
+      });
+    }
+
+    const [usuarios] = await pool.query(
+      `SELECT id, nombre, email 
+       FROM usuarios 
+       WHERE email = ? 
+       AND reset_code = ? 
+       AND reset_code_expires > NOW()
+       AND activo = true`,
+      [emailLower, code]
+    );
+
+    if (usuarios.length === 0) {
+      return res.status(400).json({ 
+        error: 'Código inválido o expirado' 
+      });
+    }
+
+    const usuario = usuarios[0];
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await pool.query(
+      `UPDATE usuarios 
+       SET password = ?,
+           reset_code = NULL,
+           reset_code_expires = NULL
+       WHERE id = ?`,
+      [hashedPassword, usuario.id]
+    );
+
+    console.log(`✅ Contraseña restablecida para: ${emailLower}`);
+
+    res.json({ 
+      success: true, 
+      message: 'Contraseña actualizada correctamente' 
+    });
+
+  } catch (error) {
+    console.error('Error en reset-password:', error);
+    res.status(500).json({ error: 'Error al restablecer contraseña' });
+  }
+});
+
+// POST /api/auth/verify-code
+app.post("/api/auth/verify-code", async (req, res) => {
+  try {
+    const { email, code } = req.body;
+
+    if (!email || !code) {
+      return res.status(400).json({ error: 'Email y código son requeridos' });
+    }
+
+    const emailLower = email.toLowerCase().trim();
+
+    // 🔒 SEGURIDAD: Verificar que el email esté en la lista blanca
+    if (!esEmailAutorizado(emailLower)) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Código inválido o expirado' 
+      });
+    }
+
+    const [usuarios] = await pool.query(
+      `SELECT id FROM usuarios 
+       WHERE email = ? 
+       AND reset_code = ? 
+       AND reset_code_expires > NOW()
+       AND activo = true`,
+      [emailLower, code]
+    );
+
+    if (usuarios.length === 0) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Código inválido o expirado' 
+      });
+    }
+
+    res.json({ 
+      success: true,
+      message: 'Código válido' 
+    });
+
+  } catch (error) {
+    console.error('Error en verify-code:', error);
+    res.status(500).json({ error: 'Error al verificar código' });
+  }
+});
+
+// ============================================
+// AQUÍ VA TODO TU CÓDIGO EXISTENTE DE MANIFIESTOS, BLS, ETC.
+// (Lo omito por brevedad pero debes copiar todo desde app.get("/manifiestos")
+// hasta app.patch("/bls/:blNumber/status") de tu código original)
+// ============================================
+
+// [... resto de tus rutas de manifiestos, puertos, servicios, naves, BLs, etc ...]
 app.get("/manifiestos", async (_req, res) => {
   try {
     const [rows] = await pool.query(
@@ -1752,5 +2182,8 @@ app.patch("/bls/:blNumber/status", async (req, res) => {
 });
 
 
+// ============================================
+// INICIAR SERVIDOR
+// ============================================
 const port = Number(process.env.PORT || 4000);
 app.listen(port, () => console.log(`API running on http://localhost:${port}`));
