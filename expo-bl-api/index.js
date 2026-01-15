@@ -1360,7 +1360,7 @@ function pickPEPD(lines14) {
 function parseLine51(raw) {
   const line = String(raw || "").toUpperCase();
 
-  // item y correlativo contenedor: 001001
+  // item y sec: 001001
   const mHead = line.match(/^51\s+(\d{3})(\d{3})/);
   const itemNo = mHead ? parseInt(mHead[1], 10) : null;
   const seqNo  = mHead ? parseInt(mHead[2], 10) : null;
@@ -1374,33 +1374,41 @@ function parseLine51(raw) {
   const numero = codigo.slice(4, 10);
   const digito = codigo.slice(10, 11);
 
-  // tipo_cnt real PMS: N22G1F / N45G1F (no uses \b)
+  // tipo_cnt: N22G1F / N45G1F
   const mTipo = line.match(/N(\d{2}[A-Z]\d)F/);
   const tipo_cnt = mTipo ? mTipo[1] : null;
 
-  // unidades: ...KGM...MTQ...
   const unidad_peso = line.includes("KGM") ? "KGM" : null;
   const unidad_volumen = line.includes("MTQ") ? "MTQ" : null;
 
-  // bloque numérico típico: (peso10)(otro10)(vol15)
-  // Ej: 0116460000 0210000000 000000000017920
-  const mNums = line.match(/(\d{10})(\d{10})(\d{15})/);
-  const peso = mNums ? (parseInt(mNums[1], 10) / 1000) : null;
-  const volumen = mNums ? (parseInt(mNums[3], 10) / 1000) : null;
+  let peso = null;
+  let volumen = null;
 
-  // sellos (en tu PMS vienen al final como CL006015, etc.)
-  // puedes ajustar si aparecen otros prefijos
-  const sellos = [];
-  const mSeal = line.match(/(CL\d{6,})/g);
-  if (mSeal) {
-    for (const s of mSeal) {
-      if (!sellos.includes(s)) sellos.push(s);
+  // ✅ FIX: después de CASE viene peso(10) + otro(10) + (volumen + sello(6))
+  const idxCase = line.indexOf("CASE");
+  if (idxCase !== -1) {
+    const after = line.slice(idxCase + 4);
+    const onlyDigits = after.replace(/\D/g, "");
+
+    // mínimo: 10 + 10 + 6 (sello) = 26
+    if (onlyDigits.length >= 26) {
+      const w10 = onlyDigits.slice(0, 10);
+      const tail = onlyDigits.slice(20); // volumen + sello(6)
+      const volDigits = tail.length > 6 ? tail.slice(0, -6) : "";
+
+      if (/^\d{10}$/.test(w10)) peso = parseInt(w10, 10) / 1000;
+      if (volDigits && /^\d+$/.test(volDigits)) volumen = parseInt(volDigits, 10) / 1000;
     }
   }
 
+  // sellos (CL + dígitos)
+  const sellos = [];
+  const mSeal = line.match(/(CL\d{6,})/g);
+  if (mSeal) for (const s of mSeal) if (!sellos.includes(s)) sellos.push(s);
+
   return {
-    itemNo,      // 1,2,3...
-    seqNo,       // 1,2,3...
+    itemNo,
+    seqNo,
     codigo,
     sigla,
     numero,
@@ -1424,35 +1432,8 @@ function extractContainersFrom51(lines51) {
     if (c) out.push(c);
   }
 
-  // dedupe por (codigo) por si la línea se repite
   const seen = new Set();
   return out.filter(c => c.codigo && !seen.has(c.codigo) && seen.add(c.codigo));
-}
-
-
-function extractContainersFrom51(lines51) {
-  const out = [];
-  if (!Array.isArray(lines51)) return out;
-
-  for (const raw of lines51) {
-    const line = String(raw || "").toUpperCase();
-
-    // ✅ MÁS TOLERANTE: sin \b
-    const mCont = line.match(/([A-Z]{4}\d{7})/);
-    if (!mCont) continue;
-
-    const iso11 = mCont[1];
-    const { codigo, sigla, numero, digito } = splitContainerCode(iso11);
-
-    const tipo_cnt = extractTipoCntFrom51(line);
-    const sellos = extractSellosFrom51(line);
-
-    out.push({ codigo, sigla, numero, digito, tipo_cnt, sellos });
-  }
-
-  // dedupe por codigo
-  const seen = new Set();
-  return out.filter(c => c?.codigo && !seen.has(c.codigo) && seen.add(c.codigo));
 }
 
 function splitContainerCode(iso11) {
@@ -1697,6 +1678,7 @@ async function insertContenedoresYSellos(conn, blId, contenedores) {
     VALUES (?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?)
   `;
+
 
   const insertSelloSql = `
     INSERT INTO bl_contenedor_sellos
