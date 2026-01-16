@@ -1107,6 +1107,26 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
 });
 
+
+let PMS51_TOKENS = [];
+
+async function loadPms51Tokens() {
+  const [rows] = await pool.query(
+    "SELECT token FROM pms51_tokens WHERE activo = 1"
+  );
+
+  PMS51_TOKENS = rows
+    .map(r => String(r.token).trim().toUpperCase())
+    .filter(Boolean);
+
+  // 🔒 Fallback de seguridad
+  if (!PMS51_TOKENS.length) {
+    PMS51_TOKENS = ["CASE", "CARTON", "PALLET", "BAG", "DRUM"];
+  }
+
+}
+
+
 app.post("/manifiestos/:id/pms", upload.single("pms"), async (req, res) => {
   const { id } = req.params;
 
@@ -1448,41 +1468,74 @@ function parseLine51(raw) {
   if (!mCont) return null;
 
   const codigo = mCont[1];
-  const sigla = codigo.slice(0, 4);
+  const sigla  = codigo.slice(0, 4);
   const numero = codigo.slice(4, 10);
   const digito = codigo.slice(10, 11);
 
-  // tipo_cnt: N22G1F / N45G1F
+  // tipo_cnt: N45G1F / N45R1F / N22G1F ...
   const mTipo = line.match(/N(\d{2}[A-Z]\d)F/);
   const tipo_cnt = mTipo ? mTipo[1] : null;
 
-  const unidad_peso = line.includes("KGM") ? "KGM" : null;
+  const unidad_peso    = line.includes("KGM") ? "KGM" : null;
   const unidad_volumen = line.includes("MTQ") ? "MTQ" : null;
 
   let peso = null;
   let volumen = null;
 
-  // ✅ FIX: después de CASE viene peso(10) + otro(10) + (volumen + sello(6))
-  const idxCase = line.indexOf("CASE");
-  if (idxCase !== -1) {
-    const after = line.slice(idxCase + 4);
-    const onlyDigits = after.replace(/\D/g, "");
+  // ===========================
+  // 1) TOKEN desde tabla/cache
+  // ===========================
+  let token = null;
+  let idx = -1;
 
-    // mínimo: 10 + 10 + 6 (sello) = 26
-    if (onlyDigits.length >= 26) {
-      const w10 = onlyDigits.slice(0, 10);
-      const tail = onlyDigits.slice(20); // volumen + sello(6)
-      const volDigits = tail.length > 6 ? tail.slice(0, -6) : "";
+  // PMS51_TOKENS = ["CASE","CARTON","PALLET","BAG","DRUM", ...]
+  const tokens = Array.isArray(PMS51_TOKENS) ? PMS51_TOKENS : [];
+  for (const t of tokens) {
+    const tt = String(t).toUpperCase();
+    const i = line.indexOf(tt);
+    if (i !== -1) { token = tt; idx = i; break; }
+  }
 
-      if (/^\d{10}$/.test(w10)) peso = parseInt(w10, 10) / 10000;
-      if (volDigits && /^\d+$/.test(volDigits)) volumen = parseInt(volDigits, 10) / 1000;
+  // =========================================
+  // 2) Peso/Volumen + TAIL (cola para sellos)
+  // =========================================
+  let tail = ""; // solo aquí se buscan sellos (para no tomar basura)
+
+  if (token && idx !== -1) {
+    const after = line.slice(idx + token.length);
+
+    // 10(peso) + 10(otro) + 7..9(volumen)
+    const mNums = after.match(/(\d{10})(\d{10})(\d{7,9})/);
+
+    if (mNums) {
+      const w10 = mNums[1];
+      const v   = mNums[3];
+
+      peso = parseInt(w10, 10) / 1000;
+
+      volumen = (v.length === 7)
+        ? (parseInt(v, 10) / 100)    // ej 0035200 => 35.20
+        : (parseInt(v, 10) / 1000);  // ej 000042840 => 42.840
+
+      // cola = después de TODO el bloque numérico detectado
+      const pos = after.indexOf(mNums[0]);
+      tail = (pos !== -1) ? after.slice(pos + mNums[0].length) : after;
+    } else {
+      // si no calza el bloque numérico, igual dejamos "after" como cola
+      // (por si igual vienen sellos después)
+      tail = after;
     }
   }
 
-  // sellos (CL + dígitos)
+  // ===========================
+  // 3) Sellos SOLO desde tail
+  // ===========================
   const sellos = [];
-  const mSeal = line.match(/(CL\d{6,})/g);
-  if (mSeal) for (const s of mSeal) if (!sellos.includes(s)) sellos.push(s);
+  if (tail) {
+    // Ajusta prefijos reales (ej: CL, BZ, JG)
+    const mSeal = tail.match(/\b(?:CL|BZ|JG)[0-9A-Z]{5,}\b/g);
+    if (mSeal) for (const s of mSeal) if (!sellos.includes(s)) sellos.push(s);
+  }
 
   return {
     itemNo,
@@ -1500,6 +1553,9 @@ function parseLine51(raw) {
     sellos,
   };
 }
+
+
+
 
 function extractContainersFrom51(lines51) {
   if (!Array.isArray(lines51)) return [];
@@ -2795,9 +2851,20 @@ app.patch("/bls/:blNumber/status", async (req, res) => {
   }
 });
 
+//Recargar tokens
+app.post("/admin/pms51/tokens/reload", async (req, res) => {
+  await loadPms51Tokens();
+  res.json({ ok: true, tokens: PMS51_TOKENS });
+});
 
 // ============================================
 // INICIAR SERVIDOR
 // ============================================
 const port = Number(process.env.PORT || 4000);
-app.listen(port, () => console.log(`API running on http://localhost:${port}`));
+(async () => {
+  await loadPms51Tokens();
+
+  app.listen(port, () => {
+    console.log(`API running on http://localhost:${port}`);
+  });
+})();
