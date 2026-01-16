@@ -30,6 +30,8 @@ const ExpoBLDetail = () => {
     const { blNumber } = useParams();
     const navigate = useNavigate();
     const [bl, setBl] = useState(null);
+    const [items, setItems] = useState([]);
+    const [contenedores, setContenedores] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
@@ -38,10 +40,19 @@ const ExpoBLDetail = () => {
             setLoading(true);
             setError("");
             try {
+                // Fetch BL básico
                 const res = await fetch(`http://localhost:4000/bls/${blNumber}`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
                 setBl(data);
+
+                // Fetch items y contenedores
+                const resItems = await fetch(`http://localhost:4000/bls/${blNumber}/items-contenedores`);
+                if (resItems.ok) {
+                    const dataItems = await resItems.json();
+                    setItems(dataItems.items || []);
+                    setContenedores(dataItems.contenedores || []);
+                }
             } catch (e) {
                 setError(e?.message || "Error desconocido");
                 setBl(null);
@@ -251,6 +262,147 @@ const ExpoBLDetail = () => {
                         </p>
                     </div>
                 </div>
+
+ {/* Ítems del BL */}
+{items.length > 0 && (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+        <h2 className="text-lg font-semibold text-[#0F2A44] mb-4">
+            Ítems del BL ({items.length})
+        </h2>
+        
+        <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200">
+                <thead className="bg-slate-50">
+                    <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Item</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Descripción</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Marcas</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Contenedores</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Tipo Bulto</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Cantidad</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Peso</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Volumen</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Peligrosa</th>
+                    </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-slate-200">
+                    {items.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50">
+                            <td className="px-4 py-3 text-sm font-medium text-slate-900">
+                                {item.numero_item}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-600 max-w-md">
+                                <div className="line-clamp-2" title={item.descripcion}>
+                                    {item.descripcion || "—"}
+                                </div>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-600 max-w-xs">
+                                <div className="line-clamp-1" title={item.marcas}>
+                                    {item.marcas || "—"}
+                                </div>
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                                {item.contenedores && item.contenedores.length > 0 ? (
+                                    <div className="flex flex-col gap-1">
+                                        {item.contenedores.map((cont, idx) => (
+                                            <span 
+                                                key={idx}
+                                                className="inline-flex items-center px-2 py-1 rounded bg-indigo-100 text-indigo-800 text-xs font-mono font-medium"
+                                                title={`Tipo: ${cont.tipo_cnt || 'N/A'}`}
+                                            >
+                                                {cont.codigo}
+                                            </span>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <span className="text-slate-400 text-xs">Sin contenedores</span>
+                                )}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-900">
+                                {item.tipo_bulto || "—"}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-900">
+                                {item.cantidad || "—"}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-900">
+                                {formatNumber(item.peso_bruto)} {item.unidad_peso || ""}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-900">
+                                {formatNumber(item.volumen)} {item.unidad_volumen || ""}
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                    item.carga_peligrosa === 'S' 
+                                        ? 'bg-red-100 text-red-800' 
+                                        : 'bg-green-100 text-green-800'
+                                }`}>
+                                    {item.carga_peligrosa === 'S' ? 'Sí' : 'No'}
+                                </span>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    </div>
+)}
+
+                {/* Contenedores */}
+                {contenedores.length > 0 && (
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+                        <h2 className="text-lg font-semibold text-[#0F2A44] mb-4">
+                            Contenedores ({contenedores.length})
+                        </h2>
+                        
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-slate-200">
+                                <thead className="bg-slate-50">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Código</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Tipo</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Peso</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Volumen</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Sellos</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-slate-200">
+                                    {contenedores.map((cont) => (
+                                        <tr key={cont.id} className="hover:bg-slate-50">
+                                            <td className="px-4 py-3 text-sm font-mono font-medium text-slate-900">
+                                                {cont.codigo}
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-slate-900">
+                                                {cont.tipo_cnt || "—"}
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-slate-900">
+                                                {formatNumber(cont.peso)} {cont.unidad_peso || ""}
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-slate-900">
+                                                {formatNumber(cont.volumen)} {cont.unidad_volumen || ""}
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-slate-600">
+                                                {cont.sellos ? (
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {cont.sellos.split(', ').map((sello, idx) => (
+                                                            <span 
+                                                                key={idx}
+                                                                className="inline-flex items-center px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs font-medium"
+                                                            >
+                                                                {sello}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    "—"
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
 
                 {/* Metadatos */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">

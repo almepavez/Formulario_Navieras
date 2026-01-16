@@ -105,11 +105,11 @@ function esEmailAutorizado(email) {
 // GOOGLE STRATEGY
 // ============================================
 passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: "http://localhost:4000/api/auth/google/callback"
-  },
-  async function(accessToken, refreshToken, profile, cb) {
+  clientID: process.env.GOOGLE_CLIENT_ID,
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  callbackURL: "http://localhost:4000/api/auth/google/callback"
+},
+  async function (accessToken, refreshToken, profile, cb) {
     try {
       const email = profile.emails[0].value.toLowerCase();
       const nombre = profile.displayName;
@@ -118,8 +118,8 @@ passport.use(new GoogleStrategy({
 
       if (!EMAILS_PERMITIDOS[email]) {
         console.log(`❌ Acceso denegado: ${email}`);
-        return cb(null, false, { 
-          message: 'No tienes autorización para acceder a este sistema' 
+        return cb(null, false, {
+          message: 'No tienes autorización para acceder a este sistema'
         });
       }
 
@@ -135,14 +135,14 @@ passport.use(new GoogleStrategy({
 
       if (usuarios.length > 0) {
         usuario = usuarios[0];
-        
+
         if (!usuario.activo) {
           console.log(`⚠️ Usuario desactivado: ${email}`);
-          return cb(null, false, { 
-            message: 'Tu cuenta ha sido desactivada. Contacta al administrador.' 
+          return cb(null, false, {
+            message: 'Tu cuenta ha sido desactivada. Contacta al administrador.'
           });
         }
-        
+
         await pool.query(
           `UPDATE usuarios 
            SET google_id = ?, 
@@ -157,7 +157,7 @@ passport.use(new GoogleStrategy({
         usuario.rol = rolAsignado;
       } else {
         console.log(`🆕 Creando nuevo usuario: ${email}`);
-        
+
         const [result] = await pool.query(
           `INSERT INTO usuarios 
            (nombre, email, google_id, foto_perfil, rol, activo, ultimo_acceso)
@@ -298,9 +298,9 @@ app.post("/api/auth/login", async (req, res) => {
 
 // Google OAuth
 app.get('/api/auth/google',
-  passport.authenticate('google', { 
-    scope: ['profile', 'email'] ,
-      prompt: 'select_account'  // 🆕 Fuerza a elegir cuenta
+  passport.authenticate('google', {
+    scope: ['profile', 'email'],
+    prompt: 'select_account'  // 🆕 Fuerza a elegir cuenta
   })
 );
 
@@ -369,9 +369,9 @@ app.post("/api/auth/forgot-password", async (req, res) => {
     // 🔒 SEGURIDAD: Verificar que el email esté en la lista blanca
     if (!esEmailAutorizado(emailLower)) {
       // Retornar el mismo mensaje para no revelar si el email existe o no
-      return res.json({ 
-        success: true, 
-        message: 'Si el correo existe, recibirás un código de recuperación' 
+      return res.json({
+        success: true,
+        message: 'Si el correo existe, recibirás un código de recuperación'
       });
     }
 
@@ -382,9 +382,9 @@ app.post("/api/auth/forgot-password", async (req, res) => {
     );
 
     if (usuarios.length === 0 || !usuarios[0].activo) {
-      return res.json({ 
-        success: true, 
-        message: 'Si el correo existe, recibirás un código de recuperación' 
+      return res.json({
+        success: true,
+        message: 'Si el correo existe, recibirás un código de recuperación'
       });
     }
 
@@ -451,9 +451,9 @@ app.post("/api/auth/forgot-password", async (req, res) => {
       emailHtml
     );
 
-    res.json({ 
-      success: true, 
-      message: 'Si el correo existe, recibirás un código de recuperación' 
+    res.json({
+      success: true,
+      message: 'Si el correo existe, recibirás un código de recuperación'
     });
 
   } catch (error) {
@@ -469,14 +469,14 @@ app.post("/api/auth/reset-password", async (req, res) => {
     const { email, code, newPassword } = req.body;
 
     if (!email || !code || !newPassword) {
-      return res.status(400).json({ 
-        error: 'Email, código y nueva contraseña son requeridos' 
+      return res.status(400).json({
+        error: 'Email, código y nueva contraseña son requeridos'
       });
     }
 
     if (newPassword.length < 6) {
-      return res.status(400).json({ 
-        error: 'La contraseña debe tener al menos 6 caracteres' 
+      return res.status(400).json({
+        error: 'La contraseña debe tener al menos 6 caracteres'
       });
     }
 
@@ -484,8 +484,8 @@ app.post("/api/auth/reset-password", async (req, res) => {
 
     // 🔒 SEGURIDAD: Verificar que el email esté en la lista blanca
     if (!esEmailAutorizado(emailLower)) {
-      return res.status(400).json({ 
-        error: 'Código inválido o expirado' 
+      return res.status(400).json({
+        error: 'Código inválido o expirado'
       });
     }
 
@@ -500,8 +500,8 @@ app.post("/api/auth/reset-password", async (req, res) => {
     );
 
     if (usuarios.length === 0) {
-      return res.status(400).json({ 
-        error: 'Código inválido o expirado' 
+      return res.status(400).json({
+        error: 'Código inválido o expirado'
       });
     }
 
@@ -519,9 +519,9 @@ app.post("/api/auth/reset-password", async (req, res) => {
 
     console.log(`✅ Contraseña restablecida para: ${emailLower}`);
 
-    res.json({ 
-      success: true, 
-      message: 'Contraseña actualizada correctamente' 
+    res.json({
+      success: true,
+      message: 'Contraseña actualizada correctamente'
     });
 
   } catch (error) {
@@ -543,9 +543,9 @@ app.post("/api/auth/verify-code", async (req, res) => {
 
     // 🔒 SEGURIDAD: Verificar que el email esté en la lista blanca
     if (!esEmailAutorizado(emailLower)) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        error: 'Código inválido o expirado' 
+        error: 'Código inválido o expirado'
       });
     }
 
@@ -559,15 +559,15 @@ app.post("/api/auth/verify-code", async (req, res) => {
     );
 
     if (usuarios.length === 0) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        error: 'Código inválido o expirado' 
+        error: 'Código inválido o expirado'
       });
     }
 
-    res.json({ 
+    res.json({
       success: true,
-      message: 'Código válido' 
+      message: 'Código válido'
     });
 
   } catch (error) {
@@ -578,9 +578,7 @@ app.post("/api/auth/verify-code", async (req, res) => {
 
 // ============================================
 // AQUÍ VA TODO TU CÓDIGO EXISTENTE DE MANIFIESTOS, BLS, ETC.
-// (Lo omito por brevedad pero debes copiar todo desde app.get("/manifiestos")
-// hasta app.patch("/bls/:blNumber/status") de tu código original)
-// ============================================
+
 
 // [... resto de tus rutas de manifiestos, puertos, servicios, naves, BLs, etc ...]
 app.get("/manifiestos", async (_req, res) => {
@@ -1397,7 +1395,7 @@ function extractItemNumbersSet(bLines) {
       if (n) set.add(n);
     }
   }
-  return [...set].sort((a,b)=>a-b);
+  return [...set].sort((a, b) => a - b);
 }
 
 function extractMarcasForItem(lines44, itemNo) {
@@ -1469,7 +1467,7 @@ function parseLine51(raw) {
   // item y sec: 001001
   const mHead = line.match(/^51\s+(\d{3})(\d{3})/);
   const itemNo = mHead ? parseInt(mHead[1], 10) : null;
-  const seqNo  = mHead ? parseInt(mHead[2], 10) : null;
+  const seqNo = mHead ? parseInt(mHead[2], 10) : null;
 
   // contenedor ISO11: ABCD1234567
   const mCont = line.match(/([A-Z]{4}\d{7})/);
@@ -2252,7 +2250,7 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
         cleanMysqlDateTime(b.fecha_presentacion),
         cleanMysqlDateTime(b.fecha_embarque),
         cleanMysqlDateTime(b.fecha_zarpe),
-        
+
       ]);
 
       const blId = blIns.insertId;
@@ -2502,6 +2500,166 @@ app.get("/bls/:blNumber", async (req, res) => {
   } catch (error) {
     console.error("Error al obtener BL:", error);
     res.status(500).json({ error: "Error al obtener BL", details: error.message });
+  }
+});
+
+// PUT - Actualizar items de un BL
+app.put("/bls/:blNumber/items", async (req, res) => {
+  const { blNumber } = req.params;
+  const { items } = req.body; // Array de items con sus datos actualizados
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // 1) Obtener bl_id
+    const [blRows] = await conn.query(
+      "SELECT id FROM bls WHERE bl_number = ? LIMIT 1",
+      [blNumber]
+    );
+
+    if (blRows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: "BL no encontrado" });
+    }
+
+    const blId = blRows[0].id;
+
+    // 2) Actualizar cada item
+    for (const item of items) {
+      if (!item.id) continue;
+
+      await conn.query(
+        `UPDATE bl_items 
+         SET descripcion = ?,
+             marcas = ?,
+             tipo_bulto = ?,
+             cantidad = ?,
+             peso_bruto = ?,
+             volumen = ?
+         WHERE id = ? AND bl_id = ?`,
+        [
+          item.descripcion || null,
+          item.marcas || null,
+          item.tipo_bulto || null,
+          item.cantidad || null,
+          item.peso_bruto || null,
+          item.volumen || null,
+          item.id,
+          blId
+        ]
+      );
+    }
+
+    await conn.commit();
+    res.json({ success: true, message: "Items actualizados correctamente" });
+  } catch (error) {
+    await conn.rollback();
+    console.error("Error al actualizar items:", error);
+    res.status(500).json({ error: "Error al actualizar items" });
+  } finally {
+    conn.release();
+  }
+});
+
+// GET items y contenedores de un BL específico
+app.get("/bls/:blNumber/items-contenedores", async (req, res) => {
+  try {
+    const { blNumber } = req.params;
+
+    // 1) Obtener el BL
+    const [blRows] = await pool.query(
+      "SELECT id FROM bls WHERE bl_number = ? LIMIT 1",
+      [blNumber]
+    );
+
+    if (blRows.length === 0) {
+      return res.status(404).json({ error: "BL no encontrado" });
+    }
+
+    const blId = blRows[0].id;
+    console.log(`📦 BL ID: ${blId} para BL Number: ${blNumber}`);
+
+    // 2) Obtener ítems
+    const [items] = await pool.query(
+      `SELECT 
+        id, numero_item, descripcion, marcas, carga_peligrosa,
+        tipo_bulto, cantidad, peso_bruto, unidad_peso, volumen, unidad_volumen
+      FROM bl_items
+      WHERE bl_id = ?
+      ORDER BY numero_item ASC`,
+      [blId]
+    );
+
+    console.log(`📋 Items encontrados: ${items.length}`);
+
+    // 3) Obtener contenedores POR ITEM
+    const [contenedoresPorItem] = await pool.query(
+      `SELECT 
+        c.item_id,
+        c.id as contenedor_id,
+        c.codigo,
+        c.tipo_cnt,
+        c.peso,
+        c.unidad_peso,
+        c.volumen,
+        c.unidad_volumen
+      FROM bl_contenedores c
+      WHERE c.bl_id = ?
+      ORDER BY c.item_id, c.codigo ASC`,
+      [blId]
+    );
+
+    console.log(`📦 Contenedores totales: ${contenedoresPorItem.length}`);
+    console.log(`🔍 Contenedores con item_id:`, contenedoresPorItem.filter(c => c.item_id).length);
+
+    // 4) Agrupar contenedores por item_id
+    const contsPorItemMap = {};
+    for (const cont of contenedoresPorItem) {
+      if (cont.item_id) {
+        if (!contsPorItemMap[cont.item_id]) {
+          contsPorItemMap[cont.item_id] = [];
+        }
+        contsPorItemMap[cont.item_id].push({
+          codigo: cont.codigo,
+          tipo_cnt: cont.tipo_cnt
+        });
+      }
+    }
+
+    console.log(`🗂️ Items con contenedores:`, Object.keys(contsPorItemMap).length);
+    console.log(`📊 Mapa de contenedores:`, JSON.stringify(contsPorItemMap, null, 2));
+
+    // 5) Agregar contenedores a cada ítem
+    const itemsConContenedores = items.map(item => ({
+      ...item,
+      contenedores: contsPorItemMap[item.id] || []
+    }));
+
+    // 6) Obtener TODOS los contenedores con sellos (para la tabla separada)
+    const [contenedores] = await pool.query(
+      `SELECT 
+        c.id, c.item_id, c.codigo, c.sigla, c.numero, c.digito,
+        c.tipo_cnt, c.carga_cnt, c.peso, c.unidad_peso, c.volumen, c.unidad_volumen,
+        GROUP_CONCAT(s.sello ORDER BY s.sello SEPARATOR ', ') as sellos
+      FROM bl_contenedores c
+      LEFT JOIN bl_contenedor_sellos s ON s.contenedor_id = c.id
+      WHERE c.bl_id = ?
+      GROUP BY c.id
+      ORDER BY c.codigo ASC`,
+      [blId]
+    );
+
+    res.json({
+      items: itemsConContenedores || [],
+      contenedores: contenedores || []
+    });
+  } catch (error) {
+    console.error("❌ Error al obtener items y contenedores:", error);
+    res.status(500).json({ 
+      error: "Error al obtener items y contenedores",
+      details: error.message 
+    });
   }
 });
 

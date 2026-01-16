@@ -7,7 +7,8 @@ const steps = [
     { id: 1, name: "General", description: "Información básica del BL" },
     { id: 2, name: "Addr.", description: "Shipper, Consignee, Notify" },
     { id: 3, name: "Carga", description: "Descripción y medidas" },
-    { id: 4, name: "Revisión", description: "Confirmar cambios" }
+    { id: 4, name: "Items", description: "Ítems y contenedores" },
+    { id: 5, name: "Revisión", description: "Confirmar cambios" }
 ];
 
 const ExpoBLEdit = () => {
@@ -18,6 +19,8 @@ const ExpoBLEdit = () => {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
     const [puertos, setPuertos] = useState([]); 
+    const [items, setItems] = useState([]);
+    const [contenedores, setContenedores] = useState([]);
 
     // Estado del formulario
     const [formData, setFormData] = useState({
@@ -87,6 +90,14 @@ const ExpoBLEdit = () => {
                     volumen: dataBL.volumen || "",
                     bultos: dataBL.bultos || ""
                 });
+
+                // 🆕 Cargar items y contenedores
+                const resItems = await fetch(`http://localhost:4000/bls/${blNumber}/items-contenedores`);
+                if (resItems.ok) {
+                    const dataItems = await resItems.json();
+                    setItems(dataItems.items || []);
+                    setContenedores(dataItems.contenedores || []);
+                }
             } catch (e) {
                 console.error("Error completo:", e);
                 setError(e?.message || "Error desconocido");
@@ -111,6 +122,13 @@ const ExpoBLEdit = () => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
+const updateItem = (itemId, field, value) => {
+        setItems(prevItems =>
+            prevItems.map(item =>
+                item.id === itemId ? { ...item, [field]: value } : item
+            )
+        );
+    };
     // ✅ VALIDACIONES
     const validateStep = (step) => {
         switch (step) {
@@ -222,6 +240,18 @@ const ExpoBLEdit = () => {
                     return false;
                 }
                 break;
+
+                case 4: // Items
+                if (items.length === 0) {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "Sin items",
+                        text: "Este BL no tiene items para editar",
+                        confirmButtonColor: "#0F2A44"
+                    });
+                    return true; // Permitir pasar al siguiente step
+                }
+                break;
         }
         return true;
     };
@@ -281,6 +311,18 @@ const ExpoBLEdit = () => {
             if (!res.ok) {
                 const errorData = await res.json();
                 throw new Error(errorData.error || "Error al guardar");
+            }
+            // 🆕 Guardar items si fueron modificados
+            if (items.length > 0) {
+                const resItems = await fetch(`http://localhost:4000/bls/${blNumber}/items`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ items })
+                });
+
+                if (!resItems.ok) {
+                    console.warn("Error al actualizar items (no crítico)");
+                }
             }
             
             await Swal.fire({
@@ -643,9 +685,140 @@ const ExpoBLEdit = () => {
                             </div>
                         </div>
                     )}
-
-                    {/* STEP 4: REVISIÓN */}
+{/* STEP 4: ITEMS Y CONTENEDORES */}
                     {currentStep === 4 && (
+                        <div className="space-y-6">
+                            {items.length === 0 ? (
+                                <div className="text-center py-8 text-slate-500">
+                                    <p>Este BL no tiene ítems cargados</p>
+                                    <p className="text-xs mt-2">Los ítems se crean automáticamente al procesar el PMS</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-8">
+                                    {items.map((item, idx) => (
+                                        <div key={item.id} className="border border-slate-200 rounded-lg p-6 bg-slate-50">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <h3 className="font-semibold text-slate-900">
+                                                    Item {item.numero_item}
+                                                </h3>
+                                                <span className="text-xs bg-slate-200 text-slate-700 px-2 py-1 rounded">
+                                                    {item.contenedores?.length || 0} contenedor(es)
+                                                </span>
+                                            </div>
+
+                                            {/* Contenedores asociados (read-only) */}
+                                            {item.contenedores && item.contenedores.length > 0 && (
+                                                <div className="mb-4">
+                                                    <label className="block text-xs font-medium text-slate-600 mb-2">
+                                                        Contenedores asociados:
+                                                    </label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {item.contenedores.map((cont, i) => (
+                                                            <span
+                                                                key={i}
+                                                                className="inline-flex items-center px-3 py-1 rounded-full bg-indigo-100 text-indigo-800 text-xs font-mono"
+                                                            >
+                                                                {cont.codigo}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {/* Descripción */}
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                        Descripción
+                                                    </label>
+                                                    <textarea
+                                                        rows={3}
+                                                        value={item.descripcion || ""}
+                                                        onChange={(e) => updateItem(item.id, "descripcion", e.target.value)}
+                                                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm"
+                                                    />
+                                                </div>
+
+                                                {/* Marcas */}
+                                                <div>
+                                                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                        Marcas
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={item.marcas || ""}
+                                                        onChange={(e) => updateItem(item.id, "marcas", e.target.value)}
+                                                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm"
+                                                    />
+                                                </div>
+
+                                                {/* Tipo Bulto */}
+                                                <div>
+                                                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                        Tipo Bulto
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={item.tipo_bulto || ""}
+                                                        onChange={(e) => updateItem(item.id, "tipo_bulto", e.target.value)}
+                                                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm"
+                                                        placeholder="Ej: 73, 76"
+                                                    />
+                                                </div>
+
+                                                {/* Cantidad */}
+                                                <div>
+                                                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                        Cantidad
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        value={item.cantidad || ""}
+                                                        onChange={(e) => updateItem(item.id, "cantidad", e.target.value)}
+                                                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm"
+                                                    />
+                                                </div>
+
+                                                {/* Peso */}
+                                                <div>
+                                                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                        Peso Bruto (KGM)
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.001"
+                                                        value={item.peso_bruto || ""}
+                                                        onChange={(e) => updateItem(item.id, "peso_bruto", e.target.value)}
+                                                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm"
+                                                    />
+                                                </div>
+
+                                                {/* Volumen */}
+                                                <div>
+                                                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                        Volumen (MTQ)
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.001"
+                                                        value={item.volumen || ""}
+                                                        onChange={(e) => updateItem(item.id, "volumen", e.target.value)}
+                                                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+                                <strong>Nota:</strong> Los contenedores no son editables desde aquí. Solo puedes modificar los datos de los ítems.
+                            </div>
+                        </div>
+                    )}
+                    {/* STEP 5: REVISIÓN */}
+                    {currentStep === 5 && (
                         <div className="space-y-6">
                             <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
                                 <h3 className="font-semibold text-blue-900 mb-4 text-lg">
