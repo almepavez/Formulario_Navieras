@@ -1357,6 +1357,86 @@ function pickPEPD(lines14) {
 
 // --------- Extractores PMS ---------
 
+function itemNoFromLine(line, tag) {
+  // tag "41"/"44"/"47" con formato: "41   001 ...."
+  const m = String(line || "").match(new RegExp(`^${tag}\\s+(\\d{3})`));
+  return m ? parseInt(m[1], 10) : null;
+}
+
+function extractItemNumbersSet(bLines) {
+  const set = new Set();
+  for (const t of ["41", "44", "47"]) {
+    for (const l of pickAll(bLines, t)) {
+      const n = itemNoFromLine(l, t);
+      if (n) set.add(n);
+    }
+  }
+  return [...set].sort((a,b)=>a-b);
+}
+
+function extractMarcasForItem(lines44, itemNo) {
+  return lines44
+    .filter(l => itemNoFromLine(l, "44") === itemNo)
+    .map(l => String(l).replace(/^44\s+\d{3}/, "").trim())
+    .filter(Boolean)
+    .join(" | ") || null;
+}
+
+function extractDescripcionForItem(lines47, itemNo) {
+  return lines47
+    .filter(l => itemNoFromLine(l, "47") === itemNo)
+    .map(l => String(l).replace(/^47\s+\d{3}/, "").trim())
+    .filter(Boolean)
+    .join(" ") || null;
+}
+
+// Si ya tienes extractWeightVolumeFrom41 / extractUnitsFrom41, úsalas acá.
+function extractPesoVolDesde41(lines41, itemNo) {
+  const l41 = lines41.find(l => itemNoFromLine(l, "41") === itemNo);
+  if (!l41) return { peso_bruto: null, volumen: null, unidad_peso: null, unidad_volumen: null };
+
+  const { peso, volumen } = extractWeightVolumeFrom41(l41) || {};
+  const u = extractUnitsFrom41(l41) || {};
+
+  return {
+    peso_bruto: typeof peso === "number" ? peso : null,
+    volumen: typeof volumen === "number" ? volumen : null,
+    unidad_peso: u.unidadPeso || null,
+    unidad_volumen: u.unidadVolumen || null,
+  };
+}
+
+function extractItemsFromBL(bLines) {
+  const lines41 = pickAll(bLines, "41");
+  const lines44 = pickAll(bLines, "44");
+  const lines47 = pickAll(bLines, "47");
+
+  const itemNos = extractItemNumbersSet(bLines);
+
+  return itemNos.map((n) => {
+    const marcas = extractMarcasForItem(lines44, n);
+    const descripcion = extractDescripcionForItem(lines47, n);
+    const wv = extractPesoVolDesde41(lines41, n);
+
+    // Por ahora: carga_peligrosa siempre "N" si no la tienes en otra parte
+    const carga_peligrosa = "N";
+
+    return {
+      numero_item: n,
+      descripcion: descripcion || null,
+      marcas: marcas || null,
+      carga_peligrosa,
+      // tipo_bulto/cantidad: si ya los estás derivando, ponlos acá; si no, null por ahora
+      tipo_bulto: null,
+      cantidad: null,
+      ...wv,
+      carga_cnt: "S", // en tu XML está así; si lo quieres desde 51/otros, después lo refinamos
+    };
+  });
+}
+
+
+
 function parseLine51(raw) {
   const line = String(raw || "").toUpperCase();
 
@@ -1396,7 +1476,7 @@ function parseLine51(raw) {
       const tail = onlyDigits.slice(20); // volumen + sello(6)
       const volDigits = tail.length > 6 ? tail.slice(0, -6) : "";
 
-      if (/^\d{10}$/.test(w10)) peso = parseInt(w10, 10) / 1000;
+      if (/^\d{10}$/.test(w10)) peso = parseInt(w10, 10) / 10000;
       if (volDigits && /^\d+$/.test(volDigits)) volumen = parseInt(volDigits, 10) / 1000;
     }
   }
@@ -1668,6 +1748,15 @@ function cleanMysqlDateTime(v) {
   return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s) ? s : null;
 }
 
+async function getTipoBultoFromTipoCnt(conn, tipoCnt) {
+  if (!tipoCnt) return null;
+  const [rows] = await conn.query(
+    "SELECT tipo_bulto FROM tipo_cnt_tipo_bulto WHERE tipo_cnt = ? AND activo = 1 LIMIT 1",
+    [tipoCnt]
+  );
+  return rows?.[0]?.tipo_bulto || null;
+}
+
 async function insertContenedoresYSellos(conn, blId, contenedores) {
   if (!contenedores.length) return;
 
@@ -1711,6 +1800,95 @@ async function insertContenedoresYSellos(conn, blId, contenedores) {
         [contenedorId, s]
       );
     }
+  }
+}
+
+function extractItemsFrom41_44_47(bLines) {
+  const lines41 = pickAll(bLines, "41");
+  const lines44 = pickAll(bLines, "44");
+  const lines47 = pickAll(bLines, "47");
+
+  const byItem = new Map(); // key: numero_item
+
+  const getItem = (n) => {
+    if (!byItem.has(n)) {
+      byItem.set(n, {
+        numero_item: n,
+        descripcion: null,
+        marcas: null,
+        carga_peligrosa: "N", // default
+        tipo_bulto: null,
+        cantidad: null,
+        peso_bruto: null,
+        volumen: null,
+        unidad_peso: null,
+        unidad_volumen: null,
+        carga_cnt: "S",
+      });
+    }
+    return byItem.get(n);
+  };
+
+  // 41 trae peso/volumen/unidades + “código” de item (001)
+  for (const l of lines41) {
+    const m = String(l).match(/^41\s+(\d{3})/);
+    if (!m) continue;
+    const n = parseInt(m[1], 10);
+    const it = getItem(n);
+
+    // peso/volumen desde tu extractor existente
+    if (typeof extractWeightVolumeFrom41 === "function") {
+      const { peso, volumen } = extractWeightVolumeFrom41(l);
+      if (typeof peso === "number") it.peso_bruto = peso;
+      if (typeof volumen === "number") it.volumen = volumen;
+    }
+
+    // unidades desde tu extractor existente
+    if (typeof extractUnitsFrom41 === "function") {
+      const u = extractUnitsFrom41(l);
+      if (u?.unidadPeso) it.unidad_peso = u.unidadPeso;
+      if (u?.unidadVolumen) it.unidad_volumen = u.unidadVolumen;
+    }
+  }
+
+  // 44 son marcas por item (pueden venir varias)
+  for (const l of lines44) {
+    const m = String(l).match(/^44\s+(\d{3})(.*)$/);
+    if (!m) continue;
+    const n = parseInt(m[1], 10);
+    const it = getItem(n);
+    const txt = (m[2] || "").trim();
+    if (!txt) continue;
+    it.marcas = it.marcas ? `${it.marcas} ${txt}` : txt;
+  }
+
+  // 47 es descripción por item (pueden venir muchas)
+  for (const l of lines47) {
+    const m = String(l).match(/^47\s+(\d{3})(.*)$/);
+    if (!m) continue;
+    const n = parseInt(m[1], 10);
+    const it = getItem(n);
+    const txt = (m[2] || "").trim();
+    if (!txt) continue;
+    it.descripcion = it.descripcion ? `${it.descripcion} ${txt}` : txt;
+  }
+
+  return [...byItem.values()].sort((a, b) => a.numero_item - b.numero_item);
+}
+
+async function insertSellos(conn, contenedorId, sellos) {
+  if (!contenedorId) return;
+  if (!Array.isArray(sellos) || sellos.length === 0) return;
+
+  const sql = `
+    INSERT INTO bl_contenedor_sellos (contenedor_id, sello)
+    VALUES (?, ?)
+  `;
+
+  for (const s of sellos) {
+    const sello = String(s || "").trim();
+    if (!sello) continue;
+    await conn.query(sql, [contenedorId, sello]);
   }
 }
 
@@ -1794,10 +1972,18 @@ function parsePmsTxt(content) {
 
       // ---------- 51: CONTENEDORES + SELLOS (nuevo, NO rompe) ----------
       const lines51 = pickAll(bLines, "51");
-      const contenedores = extractContainersFrom51(lines51); // <-- NUEVO
       const totalContainers = countContainersFrom51(lines51); // lo sigues usando para bultos
 
       const weightKgs = extractWeightFrom12(l12);
+
+      const items = extractItemsFrom41_44_47(bLines) || []; // tu función actual
+      const contenedores = extractContainersFrom51(pickAll(bLines, "51")) || [];
+
+      for (const it of items) {
+        const contsDelItem = contenedores.filter(c => c.itemNo === it.numero_item);
+        it.cantidad = contsDelItem.length || null;
+      }
+      
 
       return {
         // ====== lo que ya usas hoy ======
@@ -1826,6 +2012,7 @@ function parsePmsTxt(content) {
         puerto_embarque_cod: puertoEmbarqueCod,   // PE (14, fallback 13)
         puerto_descarga_cod: puertoDescargaCod,   // PD (14, fallback 13)
 
+        items,
         // ====== NUEVO (para poblar tablas nuevas, si quieres) ======
         contenedores, // [{ codigo,sigla,numero,digito,tipo_cnt,sellos:[] }]
       };
@@ -1875,6 +2062,7 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
        LIMIT 1`,
       [id]
     );
+
     if (pRows.length === 0) {
       await conn.rollback();
       return res.status(400).json({ error: "Este manifiesto no tiene PMS cargado" });
@@ -1899,31 +2087,48 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
       return res.status(400).json({ error: "No se encontraron BLs en el PMS" });
     }
 
+    // Si tus FK están con ON DELETE CASCADE desde bl_items/bl_contenedores -> bls,
+    // esto limpia todo automáticamente.
     await conn.query("DELETE FROM bls WHERE manifiesto_id = ?", [id]);
 
-    const insertSql = `
+    const insertBlSql = `
       INSERT INTO bls
         (manifiesto_id, bl_number, tipo_servicio_id,
-        shipper, consignee, notify_party,
-        lugar_emision_id, puerto_embarque_id, puerto_descarga_id,
-        lugar_destino_id, lugar_entrega_id, lugar_recepcion_id,
-        descripcion_carga,
-        peso_bruto, unidad_peso,
-        volumen, unidad_volumen,
-        bultos, total_items,
-        fecha_emision, fecha_presentacion, fecha_embarque, fecha_zarpe,
-        status)
+         shipper, consignee, notify_party,
+         lugar_emision_id, puerto_embarque_id, puerto_descarga_id,
+         lugar_destino_id, lugar_entrega_id, lugar_recepcion_id,
+         descripcion_carga,
+         peso_bruto, unidad_peso,
+         volumen, unidad_volumen,
+         bultos, total_items,
+         fecha_emision, fecha_presentacion, fecha_embarque, fecha_zarpe,
+         status)
       VALUES
         (?, ?, ?,
-        ?, ?, ?,
-        ?, ?, ?,
-        ?, ?, ?,
-        ?,
-        ?, ?,
-        ?, ?,
-        ?, ?,
-        ?, ?, ?, ?,
-        'CREADO')
+         ?, ?, ?,
+         ?, ?, ?,
+         ?, ?, ?,
+         ?,
+         ?, ?,
+         ?, ?,
+         ?, ?,
+         ?, ?, ?, ?,
+         'CREADO')
+    `;
+
+    const insertItemSql = `
+      INSERT INTO bl_items
+        (bl_id, numero_item, descripcion, marcas, carga_peligrosa,
+         tipo_bulto, cantidad, peso_bruto, unidad_peso, volumen, unidad_volumen)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    // Ojo: bl_contenedores.volumen normalmente NULL (el volumen es del item)
+    const insertContSql = `
+      INSERT INTO bl_contenedores
+        (bl_id, item_id, codigo, sigla, numero, digito,
+         tipo_cnt, carga_cnt, peso, unidad_peso, volumen, unidad_volumen)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     for (const b of bls) {
@@ -1933,7 +2138,14 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
 
       const tipoServicioId = await getTipoServicioIdByCodigo(conn, b.tipoServicioCod);
 
-      const [blIns] = await conn.query(insertSql, [
+      for (const it of (b.items || [])) {
+        const contsDelItem = (b.contenedores || []).filter(c => c.itemNo === it.numero_item);
+        const tipoCnt = contsDelItem.find(c => c.tipo_cnt)?.tipo_cnt || null;
+
+        it.tipo_bulto = await getTipoBultoFromTipoCnt(conn, tipoCnt);
+      }
+
+      const [blIns] = await conn.query(insertBlSql, [
         id,
         b.blNumber,
         tipoServicioId,
@@ -1946,9 +2158,9 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
         puertoEmbarqueId,
         puertoDescargaId,
 
-        null, // lugar_destino_id (pendiente)
-        null, // lugar_entrega_id (pendiente)
-        null, // lugar_recepcion_id (pendiente)
+        null, // lugar_destino_id
+        null, // lugar_entrega_id
+        null, // lugar_recepcion_id
 
         b.descripcion_carga || null,
 
@@ -1965,12 +2177,64 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
         cleanMysqlDateTime(b.fecha_presentacion),
         cleanMysqlDateTime(b.fecha_embarque),
         cleanMysqlDateTime(b.fecha_zarpe),
+        
       ]);
 
-      const blId = blIns.insertId; // ✅ clave para tablas hijas
+      const blId = blIns.insertId;
 
-      // ✅ Inserta contenedores (si existen)
-      await insertContenedoresYSellos(conn, blId, b.contenedores || []);
+      // =========================
+      // 1) INSERT ITEMS (bl_items)
+      // =========================
+      const itemIdByNumero = new Map();
+      const items = Array.isArray(b.items) ? b.items : [];
+
+      for (const it of items) {
+        const [itIns] = await conn.query(insertItemSql, [
+          blId,
+          it.numero_item,
+          it.descripcion || null,
+          it.marcas || null,
+          it.carga_peligrosa || "N",
+          it.tipo_bulto || null,
+          it.cantidad ?? null,
+          it.peso_bruto ?? null,
+          it.unidad_peso || null,
+          it.volumen ?? null,
+          it.unidad_volumen || null,
+        ]);
+        itemIdByNumero.set(it.numero_item, itIns.insertId);
+      }
+
+      // ==========================================
+      // 2) INSERT CONTENEDORES (bl_contenedores)
+      //    + link item_id usando itemNo
+      // ==========================================
+      const conts = Array.isArray(b.contenedores) ? b.contenedores : [];
+
+      for (const c of conts) {
+        const itemId = c?.itemNo ? (itemIdByNumero.get(c.itemNo) || null) : null;
+
+        const [cIns] = await conn.query(insertContSql, [
+          blId,
+          itemId,
+          c.codigo,
+          c.sigla || null,
+          c.numero || null,
+          c.digito || null,
+          c.tipo_cnt || null,
+          c.carga_cnt || null,         // "S"
+          c.peso ?? null,              // ✅ ahora ya te funciona
+          c.unidad_peso || null,       // KGM
+          c.volumen ?? null,           // normalmente NULL
+          c.unidad_volumen || null,    // MTQ
+        ]);
+
+        // =========================
+        // 3) SELLOS (si tienes tabla)
+        // =========================
+        // Si tienes una tabla tipo bl_contenedor_sellos(contenedor_id, numero):
+        await insertSellos(conn, cIns.insertId, c.sellos || []);
+      }
     }
 
     await conn.commit();
@@ -1982,6 +2246,7 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
     conn.release();
   }
 });
+
 
 // ============================================
 // 🆕 PUT /manifiestos/:id - Actualizar manifiesto
