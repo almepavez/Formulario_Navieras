@@ -1357,6 +1357,222 @@ function pickPEPD(lines14) {
 
 // --------- Extractores PMS ---------
 
+function itemNoFromLine(line, tag) {
+  // tag "41"/"44"/"47" con formato: "41   001 ...."
+  const m = String(line || "").match(new RegExp(`^${tag}\\s+(\\d{3})`));
+  return m ? parseInt(m[1], 10) : null;
+}
+
+function extractItemNumbersSet(bLines) {
+  const set = new Set();
+  for (const t of ["41", "44", "47"]) {
+    for (const l of pickAll(bLines, t)) {
+      const n = itemNoFromLine(l, t);
+      if (n) set.add(n);
+    }
+  }
+  return [...set].sort((a,b)=>a-b);
+}
+
+function extractMarcasForItem(lines44, itemNo) {
+  return lines44
+    .filter(l => itemNoFromLine(l, "44") === itemNo)
+    .map(l => String(l).replace(/^44\s+\d{3}/, "").trim())
+    .filter(Boolean)
+    .join(" | ") || null;
+}
+
+function extractDescripcionForItem(lines47, itemNo) {
+  return lines47
+    .filter(l => itemNoFromLine(l, "47") === itemNo)
+    .map(l => String(l).replace(/^47\s+\d{3}/, "").trim())
+    .filter(Boolean)
+    .join(" ") || null;
+}
+
+// Si ya tienes extractWeightVolumeFrom41 / extractUnitsFrom41, úsalas acá.
+function extractPesoVolDesde41(lines41, itemNo) {
+  const l41 = lines41.find(l => itemNoFromLine(l, "41") === itemNo);
+  if (!l41) return { peso_bruto: null, volumen: null, unidad_peso: null, unidad_volumen: null };
+
+  const { peso, volumen } = extractWeightVolumeFrom41(l41) || {};
+  const u = extractUnitsFrom41(l41) || {};
+
+  return {
+    peso_bruto: typeof peso === "number" ? peso : null,
+    volumen: typeof volumen === "number" ? volumen : null,
+    unidad_peso: u.unidadPeso || null,
+    unidad_volumen: u.unidadVolumen || null,
+  };
+}
+
+function extractItemsFromBL(bLines) {
+  const lines41 = pickAll(bLines, "41");
+  const lines44 = pickAll(bLines, "44");
+  const lines47 = pickAll(bLines, "47");
+
+  const itemNos = extractItemNumbersSet(bLines);
+
+  return itemNos.map((n) => {
+    const marcas = extractMarcasForItem(lines44, n);
+    const descripcion = extractDescripcionForItem(lines47, n);
+    const wv = extractPesoVolDesde41(lines41, n);
+
+    // Por ahora: carga_peligrosa siempre "N" si no la tienes en otra parte
+    const carga_peligrosa = "N";
+
+    return {
+      numero_item: n,
+      descripcion: descripcion || null,
+      marcas: marcas || null,
+      carga_peligrosa,
+      // tipo_bulto/cantidad: si ya los estás derivando, ponlos acá; si no, null por ahora
+      tipo_bulto: null,
+      cantidad: null,
+      ...wv,
+      carga_cnt: "S", // en tu XML está así; si lo quieres desde 51/otros, después lo refinamos
+    };
+  });
+}
+
+
+
+function parseLine51(raw) {
+  const line = String(raw || "").toUpperCase();
+
+  // item y sec: 001001
+  const mHead = line.match(/^51\s+(\d{3})(\d{3})/);
+  const itemNo = mHead ? parseInt(mHead[1], 10) : null;
+  const seqNo  = mHead ? parseInt(mHead[2], 10) : null;
+
+  // contenedor ISO11: ABCD1234567
+  const mCont = line.match(/([A-Z]{4}\d{7})/);
+  if (!mCont) return null;
+
+  const codigo = mCont[1];
+  const sigla = codigo.slice(0, 4);
+  const numero = codigo.slice(4, 10);
+  const digito = codigo.slice(10, 11);
+
+  // tipo_cnt: N22G1F / N45G1F
+  const mTipo = line.match(/N(\d{2}[A-Z]\d)F/);
+  const tipo_cnt = mTipo ? mTipo[1] : null;
+
+  const unidad_peso = line.includes("KGM") ? "KGM" : null;
+  const unidad_volumen = line.includes("MTQ") ? "MTQ" : null;
+
+  let peso = null;
+  let volumen = null;
+
+  // ✅ FIX: después de CASE viene peso(10) + otro(10) + (volumen + sello(6))
+  const idxCase = line.indexOf("CASE");
+  if (idxCase !== -1) {
+    const after = line.slice(idxCase + 4);
+    const onlyDigits = after.replace(/\D/g, "");
+
+    // mínimo: 10 + 10 + 6 (sello) = 26
+    if (onlyDigits.length >= 26) {
+      const w10 = onlyDigits.slice(0, 10);
+      const tail = onlyDigits.slice(20); // volumen + sello(6)
+      const volDigits = tail.length > 6 ? tail.slice(0, -6) : "";
+
+      if (/^\d{10}$/.test(w10)) peso = parseInt(w10, 10) / 10000;
+      if (volDigits && /^\d+$/.test(volDigits)) volumen = parseInt(volDigits, 10) / 1000;
+    }
+  }
+
+  // sellos (CL + dígitos)
+  const sellos = [];
+  const mSeal = line.match(/(CL\d{6,})/g);
+  if (mSeal) for (const s of mSeal) if (!sellos.includes(s)) sellos.push(s);
+
+  return {
+    itemNo,
+    seqNo,
+    codigo,
+    sigla,
+    numero,
+    digito,
+    tipo_cnt,
+    carga_cnt: "S",
+    peso,
+    unidad_peso,
+    volumen,
+    unidad_volumen,
+    sellos,
+  };
+}
+
+function extractContainersFrom51(lines51) {
+  if (!Array.isArray(lines51)) return [];
+  const out = [];
+
+  for (const l of lines51) {
+    const c = parseLine51(l);
+    if (c) out.push(c);
+  }
+
+  const seen = new Set();
+  return out.filter(c => c.codigo && !seen.has(c.codigo) && seen.add(c.codigo));
+}
+
+function splitContainerCode(iso11) {
+  const s = String(iso11 || "").trim().toUpperCase();
+  const m = s.match(/^([A-Z]{4})(\d{6})(\d)$/);
+  if (!m) return { codigo: null, sigla: null, numero: null, digito: null };
+  return { codigo: m[1] + m[2] + m[3], sigla: m[1], numero: m[2], digito: m[3] };
+}
+
+function extractTipoCntFrom51(line) {
+  const s = String(line || "").toUpperCase();
+
+  // Caso real PMS: ...N45G1F... / ...N45R1F...
+  // (no hay espacios, así que NO uses \b)
+  let m = s.match(/N(\d{2}[A-Z]\d)/);  // 45G1, 45R1, 22G1, etc
+  if (m) return m[1];
+
+  // Fallback por si alguna vez viene sin N (raro, pero seguro)
+  m = s.match(/(\d{2}[A-Z]\d)/);
+  return m ? m[1] : null;
+}
+
+
+function extractSellosFrom51(line) {
+  // Heurística segura:
+  // - después del tipo de empaque (PE/CT/CS/PK/etc) suelen venir 1..n sellos
+  // - en tu PMS: "PE   243379              CL006167"
+  const s = String(line || "");
+
+  // Intento 1: capturar segmento luego de " PE " (o CT/CS/PK) hasta fin
+  const m = s.match(/\b(?:PE|CT|CS|PK|BX|BG)\b([\s\S]*)$/);
+  if (!m) return [];
+
+  const tail = m[1];
+
+  // Tokens: alfanuméricos “de sello” (6 a 35 chars), descartando basura típica
+  const tokens = tail
+    .split(/\s+/)
+    .map(t => t.trim())
+    .filter(Boolean)
+    .filter(t => /^[A-Z0-9-]{6,35}$/i.test(t))
+    .filter(t => !/^(KGM|MTQ|PCS|PACKAGE|CARTON|PALLET|BAG|CASE|CT|CS|PE)$/i.test(t));
+
+  // Dedupe preservando orden
+  const out = [];
+  const seen = new Set();
+  for (const t of tokens) {
+    const up = t.toUpperCase();
+    if (!seen.has(up)) {
+      seen.add(up);
+      out.push(up);
+    }
+  }
+
+  // OJO: si por algún PMS raro se “cuelan” tokens que no son sellos,
+  // igual no rompe nada: solo insertas sellos válidos si quieres.
+  return out;
+}
+
 function extractServiceCodeFrom12(line12) {
   // Ej: "... TWKHHCLVAPFF  YY ..." -> FF
   const m = String(line12).match(/([A-Z]{5})([A-Z]{5})([A-Z]{2})\s+[A-Z]{2}/);
@@ -1532,6 +1748,151 @@ function cleanMysqlDateTime(v) {
   return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s) ? s : null;
 }
 
+async function getTipoBultoFromTipoCnt(conn, tipoCnt) {
+  if (!tipoCnt) return null;
+  const [rows] = await conn.query(
+    "SELECT tipo_bulto FROM tipo_cnt_tipo_bulto WHERE tipo_cnt = ? AND activo = 1 LIMIT 1",
+    [tipoCnt]
+  );
+  return rows?.[0]?.tipo_bulto || null;
+}
+
+async function insertContenedoresYSellos(conn, blId, contenedores) {
+  if (!contenedores.length) return;
+
+  const insertContSql = `
+    INSERT INTO bl_contenedores
+      (bl_id, item_id, codigo, sigla, numero, digito, tipo_cnt,
+      carga_cnt, peso, unidad_peso, volumen, unidad_volumen)
+    VALUES (?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?)
+  `;
+
+
+  const insertSelloSql = `
+    INSERT INTO bl_contenedor_sellos
+      (contenedor_id, sello)
+    VALUES (?, ?)
+  `;
+
+  for (const c of contenedores) {
+    const [r] = await conn.query(insertContSql, [
+      blId,
+      null, // item_id por ahora (hasta que insertes bl_items)
+      c.codigo,
+      c.sigla,
+      c.numero,
+      c.digito,
+      c.tipo_cnt,
+
+      c.carga_cnt ?? "S",
+      c.peso ?? null,
+      c.unidad_peso ?? null,
+      c.volumen ?? null,
+      c.unidad_volumen ?? null,
+    ]);
+
+    const contenedorId = r.insertId;
+
+    for (const s of (c.sellos || [])) {
+      await conn.query(
+        `INSERT INTO bl_contenedor_sellos (contenedor_id, sello) VALUES (?, ?)`,
+        [contenedorId, s]
+      );
+    }
+  }
+}
+
+function extractItemsFrom41_44_47(bLines) {
+  const lines41 = pickAll(bLines, "41");
+  const lines44 = pickAll(bLines, "44");
+  const lines47 = pickAll(bLines, "47");
+
+  const byItem = new Map(); // key: numero_item
+
+  const getItem = (n) => {
+    if (!byItem.has(n)) {
+      byItem.set(n, {
+        numero_item: n,
+        descripcion: null,
+        marcas: null,
+        carga_peligrosa: "N", // default
+        tipo_bulto: null,
+        cantidad: null,
+        peso_bruto: null,
+        volumen: null,
+        unidad_peso: null,
+        unidad_volumen: null,
+        carga_cnt: "S",
+      });
+    }
+    return byItem.get(n);
+  };
+
+  // 41 trae peso/volumen/unidades + “código” de item (001)
+  for (const l of lines41) {
+    const m = String(l).match(/^41\s+(\d{3})/);
+    if (!m) continue;
+    const n = parseInt(m[1], 10);
+    const it = getItem(n);
+
+    // peso/volumen desde tu extractor existente
+    if (typeof extractWeightVolumeFrom41 === "function") {
+      const { peso, volumen } = extractWeightVolumeFrom41(l);
+      if (typeof peso === "number") it.peso_bruto = peso;
+      if (typeof volumen === "number") it.volumen = volumen;
+    }
+
+    // unidades desde tu extractor existente
+    if (typeof extractUnitsFrom41 === "function") {
+      const u = extractUnitsFrom41(l);
+      if (u?.unidadPeso) it.unidad_peso = u.unidadPeso;
+      if (u?.unidadVolumen) it.unidad_volumen = u.unidadVolumen;
+    }
+  }
+
+  // 44 son marcas por item (pueden venir varias)
+  for (const l of lines44) {
+    const m = String(l).match(/^44\s+(\d{3})(.*)$/);
+    if (!m) continue;
+    const n = parseInt(m[1], 10);
+    const it = getItem(n);
+    const txt = (m[2] || "").trim();
+    if (!txt) continue;
+    it.marcas = it.marcas ? `${it.marcas} ${txt}` : txt;
+  }
+
+  // 47 es descripción por item (pueden venir muchas)
+  for (const l of lines47) {
+    const m = String(l).match(/^47\s+(\d{3})(.*)$/);
+    if (!m) continue;
+    const n = parseInt(m[1], 10);
+    const it = getItem(n);
+    const txt = (m[2] || "").trim();
+    if (!txt) continue;
+    it.descripcion = it.descripcion ? `${it.descripcion} ${txt}` : txt;
+  }
+
+  return [...byItem.values()].sort((a, b) => a.numero_item - b.numero_item);
+}
+
+async function insertSellos(conn, contenedorId, sellos) {
+  if (!contenedorId) return;
+  if (!Array.isArray(sellos) || sellos.length === 0) return;
+
+  const sql = `
+    INSERT INTO bl_contenedor_sellos (contenedor_id, sello)
+    VALUES (?, ?)
+  `;
+
+  for (const s of sellos) {
+    const sello = String(s || "").trim();
+    if (!sello) continue;
+    await conn.query(sql, [contenedorId, sello]);
+  }
+}
+
+
 // ===============================
 // parsePmsTxt CORREGIDA
 // ===============================
@@ -1561,7 +1922,7 @@ function parsePmsTxt(content) {
       const consignee = extractPartyName(pickFirst(bLines, "21"));
       const notify = extractPartyName(pickFirst(bLines, "26"));
 
-      // Fallback (por si 14 viene rara): POL/POD desde 13
+      // Fallback POL/POD desde 13 (por si 14 viene rara)
       const l13 = pickFirst(bLines, "13");
       const { pol, pod } = (typeof extractPOLPOD === "function")
         ? extractPOLPOD(l13)
@@ -1582,8 +1943,8 @@ function parsePmsTxt(content) {
 
       for (const l41 of lines41) {
         const u = extractUnitsFrom41(l41);
-        if (!unidadPeso && u.unidadPeso) unidadPeso = u.unidadPeso;
-        if (!unidadVolumen && u.unidadVolumen) unidadVolumen = u.unidadVolumen;
+        if (!unidadPeso && u?.unidadPeso) unidadPeso = u.unidadPeso;
+        if (!unidadVolumen && u?.unidadVolumen) unidadVolumen = u.unidadVolumen;
 
         const { volumen } = extractWeightVolumeFrom41(l41);
         if (typeof volumen === "number") {
@@ -1596,7 +1957,7 @@ function parsePmsTxt(content) {
       // ---------- 14: FECHAS y LOCACIONES ----------
       const lines14 = pickAll(bLines, "14");
 
-      // Fechas desde 14 principal (01SH si existe)
+      // Fechas desde 14 principal (01SH si existe; si no, primera con 2 timestamps)
       const main14 = pickMain14ForDates(lines14);
 
       const fechaPresentacion = fechaPresentacionGlobal;
@@ -1604,18 +1965,28 @@ function parsePmsTxt(content) {
       const fechaEmbarque = main14 ? extractFEMBFrom14(main14) : null;
       const fechaZarpe = main14 ? extractFZARPEFrom14(main14) : null;
 
-      // Locaciones PE/PD desde 14 (con fallback a 13)
+      // Locaciones PE/PD desde 14 (fallback a 13)
       const { pe, pd } = pickPEPD(lines14);
       const puertoEmbarqueCod = pe || pol || "";
       const puertoDescargaCod = pd || pod || "";
 
-      // ---------- otros ----------
+      // ---------- 51: CONTENEDORES + SELLOS (nuevo, NO rompe) ----------
       const lines51 = pickAll(bLines, "51");
-      const totalContainers = countContainersFrom51(lines51);
+      const totalContainers = countContainersFrom51(lines51); // lo sigues usando para bultos
 
       const weightKgs = extractWeightFrom12(l12);
 
+      const items = extractItemsFrom41_44_47(bLines) || []; // tu función actual
+      const contenedores = extractContainersFrom51(pickAll(bLines, "51")) || [];
+
+      for (const it of items) {
+        const contsDelItem = contenedores.filter(c => c.itemNo === it.numero_item);
+        it.cantidad = contsDelItem.length || null;
+      }
+      
+
       return {
+        // ====== lo que ya usas hoy ======
         blNumber,
         tipoServicioCod,
 
@@ -1637,15 +2008,17 @@ function parsePmsTxt(content) {
         fecha_embarque: fechaEmbarque,
         fecha_zarpe: fechaZarpe,
 
-        // Códigos para resolver a puertos (FKs)
         lugar_emision_cod: lugarEmisionCodGlobal, // LE (74)
         puerto_embarque_cod: puertoEmbarqueCod,   // PE (14, fallback 13)
         puerto_descarga_cod: puertoDescargaCod,   // PD (14, fallback 13)
+
+        items,
+        // ====== NUEVO (para poblar tablas nuevas, si quieres) ======
+        contenedores, // [{ codigo,sigla,numero,digito,tipo_cnt,sellos:[] }]
       };
     })
     .filter(Boolean);
 }
-
 
 function parsePmsByFile(filename, content) {
   const ext = (path.extname(filename || "") || "").toLowerCase();
@@ -1689,6 +2062,7 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
        LIMIT 1`,
       [id]
     );
+
     if (pRows.length === 0) {
       await conn.rollback();
       return res.status(400).json({ error: "Este manifiesto no tiene PMS cargado" });
@@ -1713,31 +2087,48 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
       return res.status(400).json({ error: "No se encontraron BLs en el PMS" });
     }
 
+    // Si tus FK están con ON DELETE CASCADE desde bl_items/bl_contenedores -> bls,
+    // esto limpia todo automáticamente.
     await conn.query("DELETE FROM bls WHERE manifiesto_id = ?", [id]);
 
-    const insertSql = `
+    const insertBlSql = `
       INSERT INTO bls
         (manifiesto_id, bl_number, tipo_servicio_id,
-        shipper, consignee, notify_party,
-        lugar_emision_id, puerto_embarque_id, puerto_descarga_id,
-        lugar_destino_id, lugar_entrega_id, lugar_recepcion_id,
-        descripcion_carga,
-        peso_bruto, unidad_peso,
-        volumen, unidad_volumen,
-        bultos, total_items,
-        fecha_emision, fecha_presentacion, fecha_embarque, fecha_zarpe,
-        status)
+         shipper, consignee, notify_party,
+         lugar_emision_id, puerto_embarque_id, puerto_descarga_id,
+         lugar_destino_id, lugar_entrega_id, lugar_recepcion_id,
+         descripcion_carga,
+         peso_bruto, unidad_peso,
+         volumen, unidad_volumen,
+         bultos, total_items,
+         fecha_emision, fecha_presentacion, fecha_embarque, fecha_zarpe,
+         status)
       VALUES
         (?, ?, ?,
-        ?, ?, ?,
-        ?, ?, ?,
-        ?, ?, ?,
-        ?,
-        ?, ?,
-        ?, ?,
-        ?, ?,
-        ?, ?, ?, ?,
-        'CREADO')
+         ?, ?, ?,
+         ?, ?, ?,
+         ?, ?, ?,
+         ?,
+         ?, ?,
+         ?, ?,
+         ?, ?,
+         ?, ?, ?, ?,
+         'CREADO')
+    `;
+
+    const insertItemSql = `
+      INSERT INTO bl_items
+        (bl_id, numero_item, descripcion, marcas, carga_peligrosa,
+         tipo_bulto, cantidad, peso_bruto, unidad_peso, volumen, unidad_volumen)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    // Ojo: bl_contenedores.volumen normalmente NULL (el volumen es del item)
+    const insertContSql = `
+      INSERT INTO bl_contenedores
+        (bl_id, item_id, codigo, sigla, numero, digito,
+         tipo_cnt, carga_cnt, peso, unidad_peso, volumen, unidad_volumen)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     for (const b of bls) {
@@ -1747,7 +2138,14 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
 
       const tipoServicioId = await getTipoServicioIdByCodigo(conn, b.tipoServicioCod);
 
-      await conn.query(insertSql, [
+      for (const it of (b.items || [])) {
+        const contsDelItem = (b.contenedores || []).filter(c => c.itemNo === it.numero_item);
+        const tipoCnt = contsDelItem.find(c => c.tipo_cnt)?.tipo_cnt || null;
+
+        it.tipo_bulto = await getTipoBultoFromTipoCnt(conn, tipoCnt);
+      }
+
+      const [blIns] = await conn.query(insertBlSql, [
         id,
         b.blNumber,
         tipoServicioId,
@@ -1760,9 +2158,9 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
         puertoEmbarqueId,
         puertoDescargaId,
 
-        null, // lugar_destino_id (pendiente)
-        null, // lugar_entrega_id (pendiente)
-        null, // lugar_recepcion_id (pendiente)
+        null, // lugar_destino_id
+        null, // lugar_entrega_id
+        null, // lugar_recepcion_id
 
         b.descripcion_carga || null,
 
@@ -1779,7 +2177,64 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
         cleanMysqlDateTime(b.fecha_presentacion),
         cleanMysqlDateTime(b.fecha_embarque),
         cleanMysqlDateTime(b.fecha_zarpe),
+        
       ]);
+
+      const blId = blIns.insertId;
+
+      // =========================
+      // 1) INSERT ITEMS (bl_items)
+      // =========================
+      const itemIdByNumero = new Map();
+      const items = Array.isArray(b.items) ? b.items : [];
+
+      for (const it of items) {
+        const [itIns] = await conn.query(insertItemSql, [
+          blId,
+          it.numero_item,
+          it.descripcion || null,
+          it.marcas || null,
+          it.carga_peligrosa || "N",
+          it.tipo_bulto || null,
+          it.cantidad ?? null,
+          it.peso_bruto ?? null,
+          it.unidad_peso || null,
+          it.volumen ?? null,
+          it.unidad_volumen || null,
+        ]);
+        itemIdByNumero.set(it.numero_item, itIns.insertId);
+      }
+
+      // ==========================================
+      // 2) INSERT CONTENEDORES (bl_contenedores)
+      //    + link item_id usando itemNo
+      // ==========================================
+      const conts = Array.isArray(b.contenedores) ? b.contenedores : [];
+
+      for (const c of conts) {
+        const itemId = c?.itemNo ? (itemIdByNumero.get(c.itemNo) || null) : null;
+
+        const [cIns] = await conn.query(insertContSql, [
+          blId,
+          itemId,
+          c.codigo,
+          c.sigla || null,
+          c.numero || null,
+          c.digito || null,
+          c.tipo_cnt || null,
+          c.carga_cnt || null,         // "S"
+          c.peso ?? null,              // ✅ ahora ya te funciona
+          c.unidad_peso || null,       // KGM
+          c.volumen ?? null,           // normalmente NULL
+          c.unidad_volumen || null,    // MTQ
+        ]);
+
+        // =========================
+        // 3) SELLOS (si tienes tabla)
+        // =========================
+        // Si tienes una tabla tipo bl_contenedor_sellos(contenedor_id, numero):
+        await insertSellos(conn, cIns.insertId, c.sellos || []);
+      }
     }
 
     await conn.commit();
@@ -1791,6 +2246,7 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
     conn.release();
   }
 });
+
 
 // ============================================
 // 🆕 PUT /manifiestos/:id - Actualizar manifiesto
