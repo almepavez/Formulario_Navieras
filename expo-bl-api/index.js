@@ -1334,28 +1334,37 @@ function extractPEPDFrom14(line14) {
   return { pe: m[1], pd: m[2] };
 }
 
-// Reglas:
-// - Normal (1 sola 14): PE/PD = esa 14
-// - Transbordo (varias 14): PE = primera 14 (01SH si existe, si no la primera válida)
-//                           PD = última 14 válida (mayor "xxSH", o última por orden de aparición)
+// Normal (1 sola 14): PE/PD = esa 14
+// Transbordo (varias 14): PE = FROM de la primera (01SH si existe)
+//                         PD = TO de la última (mayor xxSH o última por aparición)
 function pickPEPD(lines14) {
   const arr = Array.isArray(lines14) ? lines14 : [];
-  const parsed = arr
-    .map((l, idx) => {
-      const step = (() => {
-        const m = String(l).match(/\b(\d{2})SH/);
-        return m ? Number(m[1]) : null;
-      })();
 
-      const { pe, pd } = extractPEPDFrom14(l);
-      return { idx, step, pe, pd, raw: l };
-    })
-    .filter((x) => x.pe && x.pd);
+  const parsed = arr.map((l, idx) => {
+    const s = String(l || "").toUpperCase();
 
-  if (parsed.length === 0) return { pe: "", pd: "" };
+    // 14   02SHCNNGBSGSIN...
+    const mStep = s.match(/\b(\d{2})SH/);
+    const step = mStep ? Number(mStep[1]) : null;
 
-  // Preferir orden por step si existe, si no por idx
-  const hasSteps = parsed.some((x) => Number.isFinite(x.step));
+    // Parse fuerte: FROM/TO fijo en PMS (5+5)
+    const m = s.match(/^14\s+\d{2}SH([A-Z]{5})([A-Z]{5})/);
+    let pe = m ? m[1] : "";
+    let pd = m ? m[2] : "";
+
+    // Fallback a tu extractor si no calzó
+    if ((!pe || !pd) && typeof extractPEPDFrom14 === "function") {
+      const x = extractPEPDFrom14(l) || {};
+      pe = pe || x.pe || "";
+      pd = pd || x.pd || "";
+    }
+
+    return { idx, step, pe, pd, raw: l };
+  }).filter(x => x.pe && x.pd);
+
+  if (!parsed.length) return { pe: "", pd: "" };
+
+  const hasSteps = parsed.some(x => Number.isFinite(x.step));
   const ordered = [...parsed].sort((a, b) => {
     if (hasSteps) {
       const sa = Number.isFinite(a.step) ? a.step : 999;
@@ -1365,15 +1374,12 @@ function pickPEPD(lines14) {
     return a.idx - b.idx;
   });
 
-  // PE: idealmente la 01SH si está
-  const first01 = ordered.find((x) => x.step === 1);
-  const first = first01 || ordered[0];
-
-  // PD: última del orden
+  const first = ordered.find(x => x.step === 1) || ordered[0];
   const last = ordered[ordered.length - 1];
 
   return { pe: first.pe, pd: last.pd };
 }
+
 
 // --------- Extractores PMS ---------
 
@@ -1535,7 +1541,7 @@ function parseLine51(raw) {
   const sellos = [];
   if (tail) {
     // Ajusta prefijos reales (ej: CL, BZ, JG)
-    const mSeal = tail.match(/\b(?:CL|BZ|JG)[0-9A-Z]{5,}\b/g);
+    const mSeal = tail.match(/\b(?:CL|BZ|JG)[0-9A-Z]{5,}\b|\b\d{5,10}\b/g);
     if (mSeal) for (const s of mSeal) if (!sellos.includes(s)) sellos.push(s);
   }
 
@@ -2039,6 +2045,10 @@ function parsePmsTxt(content) {
         const contsDelItem = contenedores.filter(c => c.itemNo === it.numero_item);
         it.cantidad = contsDelItem.length || null;
       }
+
+      const lugar_recepcion_cod = puertoEmbarqueCod; // LRM
+      const lugar_destino_cod   = puertoDescargaCod; // LD
+      const lugar_entrega_cod   = puertoDescargaCod; // LEM
       
 
       return {
@@ -2067,6 +2077,11 @@ function parsePmsTxt(content) {
         lugar_emision_cod: lugarEmisionCodGlobal, // LE (74)
         puerto_embarque_cod: puertoEmbarqueCod,   // PE (14, fallback 13)
         puerto_descarga_cod: puertoDescargaCod,   // PD (14, fallback 13)
+
+        lugar_recepcion_cod,
+        lugar_destino_cod,
+        lugar_entrega_cod,
+
 
         items,
         // ====== NUEVO (para poblar tablas nuevas, si quieres) ======
@@ -2191,6 +2206,9 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
       const lugarEmisionId = await getPuertoIdByCodigo(conn, b.lugar_emision_cod);
       const puertoEmbarqueId = await getPuertoIdByCodigo(conn, b.puerto_embarque_cod);
       const puertoDescargaId = await getPuertoIdByCodigo(conn, b.puerto_descarga_cod);
+      const lugarDestinoId   = await getPuertoIdByCodigo(conn, b.lugar_destino_cod);
+      const lugarEntregaId   = await getPuertoIdByCodigo(conn, b.lugar_entrega_cod);
+      const lugarRecepcionId = await getPuertoIdByCodigo(conn, b.lugar_recepcion_cod);
 
       const tipoServicioId = await getTipoServicioIdByCodigo(conn, b.tipoServicioCod);
 
@@ -2213,10 +2231,11 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
         lugarEmisionId,
         puertoEmbarqueId,
         puertoDescargaId,
+        
+        lugarDestinoId,
+        lugarEntregaId,
+        lugarRecepcionId,
 
-        null, // lugar_destino_id
-        null, // lugar_entrega_id
-        null, // lugar_recepcion_id
 
         b.descripcion_carga || null,
 
