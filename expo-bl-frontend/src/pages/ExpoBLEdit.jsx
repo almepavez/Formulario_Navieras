@@ -693,7 +693,7 @@ const ExpoBLEdit = () => {
                             </div>
 
                             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
-                                <strong>Atención:</strong> Al confirmar, los cambios se aplicarán inmediatamente en el sistema SIDEMAR.
+                                <strong>Atención:</strong> Al confirmar, los cambios se aplicarán inmediatamente en el sistema.
                             </div>
                         </div>
                     )}
