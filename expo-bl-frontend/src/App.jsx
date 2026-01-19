@@ -26,7 +26,7 @@ function App() {
         <Route path="/auth/callback" element={<Login />} /> {/* Google OAuth callback */}
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/manifiestos/:id/generar-xml" element={<GenerarXML />} />
+
         {/* ============================================
             RUTAS PROTEGIDAS - MANIFIESTOS
            ============================================ */}
@@ -53,6 +53,16 @@ function App() {
           element={
             <ProtectedRoute>
               <ManifiestoDetalle />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 🔥 RUTA DE GENERAR XML (debe ir ANTES de /manifiestos/:id para evitar conflictos) */}
+        <Route
+          path="/manifiestos/:id/generar-xml"
+          element={
+            <ProtectedRoute>
+              <GenerarXML />
             </ProtectedRoute>
           }
         />
@@ -116,14 +126,7 @@ function App() {
             </ProtectedRoute>
           }
         />
- <Route
-          path="/generar-xml"
-          element={
-            <ProtectedRoute>
-              <GenerarXML />
-            </ProtectedRoute>
-          }
-        />
+
         {/* ============================================
             RUTA 404 - Cualquier otra ruta no definida
            ============================================ */}

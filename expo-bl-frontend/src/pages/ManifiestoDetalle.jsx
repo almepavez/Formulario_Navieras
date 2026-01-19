@@ -340,50 +340,52 @@ const ManifiestoDetalle = () => {
       <Sidebar />
 
       <main className="flex-1 p-10">
-        <div className="flex items-start justify-between gap-6 mb-6">
-          <div>
-            <h1 className="text-2xl font-semibold text-[#0F2A44]">
-              Manifiesto #{id}
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Detalle del manifiesto y su itinerario
-            </p>
-          </div>
+    <div className="mb-6">
+  {/* Botón Volver arriba a la izquierda */}
+  <button
+    onClick={handleGoBack}
+    className="text-sm text-slate-500 hover:text-slate-800 mb-4 inline-block"
+  >
+    ← Volver al listado
+  </button>
 
-          <div className="flex items-center gap-3">
-            {/* 🆕 Botón Volver con validación */}
-            <button
-              onClick={handleGoBack}
-              className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
-            >
-              ← Volver
-            </button>
+  <div className="flex items-start justify-between gap-6">
+    <div>
+      <h1 className="text-2xl font-semibold text-[#0F2A44]">
+        Manifiesto #{id}
+      </h1>
+      <p className="text-sm text-slate-500 mt-1">
+        Detalle del manifiesto y su itinerario
+      </p>
+    </div>
 
-            {!isEditing ? (
-              <button
-                onClick={handleEdit}
-                className="px-4 py-2 rounded-lg bg-[#0F2A44] text-white text-sm font-medium hover:bg-[#1a3f5f]"
-              >
-                Editar
-              </button>
-            ) : (
-              <>
-                <button
-                  onClick={handleCancelEdit}
-                  className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleSaveChanges}
-                  className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700"
-                >
-                  Guardar cambios
-                </button>
-              </>
-            )}
-          </div>
-        </div>
+    <div className="flex items-center gap-3">
+      {!isEditing ? (
+        <button
+          onClick={handleEdit}
+          className="px-4 py-2 rounded-lg bg-[#0F2A44] text-white text-sm font-medium hover:bg-[#1a3f5f]"
+        >
+          Editar
+        </button>
+      ) : (
+        <>
+          <button
+            onClick={handleCancelEdit}
+            className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSaveChanges}
+            className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700"
+          >
+            Guardar cambios
+          </button>
+        </>
+      )}
+    </div>
+  </div>
+</div>
 
         {/* 🆕 Badge de cambios sin guardar */}
         {isEditing && hasUnsavedChanges && (

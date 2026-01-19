@@ -430,7 +430,7 @@ const GenerarXML = () => {
         `,
         width: '800px',
         showCancelButton: true,
-        showDenyButton: validation.level !== 'ok',
+  showDenyButton: true, // ✅ Siempre mostrar botón de editar
         confirmButtonText: 'Descargar XML',
         denyButtonText: 'Editar BL',
         cancelButtonText: 'Cerrar',
@@ -460,9 +460,9 @@ const GenerarXML = () => {
           timer: 2000,
           showConfirmButton: false
         });
-      } else if (result.isDenied) {
-        navigate(`/expo/${blNumber}/edit`);
-      }
+} else if (result.isDenied) {
+navigate(`/expo/${blNumber}/edit?returnTo=xml-preview&manifestId=${id}`);}
+      
 
     } catch (e) {
       Swal.fire({
