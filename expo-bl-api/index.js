@@ -1089,6 +1089,324 @@ app.delete("/api/mantenedores/naves/:id", async (req, res) => {
   }
 });
 
+// ========================================
+// 4. TIPO DE BULTO (NUEVO)
+// ========================================
+
+// ============================================
+// CRUD TIPO-BULTO (tipo_cnt_tipo_bulto)
+// ============================================
+
+// GET - Listar tipos de bulto
+app.get('/api/mantenedores/tipo-bulto', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT id, tipo_cnt, tipo_bulto, activo FROM tipo_cnt_tipo_bulto ORDER BY tipo_cnt'
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('Error al obtener tipos de bulto:', error);
+    res.status(500).json({ error: 'Error al cargar los datos' });
+  }
+});
+
+// GET - Obtener un tipo de bulto específico por ID
+app.get('/api/mantenedores/tipo-bulto/:id', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT id, tipo_cnt, tipo_bulto, activo FROM tipo_cnt_tipo_bulto WHERE id = ?',
+      [req.params.id]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Tipo de bulto no encontrado' });
+    }
+    
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Error al obtener tipo de bulto:', error);
+    res.status(500).json({ error: 'Error al obtener el tipo de bulto' });
+  }
+});
+
+// POST - Crear tipo de bulto
+app.post('/api/mantenedores/tipo-bulto', async (req, res) => {
+  const { tipo_cnt, tipo_bulto, activo } = req.body;
+
+  try {
+    if (!tipo_cnt || !tipo_bulto) {
+      return res.status(400).json({ error: 'tipo_cnt y tipo_bulto son obligatorios' });
+    }
+
+    const [result] = await pool.query(
+      'INSERT INTO tipo_cnt_tipo_bulto (tipo_cnt, tipo_bulto, activo) VALUES (?, ?, ?)',
+      [tipo_cnt, tipo_bulto, activo ?? 1]
+    );
+
+    res.status(201).json({
+      id: result.insertId,
+      tipo_cnt,
+      tipo_bulto,
+      activo: activo ?? 1
+    });
+  } catch (error) {
+    console.error('Error al crear tipo de bulto:', error);
+
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ error: 'El tipo de contenedor ya existe' });
+    }
+
+    res.status(500).json({ error: 'Error al guardar el registro' });
+  }
+});
+
+// PUT - Actualizar tipo de bulto
+app.put('/api/mantenedores/tipo-bulto/:id', async (req, res) => {
+  const { id } = req.params;
+  const { tipo_cnt, tipo_bulto, activo } = req.body;
+
+  console.log('🔧 PUT tipo-bulto recibido:', { id, body: req.body });
+
+  try {
+    if (!tipo_cnt || !tipo_bulto) {
+      return res.status(400).json({ error: 'tipo_cnt y tipo_bulto son obligatorios' });
+    }
+
+    const activoValue = activo !== undefined ? Number(activo) : 1;
+    if (![0, 1].includes(activoValue)) {
+      return res.status(400).json({ error: 'El campo activo debe ser 0 o 1' });
+    }
+
+    const idNum = Number(id);
+    if (isNaN(idNum)) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+
+    const [existing] = await pool.query(
+      'SELECT id FROM tipo_cnt_tipo_bulto WHERE id = ?',
+      [idNum]
+    );
+
+    if (existing.length === 0) {
+      return res.status(404).json({ error: 'Tipo de bulto no encontrado' });
+    }
+
+    const [result] = await pool.query(
+      'UPDATE tipo_cnt_tipo_bulto SET tipo_cnt = ?, tipo_bulto = ?, activo = ? WHERE id = ?',
+      [tipo_cnt.trim(), tipo_bulto.trim(), activoValue, idNum]
+    );
+
+    console.log('✅ Tipo de bulto actualizado:', { 
+      id: idNum, 
+      tipo_cnt, 
+      tipo_bulto, 
+      activo: activoValue,
+      affectedRows: result.affectedRows 
+    });
+
+    res.json({ 
+      id: idNum, 
+      tipo_cnt: tipo_cnt.trim(), 
+      tipo_bulto: tipo_bulto.trim(), 
+      activo: activoValue 
+    });
+  } catch (error) {
+    console.error('❌ Error al actualizar tipo de bulto:', error);
+
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ error: 'El tipo de contenedor ya existe' });
+    }
+
+    res.status(500).json({ 
+      error: 'Error al actualizar el registro',
+      details: error.message 
+    });
+  }
+});
+
+// DELETE - Eliminar tipo de bulto
+app.delete('/api/mantenedores/tipo-bulto/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const [result] = await pool.query(
+      'DELETE FROM tipo_cnt_tipo_bulto WHERE id = ?',
+      [id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Tipo de bulto no encontrado' });
+    }
+
+    res.json({ message: 'Tipo de bulto eliminado correctamente' });
+  } catch (error) {
+    console.error('Error al eliminar tipo de bulto:', error);
+    res.status(500).json({ error: 'Error al eliminar el registro' });
+  }
+});
+
+// ============================================
+// CRUD EMPAQUE-CONTENEDORES (pms51_tokens)
+// ============================================
+
+// GET - Listar tokens PMS51
+app.get('/api/mantenedores/empaque-contenedores', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT id, token, activo FROM pms51_tokens ORDER BY token'
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('Error al obtener tokens:', error);
+    res.status(500).json({ error: 'Error al cargar los datos' });
+  }
+});
+
+// GET - Obtener un token específico por ID
+app.get('/api/mantenedores/empaque-contenedores/:id', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT id, token, activo FROM pms51_tokens WHERE id = ?',
+      [req.params.id]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Token no encontrado' });
+    }
+    
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Error al obtener token:', error);
+    res.status(500).json({ error: 'Error al obtener el token' });
+  }
+});
+
+// POST - Crear token
+app.post('/api/mantenedores/empaque-contenedores', async (req, res) => {
+  const { token, activo } = req.body;
+
+  try {
+    if (!token) {
+      return res.status(400).json({ error: 'El token es obligatorio' });
+    }
+
+    const tokenUpper = String(token).toUpperCase().trim();
+    const activoValue = activo !== undefined ? Number(activo) : 1;
+
+    const [result] = await pool.query(
+      'INSERT INTO pms51_tokens (token, activo) VALUES (?, ?)',
+      [tokenUpper, activoValue]
+    );
+
+    // 🔄 Recargar tokens en memoria
+    await loadPms51Tokens();
+
+    res.status(201).json({
+      id: result.insertId,
+      token: tokenUpper,
+      activo: activoValue
+    });
+  } catch (error) {
+    console.error('Error al crear token:', error);
+
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ error: 'El token ya existe' });
+    }
+
+    res.status(500).json({ error: 'Error al guardar el registro' });
+  }
+});
+
+// PUT - Actualizar token
+app.put('/api/mantenedores/empaque-contenedores/:id', async (req, res) => {
+  const { id } = req.params;
+  const { token, activo } = req.body;
+
+  console.log('🔧 PUT empaque-contenedores recibido:', { id, body: req.body });
+
+  try {
+    if (!token) {
+      return res.status(400).json({ error: 'El token es obligatorio' });
+    }
+
+    const tokenUpper = String(token).toUpperCase().trim();
+    const activoValue = activo !== undefined ? Number(activo) : 1;
+
+    if (![0, 1].includes(activoValue)) {
+      return res.status(400).json({ error: 'El campo activo debe ser 0 o 1' });
+    }
+
+    const idNum = Number(id);
+    if (isNaN(idNum)) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+
+    const [existing] = await pool.query(
+      'SELECT id FROM pms51_tokens WHERE id = ?',
+      [idNum]
+    );
+
+    if (existing.length === 0) {
+      return res.status(404).json({ error: 'Token no encontrado' });
+    }
+
+    const [result] = await pool.query(
+      'UPDATE pms51_tokens SET token = ?, activo = ? WHERE id = ?',
+      [tokenUpper, activoValue, idNum]
+    );
+
+    // 🔄 Recargar tokens en memoria
+    await loadPms51Tokens();
+
+    console.log('✅ Token actualizado:', { 
+      id: idNum, 
+      token: tokenUpper, 
+      activo: activoValue,
+      affectedRows: result.affectedRows 
+    });
+
+    res.json({ 
+      id: idNum, 
+      token: tokenUpper, 
+      activo: activoValue 
+    });
+  } catch (error) {
+    console.error('❌ Error al actualizar token:', error);
+
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ error: 'El token ya existe' });
+    }
+
+    res.status(500).json({ 
+      error: 'Error al actualizar el registro',
+      details: error.message 
+    });
+  }
+});
+
+// DELETE - Eliminar token
+app.delete('/api/mantenedores/empaque-contenedores/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const [result] = await pool.query(
+      'DELETE FROM pms51_tokens WHERE id = ?',
+      [id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Token no encontrado' });
+    }
+
+    // 🔄 Recargar tokens en memoria
+    await loadPms51Tokens();
+
+    res.json({ message: 'Token eliminado correctamente' });
+  } catch (error) {
+    console.error('Error al eliminar token:', error);
+    res.status(500).json({ error: 'Error al eliminar el registro' });
+  }
+});
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
@@ -1474,7 +1792,7 @@ function parseLine51(raw) {
   if (!mCont) return null;
 
   const codigo = mCont[1];
-  const sigla  = codigo.slice(0, 4);
+  const sigla = codigo.slice(0, 4);
   const numero = codigo.slice(4, 10);
   const digito = codigo.slice(10, 11);
 
@@ -1482,7 +1800,7 @@ function parseLine51(raw) {
   const mTipo = line.match(/N(\d{2}[A-Z]\d)F/);
   const tipo_cnt = mTipo ? mTipo[1] : null;
 
-  const unidad_peso    = line.includes("KGM") ? "KGM" : null;
+  const unidad_peso = line.includes("KGM") ? "KGM" : null;
   const unidad_volumen = line.includes("MTQ") ? "MTQ" : null;
 
   let peso = null;
@@ -1515,7 +1833,7 @@ function parseLine51(raw) {
 
     if (mNums) {
       const w10 = mNums[1];
-      const v   = mNums[3];
+      const v = mNums[3];
 
       peso = parseInt(w10, 10) / 1000;
 
@@ -2709,9 +3027,9 @@ app.get("/bls/:blNumber/items-contenedores", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Error al obtener items y contenedores:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: "Error al obtener items y contenedores",
-      details: error.message 
+      details: error.message
     });
   }
 });

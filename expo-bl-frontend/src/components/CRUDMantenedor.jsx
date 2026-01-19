@@ -11,13 +11,14 @@ import {
   Anchor,
   Globe,
   Package,
+  Box,
   AlertCircle,
+  PackageSearch,
 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 
 const API_BASE_URL = "http://localhost:4000";
 
-// ✅ Clases Tailwind NO dinámicas
 const colorStyles = {
   teal: {
     badgeBg: "bg-teal-100",
@@ -30,6 +31,14 @@ const colorStyles = {
   orange: {
     badgeBg: "bg-orange-100",
     badgeText: "text-orange-600",
+  },
+  blue: {
+    badgeBg: "bg-blue-100",
+    badgeText: "text-blue-600",
+  },
+  emerald: {
+    badgeBg: "bg-emerald-100",
+    badgeText: "text-emerald-600",
   },
 };
 
@@ -45,7 +54,6 @@ const CRUDMantenedor = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // ✅ Configuración
   const configs = {
     puertos: {
       title: "Puertos",
@@ -76,6 +84,64 @@ const CRUDMantenedor = () => {
       fields: [
         { key: "codigo", label: "Código", type: "text", required: true, placeholder: "EVERFEAT" },
         { key: "nombre", label: "Nombre", type: "text", required: true, placeholder: "EVER FEAT" },
+      ],
+    },
+    "tipo-bulto": {
+      title: "Tipos de Bulto",
+      singular: "Tipo de Bulto",
+      icon: Box,
+      color: "blue",
+      fields: [
+        { 
+          key: "tipo_cnt", 
+          label: "Tipo Contenedor", 
+          type: "text", 
+          required: true, 
+          placeholder: "Ej: 45R1, 22G1, 45G1" 
+        },
+        { 
+          key: "tipo_bulto", 
+          label: "Tipo Bulto", 
+          type: "text", 
+          required: true, 
+          placeholder: "Ej: 76, 73, 78" 
+        },
+        { 
+          key: "activo", 
+          label: "Estado", 
+          type: "select",
+          options: [
+            { value: 1, label: "Activo" },
+            { value: 0, label: "Inactivo" }
+          ],
+          required: true 
+        },
+      ],
+    },
+    "empaque-contenedores": {
+      title: "Tipo de Embalaje",
+      singular: "Palabra Clave",
+      icon: PackageSearch,
+      color: "emerald",
+      fields: [
+        { 
+          key: "token", 
+          label: "Palabra Clave", 
+          type: "text", 
+          required: true, 
+          placeholder: "Ej: CASE, CARTON, PALLET, BAG, DRUM",
+          helpText: "Palabra que identifica el tipo de empaque en archivos PMS (se guarda en MAYÚSCULAS)"
+        },
+        { 
+          key: "activo", 
+          label: "Estado", 
+          type: "select",
+          options: [
+            { value: 1, label: "Activo" },
+            { value: 0, label: "Inactivo" }
+          ],
+          required: true 
+        },
       ],
     },
   };
@@ -112,22 +178,35 @@ const CRUDMantenedor = () => {
 
   const handleAdd = () => {
     setEditingItem(null);
-    const emptyForm = config.fields.reduce((acc, field) => ({ ...acc, [field.key]: "" }), {});
+    const emptyForm = config.fields.reduce((acc, field) => {
+      if (field.key === "activo") {
+        return { ...acc, [field.key]: 1 };
+      }
+      return { ...acc, [field.key]: "" };
+    }, {});
     setFormData(emptyForm);
     setIsModalOpen(true);
   };
 
   const handleEdit = (item) => {
     setEditingItem(item);
-    const clean = config.fields.reduce((acc, f) => ({ ...acc, [f.key]: item[f.key] ?? "" }), {});
+    const clean = config.fields.reduce((acc, f) => {
+      if (f.key === "activo") {
+        return { ...acc, [f.key]: Number(item[f.key] ?? 1) };
+      }
+      return { ...acc, [f.key]: item[f.key] ?? "" };
+    }, {});
     setFormData(clean);
     setIsModalOpen(true);
   };
 
-  // 🆕 Validación de campos con SweetAlert
   const validateForm = () => {
     const requiredFields = config.fields.filter((f) => f.required);
-    const missingFields = requiredFields.filter((f) => !String(formData[f.key] ?? "").trim());
+    const missingFields = requiredFields.filter((f) => {
+      const value = formData[f.key];
+      if (f.type === "select") return value === undefined || value === null || value === "";
+      return !String(value ?? "").trim();
+    });
 
     if (missingFields.length > 0) {
       Swal.fire({
@@ -148,13 +227,20 @@ const CRUDMantenedor = () => {
     return true;
   };
 
-  // 🆕 Construir resumen para confirmación
   const buildSummary = () => {
     return `
       <div style="text-align: left; font-size: 14px;">
         ${config.fields
           .map((field) => {
-            const value = formData[field.key] || "—";
+            let value = formData[field.key];
+            
+            if (field.type === "select" && field.options) {
+              const option = field.options.find(opt => opt.value === formData[field.key]);
+              value = option ? option.label : value;
+            } else {
+              value = value || "—";
+            }
+            
             return `<p><strong>${field.label}:</strong> ${value}</p>`;
           })
           .join("")}
@@ -163,10 +249,8 @@ const CRUDMantenedor = () => {
   };
 
   const handleSave = async () => {
-    // 🆕 PASO 1: Validar campos
     if (!validateForm()) return;
 
-    // 🆕 PASO 2: Confirmar con resumen
     const action = editingItem ? "actualizar" : "crear";
     const result = await Swal.fire({
       title: `¿${action === "crear" ? "Crear" : "Actualizar"} ${config.singular}?`,
@@ -189,7 +273,6 @@ const CRUDMantenedor = () => {
 
     if (!result.isConfirmed) return;
 
-    // 🆕 PASO 3: Guardar
     setLoading(true);
     try {
       const url = editingItem
@@ -198,18 +281,24 @@ const CRUDMantenedor = () => {
 
       const method = editingItem ? "PUT" : "POST";
 
+      const dataToSend = { ...formData };
+      if (dataToSend.activo !== undefined) {
+        dataToSend.activo = Number(dataToSend.activo);
+      }
+
+      console.log('📤 Enviando:', { url, method, data: dataToSend });
+
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(dataToSend),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Error al guardar");
+        throw new Error(errorData.error || `Error ${response.status}: ${response.statusText}`);
       }
 
-      // 🆕 PASO 4: Mostrar éxito
       await Swal.fire({
         title: "✅ ¡Guardado!",
         text: `${config.singular} ${action === "crear" ? "creado" : "actualizado"} correctamente`,
@@ -218,18 +307,13 @@ const CRUDMantenedor = () => {
         timer: 2000,
       });
 
-      if (editingItem) {
-        setItems((prev) =>
-          prev.map((it) => (it.id === editingItem.id ? { ...it, ...formData } : it))
-        );
-      } else {
-        await loadData();
-      }
+      await loadData();
 
       setIsModalOpen(false);
       setFormData({});
       setEditingItem(null);
     } catch (err) {
+      console.error('❌ Error al guardar:', err);
       await Swal.fire({
         title: "❌ Error al guardar",
         text: err.message || "No se pudo guardar el registro",
@@ -257,7 +341,6 @@ const CRUDMantenedor = () => {
 
       <main className="flex-1 p-6 sm:p-8 lg:p-10">
         <div className="max-w-7xl mx-auto">
-          {/* Header */}
           <div className="mb-8">
             <button
               onClick={() => navigate("/mantenedores")}
@@ -293,7 +376,6 @@ const CRUDMantenedor = () => {
             </div>
           </div>
 
-          {/* 🆕 Info sobre NO eliminar */}
           <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
             <AlertCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
             <div className="text-sm">
@@ -305,7 +387,6 @@ const CRUDMantenedor = () => {
             </div>
           </div>
 
-          {/* Error */}
           {error && (
             <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
               <AlertCircle className="text-red-600" size={20} />
@@ -316,7 +397,6 @@ const CRUDMantenedor = () => {
             </div>
           )}
 
-          {/* Search */}
           <div className="mb-6">
             <div className="relative max-w-md">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
@@ -331,7 +411,6 @@ const CRUDMantenedor = () => {
             </div>
           </div>
 
-          {/* Table */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -366,8 +445,16 @@ const CRUDMantenedor = () => {
                       <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                         {config.fields.map((field) => (
                           <td key={field.key} className="px-6 py-4 text-sm text-slate-700">
-                            {field.key === "codigo" ? (
+                            {field.key === "codigo" || field.key === "tipo_cnt" || field.key === "tipo_bulto" || field.key === "token" ? (
                               <span className="font-mono font-semibold text-[#0F2A44]">{item[field.key]}</span>
+                            ) : field.key === "activo" ? (
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                item[field.key] === 1 || item[field.key] === "1" 
+                                  ? "bg-green-100 text-green-700" 
+                                  : "bg-red-100 text-red-700"
+                              }`}>
+                                {item[field.key] === 1 || item[field.key] === "1" ? "Activo" : "Inactivo"}
+                              </span>
                             ) : field.type === "textarea" ? (
                               <span className="line-clamp-2">{item[field.key] || "—"}</span>
                             ) : (
@@ -385,7 +472,6 @@ const CRUDMantenedor = () => {
                             >
                               <Edit2 size={18} />
                             </button>
-                            {/* 🆕 Ya NO hay botón de eliminar */}
                           </div>
                         </td>
                       </tr>
@@ -396,7 +482,6 @@ const CRUDMantenedor = () => {
             </div>
           </div>
 
-          {/* Modal */}
           {isModalOpen && (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -438,6 +523,19 @@ const CRUDMantenedor = () => {
                             placeholder={field.placeholder || `Ingrese ${field.label.toLowerCase()}`}
                             rows={3}
                           />
+                        ) : field.type === "select" ? (
+                          <select
+                            value={formData[field.key] ?? ""}
+                            onChange={(e) => setFormData({ ...formData, [field.key]: Number(e.target.value) })}
+                            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0F2A44] focus:border-transparent transition"
+                          >
+                            <option value="">Seleccione...</option>
+                            {field.options?.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
                         ) : (
                           <input
                             type={field.type || "text"}
@@ -446,6 +544,10 @@ const CRUDMantenedor = () => {
                             className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0F2A44] focus:border-transparent transition"
                             placeholder={field.placeholder || `Ingrese ${field.label.toLowerCase()}`}
                           />
+                        )}
+
+                        {field.helpText && (
+                          <p className="mt-1 text-xs text-slate-500">{field.helpText}</p>
                         )}
                       </div>
                     ))}

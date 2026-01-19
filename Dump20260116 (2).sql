@@ -307,13 +307,15 @@ DROP TABLE IF EXISTS `pms51_tokens`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `pms51_tokens` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `token` varchar(20) NOT NULL,
+  `token` varchar(50) NOT NULL,
   `activo` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_token` (`token`)
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  UNIQUE KEY `uq_token` (`token`),
+  UNIQUE KEY `token` (`token`),
+  UNIQUE KEY `token_2` (`token`)
+) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -322,7 +324,7 @@ CREATE TABLE `pms51_tokens` (
 
 LOCK TABLES `pms51_tokens` WRITE;
 /*!40000 ALTER TABLE `pms51_tokens` DISABLE KEYS */;
-INSERT INTO `pms51_tokens` VALUES (1,'CASE',1,'2026-01-16 15:30:24','2026-01-16 15:30:24'),(2,'CARTON',1,'2026-01-16 15:30:24','2026-01-16 15:30:24'),(3,'PALLET',1,'2026-01-16 15:30:24','2026-01-16 15:30:24'),(4,'BAG',1,'2026-01-16 15:30:24','2026-01-16 15:30:24'),(5,'DRUM',1,'2026-01-16 15:30:24','2026-01-16 15:30:24');
+INSERT INTO `pms51_tokens` VALUES (1,'CASE',1,'2026-01-16 15:30:24','2026-01-16 15:30:24'),(2,'CARTON',1,'2026-01-16 15:30:24','2026-01-16 15:30:24'),(3,'PALLET',1,'2026-01-16 15:30:24','2026-01-16 15:30:24'),(4,'BAG',1,'2026-01-16 15:30:24','2026-01-16 15:30:24'),(5,'DRUM',1,'2026-01-16 15:30:24','2026-01-16 15:30:24'),(6,'LEAF',0,'2026-01-19 12:51:04','2026-01-19 13:13:55'),(7,'SHEETS',1,'2026-01-19 12:53:55','2026-01-19 12:53:55'),(8,'REFRIGERATED',0,'2026-01-19 13:21:05','2026-01-19 14:28:50'),(9,'REFRIGERATED CONTAINER',1,'2026-01-19 14:28:41','2026-01-19 14:28:41');
 /*!40000 ALTER TABLE `pms51_tokens` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -430,7 +432,7 @@ CREATE TABLE `tipo_cnt_tipo_bulto` (
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_tipo_cnt` (`tipo_cnt`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -439,7 +441,7 @@ CREATE TABLE `tipo_cnt_tipo_bulto` (
 
 LOCK TABLES `tipo_cnt_tipo_bulto` WRITE;
 /*!40000 ALTER TABLE `tipo_cnt_tipo_bulto` DISABLE KEYS */;
-INSERT INTO `tipo_cnt_tipo_bulto` VALUES (1,'45R1','76',1,'2026-01-15 15:12:46','2026-01-16 16:11:42'),(2,'22G1','73',1,'2026-01-15 15:12:46','2026-01-15 15:12:46'),(3,'45G1','78',1,'2026-01-16 16:15:13','2026-01-16 16:15:13');
+INSERT INTO `tipo_cnt_tipo_bulto` VALUES (1,'45R1','76',1,'2026-01-15 15:12:46','2026-01-16 16:11:42'),(2,'22G1','73',1,'2026-01-15 15:12:46','2026-01-15 15:12:46'),(3,'45G1','78',1,'2026-01-16 16:15:13','2026-01-16 16:15:13'),(4,'23','235',1,'2026-01-19 12:14:48','2026-01-19 12:26:57'),(5,'485r','488585',0,'2026-01-19 12:28:38','2026-01-19 12:28:38'),(6,'34R','34',0,'2026-01-19 13:13:01','2026-01-19 13:13:31'),(7,'20R','2422',1,'2026-01-19 13:13:21','2026-01-19 13:13:21');
 /*!40000 ALTER TABLE `tipo_cnt_tipo_bulto` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -502,7 +504,7 @@ CREATE TABLE `usuarios` (
 
 LOCK TABLES `usuarios` WRITE;
 /*!40000 ALTER TABLE `usuarios` DISABLE KEYS */;
-INSERT INTO `usuarios` VALUES (1,'Admin','admin@test.com','HASH',NULL,NULL,NULL,NULL,'admin',1,NULL,'2026-01-05 15:54:30'),(2,'Administrador','admin@broomgroup.cl','$2b$10$3h//Z3ZqLptkeWgCjG2OZumqHGzmnBHf59baX.tOSc5z4slGPVZ6y',NULL,NULL,NULL,NULL,'admin',1,'2026-01-15 13:42:18','2026-01-05 15:57:25'),(3,'Usuario Demo','usuario@broomgroup.cl','$2b$10$vZYqrc/ybflxZ9jwkWQzH.BSPrfxb4C7md2F6FxhUu0ML3fHSwSDK',NULL,NULL,NULL,NULL,'usuario',1,NULL,'2026-01-05 15:57:25'),(4,'Operador PIL','operador@broomgroup.cl','$2b$10$JOWZGjoiQDS.UbpVysRqW.aaaKPtsvtNGqFKDvm.e4v2aNm4UsaC6',NULL,NULL,NULL,NULL,'usuario',1,NULL,'2026-01-05 15:57:25'),(11,'ALMENDRA . PAVEZ BRIONES','alm.pavez@duocuc.cl','$2b$10$7JuZvKSpr83D6nsED85q7eEKNOPQnWwPAWzbHQmPTqL/wau7nnEhu',NULL,NULL,'109974620391524188812','https://lh3.googleusercontent.com/a/ACg8ocJX9NpuUVtjCQ8MJblKShTEFYv3PNf39oilwZyoqb5rs-SJRheK=s96-c','usuario',1,'2026-01-15 12:05:32','2026-01-14 19:35:31'),(12,'Almendra Pavez','sujuu.aesthetic@gmail.com',NULL,NULL,NULL,'105074930850393443271','https://lh3.googleusercontent.com/a/ACg8ocJbjauv5cDjV7sUX2U04YnnbmPpzFtk6_maM6XovfyHtMp20VCt=s96-c','usuario',1,'2026-01-14 19:45:04','2026-01-14 19:45:04'),(13,'Almendra Pavez','apavez@broomgroup.com','$2b$10$yWQiaIlxrCxsshN.ufEryuc6RSY2PqiWi1Hg6Oayjtxlc.jpm9T86',NULL,NULL,'110618013735854447228','https://lh3.googleusercontent.com/a/ACg8ocKm6aiKTAYIgpklib37xzzBnUw8OyEF2869SC2TS-s5U1q_=s96-c','admin',1,'2026-01-15 13:49:18','2026-01-14 19:52:52'),(14,'Ignacio Riffo','iriffo@broomgroup.com','$2b$10$Z5juSy16cRyuLzfcEVovseYwWctwNAXk3VZ/fJVNvFZhTGrAk6Hda',NULL,NULL,'116800619475280199632','https://lh3.googleusercontent.com/a/ACg8ocK5_I2T_oyvtMK04lQaFHbYhaCquTYab5LCZRdxcJkqVDJJMg=s96-c','admin',1,'2026-01-15 14:25:41','2026-01-15 14:23:48');
+INSERT INTO `usuarios` VALUES (1,'Admin','admin@test.com','HASH',NULL,NULL,NULL,NULL,'admin',1,NULL,'2026-01-05 15:54:30'),(2,'Administrador','admin@broomgroup.cl','$2b$10$3h//Z3ZqLptkeWgCjG2OZumqHGzmnBHf59baX.tOSc5z4slGPVZ6y',NULL,NULL,NULL,NULL,'admin',1,'2026-01-15 13:42:18','2026-01-05 15:57:25'),(3,'Usuario Demo','usuario@broomgroup.cl','$2b$10$vZYqrc/ybflxZ9jwkWQzH.BSPrfxb4C7md2F6FxhUu0ML3fHSwSDK',NULL,NULL,NULL,NULL,'usuario',1,NULL,'2026-01-05 15:57:25'),(4,'Operador PIL','operador@broomgroup.cl','$2b$10$JOWZGjoiQDS.UbpVysRqW.aaaKPtsvtNGqFKDvm.e4v2aNm4UsaC6',NULL,NULL,NULL,NULL,'usuario',1,NULL,'2026-01-05 15:57:25'),(11,'ALMENDRA . PAVEZ BRIONES','alm.pavez@duocuc.cl','$2b$10$7JuZvKSpr83D6nsED85q7eEKNOPQnWwPAWzbHQmPTqL/wau7nnEhu',NULL,NULL,'109974620391524188812','https://lh3.googleusercontent.com/a/ACg8ocJX9NpuUVtjCQ8MJblKShTEFYv3PNf39oilwZyoqb5rs-SJRheK=s96-c','usuario',1,'2026-01-15 12:05:32','2026-01-14 19:35:31'),(12,'Almendra Pavez','sujuu.aesthetic@gmail.com',NULL,NULL,NULL,'105074930850393443271','https://lh3.googleusercontent.com/a/ACg8ocJbjauv5cDjV7sUX2U04YnnbmPpzFtk6_maM6XovfyHtMp20VCt=s96-c','usuario',1,'2026-01-14 19:45:04','2026-01-14 19:45:04'),(13,'Almendra Pavez','apavez@broomgroup.com','$2b$10$yWQiaIlxrCxsshN.ufEryuc6RSY2PqiWi1Hg6Oayjtxlc.jpm9T86',NULL,NULL,'110618013735854447228','https://lh3.googleusercontent.com/a/ACg8ocKm6aiKTAYIgpklib37xzzBnUw8OyEF2869SC2TS-s5U1q_=s96-c','admin',1,'2026-01-19 11:52:19','2026-01-14 19:52:52'),(14,'Ignacio Riffo','iriffo@broomgroup.com','$2b$10$Z5juSy16cRyuLzfcEVovseYwWctwNAXk3VZ/fJVNvFZhTGrAk6Hda',NULL,NULL,'116800619475280199632','https://lh3.googleusercontent.com/a/ACg8ocK5_I2T_oyvtMK04lQaFHbYhaCquTYab5LCZRdxcJkqVDJJMg=s96-c','admin',1,'2026-01-15 14:25:41','2026-01-15 14:23:48');
 /*!40000 ALTER TABLE `usuarios` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -515,4 +517,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-01-16 13:17:18
+-- Dump completed on 2026-01-19 11:30:09
