@@ -1952,6 +1952,30 @@ async function insertSellos(conn, contenedorId, sellos) {
   }
 }
 
+function parseLegs14(lines14) {
+  const legs = [];
+  const arr = Array.isArray(lines14) ? lines14 : [];
+
+  for (const raw of arr) {
+    const s = String(raw || "").toUpperCase();
+    const mStep = s.match(/\b(\d{2})SH/);
+    const step = mStep ? Number(mStep[1]) : 999;
+
+    const m = s.match(/^14\s+\d{2}SH([A-Z]{5})([A-Z]{5})/);
+    if (!m) continue;
+
+    legs.push({ step, from: m[1], to: m[2] });
+  }
+
+  legs.sort((a, b) => a.step - b.step);
+  return legs;
+}
+
+function extractTransbordos(legs) {
+  if (!Array.isArray(legs) || legs.length <= 1) return [];
+  return legs.slice(0, -1).map(l => l.to); // intermedios
+}
+
 
 // ===============================
 // parsePmsTxt CORREGIDA
@@ -2017,6 +2041,9 @@ function parsePmsTxt(content) {
       // ---------- 14: FECHAS y LOCACIONES ----------
       const lines14 = pickAll(bLines, "14");
 
+      const legs14 = parseLegs14(lines14);
+      const transbordos = extractTransbordos(legs14); // ["CNNGB","SGSIN"] si aplica
+
       // Fechas desde 14 principal (01SH si existe; si no, primera con 2 timestamps)
       const main14 = pickMain14ForDates(lines14);
 
@@ -2080,6 +2107,8 @@ function parsePmsTxt(content) {
         lugar_destino_cod,
         lugar_entrega_cod,
 
+        transbordos,
+
 
         items,
         // ====== NUEVO (para poblar tablas nuevas, si quieres) ======
@@ -2107,6 +2136,29 @@ async function getTipoServicioIdByCodigo(conn, codigo2) {
   if (!c) return null;
   const [rows] = await conn.query("SELECT id FROM tipos_servicio WHERE codigo = ? LIMIT 1", [c]);
   return rows.length ? rows[0].id : null;
+}
+
+
+async function insertTransbordos(conn, blId, transbordos) {
+  const arr = Array.isArray(transbordos) ? transbordos : [];
+  if (!blId || arr.length === 0) return;
+
+  await conn.query("DELETE FROM bl_transbordos WHERE bl_id = ?", [blId]);
+
+  const sql = `
+    INSERT INTO bl_transbordos (bl_id, sec, puerto_cod, puerto_id)
+    VALUES (?, ?, ?, ?)
+  `;
+  let sec = 1;
+
+  for (const cod of arr) {
+    const c = String(cod || "").trim().toUpperCase();
+    if (!c) continue;
+
+    const puertoId = await getPuertoIdByCodigo(conn, c); // 👈 AQUÍ
+
+    await conn.query(sql, [blId, sec++, c, puertoId]);
+  }
 }
 
 // ✅ POST para procesar el PMS TXT y crear BLs
@@ -2254,6 +2306,7 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
       ]);
 
       const blId = blIns.insertId;
+      await insertTransbordos(conn, blId, b.transbordos || []);
 
       // =========================
       // 1) INSERT ITEMS (bl_items)
