@@ -14,6 +14,8 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
+const { create } = require('xmlbuilder2');
+const archiver = require('archiver'); // npm install archiver
 
 dotenv.config();
 
@@ -3193,6 +3195,473 @@ app.post("/admin/pms51/tokens/reload", async (req, res) => {
   await loadPms51Tokens();
   res.json({ ok: true, tokens: PMS51_TOKENS });
 });
+
+// Función helper para formatear fechas DD-MM-YYYY HH:MM
+function formatDateTimeCL(isoDate) {
+  if (!isoDate) return null;
+  const d = new Date(isoDate);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${dd}-${mm}-${yyyy} ${hh}:${min}`;
+}
+
+// Función helper para formatear solo fecha DD-MM-YYYY
+function formatDateCL(isoDate) {
+  if (!isoDate) return null;
+  const d = new Date(isoDate);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${dd}-${mm}-${yyyy}`;
+}
+
+// GET /api/manifiestos/:id/bls-para-xml
+// Retorna lista de BLs con datos necesarios para el selector
+// 🔥 GET /api/manifiestos/:id/bls-para-xml
+// IMPORTANTE: Si este endpoint NO existe en tu index.js, agrégalo.
+// Si existe, reemplaza el SELECT por este completo.
+
+app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const query = `
+      SELECT
+        b.id,
+        b.bl_number,
+        b.shipper,
+        b.consignee,
+        b.notify_party,
+        b.descripcion_carga,
+        b.bultos,
+        b.peso_bruto,
+        b.volumen,
+        b.unidad_peso,
+        b.unidad_volumen,
+        b.status,
+        b.fecha_emision,
+        b.fecha_zarpe,
+        b.fecha_embarque,
+        b.fecha_presentacion,
+        b.created_at,
+        pe.codigo AS puerto_embarque_codigo,
+        pe.nombre AS puerto_embarque,
+        pd.codigo AS puerto_descarga_codigo,
+        pd.nombre AS puerto_descarga,
+        le.codigo AS lugar_emision_codigo,
+        le.nombre AS lugar_emision,
+        ts.codigo AS tipo_servicio_codigo,
+        ts.nombre AS tipo_servicio
+      FROM bls b
+      LEFT JOIN puertos pe ON b.puerto_embarque_id = pe.id
+      LEFT JOIN puertos pd ON b.puerto_descarga_id = pd.id
+      LEFT JOIN puertos le ON b.lugar_emision_id = le.id
+      LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
+      WHERE b.manifiesto_id = ?
+      ORDER BY b.bl_number
+    `;
+
+    const [rows] = await pool.query(query, [id]);
+    res.json(rows);
+  } catch (error) {
+    console.error("Error al obtener BLs para XML:", error);
+    res.status(500).json({ error: "Error al obtener BLs" });
+  }
+});
+
+// POST /api/bls/:blNumber/generar-xml
+// Genera el XML completo de un BL específico
+app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
+  try {
+    const { blNumber } = req.params;
+
+    // 1️⃣ Obtener datos completos del BL
+    const [blRows] = await pool.query(`
+      SELECT
+        b.*,
+        m.viaje,
+        m.tipo_operacion,
+        n.nombre AS nave_nombre,
+        ts.codigo AS tipo_servicio_codigo,
+        le.codigo AS lugar_emision_codigo,
+        le.nombre AS lugar_emision_nombre,
+        pe.codigo AS puerto_embarque_codigo,
+        pe.nombre AS puerto_embarque_nombre,
+        pd.codigo AS puerto_descarga_codigo,
+        pd.nombre AS puerto_descarga_nombre,
+        ld.codigo AS lugar_destino_codigo,
+        ld.nombre AS lugar_destino_nombre,
+        lem.codigo AS lugar_entrega_codigo,
+        lem.nombre AS lugar_entrega_nombre,
+        lrm.codigo AS lugar_recepcion_codigo,
+        lrm.nombre AS lugar_recepcion_nombre
+      FROM bls b
+      LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
+      LEFT JOIN naves n ON m.nave_id = n.id
+      LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
+      LEFT JOIN puertos le ON b.lugar_emision_id = le.id
+      LEFT JOIN puertos pe ON b.puerto_embarque_id = pe.id
+      LEFT JOIN puertos pd ON b.puerto_descarga_id = pd.id
+      LEFT JOIN puertos ld ON b.lugar_destino_id = ld.id
+      LEFT JOIN puertos lem ON b.lugar_entrega_id = lem.id
+      LEFT JOIN puertos lrm ON b.lugar_recepcion_id = lrm.id
+      WHERE b.bl_number = ?
+      LIMIT 1
+    `, [blNumber]);
+
+    if (blRows.length === 0) {
+      return res.status(404).json({ error: "BL no encontrado" });
+    }
+
+    const bl = blRows[0];
+
+    // 2️⃣ Obtener items del BL
+    const [items] = await pool.query(`
+      SELECT * FROM bl_items
+      WHERE bl_id = ?
+      ORDER BY numero_item
+    `, [bl.id]);
+
+    // 3️⃣ Obtener contenedores con sellos
+    const [contenedores] = await pool.query(`
+      SELECT
+        c.*,
+        GROUP_CONCAT(s.sello ORDER BY s.sello SEPARATOR '|') as sellos
+      FROM bl_contenedores c
+      LEFT JOIN bl_contenedor_sellos s ON s.contenedor_id = c.id
+      WHERE c.bl_id = ?
+      GROUP BY c.id
+      ORDER BY c.codigo
+    `, [bl.id]);
+
+    // 4️⃣ Construir XML según estructura del ejemplo
+    const xmlObj = {
+      Documento: {
+        '@tipo': 'BL',
+        '@version': '1.0',
+        'tipo-accion': 'M',
+        'numero-referencia': bl.bl_number,
+        'service': 'LINER',
+        'tipo-servicio': bl.tipo_servicio_codigo || 'FCL/FCL',
+        'cond-transporte': 'HH',
+        'total-bultos': bl.bultos || 0,
+        'total-peso': bl.peso_bruto || 0,
+        'unidad-peso': bl.unidad_peso || 'KGM',
+        'total-volumen': bl.volumen || 0,
+        'unidad-volumen': bl.unidad_volumen || 'MTQ',
+        'total-item': items.length,
+
+        OpTransporte: {
+          optransporte: {
+            'sentido-operacion': bl.tipo_operacion === 'EX' ? 'S' : 'E',
+            'nombre-nave': bl.nave_nombre || ''
+          }
+        },
+
+        Fechas: {
+          fecha: [
+            bl.fecha_presentacion && {
+              nombre: 'FPRES',
+              valor: formatDateTimeCL(bl.fecha_presentacion)
+            },
+            bl.fecha_emision && {
+              nombre: 'FEM',
+              valor: formatDateCL(bl.fecha_emision)
+            },
+            bl.fecha_zarpe && {
+              nombre: 'FZARPE',
+              valor: formatDateTimeCL(bl.fecha_zarpe)
+            },
+            bl.fecha_embarque && {
+              nombre: 'FEMB',
+              valor: formatDateTimeCL(bl.fecha_embarque)
+            }
+          ].filter(Boolean)
+        },
+
+        Locaciones: {
+          locacion: [
+            bl.lugar_emision_codigo && {
+              nombre: 'LE',
+              codigo: bl.lugar_emision_codigo,
+              descripcion: bl.lugar_emision_nombre
+            },
+            bl.puerto_embarque_codigo && {
+              nombre: 'PE',
+              codigo: bl.puerto_embarque_codigo,
+              descripcion: bl.puerto_embarque_nombre
+            },
+            bl.puerto_descarga_codigo && {
+              nombre: 'PD',
+              codigo: bl.puerto_descarga_codigo,
+              descripcion: bl.puerto_descarga_nombre
+            },
+            bl.lugar_destino_codigo && {
+              nombre: 'LD',
+              codigo: bl.lugar_destino_codigo,
+              descripcion: bl.lugar_destino_nombre
+            },
+            bl.lugar_entrega_codigo && {
+              nombre: 'LEM',
+              codigo: bl.lugar_entrega_codigo,
+              descripcion: bl.lugar_entrega_nombre
+            },
+            bl.lugar_recepcion_codigo && {
+              nombre: 'LRM',
+              codigo: bl.lugar_recepcion_codigo,
+              descripcion: bl.lugar_recepcion_nombre
+            }
+          ].filter(Boolean)
+        },
+
+        Participaciones: {
+          participacion: [
+            bl.shipper && {
+              nombre: 'EMI',
+              nombres: bl.shipper
+            },
+            bl.consignee && {
+              nombre: 'CONS',
+              nombres: bl.consignee
+            },
+            bl.notify_party && {
+              nombre: 'NOTI',
+              nombres: bl.notify_party
+            }
+          ].filter(Boolean)
+        },
+
+        Items: {
+          item: items.map(it => {
+            const contsDelItem = contenedores.filter(c => c.item_id === it.id);
+
+            return {
+              'numero-item': it.numero_item,
+              marcas: it.marcas || '',
+              'carga-peligrosa': it.carga_peligrosa || 'N',
+              'tipo-bulto': it.tipo_bulto || '',
+              descripcion: it.descripcion || '',
+              cantidad: it.cantidad || 0,
+              'peso-bruto': it.peso_bruto || 0,
+              'unidad-peso': it.unidad_peso || 'KGM',
+              volumen: it.volumen || 0,
+              'unidad-volumen': it.unidad_volumen || 'MTQ',
+              'carga-cnt': 'S',
+
+              Contenedores: contsDelItem.length > 0 ? {
+                contenedor: contsDelItem.map(c => ({
+                  sigla: c.sigla || '',
+                  numero: c.numero || '',
+                  digito: c.digito || '',
+                  'tipo-cnt': c.tipo_cnt || '',
+                  'cnt-so': '',
+                  peso: c.peso || 0,
+                  status: bl.tipo_servicio_codigo || 'FCL/FCL',
+                  Sellos: c.sellos ? {
+                    sello: c.sellos.split('|').map(s => ({ numero: s }))
+                  } : undefined
+                }))
+              } : undefined
+            };
+          })
+        }
+      }
+    };
+
+    // 5️⃣ Generar XML
+    const doc = create({ version: '1.0', encoding: 'ISO-8859-1' }, xmlObj);
+    const xmlString = doc.end({ prettyPrint: true });
+
+    // 6️⃣ Enviar como descarga
+    res.setHeader('Content-Type', 'application/xml; charset=ISO-8859-1');
+    res.setHeader('Content-Disposition', `attachment; filename="BMS_V1_SNA-BL-1.0-${bl.bl_number}.xml"`);
+    res.send(xmlString);
+
+  } catch (error) {
+    console.error("Error al generar XML:", error);
+    res.status(500).json({ error: "Error al generar XML", details: error.message });
+  }
+});
+
+// POST /api/manifiestos/:id/generar-xmls-multiples
+// Genera múltiples XMLs y los devuelve en un ZIP
+app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { blNumbers } = req.body; // Array de bl_numbers seleccionados
+
+    if (!Array.isArray(blNumbers) || blNumbers.length === 0) {
+      return res.status(400).json({ error: "Debe seleccionar al menos un BL" });
+    }
+
+    // Crear archivo ZIP
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="BLs_Manifiesto_${id}.zip"`);
+
+    archive.pipe(res);
+
+    // Generar XML por cada BL
+    for (const blNumber of blNumbers) {
+      // Reutilizar la lógica del endpoint individual
+      const [blRows] = await pool.query(`
+        SELECT
+          b.*,
+          m.viaje,
+          m.tipo_operacion,
+          n.nombre AS nave_nombre,
+          ts.codigo AS tipo_servicio_codigo,
+          le.codigo AS lugar_emision_codigo,
+          le.nombre AS lugar_emision_nombre,
+          pe.codigo AS puerto_embarque_codigo,
+          pe.nombre AS puerto_embarque_nombre,
+          pd.codigo AS puerto_descarga_codigo,
+          pd.nombre AS puerto_descarga_nombre,
+          ld.codigo AS lugar_destino_codigo,
+          ld.nombre AS lugar_destino_nombre,
+          lem.codigo AS lugar_entrega_codigo,
+          lem.nombre AS lugar_entrega_nombre,
+          lrm.codigo AS lugar_recepcion_codigo,
+          lrm.nombre AS lugar_recepcion_nombre
+        FROM bls b
+        LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
+        LEFT JOIN naves n ON m.nave_id = n.id
+        LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
+        LEFT JOIN puertos le ON b.lugar_emision_id = le.id
+        LEFT JOIN puertos pe ON b.puerto_embarque_id = pe.id
+        LEFT JOIN puertos pd ON b.puerto_descarga_id = pd.id
+        LEFT JOIN puertos ld ON b.lugar_destino_id = ld.id
+        LEFT JOIN puertos lem ON b.lugar_entrega_id = lem.id
+        LEFT JOIN puertos lrm ON b.lugar_recepcion_id = lrm.id
+        WHERE b.bl_number = ?
+        LIMIT 1
+      `, [blNumber]);
+
+      if (blRows.length === 0) continue;
+
+      const bl = blRows[0];
+
+      const [items] = await pool.query(`
+        SELECT * FROM bl_items WHERE bl_id = ? ORDER BY numero_item
+      `, [bl.id]);
+
+      const [contenedores] = await pool.query(`
+        SELECT
+          c.*,
+          GROUP_CONCAT(s.sello ORDER BY s.sello SEPARATOR '|') as sellos
+        FROM bl_contenedores c
+        LEFT JOIN bl_contenedor_sellos s ON s.contenedor_id = c.id
+        WHERE c.bl_id = ?
+        GROUP BY c.id
+        ORDER BY c.codigo
+      `, [bl.id]);
+
+      // Construir XML (misma lógica que arriba)
+      const xmlObj = {
+        Documento: {
+          '@tipo': 'BL',
+          '@version': '1.0',
+          'tipo-accion': 'M',
+          'numero-referencia': bl.bl_number,
+          'service': 'LINER',
+          'tipo-servicio': bl.tipo_servicio_codigo || 'FCL/FCL',
+          'cond-transporte': 'HH',
+          'total-bultos': bl.bultos || 0,
+          'total-peso': bl.peso_bruto || 0,
+          'unidad-peso': bl.unidad_peso || 'KGM',
+          'total-volumen': bl.volumen || 0,
+          'unidad-volumen': bl.unidad_volumen || 'MTQ',
+          'total-item': items.length,
+
+          OpTransporte: {
+            optransporte: {
+              'sentido-operacion': bl.tipo_operacion === 'EX' ? 'S' : 'E',
+              'nombre-nave': bl.nave_nombre || ''
+            }
+          },
+
+          Fechas: {
+            fecha: [
+              bl.fecha_presentacion && { nombre: 'FPRES', valor: formatDateTimeCL(bl.fecha_presentacion) },
+              bl.fecha_emision && { nombre: 'FEM', valor: formatDateCL(bl.fecha_emision) },
+              bl.fecha_zarpe && { nombre: 'FZARPE', valor: formatDateTimeCL(bl.fecha_zarpe) },
+              bl.fecha_embarque && { nombre: 'FEMB', valor: formatDateTimeCL(bl.fecha_embarque) }
+            ].filter(Boolean)
+          },
+
+          Locaciones: {
+            locacion: [
+              bl.lugar_emision_codigo && { nombre: 'LE', codigo: bl.lugar_emision_codigo, descripcion: bl.lugar_emision_nombre },
+              bl.puerto_embarque_codigo && { nombre: 'PE', codigo: bl.puerto_embarque_codigo, descripcion: bl.puerto_embarque_nombre },
+              bl.puerto_descarga_codigo && { nombre: 'PD', codigo: bl.puerto_descarga_codigo, descripcion: bl.puerto_descarga_nombre },
+              bl.lugar_destino_codigo && { nombre: 'LD', codigo: bl.lugar_destino_codigo, descripcion: bl.lugar_destino_nombre },
+              bl.lugar_entrega_codigo && { nombre: 'LEM', codigo: bl.lugar_entrega_codigo, descripcion: bl.lugar_entrega_nombre },
+              bl.lugar_recepcion_codigo && { nombre: 'LRM', codigo: bl.lugar_recepcion_codigo, descripcion: bl.lugar_recepcion_nombre }
+            ].filter(Boolean)
+          },
+
+          Participaciones: {
+            participacion: [
+              bl.shipper && { nombre: 'EMI', nombres: bl.shipper },
+              bl.consignee && { nombre: 'CONS', nombres: bl.consignee },
+              bl.notify_party && { nombre: 'NOTI', nombres: bl.notify_party }
+            ].filter(Boolean)
+          },
+
+          Items: {
+            item: items.map(it => {
+              const contsDelItem = contenedores.filter(c => c.item_id === it.id);
+              return {
+                'numero-item': it.numero_item,
+                marcas: it.marcas || '',
+                'carga-peligrosa': it.carga_peligrosa || 'N',
+                'tipo-bulto': it.tipo_bulto || '',
+                descripcion: it.descripcion || '',
+                cantidad: it.cantidad || 0,
+                'peso-bruto': it.peso_bruto || 0,
+                'unidad-peso': it.unidad_peso || 'KGM',
+                volumen: it.volumen || 0,
+                'unidad-volumen': it.unidad_volumen || 'MTQ',
+                'carga-cnt': 'S',
+                Contenedores: contsDelItem.length > 0 ? {
+                  contenedor: contsDelItem.map(c => ({
+                    sigla: c.sigla || '',
+                    numero: c.numero || '',
+                    digito: c.digito || '',
+                    'tipo-cnt': c.tipo_cnt || '',
+                    'cnt-so': '',
+                    peso: c.peso || 0,
+                    status: bl.tipo_servicio_codigo || 'FCL/FCL',
+                    Sellos: c.sellos ? {
+                      sello: c.sellos.split('|').map(s => ({ numero: s }))
+                    } : undefined
+                  }))
+                } : undefined
+              };
+            })
+          }
+        }
+      };
+
+      const doc = create({ version: '1.0', encoding: 'ISO-8859-1' }, xmlObj);
+      const xmlString = doc.end({ prettyPrint: true });
+
+      // Agregar al ZIP
+      archive.append(xmlString, { name: `BMS_V1_SNA-BL-1.0-${bl.bl_number}.xml` });
+    }
+
+    await archive.finalize();
+
+  } catch (error) {
+    console.error("Error al generar XMLs múltiples:", error);
+    res.status(500).json({ error: "Error al generar XMLs" });
+  }
+});
+
 
 // ============================================
 // INICIAR SERVIDOR

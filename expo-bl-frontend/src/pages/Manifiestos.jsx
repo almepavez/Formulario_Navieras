@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
+import { FileText } from "lucide-react";
 
 const estadoStyles = {
   "En edición": "bg-amber-100 text-amber-800 ring-amber-200",
@@ -103,6 +104,7 @@ const Manifiestos = () => {
                 <th className="text-left px-6 py-3 font-semibold">Fecha Mfto</th>
                 <th className="text-left px-6 py-3 font-semibold">N° Mfto Aduana</th>
                 <th className="text-left px-6 py-3 font-semibold">Status</th>
+                <th className="text-left px-6 py-3 font-semibold">Acciones</th>
               </tr>
             </thead>
 
@@ -111,16 +113,48 @@ const Manifiestos = () => {
                 manifiestos.map((m) => (
                   <tr
                     key={m.id}
-                    onClick={() => navigate(`/manifiestos/${m.id}`)}
-                    className="border-t hover:bg-slate-50 cursor-pointer"
+                    className="border-t hover:bg-slate-50"
                   >
-                    <td className="px-6 py-4">{m.servicio}</td>
-                    <td className="px-6 py-4">{m.nave}</td>
-                    <td className="px-6 py-4 font-medium">{m.viaje}</td>
-                    <td className="px-6 py-4">{m.puertoCentral}</td>
-                    <td className="px-6 py-4">{m.tipoOperacion}</td>
-                    <td className="px-6 py-4">{formatDateCL(m.fechaManifiestoAduana)}</td>
-                    <td className="px-6 py-4">
+                    <td 
+                      className="px-6 py-4 cursor-pointer"
+                      onClick={() => navigate(`/manifiestos/${m.id}`)}
+                    >
+                      {m.servicio}
+                    </td>
+                    <td 
+                      className="px-6 py-4 cursor-pointer"
+                      onClick={() => navigate(`/manifiestos/${m.id}`)}
+                    >
+                      {m.nave}
+                    </td>
+                    <td 
+                      className="px-6 py-4 font-medium cursor-pointer"
+                      onClick={() => navigate(`/manifiestos/${m.id}`)}
+                    >
+                      {m.viaje}
+                    </td>
+                    <td 
+                      className="px-6 py-4 cursor-pointer"
+                      onClick={() => navigate(`/manifiestos/${m.id}`)}
+                    >
+                      {m.puertoCentral}
+                    </td>
+                    <td 
+                      className="px-6 py-4 cursor-pointer"
+                      onClick={() => navigate(`/manifiestos/${m.id}`)}
+                    >
+                      {m.tipoOperacion}
+                    </td>
+                    <td 
+                      className="px-6 py-4 cursor-pointer"
+                      onClick={() => navigate(`/manifiestos/${m.id}`)}
+                    >
+                      {formatDateCL(m.fechaManifiestoAduana)}
+                    </td>
+                    <td 
+                      className="px-6 py-4 cursor-pointer"
+                      onClick={() => navigate(`/manifiestos/${m.id}`)}
+                    >
                       {m.numeroManifiestoAduana ? (
                         <span className="font-medium text-slate-700">
                           {m.numeroManifiestoAduana}
@@ -129,7 +163,10 @@ const Manifiestos = () => {
                         <span className="text-slate-400">—</span>
                       )}
                     </td>
-                    <td className="px-6 py-4">
+                    <td 
+                      className="px-6 py-4 cursor-pointer"
+                      onClick={() => navigate(`/manifiestos/${m.id}`)}
+                    >
                       <span
                         className={[
                           "inline-flex items-center px-3 py-1 rounded-full text-xs ring-1",
@@ -140,12 +177,24 @@ const Manifiestos = () => {
                         {m.status}
                       </span>
                     </td>
+                    <td className="px-6 py-4">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/manifiestos/${m.id}/generar-xml`);
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700 flex items-center gap-1"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Generar XMLs
+                      </button>
+                    </td>
                   </tr>
                 ))}
 
               {!loading && manifiestos.length === 0 && (
                 <tr>
-                  <td className="px-6 py-10 text-slate-500" colSpan={8}>
+                  <td className="px-6 py-10 text-slate-500" colSpan={9}>
                     No hay manifiestos aún. Crea uno para comenzar.
                   </td>
                 </tr>

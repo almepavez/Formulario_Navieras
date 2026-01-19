@@ -12,6 +12,7 @@ import ExpoBLDetail from "./pages/ExpoBLDetail";
 import ExpoBLEdit from "./pages/ExpoBLEdit";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import GenerarXML from "./pages/GenerarXML";
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
         <Route path="/auth/callback" element={<Login />} /> {/* Google OAuth callback */}
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/manifiestos/:id/generar-xml" element={<GenerarXML />} />
         {/* ============================================
             RUTAS PROTEGIDAS - MANIFIESTOS
            ============================================ */}
@@ -114,7 +116,14 @@ function App() {
             </ProtectedRoute>
           }
         />
-
+ <Route
+          path="/generar-xml"
+          element={
+            <ProtectedRoute>
+              <GenerarXML />
+            </ProtectedRoute>
+          }
+        />
         {/* ============================================
             RUTA 404 - Cualquier otra ruta no definida
            ============================================ */}
