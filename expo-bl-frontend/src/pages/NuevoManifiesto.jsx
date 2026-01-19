@@ -165,7 +165,7 @@ const NuevoManifiesto = () => {
     const missingFields = getMissingFields();
     if (missingFields.length > 0) {
       await Swal.fire({
-        title: "⚠️ Campos obligatorios faltantes",
+        title: "Campos obligatorios faltantes",
         html: `
           <p style="margin-bottom: 12px;">Por favor completa los siguientes campos antes de continuar:</p>
           <ul style="text-align: left; padding-left: 24px; color: #dc2626;">
@@ -182,7 +182,7 @@ const NuevoManifiesto = () => {
     // 🆕 PASO 2: Validar que haya al menos un puerto en itinerario
     if (!hasAtLeastOnePort) {
       await Swal.fire({
-        title: "⚠️ Itinerario vacío",
+        title: "Itinerario vacío",
         text: "Debes agregar al menos un puerto en el itinerario.",
         icon: "warning",
         confirmButtonColor: "#0F2A44",
@@ -193,7 +193,7 @@ const NuevoManifiesto = () => {
 
     // 🆕 PASO 3: Mostrar confirmación con resumen
     const result = await Swal.fire({
-      title: "📋 Revisar información del manifiesto",
+      title: "Revisar información del manifiesto",
       html: `
         <div style="margin-bottom: 16px;">
           <p style="color: #64748b; margin-bottom: 12px;">
@@ -204,7 +204,7 @@ const NuevoManifiesto = () => {
       `,
       icon: "question",
       showCancelButton: true,
-      confirmButtonColor: "#2cdf3bff",
+      confirmButtonColor: "#10b981",
       cancelButtonColor: "#eb4e4eff",
       confirmButtonText: "Sí, crear manifiesto",
       cancelButtonText: "Cancelar",
@@ -268,7 +268,7 @@ const NuevoManifiesto = () => {
       }
     } catch (err) {
       await Swal.fire({
-        title: "❌ Error al crear manifiesto",
+        title: "Error al crear manifiesto",
         text: err?.message || "No se pudo guardar el manifiesto. Por favor intenta nuevamente.",
         icon: "error",
         confirmButtonColor: "#0F2A44",

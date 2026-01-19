@@ -1700,6 +1700,32 @@ function pickPEPD(lines14) {
 
 
 // --------- Extractores PMS ---------
+function parseLine56(raw) {
+  const s = String(raw || "").toUpperCase();
+
+  // 56 01 001 001 (en tu caso viene: 56 01001001...)
+  const m = s.match(/^56\s*(\d{2})(\d{3})(\d{3})/);
+  if (!m) return null;
+
+  const itemNo = Number(m[2]); // 001 -> 1
+  const seqNo  = Number(m[3]); // 001 -> 1
+
+  // OJO: viene pegado a números antes, así que NO uses \b
+  // Soporta: 3077A9 / 3077 A9 / UN3077A9 / UN 3077 A9
+  let mm = s.match(/UN?\s*(\d{4})\s*A\s*(\d{1,2})/i);
+  if (!mm) mm = s.match(/(\d{4})\s*A\s*(\d{1,2})/i);
+  if (!mm) mm = s.match(/(\d{4})A(\d{1,2})/i);
+
+  if (!mm) return null;
+
+  const un = mm[1];
+  const clase = mm[2];
+
+  return { itemNo, seqNo, un, clase };
+}
+
+
+
 
 function itemNoFromLine(line, tag) {
   // tag "41"/"44"/"47" con formato: "41   001 ...."
@@ -1749,37 +1775,6 @@ function extractPesoVolDesde41(lines41, itemNo) {
     unidad_volumen: u.unidadVolumen || null,
   };
 }
-
-function extractItemsFromBL(bLines) {
-  const lines41 = pickAll(bLines, "41");
-  const lines44 = pickAll(bLines, "44");
-  const lines47 = pickAll(bLines, "47");
-
-  const itemNos = extractItemNumbersSet(bLines);
-
-  return itemNos.map((n) => {
-    const marcas = extractMarcasForItem(lines44, n);
-    const descripcion = extractDescripcionForItem(lines47, n);
-    const wv = extractPesoVolDesde41(lines41, n);
-
-    // Por ahora: carga_peligrosa siempre "N" si no la tienes en otra parte
-    const carga_peligrosa = "N";
-
-    return {
-      numero_item: n,
-      descripcion: descripcion || null,
-      marcas: marcas || null,
-      carga_peligrosa,
-      // tipo_bulto/cantidad: si ya los estás derivando, ponlos acá; si no, null por ahora
-      tipo_bulto: null,
-      cantidad: null,
-      ...wv,
-      carga_cnt: "S", // en tu XML está así; si lo quieres desde 51/otros, después lo refinamos
-    };
-  });
-}
-
-
 
 function parseLine51(raw) {
   const line = String(raw || "").toUpperCase();
@@ -2137,51 +2132,6 @@ async function getTipoBultoFromTipoCnt(conn, tipoCnt) {
   return rows?.[0]?.tipo_bulto || null;
 }
 
-async function insertContenedoresYSellos(conn, blId, contenedores) {
-  if (!contenedores.length) return;
-
-  const insertContSql = `
-    INSERT INTO bl_contenedores
-      (bl_id, item_id, codigo, sigla, numero, digito, tipo_cnt,
-      carga_cnt, peso, unidad_peso, volumen, unidad_volumen)
-    VALUES (?, ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?)
-  `;
-
-
-  const insertSelloSql = `
-    INSERT INTO bl_contenedor_sellos
-      (contenedor_id, sello)
-    VALUES (?, ?)
-  `;
-
-  for (const c of contenedores) {
-    const [r] = await conn.query(insertContSql, [
-      blId,
-      null, // item_id por ahora (hasta que insertes bl_items)
-      c.codigo,
-      c.sigla,
-      c.numero,
-      c.digito,
-      c.tipo_cnt,
-
-      c.carga_cnt ?? "S",
-      c.peso ?? null,
-      c.unidad_peso ?? null,
-      c.volumen ?? null,
-      c.unidad_volumen ?? null,
-    ]);
-
-    const contenedorId = r.insertId;
-
-    for (const s of (c.sellos || [])) {
-      await conn.query(
-        `INSERT INTO bl_contenedor_sellos (contenedor_id, sello) VALUES (?, ?)`,
-        [contenedorId, s]
-      );
-    }
-  }
-}
 
 function extractItemsFrom41_44_47(bLines) {
   const lines41 = pickAll(bLines, "41");
@@ -2386,9 +2336,27 @@ function parsePmsTxt(content) {
       const items = extractItemsFrom41_44_47(bLines) || []; // tu función actual
       const contenedores = extractContainersFrom51(pickAll(bLines, "51")) || [];
 
+      const raw56 = pickAll(bLines, "56");
+      const lines56 = raw56.map(parseLine56).filter(Boolean);
+
+      // pega IMO a cada contenedor por itemNo + seqNo
+      for (const c of contenedores) {
+        const hits = lines56.filter(x =>
+          Number(x.itemNo) === Number(c.itemNo) &&
+          Number(x.seqNo) === Number(c.seqNo)
+        );
+        c.imo = hits.map(h => ({ clase_imo: h.clase, numero_imo: h.un }));
+      }
+
       for (const it of items) {
-        const contsDelItem = contenedores.filter(c => c.itemNo === it.numero_item);
+        const itemNum = Number(it.numero_item);
+
+        const contsDelItem = (contenedores || []).filter(c => Number(c.itemNo) === itemNum);
+
         it.cantidad = contsDelItem.length || null;
+
+        const tieneIMO = contsDelItem.some(c => Array.isArray(c.imo) && c.imo.length > 0);
+        it.carga_peligrosa = tieneIMO ? "S" : "N";
       }
 
       const lugar_recepcion_cod = puertoEmbarqueCod; // LRM
@@ -2480,6 +2448,21 @@ async function insertTransbordos(conn, blId, transbordos) {
     await conn.query(sql, [blId, sec++, c, puertoId]);
   }
 }
+
+async function insertImo(conn, contenedorId, imoArr) {
+  const arr = Array.isArray(imoArr) ? imoArr : [];
+  if (!contenedorId || arr.length === 0) return;
+
+  for (const x of arr) {
+    if (!x?.clase_imo || !x?.numero_imo) continue;
+    await conn.query(
+      `INSERT IGNORE INTO bl_contenedor_imo (contenedor_id, clase_imo, numero_imo)
+       VALUES (?, ?, ?)`,
+      [contenedorId, String(x.clase_imo), String(x.numero_imo)]
+    );
+  }
+}
+
 
 // ✅ POST para procesar el PMS TXT y crear BLs
 app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
@@ -2583,9 +2566,11 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
       const tipoServicioId = await getTipoServicioIdByCodigo(conn, b.tipoServicioCod);
 
       for (const it of (b.items || [])) {
-        const contsDelItem = (b.contenedores || []).filter(c => c.itemNo === it.numero_item);
-        const tipoCnt = contsDelItem.find(c => c.tipo_cnt)?.tipo_cnt || null;
+        const itemNum = Number(it.numero_item);
 
+        const contsDelItem = (b.contenedores || []).filter(c => Number(c.itemNo) === itemNum);
+
+        const tipoCnt = contsDelItem.find(c => c.tipo_cnt)?.tipo_cnt || null;
         it.tipo_bulto = await getTipoBultoFromTipoCnt(conn, tipoCnt);
       }
 
@@ -2648,7 +2633,7 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
           it.volumen ?? null,
           it.unidad_volumen || null,
         ]);
-        itemIdByNumero.set(it.numero_item, itIns.insertId);
+        itemIdByNumero.set(Number(it.numero_item), itIns.insertId);
       }
 
       // ==========================================
@@ -2658,7 +2643,9 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
       const conts = Array.isArray(b.contenedores) ? b.contenedores : [];
 
       for (const c of conts) {
-        const itemId = c?.itemNo ? (itemIdByNumero.get(c.itemNo) || null) : null;
+        const itemId = Number.isFinite(Number(c?.itemNo))
+          ? (itemIdByNumero.get(Number(c.itemNo)) || null)
+          : null;
 
         const [cIns] = await conn.query(insertContSql, [
           blId,
@@ -2675,6 +2662,7 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
           c.unidad_volumen || null,    // MTQ
         ]);
 
+        await insertImo(conn, cIns.insertId, c.imo || []);
         // =========================
         // 3) SELLOS (si tienes tabla)
         // =========================
