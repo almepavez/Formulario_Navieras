@@ -325,18 +325,33 @@ const updateItem = (itemId, field, value) => {
                 }
             }
             
-            await Swal.fire({
-                icon: "success",
-                title: "¡Cambios guardados!",
-                html: `
-                    <p class="text-sm text-gray-600">El BL <strong>${formData.bl_number}</strong> se actualizó correctamente</p>
-                `,
-                timer: 2000,
-                showConfirmButton: false
-            });
-            
-            navigate(`/expo/detail/${blNumber}`);
-            
+         await Swal.fire({
+    icon: "success",
+    title: "¡Cambios guardados!",
+    html: `
+        <p class="text-sm text-gray-600">El BL <strong>${formData.bl_number}</strong> se actualizó correctamente</p>
+    `,
+    timer: 2000,
+    showConfirmButton: false
+});
+
+// 🔥 REDIRECCIÓN INTELIGENTE CON DEBUG
+const params = new URLSearchParams(window.location.search);
+const returnTo = params.get('returnTo');
+const manifestId = params.get('manifestId');
+
+console.log('=== DEBUG GUARDAR ===');
+console.log('URL:', window.location.href);
+console.log('returnTo:', returnTo);
+console.log('manifestId:', manifestId);
+
+if (returnTo === 'xml-preview' && manifestId) {
+  console.log('✅ Redirigiendo a XML');
+  navigate(`/manifiestos/${manifestId}/generar-xml`);
+} else {
+  console.log('ℹ️ Redirigiendo a detalle');
+  navigate(`/expo/detail/${blNumber}`);
+}
         } catch (e) {
             console.error("Error al guardar:", e);
             setError(e?.message || "Error al guardar");
@@ -410,12 +425,30 @@ const updateItem = (itemId, field, value) => {
             <main className="flex-1 p-10">
                 {/* Header */}
                 <div className="mb-6">
-                    <button
-                        onClick={() => navigate(`/expo/detail/${blNumber}`)}
-                        className="text-sm text-slate-500 hover:text-slate-800 mb-2"
-                    >
-                        ← Volver al detalle
-                    </button>
+                  
+<button
+  onClick={() => {
+    const params = new URLSearchParams(window.location.search);
+    const returnTo = params.get('returnTo');
+    const manifestId = params.get('manifestId');
+    
+    console.log('=== DEBUG VOLVER ===');
+    console.log('URL:', window.location.href);
+    console.log('returnTo:', returnTo);
+    console.log('manifestId:', manifestId);
+    
+    if (returnTo === 'xml-preview' && manifestId) {
+      console.log('✅ Volviendo a XML');
+      navigate(`/manifiestos/${manifestId}/generar-xml`);
+    } else {
+      console.log('ℹ️ Volviendo a detalle');
+      navigate(`/expo/detail/${blNumber}`);
+    }
+  }}
+  className="text-sm text-slate-500 hover:text-slate-800 mb-2"
+>
+  ← Volver
+</button>
                     <h1 className="text-2xl font-semibold text-slate-900">
                         Editar BL: {formData.bl_number}
                     </h1>
