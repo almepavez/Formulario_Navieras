@@ -283,10 +283,11 @@ const GenerarXML = () => {
         body: JSON.stringify({ blNumbers: selectedBlsArray })
       });
 
-      const data = await res.json();
 
       // 🚫 MANEJAR ERROR DEL BACKEND
       if (!res.ok) {
+        
+      const data = await res.json();
         if (data.bls_con_errores) {
           const erroresHTML = data.bls_con_errores.map(item => 
             `<div style="text-align: left; margin-bottom: 10px; padding: 10px; background: #FEE2E2; border-radius: 6px;">

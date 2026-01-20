@@ -3688,7 +3688,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
         'tipo-accion': 'M',
         'numero-referencia': bl.bl_number,
         'service': 'LINER',
-        'tipo-servicio': bl.tipo_servicio_codigo || 'FCL/FCL',
+        'tipo-servicio': bl.tipo_servicio_nombre || 'FCL/FCL',
         'cond-transporte': 'HH',
         'total-bultos': bl.bultos || 0,
         'total-peso': bl.peso_bruto || 0,
@@ -3698,11 +3698,11 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
         'total-item': items.length,
 
         OpTransporte: {
-          optransporte: {
-            'sentido-operacion': bl.tipo_operacion === 'EX' ? 'S' : 'E',
-            'nombre-nave': bl.nave_nombre || ''
-          }
-        },
+  optransporte: {
+    'sentido-operacion': bl.tipo_operacion === 'EX' ? 'S' : bl.tipo_operacion === 'IM' ? 'I' : bl.tipo_operacion === 'CROSS' ? 'TR' : 'S',
+    'nombre-nave': bl.nave_nombre || ''
+  }
+},
 
         Fechas: {
           fecha: [
@@ -3802,7 +3802,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
                   'tipo-cnt': c.tipo_cnt || '',
                   'cnt-so': '',
                   peso: c.peso || 0,
-                  status: bl.tipo_servicio_codigo || 'FCL/FCL',
+                  status: bl.tipo_servicio_nombre || 'FCL/FCL',
 
                   CntIMO: (c.clase_imo && c.numero_imo) ? {
                     cntimo: {
@@ -3972,7 +3972,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
           'tipo-accion': 'M',
           'numero-referencia': bl.bl_number,
           'service': 'LINER',
-          'tipo-servicio': bl.tipo_servicio_codigo || 'FCL/FCL',
+          'tipo-servicio': bl.tipo_servicio_nombre || 'FCL/FCL',
           'cond-transporte': 'HH',
           'total-bultos': bl.bultos || 0,
           'total-peso': bl.peso_bruto || 0,
@@ -3982,11 +3982,11 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
           'total-item': items.length,
 
           OpTransporte: {
-            optransporte: {
-              'sentido-operacion': bl.tipo_operacion === 'EX' ? 'S' : 'E',
-              'nombre-nave': bl.nave_nombre || ''
-            }
-          },
+  optransporte: {
+    'sentido-operacion': bl.tipo_operacion === 'EX' ? 'S' : bl.tipo_operacion === 'IM' ? 'I' : bl.tipo_operacion === 'CROSS' ? 'TR' : 'S',
+    'nombre-nave': bl.nave_nombre || ''
+  }
+},
 
           Fechas: {
             fecha: [
@@ -4039,7 +4039,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
                     'tipo-cnt': c.tipo_cnt || '',
                     'cnt-so': '',
                     peso: c.peso || 0,
-                    status: bl.tipo_servicio_codigo || 'FCL/FCL',
+                    status: bl.tipo_servicio_nombre || 'FCL/FCL',
                     
                     CntIMO: (c.clase_imo && c.numero_imo) ? {
                       cntimo: {
