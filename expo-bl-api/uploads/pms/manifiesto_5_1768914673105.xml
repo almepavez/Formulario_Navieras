@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<Documento tipo="BL" version="1.0"> 
+<tipo-accion>M</tipo-accion>
+<numero-referencia>SCL500581400</numero-referencia>
+<service>LINER</service>
+<tipo-servicio>EMPTY</tipo-servicio>
+<cond-transporte>HH</cond-transporte>
+<total-bultos>11</total-bultos>
+<total-peso>24785.000</total-peso>
+<unidad-peso>KGM</unidad-peso>
+<total-item>1</total-item>
+	<OpTransporte>
+		<optransporte>
+			<sentido-operacion>S</sentido-operacion>
+			<nombre-nave>YM ENLIGHTENMENT</nombre-nave>
+		</optransporte>
+	</OpTransporte>
+	<Fechas>
+		<fecha>
+			<nombre>FPRES</nombre>
+			<valor>26-12-2025 10:52</valor>
+		</fecha>
+		<fecha>
+			<nombre>FEM</nombre>
+			<valor>06-12-2025</valor>
+		</fecha>
+		<fecha>
+			<nombre>FZARPE</nombre>
+			<valor>06-12-2025 15:35</valor>
+		</fecha>
+		<fecha>
+			<nombre>FEMB</nombre>
+			<valor>06-12-2025 00:00</valor>
+		</fecha>
+	</Fechas>
+	<Locaciones>
+		<locacion>
+			<nombre>LE</nombre>
+			<codigo>CLSCL</codigo>
+			<descripcion>SANTIAGO</descripcion>
+		</locacion>
+		<locacion>
+			<nombre>PE</nombre>
+			<codigo>CLSAI</codigo>
+			<descripcion>SAN ANTONIO (CL)</descripcion>
+		</locacion>
+		<locacion>
+			<nombre>PD</nombre>
+			<codigo>CNNBO</codigo>
+			<descripcion>NINGBO</descripcion>
+		</locacion>
+		<locacion>
+			<nombre>LD</nombre>
+			<codigo>CNNBO</codigo>
+			<descripcion>NINGBO</descripcion>
+		</locacion>
+		<locacion>
+			<nombre>LEM</nombre>
+			<codigo>CNNBO</codigo>
+			<descripcion>NINGBO</descripcion>
+		</locacion>
+		<locacion>
+			<nombre>LRM</nombre>
+			<codigo>CLSAI</codigo>
+			<descripcion>SAN ANTONIO (CL)</descripcion>
+		</locacion>
+	</Locaciones>
+	<Participaciones>
+		<participacion>
+			<nombre>EMI</nombre>
+			<tipo-id>RUT</tipo-id>
+			<valor-id>91256000-7</valor-id>
+			<nacion-id>CL</nacion-id>
+			<nombres>A.J.BROOM Y CIA. S.A.C.</nombres>
+			<codigo-pais>CL</codigo-pais>
+		</participacion>
+		<participacion>
+			<nombre>CONS</nombre>
+			<nombres>PIL Ningbo</nombres>
+		</participacion>
+		<participacion>
+			<nombre>EMIDO</nombre>
+			<tipo-id>RUT</tipo-id>
+			<valor-id>91256000-7</valor-id>
+			<nacion-id>CL</nacion-id>
+			<nombres>A.J.BROOM Y CIA. S.A.C.</nombres>
+			<codigo-pais>CL</codigo-pais>
+		</participacion>
+		<participacion>
+			<nombre>NOTI</nombre>
+			<nombres>PIL Ningbo</nombres>
+		</participacion>
+		<participacion>
+			<nombre>REP</nombre>
+			<tipo-id>RUT</tipo-id>
+			<valor-id>91256000-7</valor-id>
+			<nacion-id>CL</nacion-id>
+			<nombres>A.J.BROOM Y CIA. S.A.C.</nombres>
+			<codigo-pais>CL</codigo-pais>
+		</participacion>
+		<participacion>
+			<nombre>EMB</nombre>
+			<nombres>PACIFIC INTERNATIONAL LINES (PTE) L</nombres>
+			<codigo-pais>SG</codigo-pais>
+		</participacion>
+	</Participaciones>
+	<Items>
+		<item>
+			<numero-item>1</numero-item>
+			<marcas>
+			N/A
+			</marcas>
+			<carga-peligrosa>N</carga-peligrosa>
+			<tipo-bulto>73</tipo-bulto>
+			<descripcion>
+			D2 X 11
+			EMPTY CONTAINER (OPUS Co.)
+			SHIPPER&#39;S LOAD STOW COUNT WEIG
+			H &#38; SEAL
+			SHIPPED ON BOARD
+			</descripcion>
+			<cantidad>11</cantidad>
+			<peso-bruto>24785.000</peso-bruto>
+			<unidad-peso>KGM</unidad-peso>
+			<carga-cnt>S</carga-cnt>
+			<Contenedores>
+				<contenedor>
+					<sigla>BSIU</sigla>
+					<numero>293436</numero>
+					<digito>0</digito>
+					<tipo-cnt>22G1</tipo-cnt>
+					<cnt-so></cnt-so>
+					<peso>2185.000</peso>
+					<valor-id-op>91256000-7</valor-id-op>
+					<nombre-operador>A.J.BROOM Y CIA. S.A.C.</nombre-operador>
+					<status>EMPTY</status>
+				</contenedor>
+				<contenedor>
+					<sigla>PCIU</sigla>
+					<numero>122275</numero>
+					<digito>9</digito>
+					<tipo-cnt>22G1</tipo-cnt>
+					<cnt-so></cnt-so>
+					<peso>2260.000</peso>
+					<valor-id-op>91256000-7</valor-id-op>
+					<nombre-operador>A.J.BROOM Y CIA. S.A.C.</nombre-operador>
+					<status>EMPTY</status>
+				</contenedor>
+				<contenedor>
+					<sigla>PCIU</sigla>
+					<numero>195273</numero>
+					<digito>6</digito>
+					<tipo-cnt>22G1</tipo-cnt>
+					<cnt-so></cnt-so>
+					<peso>2260.000</peso>
+					<valor-id-op>91256000-7</valor-id-op>
+					<nombre-operador>A.J.BROOM Y CIA. S.A.C.</nombre-operador>
+					<status>EMPTY</status>
+				</contenedor>
+				<contenedor>
+					<sigla>PCIU</sigla>
+					<numero>139781</numero>
+					<digito>8</digito>
+					<tipo-cnt>22G1</tipo-cnt>
+					<cnt-so></cnt-so>
+					<peso>2260.000</peso>
+					<valor-id-op>91256000-7</valor-id-op>
+					<nombre-operador>A.J.BROOM Y CIA. S.A.C.</nombre-operador>
+					<status>EMPTY</status>
+				</contenedor>
+				<contenedor>
+					<sigla>PCIU</sigla>
+					<numero>192439</numero>
+					<digito>6</digito>
+					<tipo-cnt>22G1</tipo-cnt>
+					<cnt-so></cnt-so>
+					<peso>2260.000</peso>
+					<valor-id-op>91256000-7</valor-id-op>
+					<nombre-operador>A.J.BROOM Y CIA. S.A.C.</nombre-operador>
+					<status>EMPTY</status>
+				</contenedor>
+				<contenedor>
+					<sigla>PCIU</sigla>
+					<numero>124350</numero>
+					<digito>9</digito>
+					<tipo-cnt>22G1</tipo-cnt>
+					<cnt-so></cnt-so>
+					<peso>2260.000</peso>
+					<valor-id-op>91256000-7</valor-id-op>
+					<nombre-operador>A.J.BROOM Y CIA. S.A.C.</nombre-operador>
+					<status>EMPTY</status>
+				</contenedor>
+				<contenedor>
+					<sigla>PCIU</sigla>
+					<numero>129936</numero>
+					<digito>5</digito>
+					<tipo-cnt>22G1</tipo-cnt>
+					<cnt-so></cnt-so>
+					<peso>2260.000</peso>
+					<valor-id-op>91256000-7</valor-id-op>
+					<nombre-operador>A.J.BROOM Y CIA. S.A.C.</nombre-operador>
+					<status>EMPTY</status>
+				</contenedor>
+				<contenedor>
+					<sigla>PCIU</sigla>
+					<numero>106172</numero>
+					<digito>0</digito>
+					<tipo-cnt>22G1</tipo-cnt>
+					<cnt-so></cnt-so>
+					<peso>2260.000</peso>
+					<valor-id-op>91256000-7</valor-id-op>
+					<nombre-operador>A.J.BROOM Y CIA. S.A.C.</nombre-operador>
+					<status>EMPTY</status>
+				</contenedor>
+				<contenedor>
+					<sigla>PCIU</sigla>
+					<numero>194606</numero>
+					<digito>0</digito>
+					<tipo-cnt>22G1</tipo-cnt>
+					<cnt-so></cnt-so>
+					<peso>2260.000</peso>
+					<valor-id-op>91256000-7</valor-id-op>
+					<nombre-operador>A.J.BROOM Y CIA. S.A.C.</nombre-operador>
+					<status>EMPTY</status>
+				</contenedor>
+				<contenedor>
+					<sigla>PCIU</sigla>
+					<numero>191279</numero>
+					<digito>6</digito>
+					<tipo-cnt>22G1</tipo-cnt>
+					<cnt-so></cnt-so>
+					<peso>2260.000</peso>
+					<valor-id-op>91256000-7</valor-id-op>
+					<nombre-operador>A.J.BROOM Y CIA. S.A.C.</nombre-operador>
+					<status>EMPTY</status>
+				</contenedor>
+				<contenedor>
+					<sigla>PCIU</sigla>
+					<numero>149945</numero>
+					<digito>0</digito>
+					<tipo-cnt>22G1</tipo-cnt>
+					<cnt-so></cnt-so>
+					<peso>2260.000</peso>
+					<valor-id-op>91256000-7</valor-id-op>
+					<nombre-operador>A.J.BROOM Y CIA. S.A.C.</nombre-operador>
+					<status>EMPTY</status>
+				</contenedor>
+			</Contenedores>
+		</item>
+	</Items>
+	<Referencias>
+		<referencia>
+			<tipo-referencia>REF</tipo-referencia>
+			<tipo-documento>MFTO</tipo-documento>
+			<numero>264500</numero>
+			<fecha>24-11-2025</fecha>
+			<tipo-id-emisor>RUT</tipo-id-emisor>
+			<nac-id-emisor>CL</nac-id-emisor>
+			<valor-id-emisor>96566940-K</valor-id-emisor>
+			<emisor>AGENCIAS UNIVERSALES S.A.</emisor>
+		</referencia>
+	</Referencias>
+</Documento>
