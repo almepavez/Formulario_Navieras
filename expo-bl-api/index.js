@@ -3549,6 +3549,8 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
 
 // POST /api/bls/:blNumber/generar-xml
 // Genera el XML completo de un BL específico
+// POST /api/bls/:blNumber/generar-xml
+// Genera el XML completo de un BL específico
 app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
   try {
     const { blNumber } = req.params;
@@ -3600,15 +3602,30 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
       ORDER BY numero_item
     `, [bl.id]);
 
-    // 3️⃣ Obtener contenedores con sellos
+    // 3️⃣ Obtener contenedores con sellos E IMO (CORREGIDO)
     const [contenedores] = await pool.query(`
       SELECT
-        c.*,
-        GROUP_CONCAT(s.sello ORDER BY s.sello SEPARATOR '|') as sellos
+        c.id,
+        c.item_id,
+        c.codigo,
+        c.sigla,
+        c.numero,
+        c.digito,
+        c.tipo_cnt,
+        c.carga_cnt,
+        c.peso,
+        c.unidad_peso,
+        c.volumen,
+        c.unidad_volumen,
+        GROUP_CONCAT(DISTINCT s.sello ORDER BY s.sello SEPARATOR '|') as sellos,
+        MAX(i.clase_imo) as clase_imo,
+        MAX(i.numero_imo) as numero_imo
       FROM bl_contenedores c
       LEFT JOIN bl_contenedor_sellos s ON s.contenedor_id = c.id
+      LEFT JOIN bl_contenedor_imo i ON i.contenedor_id = c.id
       WHERE c.bl_id = ?
-      GROUP BY c.id
+      GROUP BY c.id, c.item_id, c.codigo, c.sigla, c.numero, c.digito, 
+               c.tipo_cnt, c.carga_cnt, c.peso, c.unidad_peso, c.volumen, c.unidad_volumen
       ORDER BY c.codigo
     `, [bl.id]);
 
@@ -3735,6 +3752,15 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
                   'cnt-so': '',
                   peso: c.peso || 0,
                   status: bl.tipo_servicio_codigo || 'FCL/FCL',
+
+                  // ✅ SECCIÓN IMO - SOLO si existen ambos campos
+                  CntIMO: (c.clase_imo && c.numero_imo) ? {
+                    cntimo: {
+                      'clase-imo': String(c.clase_imo),
+                      'numero-imo': String(c.numero_imo)
+                    }
+                  } : undefined,
+
                   Sellos: c.sellos ? {
                     sello: c.sellos.split('|').map(s => ({ numero: s }))
                   } : undefined
@@ -3824,17 +3850,41 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
         SELECT * FROM bl_items WHERE bl_id = ? ORDER BY numero_item
       `, [bl.id]);
 
+    // 3️⃣ Obtener contenedores con sellos E IMO
+// 3️⃣ Obtener contenedores con sellos E IMO
       const [contenedores] = await pool.query(`
         SELECT
-          c.*,
-          GROUP_CONCAT(s.sello ORDER BY s.sello SEPARATOR '|') as sellos
+          c.id,
+          c.item_id,
+          c.codigo,
+          c.sigla,
+          c.numero,
+          c.digito,
+          c.tipo_cnt,
+          c.carga_cnt,
+          c.peso,
+          c.unidad_peso,
+          c.volumen,
+          c.unidad_volumen,
+          GROUP_CONCAT(DISTINCT s.sello ORDER BY s.sello SEPARATOR '|') as sellos,
+          MAX(i.clase_imo) as clase_imo,
+          MAX(i.numero_imo) as numero_imo
         FROM bl_contenedores c
         LEFT JOIN bl_contenedor_sellos s ON s.contenedor_id = c.id
+        LEFT JOIN bl_contenedor_imo i ON i.contenedor_id = c.id
         WHERE c.bl_id = ?
-        GROUP BY c.id
+        GROUP BY c.id, c.item_id, c.codigo, c.sigla, c.numero, c.digito, 
+                 c.tipo_cnt, c.carga_cnt, c.peso, c.unidad_peso, c.volumen, c.unidad_volumen
         ORDER BY c.codigo
       `, [bl.id]);
 
+// 🔍 DEBUG TEMPORAL
+console.log('📦 Contenedores recuperados:', contenedores.map(c => ({
+  codigo: c.codigo,
+  clase_imo: c.clase_imo,
+  numero_imo: c.numero_imo,
+  tiene_imo: !!(c.clase_imo && c.numero_imo)
+})));
       // Construir XML (misma lógica que arriba)
       const xmlObj = {
         Documento: {
@@ -3903,19 +3953,28 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
                 'unidad-volumen': it.unidad_volumen || 'MTQ',
                 'carga-cnt': 'S',
                 Contenedores: contsDelItem.length > 0 ? {
-                  contenedor: contsDelItem.map(c => ({
-                    sigla: c.sigla || '',
-                    numero: c.numero || '',
-                    digito: c.digito || '',
-                    'tipo-cnt': c.tipo_cnt || '',
-                    'cnt-so': '',
-                    peso: c.peso || 0,
-                    status: bl.tipo_servicio_codigo || 'FCL/FCL',
-                    Sellos: c.sellos ? {
-                      sello: c.sellos.split('|').map(s => ({ numero: s }))
-                    } : undefined
-                  }))
-                } : undefined
+  contenedor: contsDelItem.map(c => ({
+    sigla: c.sigla || '',
+    numero: c.numero || '',
+    digito: c.digito || '',
+    'tipo-cnt': c.tipo_cnt || '',
+    'cnt-so': '',
+    peso: c.peso || 0,
+    status: bl.tipo_servicio_codigo || 'FCL/FCL',
+    
+    // ✅ SECCIÓN IMO - SOLO si existen ambos campos
+    CntIMO: (c.clase_imo && c.numero_imo) ? {
+      cntimo: {
+        'clase-imo': String(c.clase_imo),
+        'numero-imo': String(c.numero_imo)
+      }
+    } : undefined,
+    
+    Sellos: c.sellos ? {
+      sello: c.sellos.split('|').map(s => ({ numero: s }))
+    } : undefined
+  }))
+} : undefined
               };
             })
           }
