@@ -1119,11 +1119,11 @@ app.get('/api/mantenedores/tipo-bulto/:id', async (req, res) => {
       'SELECT id, tipo_cnt, tipo_bulto, activo FROM tipo_cnt_tipo_bulto WHERE id = ?',
       [req.params.id]
     );
-    
+
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Tipo de bulto no encontrado' });
     }
-    
+
     res.json(rows[0]);
   } catch (error) {
     console.error('Error al obtener tipo de bulto:', error);
@@ -1198,19 +1198,19 @@ app.put('/api/mantenedores/tipo-bulto/:id', async (req, res) => {
       [tipo_cnt.trim(), tipo_bulto.trim(), activoValue, idNum]
     );
 
-    console.log('✅ Tipo de bulto actualizado:', { 
-      id: idNum, 
-      tipo_cnt, 
-      tipo_bulto, 
+    console.log('✅ Tipo de bulto actualizado:', {
+      id: idNum,
+      tipo_cnt,
+      tipo_bulto,
       activo: activoValue,
-      affectedRows: result.affectedRows 
+      affectedRows: result.affectedRows
     });
 
-    res.json({ 
-      id: idNum, 
-      tipo_cnt: tipo_cnt.trim(), 
-      tipo_bulto: tipo_bulto.trim(), 
-      activo: activoValue 
+    res.json({
+      id: idNum,
+      tipo_cnt: tipo_cnt.trim(),
+      tipo_bulto: tipo_bulto.trim(),
+      activo: activoValue
     });
   } catch (error) {
     console.error('❌ Error al actualizar tipo de bulto:', error);
@@ -1219,9 +1219,9 @@ app.put('/api/mantenedores/tipo-bulto/:id', async (req, res) => {
       return res.status(400).json({ error: 'El tipo de contenedor ya existe' });
     }
 
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Error al actualizar el registro',
-      details: error.message 
+      details: error.message
     });
   }
 });
@@ -1271,11 +1271,11 @@ app.get('/api/mantenedores/empaque-contenedores/:id', async (req, res) => {
       'SELECT id, token, activo FROM pms51_tokens WHERE id = ?',
       [req.params.id]
     );
-    
+
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Token no encontrado' });
     }
-    
+
     res.json(rows[0]);
   } catch (error) {
     console.error('Error al obtener token:', error);
@@ -1360,17 +1360,17 @@ app.put('/api/mantenedores/empaque-contenedores/:id', async (req, res) => {
     // 🔄 Recargar tokens en memoria
     await loadPms51Tokens();
 
-    console.log('✅ Token actualizado:', { 
-      id: idNum, 
-      token: tokenUpper, 
+    console.log('✅ Token actualizado:', {
+      id: idNum,
+      token: tokenUpper,
       activo: activoValue,
-      affectedRows: result.affectedRows 
+      affectedRows: result.affectedRows
     });
 
-    res.json({ 
-      id: idNum, 
-      token: tokenUpper, 
-      activo: activoValue 
+    res.json({
+      id: idNum,
+      token: tokenUpper,
+      activo: activoValue
     });
   } catch (error) {
     console.error('❌ Error al actualizar token:', error);
@@ -1379,9 +1379,9 @@ app.put('/api/mantenedores/empaque-contenedores/:id', async (req, res) => {
       return res.status(400).json({ error: 'El token ya existe' });
     }
 
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Error al actualizar el registro',
-      details: error.message 
+      details: error.message
     });
   }
 });
@@ -1708,7 +1708,7 @@ function parseLine56(raw) {
   if (!m) return null;
 
   const itemNo = Number(m[2]); // 001 -> 1
-  const seqNo  = Number(m[3]); // 001 -> 1
+  const seqNo = Number(m[3]); // 001 -> 1
 
   // OJO: viene pegado a números antes, así que NO uses \b
   // Soporta: 3077A9 / 3077 A9 / UN3077A9 / UN 3077 A9
@@ -2360,9 +2360,9 @@ function parsePmsTxt(content) {
       }
 
       const lugar_recepcion_cod = puertoEmbarqueCod; // LRM
-      const lugar_destino_cod   = puertoDescargaCod; // LD
-      const lugar_entrega_cod   = puertoDescargaCod; // LEM
-      
+      const lugar_destino_cod = puertoDescargaCod; // LD
+      const lugar_entrega_cod = puertoDescargaCod; // LEM
+
 
       return {
         // ====== lo que ya usas hoy ======
@@ -2559,8 +2559,8 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
       const lugarEmisionId = await getPuertoIdByCodigo(conn, b.lugar_emision_cod);
       const puertoEmbarqueId = await getPuertoIdByCodigo(conn, b.puerto_embarque_cod);
       const puertoDescargaId = await getPuertoIdByCodigo(conn, b.puerto_descarga_cod);
-      const lugarDestinoId   = await getPuertoIdByCodigo(conn, b.lugar_destino_cod);
-      const lugarEntregaId   = await getPuertoIdByCodigo(conn, b.lugar_entrega_cod);
+      const lugarDestinoId = await getPuertoIdByCodigo(conn, b.lugar_destino_cod);
+      const lugarEntregaId = await getPuertoIdByCodigo(conn, b.lugar_entrega_cod);
       const lugarRecepcionId = await getPuertoIdByCodigo(conn, b.lugar_recepcion_cod);
 
       const tipoServicioId = await getTipoServicioIdByCodigo(conn, b.tipoServicioCod);
@@ -2586,7 +2586,7 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
         lugarEmisionId,
         puertoEmbarqueId,
         puertoDescargaId,
-        
+
         lugarDestinoId,
         lugarEntregaId,
         lugarRecepcionId,
@@ -3315,6 +3315,8 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
 
 // POST /api/bls/:blNumber/generar-xml
 // Genera el XML completo de un BL específico
+// POST /api/bls/:blNumber/generar-xml
+// Genera el XML completo de un BL específico
 app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
   try {
     const { blNumber } = req.params;
@@ -3366,15 +3368,30 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
       ORDER BY numero_item
     `, [bl.id]);
 
-    // 3️⃣ Obtener contenedores con sellos
+    // 3️⃣ Obtener contenedores con sellos E IMO (CORREGIDO)
     const [contenedores] = await pool.query(`
       SELECT
-        c.*,
-        GROUP_CONCAT(s.sello ORDER BY s.sello SEPARATOR '|') as sellos
+        c.id,
+        c.item_id,
+        c.codigo,
+        c.sigla,
+        c.numero,
+        c.digito,
+        c.tipo_cnt,
+        c.carga_cnt,
+        c.peso,
+        c.unidad_peso,
+        c.volumen,
+        c.unidad_volumen,
+        GROUP_CONCAT(DISTINCT s.sello ORDER BY s.sello SEPARATOR '|') as sellos,
+        MAX(i.clase_imo) as clase_imo,
+        MAX(i.numero_imo) as numero_imo
       FROM bl_contenedores c
       LEFT JOIN bl_contenedor_sellos s ON s.contenedor_id = c.id
+      LEFT JOIN bl_contenedor_imo i ON i.contenedor_id = c.id
       WHERE c.bl_id = ?
-      GROUP BY c.id
+      GROUP BY c.id, c.item_id, c.codigo, c.sigla, c.numero, c.digito, 
+               c.tipo_cnt, c.carga_cnt, c.peso, c.unidad_peso, c.volumen, c.unidad_volumen
       ORDER BY c.codigo
     `, [bl.id]);
 
@@ -3501,6 +3518,15 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
                   'cnt-so': '',
                   peso: c.peso || 0,
                   status: bl.tipo_servicio_codigo || 'FCL/FCL',
+
+                  // ✅ SECCIÓN IMO - SOLO si existen ambos campos
+                  CntIMO: (c.clase_imo && c.numero_imo) ? {
+                    cntimo: {
+                      'clase-imo': String(c.clase_imo),
+                      'numero-imo': String(c.numero_imo)
+                    }
+                  } : undefined,
+
                   Sellos: c.sellos ? {
                     sello: c.sellos.split('|').map(s => ({ numero: s }))
                   } : undefined
@@ -3540,7 +3566,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
 
     // Crear archivo ZIP
     const archive = archiver('zip', { zlib: { level: 9 } });
-    
+
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="BLs_Manifiesto_${id}.zip"`);
 
@@ -3590,17 +3616,41 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
         SELECT * FROM bl_items WHERE bl_id = ? ORDER BY numero_item
       `, [bl.id]);
 
+    // 3️⃣ Obtener contenedores con sellos E IMO
+// 3️⃣ Obtener contenedores con sellos E IMO
       const [contenedores] = await pool.query(`
         SELECT
-          c.*,
-          GROUP_CONCAT(s.sello ORDER BY s.sello SEPARATOR '|') as sellos
+          c.id,
+          c.item_id,
+          c.codigo,
+          c.sigla,
+          c.numero,
+          c.digito,
+          c.tipo_cnt,
+          c.carga_cnt,
+          c.peso,
+          c.unidad_peso,
+          c.volumen,
+          c.unidad_volumen,
+          GROUP_CONCAT(DISTINCT s.sello ORDER BY s.sello SEPARATOR '|') as sellos,
+          MAX(i.clase_imo) as clase_imo,
+          MAX(i.numero_imo) as numero_imo
         FROM bl_contenedores c
         LEFT JOIN bl_contenedor_sellos s ON s.contenedor_id = c.id
+        LEFT JOIN bl_contenedor_imo i ON i.contenedor_id = c.id
         WHERE c.bl_id = ?
-        GROUP BY c.id
+        GROUP BY c.id, c.item_id, c.codigo, c.sigla, c.numero, c.digito, 
+                 c.tipo_cnt, c.carga_cnt, c.peso, c.unidad_peso, c.volumen, c.unidad_volumen
         ORDER BY c.codigo
       `, [bl.id]);
 
+// 🔍 DEBUG TEMPORAL
+console.log('📦 Contenedores recuperados:', contenedores.map(c => ({
+  codigo: c.codigo,
+  clase_imo: c.clase_imo,
+  numero_imo: c.numero_imo,
+  tiene_imo: !!(c.clase_imo && c.numero_imo)
+})));
       // Construir XML (misma lógica que arriba)
       const xmlObj = {
         Documento: {
@@ -3669,19 +3719,28 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
                 'unidad-volumen': it.unidad_volumen || 'MTQ',
                 'carga-cnt': 'S',
                 Contenedores: contsDelItem.length > 0 ? {
-                  contenedor: contsDelItem.map(c => ({
-                    sigla: c.sigla || '',
-                    numero: c.numero || '',
-                    digito: c.digito || '',
-                    'tipo-cnt': c.tipo_cnt || '',
-                    'cnt-so': '',
-                    peso: c.peso || 0,
-                    status: bl.tipo_servicio_codigo || 'FCL/FCL',
-                    Sellos: c.sellos ? {
-                      sello: c.sellos.split('|').map(s => ({ numero: s }))
-                    } : undefined
-                  }))
-                } : undefined
+  contenedor: contsDelItem.map(c => ({
+    sigla: c.sigla || '',
+    numero: c.numero || '',
+    digito: c.digito || '',
+    'tipo-cnt': c.tipo_cnt || '',
+    'cnt-so': '',
+    peso: c.peso || 0,
+    status: bl.tipo_servicio_codigo || 'FCL/FCL',
+    
+    // ✅ SECCIÓN IMO - SOLO si existen ambos campos
+    CntIMO: (c.clase_imo && c.numero_imo) ? {
+      cntimo: {
+        'clase-imo': String(c.clase_imo),
+        'numero-imo': String(c.numero_imo)
+      }
+    } : undefined,
+    
+    Sellos: c.sellos ? {
+      sello: c.sellos.split('|').map(s => ({ numero: s }))
+    } : undefined
+  }))
+} : undefined
               };
             })
           }

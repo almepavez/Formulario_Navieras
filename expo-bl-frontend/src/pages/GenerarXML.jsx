@@ -105,7 +105,11 @@ const GenerarXML = () => {
     if (!bl.lugar_emision && !bl.lugar_emision_codigo) {
       warnings.push("Falta Lugar de Emisión");
     }
-
+  // ✅ NUEVO: Verificar IMO en contenedores
+  if (bl.carga_peligrosa === 'S') {
+    // Si el BL marca carga peligrosa, debería tener IMO
+    warnings.push("BL marcado como carga peligrosa - verificar datos IMO");
+  }
     const totalIssues = errors.length + warnings.length;
 
     // 🐛 DEBUG: Log detallado SOLO si hay warnings/errors
