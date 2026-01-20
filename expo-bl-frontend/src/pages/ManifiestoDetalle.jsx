@@ -23,7 +23,6 @@ const formatDTCL = (iso) => {
   return `${dd}-${mm}-${yyyy} ${hh}:${mi}`;
 };
 
-// Convertir fecha ISO a formato input date (YYYY-MM-DD)
 const toInputDate = (iso) => {
   if (!iso) return "";
   const d = new Date(iso);
@@ -33,7 +32,6 @@ const toInputDate = (iso) => {
   return `${yyyy}-${mm}-${dd}`;
 };
 
-// Convertir fecha ISO a formato input datetime-local (YYYY-MM-DDTHH:mm)
 const toInputDatetime = (iso) => {
   if (!iso) return "";
   const d = new Date(iso);
@@ -55,7 +53,6 @@ const ManifiestoDetalle = () => {
   const [error, setError] = useState("");
   const [data, setData] = useState(null);
 
-  // Modo edición
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     operadorNave: "",
@@ -67,19 +64,14 @@ const ManifiestoDetalle = () => {
     numeroManifiestoAduana: "",
   });
 
-  // Itinerario editable
   const [itinerario, setItinerario] = useState([]);
-
-  // 🆕 Estado para detectar cambios sin guardar
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  // PMS upload
   const [pmsFile, setPmsFile] = useState(null);
   const [pmsUploading, setPmsUploading] = useState(false);
   const [pmsMsg, setPmsMsg] = useState("");
-
-  // PMS info
   const [pmsInfo, setPmsInfo] = useState(null);
+  const [processingPMS, setProcessingPMS] = useState(false);
 
   const fetchDetalle = async () => {
     setLoading(true);
@@ -90,7 +82,6 @@ const ManifiestoDetalle = () => {
       const json = await res.json();
       setData(json);
 
-      // Inicializar formData con los valores actuales
       const m = json.manifiesto;
       setFormData({
         operadorNave: m.operadorNave || "",
@@ -102,7 +93,6 @@ const ManifiestoDetalle = () => {
         numeroManifiestoAduana: m.numeroManifiestoAduana || "",
       });
 
-      // Inicializar itinerario
       setItinerario(
         (json.itinerario || []).map((it) => ({
           ...it,
@@ -111,7 +101,6 @@ const ManifiestoDetalle = () => {
         }))
       );
 
-      // 🆕 Reset hasUnsavedChanges al cargar datos frescos
       setHasUnsavedChanges(false);
     } catch (e) {
       setError(e?.message || "Error cargando manifiesto");
@@ -137,25 +126,21 @@ const ManifiestoDetalle = () => {
     fetchPMS();
   }, [id]);
 
-  // 🆕 Protección contra cierre/recarga de página cuando hay cambios sin guardar
   useEffect(() => {
     const handleBeforeUnload = (e) => {
       if (isEditing && hasUnsavedChanges) {
         e.preventDefault();
-        e.returnValue = ""; // Mensaje genérico del navegador
+        e.returnValue = "";
       }
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-    };
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isEditing, hasUnsavedChanges]);
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    setHasUnsavedChanges(true); // 🆕 Marcar que hay cambios
+    setHasUnsavedChanges(true);
   };
 
   const handleItinerarioChange = (index, field, value) => {
@@ -164,16 +149,15 @@ const ManifiestoDetalle = () => {
       updated[index] = { ...updated[index], [field]: value };
       return updated;
     });
-    setHasUnsavedChanges(true); // 🆕 Marcar que hay cambios
+    setHasUnsavedChanges(true);
   };
 
   const handleEdit = () => {
     setIsEditing(true);
-    setHasUnsavedChanges(false); // Reset al iniciar edición
+    setHasUnsavedChanges(false);
   };
 
   const handleCancelEdit = async () => {
-    // 🆕 Solo preguntar si hay cambios sin guardar
     if (hasUnsavedChanges) {
       const result = await Swal.fire({
         title: "¿Cancelar edición?",
@@ -190,7 +174,7 @@ const ManifiestoDetalle = () => {
     }
 
     setIsEditing(false);
-    await fetchDetalle(); // Recargar datos originales
+    await fetchDetalle();
     setHasUnsavedChanges(false);
 
     if (hasUnsavedChanges) {
@@ -219,7 +203,6 @@ const ManifiestoDetalle = () => {
     if (!result.isConfirmed) return;
 
     try {
-      // Construir payload con los datos editados
       const payload = {
         operadorNave: formData.operadorNave,
         status: formData.status,
@@ -258,7 +241,7 @@ const ManifiestoDetalle = () => {
       });
 
       setIsEditing(false);
-      setHasUnsavedChanges(false); // 🆕 Limpiar flag de cambios
+      setHasUnsavedChanges(false);
       await fetchDetalle();
     } catch (e) {
       Swal.fire({
@@ -270,7 +253,6 @@ const ManifiestoDetalle = () => {
     }
   };
 
-  // 🆕 Handler para el botón "Volver" con validación
   const handleGoBack = async () => {
     if (isEditing && hasUnsavedChanges) {
       const result = await Swal.fire({
@@ -333,6 +315,55 @@ const ManifiestoDetalle = () => {
     }
   };
 
+  const handleProcessPMS = async () => {
+    const result = await Swal.fire({
+      title: "¿Procesar PMS?",
+      text: "Se crearán los BLs desde el archivo PMS. Los BLs anteriores serán eliminados.",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#10b981",
+      cancelButtonColor: "#e43a3aff",
+      confirmButtonText: "Sí, procesar",
+      cancelButtonText: "Cancelar",
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      setProcessingPMS(true);
+      setError("");
+
+      const res = await fetch(`${API_BASE}/manifiestos/${id}/pms/procesar`, {
+        method: "POST",
+      });
+
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(txt || `HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+
+      await Swal.fire({
+        title: "¡PMS procesado!",
+        html: `Se crearon <strong>${data.inserted}</strong> BL(s) correctamente`,
+        icon: "success",
+        confirmButtonColor: "#10b981",
+        timer: 3000,
+      });
+    } catch (e) {
+      Swal.fire({
+        title: "Error al procesar PMS",
+        text: e?.message || "No se pudo procesar el PMS",
+        icon: "error",
+        confirmButtonColor: "#10b981",
+      });
+      setError(e?.message || "Error procesando PMS");
+    } finally {
+      setProcessingPMS(false);
+    }
+  };
+
   const m = data?.manifiesto;
 
   return (
@@ -340,54 +371,52 @@ const ManifiestoDetalle = () => {
       <Sidebar />
 
       <main className="flex-1 p-10">
-    <div className="mb-6">
-  {/* Botón Volver arriba a la izquierda */}
-  <button
-    onClick={handleGoBack}
-    className="text-sm text-slate-500 hover:text-slate-800 mb-4 inline-block"
-  >
-    ← Volver al listado
-  </button>
-
-  <div className="flex items-start justify-between gap-6">
-    <div>
-      <h1 className="text-2xl font-semibold text-[#0F2A44]">
-        Manifiesto #{id}
-      </h1>
-      <p className="text-sm text-slate-500 mt-1">
-        Detalle del manifiesto y su itinerario
-      </p>
-    </div>
-
-    <div className="flex items-center gap-3">
-      {!isEditing ? (
-        <button
-          onClick={handleEdit}
-          className="px-4 py-2 rounded-lg bg-[#0F2A44] text-white text-sm font-medium hover:bg-[#1a3f5f]"
-        >
-          Editar
-        </button>
-      ) : (
-        <>
+        <div className="mb-6">
           <button
-            onClick={handleCancelEdit}
-            className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
+            onClick={handleGoBack}
+            className="text-sm text-slate-500 hover:text-slate-800 mb-4 inline-block"
           >
-            Cancelar
+            ← Volver al listado
           </button>
-          <button
-            onClick={handleSaveChanges}
-            className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700"
-          >
-            Guardar cambios
-          </button>
-        </>
-      )}
-    </div>
-  </div>
-</div>
 
-        {/* 🆕 Badge de cambios sin guardar */}
+          <div className="flex items-start justify-between gap-6">
+            <div>
+              <h1 className="text-2xl font-semibold text-[#0F2A44]">
+                Manifiesto #{id}
+              </h1>
+              <p className="text-sm text-slate-500 mt-1">
+                Detalle del manifiesto y su itinerario
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {!isEditing ? (
+                <button
+                  onClick={handleEdit}
+                  className="px-4 py-2 rounded-lg bg-[#0F2A44] text-white text-sm font-medium hover:bg-[#1a3f5f]"
+                >
+                  Editar
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={handleCancelEdit}
+                    className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleSaveChanges}
+                    className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700"
+                  >
+                    Guardar cambios
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
         {isEditing && hasUnsavedChanges && (
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-center gap-2">
             <span className="text-lg">⚠️</span>
@@ -405,17 +434,14 @@ const ManifiestoDetalle = () => {
 
         {!loading && m && (
           <>
-            {/* Card Manifiesto */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                {/* Campos NO editables */}
                 <InfoReadOnly label="Servicio" value={m.servicio} />
                 <InfoReadOnly label="Nave" value={m.nave} />
                 <InfoReadOnly label="Viaje" value={m.viaje} />
                 <InfoReadOnly label="Puerto central" value={m.puertoCentral} />
                 <InfoReadOnly label="Operación" value={m.tipoOperacion} />
 
-                {/* Campos editables */}
                 {!isEditing ? (
                   <>
                     <InfoReadOnly label="Status" value={m.status} />
@@ -476,67 +502,67 @@ const ManifiestoDetalle = () => {
 
             {/* Carga PMS */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center justify-between gap-4 mb-4">
                 <div>
                   <h2 className="text-sm font-semibold text-slate-700">
-                    Carga PMS (para este manifiesto)
+                    Carga y procesamiento de PMS
                   </h2>
                   <p className="text-xs text-slate-500 mt-1">
-                    Selecciona el archivo y súbelo.
+                    Selecciona el archivo PMS y procésalo para crear los BLs.
                   </p>
                 </div>
 
-                <button
-                  onClick={handleUploadPMS}
-                  disabled={pmsUploading || !pmsFile}
-                  className="px-4 py-2 rounded-lg bg-[#0F2A44] text-white text-sm font-medium disabled:opacity-60 hover:bg-[#1a3f5f]"
-                  title={!pmsFile ? "Selecciona un archivo primero" : "Subir PMS"}
-                >
-                  {pmsUploading ? "Subiendo..." : "Cargar PMS"}
-                </button>
+                {!pmsInfo ? (
+                  <button
+                    onClick={handleUploadPMS}
+                    disabled={pmsUploading || !pmsFile}
+                    className="px-4 py-2 rounded-lg bg-[#0F2A44] text-white text-sm font-medium disabled:opacity-60 hover:bg-[#1a3f5f]"
+                  >
+                    {pmsUploading ? "Subiendo..." : "Subir archivo"}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleProcessPMS}
+                    disabled={processingPMS}
+                    className="px-4 py-2 rounded-lg bg-[#0F2A44] text-white text-sm font-medium disabled:opacity-60 hover:bg-[#1a3f5f]"
+                  >
+                    {processingPMS ? "Procesando..." : "Procesar PMS"}
+                  </button>
+                )}
               </div>
 
-              <div className="mt-4 flex items-center gap-3">
+              <div className="flex items-center gap-3">
                 <input
                   type="file"
                   accept=".xml,.txt,.csv,.pms"
                   onChange={(e) => setPmsFile(e.target.files?.[0] || null)}
                   className="text-sm"
                 />
-                {pmsFile && (
+                {pmsFile && !pmsInfo && (
                   <span className="text-xs text-slate-600">
-                    Archivo: <span className="font-medium">{pmsFile.name}</span>
+                    Seleccionado: <span className="font-medium">{pmsFile.name}</span>
                   </span>
                 )}
               </div>
 
-              <div className="mt-3 text-xs text-slate-600">
-                {pmsInfo ? (
-                  <>
-                    <div>
-                      PMS cargado:{" "}
-                      <span className="font-medium">{pmsInfo.nombreOriginal}</span>
+              {pmsInfo && (
+                <div className="mt-3 text-xs text-slate-600">
+                  <div className="bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200">
+                    <div className="font-medium text-emerald-700">
+                      Archivo cargado: {pmsInfo.nombreOriginal}
                     </div>
-                    <div>
-                      Fecha carga:{" "}
-                      <span className="font-medium">
-                        {formatDTCL(pmsInfo.createdAt)}
-                      </span>
+                    <div className="text-emerald-600 mt-1">
+                      Fecha: {formatDTCL(pmsInfo.createdAt)}
                     </div>
-                  </>
-                ) : (
-                  <div className="text-slate-500">
-                    Aún no hay PMS cargado para este manifiesto.
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
               {pmsMsg && (
                 <div className="mt-3 text-sm text-emerald-700">{pmsMsg}</div>
               )}
             </div>
 
-            {/* Itinerario */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-slate-700">
@@ -613,7 +639,6 @@ const ManifiestoDetalle = () => {
   );
 };
 
-// Componente para campos NO editables
 const InfoReadOnly = ({ label, value }) => (
   <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
     <div className="text-xs font-medium text-slate-500">{label}</div>
@@ -621,7 +646,6 @@ const InfoReadOnly = ({ label, value }) => (
   </div>
 );
 
-// Componente para campos editables (texto)
 const InfoEditable = ({ label, value, onChange }) => (
   <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
     <div className="text-xs font-medium text-slate-700">{label}</div>
@@ -634,7 +658,6 @@ const InfoEditable = ({ label, value, onChange }) => (
   </div>
 );
 
-// Componente para campos editables (fecha)
 const InfoEditableDate = ({ label, value, onChange }) => (
   <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
     <div className="text-xs font-medium text-slate-700">{label}</div>

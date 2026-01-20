@@ -3237,6 +3237,45 @@ app.post("/admin/pms51/tokens/reload", async (req, res) => {
   res.json({ ok: true, tokens: PMS51_TOKENS });
 });
 
+// ============================================
+// 🛡️ FUNCIÓN DE VALIDACIÓN DE BL PARA XML
+// ============================================
+
+function validateBLForXML(bl) {
+  const errors = [];
+
+  // Campos obligatorios
+  if (!bl.bl_number || bl.bl_number.trim() === '') {
+    errors.push("Falta número de BL");
+  }
+  
+  if (!bl.shipper || bl.shipper.trim() === '') {
+    errors.push("Falta Shipper");
+  }
+  
+  if (!bl.consignee || bl.consignee.trim() === '') {
+    errors.push("Falta Consignee");
+  }
+  
+  if (!bl.puerto_embarque_codigo && !bl.puerto_embarque_id) {
+    errors.push("Falta Puerto de Embarque (POL)");
+  }
+  
+  if (!bl.puerto_descarga_codigo && !bl.puerto_descarga_id) {
+    errors.push("Falta Puerto de Descarga (POD)");
+  }
+
+  if (!bl.lugar_emision_codigo && !bl.lugar_emision_id) {
+    errors.push("Falta Lugar de Emisión (LE)");
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+}
+
+  // ... resto del código existente
 // Función helper para formatear fechas DD-MM-YYYY HH:MM
 function formatDateTimeCL(isoDate) {
   if (!isoDate) return null;
@@ -3317,6 +3356,8 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
 // Genera el XML completo de un BL específico
 // POST /api/bls/:blNumber/generar-xml
 // Genera el XML completo de un BL específico
+// POST /api/bls/:blNumber/generar-xml
+// Genera el XML completo de un BL específico
 app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
   try {
     const { blNumber } = req.params;
@@ -3361,6 +3402,16 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
 
     const bl = blRows[0];
 
+    // 🛡️ VALIDAR BL ANTES DE GENERAR XML
+    const validation = validateBLForXML(bl);
+    if (!validation.isValid) {
+      return res.status(400).json({
+        error: "BL con datos faltantes",
+        details: validation.errors,
+        bl_number: blNumber
+      });
+    }
+
     // 2️⃣ Obtener items del BL
     const [items] = await pool.query(`
       SELECT * FROM bl_items
@@ -3368,7 +3419,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
       ORDER BY numero_item
     `, [bl.id]);
 
-    // 3️⃣ Obtener contenedores con sellos E IMO (CORREGIDO)
+    // 3️⃣ Obtener contenedores con sellos E IMO
     const [contenedores] = await pool.query(`
       SELECT
         c.id,
@@ -3519,7 +3570,6 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
                   peso: c.peso || 0,
                   status: bl.tipo_servicio_codigo || 'FCL/FCL',
 
-                  // ✅ SECCIÓN IMO - SOLO si existen ambos campos
                   CntIMO: (c.clase_imo && c.numero_imo) ? {
                     cntimo: {
                       'clase-imo': String(c.clase_imo),
@@ -3555,13 +3605,53 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
 
 // POST /api/manifiestos/:id/generar-xmls-multiples
 // Genera múltiples XMLs y los devuelve en un ZIP
+// POST /api/manifiestos/:id/generar-xmls-multiples
+// Genera múltiples XMLs y los devuelve en un ZIP
 app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
   try {
     const { id } = req.params;
-    const { blNumbers } = req.body; // Array de bl_numbers seleccionados
+    const { blNumbers } = req.body;
 
     if (!Array.isArray(blNumbers) || blNumbers.length === 0) {
       return res.status(400).json({ error: "Debe seleccionar al menos un BL" });
+    }
+
+    // 🛡️ VALIDAR TODOS LOS BLs ANTES DE GENERAR
+    const blsConErrores = [];
+
+    for (const blNumber of blNumbers) {
+      const [blRows] = await pool.query(`
+        SELECT
+          b.*,
+          pe.codigo AS puerto_embarque_codigo,
+          pd.codigo AS puerto_descarga_codigo,
+          le.codigo AS lugar_emision_codigo
+        FROM bls b
+        LEFT JOIN puertos pe ON b.puerto_embarque_id = pe.id
+        LEFT JOIN puertos pd ON b.puerto_descarga_id = pd.id
+        LEFT JOIN puertos le ON b.lugar_emision_id = le.id
+        WHERE b.bl_number = ?
+        LIMIT 1
+      `, [blNumber]);
+
+      if (blRows.length === 0) continue;
+
+      const validation = validateBLForXML(blRows[0]);
+      if (!validation.isValid) {
+        blsConErrores.push({
+          bl_number: blNumber,
+          errors: validation.errors
+        });
+      }
+    }
+
+    // 🚫 SI HAY ERRORES, RECHAZAR LA SOLICITUD
+    if (blsConErrores.length > 0) {
+      return res.status(400).json({
+        error: "Hay BLs con datos faltantes",
+        bls_con_errores: blsConErrores,
+        total_errores: blsConErrores.length
+      });
     }
 
     // Crear archivo ZIP
@@ -3574,7 +3664,6 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
 
     // Generar XML por cada BL
     for (const blNumber of blNumbers) {
-      // Reutilizar la lógica del endpoint individual
       const [blRows] = await pool.query(`
         SELECT
           b.*,
@@ -3616,8 +3705,6 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
         SELECT * FROM bl_items WHERE bl_id = ? ORDER BY numero_item
       `, [bl.id]);
 
-    // 3️⃣ Obtener contenedores con sellos E IMO
-// 3️⃣ Obtener contenedores con sellos E IMO
       const [contenedores] = await pool.query(`
         SELECT
           c.id,
@@ -3644,14 +3731,6 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
         ORDER BY c.codigo
       `, [bl.id]);
 
-// 🔍 DEBUG TEMPORAL
-console.log('📦 Contenedores recuperados:', contenedores.map(c => ({
-  codigo: c.codigo,
-  clase_imo: c.clase_imo,
-  numero_imo: c.numero_imo,
-  tiene_imo: !!(c.clase_imo && c.numero_imo)
-})));
-      // Construir XML (misma lógica que arriba)
       const xmlObj = {
         Documento: {
           '@tipo': 'BL',
@@ -3719,28 +3798,27 @@ console.log('📦 Contenedores recuperados:', contenedores.map(c => ({
                 'unidad-volumen': it.unidad_volumen || 'MTQ',
                 'carga-cnt': 'S',
                 Contenedores: contsDelItem.length > 0 ? {
-  contenedor: contsDelItem.map(c => ({
-    sigla: c.sigla || '',
-    numero: c.numero || '',
-    digito: c.digito || '',
-    'tipo-cnt': c.tipo_cnt || '',
-    'cnt-so': '',
-    peso: c.peso || 0,
-    status: bl.tipo_servicio_codigo || 'FCL/FCL',
-    
-    // ✅ SECCIÓN IMO - SOLO si existen ambos campos
-    CntIMO: (c.clase_imo && c.numero_imo) ? {
-      cntimo: {
-        'clase-imo': String(c.clase_imo),
-        'numero-imo': String(c.numero_imo)
-      }
-    } : undefined,
-    
-    Sellos: c.sellos ? {
-      sello: c.sellos.split('|').map(s => ({ numero: s }))
-    } : undefined
-  }))
-} : undefined
+                  contenedor: contsDelItem.map(c => ({
+                    sigla: c.sigla || '',
+                    numero: c.numero || '',
+                    digito: c.digito || '',
+                    'tipo-cnt': c.tipo_cnt || '',
+                    'cnt-so': '',
+                    peso: c.peso || 0,
+                    status: bl.tipo_servicio_codigo || 'FCL/FCL',
+                    
+                    CntIMO: (c.clase_imo && c.numero_imo) ? {
+                      cntimo: {
+                        'clase-imo': String(c.clase_imo),
+                        'numero-imo': String(c.numero_imo)
+                      }
+                    } : undefined,
+                    
+                    Sellos: c.sellos ? {
+                      sello: c.sellos.split('|').map(s => ({ numero: s }))
+                    } : undefined
+                  }))
+                } : undefined
               };
             })
           }
@@ -3750,7 +3828,6 @@ console.log('📦 Contenedores recuperados:', contenedores.map(c => ({
       const doc = create({ version: '1.0', encoding: 'ISO-8859-1' }, xmlObj);
       const xmlString = doc.end({ prettyPrint: true });
 
-      // Agregar al ZIP
       archive.append(xmlString, { name: `BMS_V1_SNA-BL-1.0-${bl.bl_number}.xml` });
     }
 
