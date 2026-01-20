@@ -2445,6 +2445,18 @@ async function insertTransbordos(conn, blId, transbordos) {
 
     const puertoId = await getPuertoIdByCodigo(conn, c); // 👈 AQUÍ
 
+    if (!puertoId) {
+      await addValidacion(conn, {
+        blId,
+        nivel: "TRANSBORDO",
+        sec, // importante: número del transbordo
+        severidad: "OBS", // 👈 NO ERROR
+        campo: "puerto_id",
+        mensaje: "Puerto de transbordo no existe en mantenedor (no afecta XML)",
+        valorCrudo: c
+      });
+    }
+
     await conn.query(sql, [blId, sec++, c, puertoId]);
   }
 }
