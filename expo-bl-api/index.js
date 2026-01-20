@@ -2463,6 +2463,43 @@ async function insertImo(conn, contenedorId, imoArr) {
   }
 }
 
+async function addValidacion(conn, {
+  blId,
+  nivel = "BL",              // BL | ITEM | CONTENEDOR | TRANSBORDO
+  refId = null,              // id del item/contenedor/transbordo si aplica
+  sec = null,                // opcional: numero_item o sec del transbordo
+  severidad = "ERROR",       // ERROR | OBS
+  campo,
+  mensaje,
+  valorCrudo = null
+}) {
+  await conn.query(`
+    INSERT INTO bl_validaciones
+      (bl_id, nivel, ref_id, sec, severidad, campo, mensaje, valor_crudo)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `, [blId, nivel, refId, sec, severidad, campo, mensaje, valorCrudo]);
+}
+
+async function refreshResumenValidacionBL(conn, blId) {
+  const [[c]] = await conn.query(`
+    SELECT
+      SUM(severidad='ERROR') AS err,
+      SUM(severidad='OBS')   AS obs
+    FROM bl_validaciones
+    WHERE bl_id = ?
+  `, [blId]);
+
+  const err = Number(c?.err || 0);
+  const obs = Number(c?.obs || 0);
+  const status = err > 0 ? "ERROR" : (obs > 0 ? "OBS" : "OK");
+
+  await conn.query(`
+    UPDATE bls
+    SET valid_status=?, valid_count_error=?, valid_count_obs=?, valid_last_run=NOW()
+    WHERE id=?
+  `, [status, err, obs, blId]);
+}
+
 
 // ✅ POST para procesar el PMS TXT y crear BLs
 app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
@@ -2518,26 +2555,36 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
     const insertBlSql = `
       INSERT INTO bls
         (manifiesto_id, bl_number, tipo_servicio_id,
-         shipper, consignee, notify_party,
-         lugar_emision_id, puerto_embarque_id, puerto_descarga_id,
-         lugar_destino_id, lugar_entrega_id, lugar_recepcion_id,
-         descripcion_carga,
-         peso_bruto, unidad_peso,
-         volumen, unidad_volumen,
-         bultos, total_items,
-         fecha_emision, fecha_presentacion, fecha_embarque, fecha_zarpe,
-         status)
+        shipper, consignee, notify_party,
+
+        lugar_emision_id, puerto_embarque_id, puerto_descarga_id,
+        lugar_destino_id, lugar_entrega_id, lugar_recepcion_id,
+
+        lugar_emision_cod, puerto_embarque_cod, puerto_descarga_cod,
+        lugar_destino_cod, lugar_entrega_cod, lugar_recepcion_cod,
+
+        descripcion_carga,
+        peso_bruto, unidad_peso,
+        volumen, unidad_volumen,
+        bultos, total_items,
+        fecha_emision, fecha_presentacion, fecha_embarque, fecha_zarpe,
+        status)
       VALUES
         (?, ?, ?,
-         ?, ?, ?,
-         ?, ?, ?,
-         ?, ?, ?,
-         ?,
-         ?, ?,
-         ?, ?,
-         ?, ?,
-         ?, ?, ?, ?,
-         'CREADO')
+        ?, ?, ?,
+
+        ?, ?, ?,
+        ?, ?, ?,
+
+        ?, ?, ?,
+        ?, ?, ?,
+
+        ?,
+        ?, ?,
+        ?, ?,
+        ?, ?,
+        ?, ?, ?, ?,
+        'CREADO')
     `;
 
     const insertItemSql = `
@@ -2556,14 +2603,55 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
     `;
 
     for (const b of bls) {
+      const pendingValidations = [];
+
       const lugarEmisionId = await getPuertoIdByCodigo(conn, b.lugar_emision_cod);
+      if (!lugarEmisionId) {
+        pendingValidations.push({
+          nivel: "BL",
+          severidad: "ERROR",
+          campo: "lugar_emision_id",
+          mensaje: "Lugar de emisión no existe en mantenedor de puertos",
+          valorCrudo: b.lugar_emision_cod || null
+        });
+      }
+
       const puertoEmbarqueId = await getPuertoIdByCodigo(conn, b.puerto_embarque_cod);
+      if (!puertoEmbarqueId) {
+        pendingValidations.push({
+          nivel: "BL",
+          severidad: "ERROR",
+          campo: "puerto_embarque_id",
+          mensaje: "Puerto de embarque no existe en mantenedor de puertos",
+          valorCrudo: b.puerto_embarque_cod || null
+        });
+      }
+
       const puertoDescargaId = await getPuertoIdByCodigo(conn, b.puerto_descarga_cod);
+      if (!puertoDescargaId) {
+        pendingValidations.push({
+          nivel: "BL",
+          severidad: "ERROR",
+          campo: "puerto_descarga_id",
+          mensaje: "Puerto de descarga no existe en mantenedor de puertos",
+          valorCrudo: b.puerto_descarga_cod || null
+        });
+      }
+
       const lugarDestinoId = await getPuertoIdByCodigo(conn, b.lugar_destino_cod);
       const lugarEntregaId = await getPuertoIdByCodigo(conn, b.lugar_entrega_cod);
       const lugarRecepcionId = await getPuertoIdByCodigo(conn, b.lugar_recepcion_cod);
 
       const tipoServicioId = await getTipoServicioIdByCodigo(conn, b.tipoServicioCod);
+      if (!tipoServicioId) {
+        pendingValidations.push({
+          nivel: "BL",
+          severidad: "ERROR",
+          campo: "tipo_servicio_id",
+          mensaje: "Tipo de servicio no existe en mantenedor",
+          valorCrudo: b.tipoServicioCod || null
+        });
+      }
 
       for (const it of (b.items || [])) {
         const itemNum = Number(it.numero_item);
@@ -2591,6 +2679,13 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
         lugarEntregaId,
         lugarRecepcionId,
 
+        b.lugar_emision_cod || null,
+        b.puerto_embarque_cod || null,
+        b.puerto_descarga_cod || null,
+        b.lugar_destino_cod || null,
+        b.lugar_entrega_cod || null,
+        b.lugar_recepcion_cod || null,
+
 
         b.descripcion_carga || null,
 
@@ -2611,6 +2706,12 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
       ]);
 
       const blId = blIns.insertId;
+      await conn.query("DELETE FROM bl_validaciones WHERE bl_id = ?", [blId]);
+
+      for (const v of pendingValidations) {
+        await addValidacion(conn, { blId, ...v });
+      }
+
       await insertTransbordos(conn, blId, b.transbordos || []);
 
       // =========================
@@ -2620,6 +2721,59 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
       const items = Array.isArray(b.items) ? b.items : [];
 
       for (const it of items) {
+        const itemNum = Number(it.numero_item) || null;
+
+        // ✅ juntamos validaciones antes, pero NO las insertamos aún (porque ref_id no existe)
+        const pendingItemValidations = [];
+
+        // VALIDACION: numero_item
+        if (!itemNum) {
+          pendingItemValidations.push({
+            nivel: "ITEM",
+            sec: null,
+            severidad: "ERROR",
+            campo: "numero_item",
+            mensaje: "Item sin número",
+            valorCrudo: it.numero_item ?? null
+          });
+        }
+
+        // ✅ NUEVA REGLA: SOLO el item 1 requiere descripcion y marcas
+        if (itemNum === 1) {
+          if (!it.descripcion) {
+            pendingItemValidations.push({
+              nivel: "ITEM",
+              sec: itemNum,
+              severidad: "ERROR",
+              campo: "descripcion",
+              mensaje: "Descripción obligatoria (solo item 1)",
+              valorCrudo: it.descripcion ?? null
+            });
+          }
+          if (!it.marcas) {
+            pendingItemValidations.push({
+              nivel: "ITEM",
+              sec: itemNum,
+              severidad: "ERROR",
+              campo: "marcas",
+              mensaje: "Marcas obligatorias (solo item 1)",
+              valorCrudo: it.marcas ?? null
+            });
+          }
+        }
+
+        // VALIDACION: tipo_bulto (para cualquier item)
+        if (!it.tipo_bulto) {
+          pendingItemValidations.push({
+            nivel: "ITEM",
+            sec: itemNum,
+            severidad: "ERROR",
+            campo: "tipo_bulto",
+            mensaje: "No se pudo determinar tipo_bulto para el item",
+            valorCrudo: it.tipo_bulto ?? null
+          });
+        }
+
         const [itIns] = await conn.query(insertItemSql, [
           blId,
           it.numero_item,
@@ -2634,8 +2788,17 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
           it.unidad_volumen || null,
         ]);
         itemIdByNumero.set(Number(it.numero_item), itIns.insertId);
-      }
 
+        // 2) Ahora sí existe ref_id
+        const itemId = itIns.insertId;
+        if (itemNum) itemIdByNumero.set(itemNum, itemId);
+
+        // 3) Guardas validaciones con ref_id real
+        for (const v of pendingItemValidations) {
+          await addValidacion(conn, { blId, refId: itemId, ...v });
+        }
+
+      }
       // ==========================================
       // 2) INSERT CONTENEDORES (bl_contenedores)
       //    + link item_id usando itemNo
@@ -2646,6 +2809,67 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
         const itemId = Number.isFinite(Number(c?.itemNo))
           ? (itemIdByNumero.get(Number(c.itemNo)) || null)
           : null;
+        
+        const itemNo = Number(c?.itemNo) || null;
+
+        const pendingContValidations = [];
+              
+        // VALIDACION: codigo
+        if (!c.codigo) {
+          pendingContValidations.push({
+            nivel: "CONTENEDOR",
+            sec: itemNo, // o null si prefieres
+            severidad: "ERROR",
+            campo: "codigo",
+            mensaje: "Contenedor sin código",
+            valorCrudo: c.codigo ?? null
+          });
+        }
+
+        // VALIDACION: itemNo/item_id
+        if (!itemNo) {
+          pendingContValidations.push({
+            nivel: "CONTENEDOR",
+            sec: null,
+            severidad: "ERROR",
+            campo: "itemNo",
+            mensaje: "Contenedor sin itemNo (no se puede asociar a item)",
+            valorCrudo: c.itemNo ?? null
+          });
+        } else if (!itemId) {
+          pendingContValidations.push({
+            nivel: "CONTENEDOR",
+            sec: itemNo,
+            severidad: "ERROR",
+            campo: "item_id",
+            mensaje: "Contenedor no se pudo asociar a item (itemNo no existe en bl_items insertados)",
+            valorCrudo: String(itemNo)
+          });
+        }
+
+        // VALIDACION: tipo_cnt
+        if (!c.tipo_cnt) {
+          pendingContValidations.push({
+            nivel: "CONTENEDOR",
+            sec: itemNo,
+            severidad: "ERROR",
+            campo: "tipo_cnt",
+            mensaje: "Contenedor sin tipo_cnt",
+            valorCrudo: c.tipo_cnt ?? null
+          });
+        }
+
+        // VALIDACION: carga_cnt (si quieres forzar no-null / S|N)
+        if (!c.carga_cnt) {
+          pendingContValidations.push({
+            nivel: "CONTENEDOR",
+            sec: itemNo,
+            severidad: "OBS",
+            campo: "carga_cnt",
+            mensaje: "carga_cnt viene vacío (se insertará NULL)",
+            valorCrudo: c.carga_cnt ?? null
+          });
+        }
 
         const [cIns] = await conn.query(insertContSql, [
           blId,
@@ -2662,6 +2886,14 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
           c.unidad_volumen || null,    // MTQ
         ]);
 
+        // 2) Ahora sí existe ref_id real
+        const contenedorId = cIns.insertId;
+
+        // 3) Guardas validaciones con ref_id real
+        for (const v of pendingContValidations) {
+          await addValidacion(conn, { blId, refId: contenedorId, ...v });
+        }
+
         await insertImo(conn, cIns.insertId, c.imo || []);
         // =========================
         // 3) SELLOS (si tienes tabla)
@@ -2669,6 +2901,8 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
         // Si tienes una tabla tipo bl_contenedor_sellos(contenedor_id, numero):
         await insertSellos(conn, cIns.insertId, c.sellos || []);
       }
+
+      await refreshResumenValidacionBL(conn, blId);
     }
 
     await conn.commit();
