@@ -5,7 +5,7 @@ import { FileText, Download, Loader2, Search, AlertTriangle, CheckCircle2, XCirc
 import Swal from "sweetalert2";
 
 const GenerarXML = () => {
-  const { id } = useParams(); // 🔥 Obtener el ID del manifiesto desde la URL
+  const { id } = useParams();
   const navigate = useNavigate();
   
   const [bls, setBls] = useState([]);
@@ -14,10 +14,9 @@ const GenerarXML = () => {
   const [error, setError] = useState("");
   const [generando, setGenerando] = useState(false);
   
-  // 🔍 Nuevos estados para búsqueda y filtros
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [sortOrder, setSortOrder] = useState("recent"); // recent | oldest
+  const [sortOrder, setSortOrder] = useState("recent");
   const [showOnlyErrors, setShowOnlyErrors] = useState(false);
 
   useEffect(() => {
@@ -51,7 +50,7 @@ const GenerarXML = () => {
     }
   };
 
-  // ⚠️ Validación de BL - MEJORADA CON DEBUG
+  // ⚠️ Validación de BL
   const validateBL = (bl) => {
     const errors = [];
     const warnings = [];
@@ -75,6 +74,10 @@ const GenerarXML = () => {
     
     if (!bl.puerto_descarga && !bl.puerto_descarga_codigo) {
       errors.push("Falta Puerto de Descarga (POD)");
+    }
+
+    if (!bl.lugar_emision && !bl.lugar_emision_codigo) {
+      errors.push("Falta Lugar de Emisión (LE)");
     }
     
     // Warnings (pueden generar XML pero con datos incompletos)
@@ -102,30 +105,11 @@ const GenerarXML = () => {
       warnings.push("Sin descripción de carga");
     }
 
-    if (!bl.lugar_emision && !bl.lugar_emision_codigo) {
-      warnings.push("Falta Lugar de Emisión");
+    if (bl.carga_peligrosa === 'S') {
+      warnings.push("BL marcado como carga peligrosa - verificar datos IMO");
     }
-  // ✅ NUEVO: Verificar IMO en contenedores
-  if (bl.carga_peligrosa === 'S') {
-    // Si el BL marca carga peligrosa, debería tener IMO
-    warnings.push("BL marcado como carga peligrosa - verificar datos IMO");
-  }
-    const totalIssues = errors.length + warnings.length;
 
-    // 🐛 DEBUG: Log detallado SOLO si hay warnings/errors
-    if (totalIssues > 0) {
-      console.log(`🔍 BL ${bl.bl_number}:`, {
-        notify_party: bl.notify_party ? `"${bl.notify_party}"` : 'NULL/VACÍO',
-        bultos: bl.bultos,
-        peso_bruto: bl.peso_bruto,
-        fecha_emision: bl.fecha_emision || 'NULL',
-        fecha_zarpe: bl.fecha_zarpe || 'NULL',
-        descripcion_carga: bl.descripcion_carga ? `"${bl.descripcion_carga.substring(0, 50)}..."` : 'NULL/VACÍO',
-        lugar_emision_codigo: bl.lugar_emision_codigo || 'NULL',
-        warnings,
-        errors
-      });
-    }
+    const totalIssues = errors.length + warnings.length;
 
     return {
       isValid: errors.length === 0,
@@ -141,7 +125,6 @@ const GenerarXML = () => {
   const filteredAndSortedBLs = useMemo(() => {
     let result = [...bls];
 
-    // Búsqueda por texto
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       result = result.filter(bl => 
@@ -151,12 +134,10 @@ const GenerarXML = () => {
       );
     }
 
-    // Filtro por status
     if (filterStatus !== "all") {
       result = result.filter(bl => bl.status === filterStatus);
     }
 
-    // Filtro por errores
     if (showOnlyErrors) {
       result = result.filter(bl => {
         const validation = validateBL(bl);
@@ -164,7 +145,6 @@ const GenerarXML = () => {
       });
     }
 
-    // Ordenamiento
     if (sortOrder === "recent") {
       result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     } else {
@@ -194,6 +174,7 @@ const GenerarXML = () => {
     }
   };
 
+  // 🔒 FUNCIÓN PRINCIPAL: Generar XMLs múltiples
   const generarXMLsMultiples = async () => {
     if (selectedBls.size === 0) {
       Swal.fire({
@@ -205,7 +186,7 @@ const GenerarXML = () => {
       return;
     }
 
-    // ⚠️ Validar BLs seleccionados
+    // ⚠️ VALIDAR BLs seleccionados
     const selectedBlsArray = Array.from(selectedBls);
     const blsConErrores = selectedBlsArray
       .map(blNumber => {
@@ -214,29 +195,79 @@ const GenerarXML = () => {
       })
       .filter(item => item.validation.level === 'error');
 
+    // 🚫 SI HAY ERRORES CRÍTICOS, NO PERMITIR GENERAR
     if (blsConErrores.length > 0) {
       const erroresHTML = blsConErrores.map(item => 
-        `<div style="text-align: left; margin-bottom: 12px;">
-          <strong style="color: #DC2626;">${item.blNumber}</strong><br/>
-          <ul style="margin: 4px 0; padding-left: 20px; font-size: 13px;">
-            ${item.validation.errors.map(e => `<li>${e}</li>`).join('')}
+        `<div style="text-align: left; margin-bottom: 12px; padding: 12px; background: #FEE2E2; border-radius: 8px; border: 1px solid #FCA5A5;">
+          <strong style="color: #DC2626; font-size: 14px;">📄 ${item.blNumber}</strong><br/>
+          <ul style="margin: 8px 0; padding-left: 20px; font-size: 13px; color: #991B1B;">
+            ${item.validation.errors.map(e => `<li style="margin: 4px 0;">${e}</li>`).join('')}
+          </ul>
+        </div>`
+      ).join('');
+
+      await Swal.fire({
+        icon: 'error',
+        title: '🚫 No se puede generar XML',
+        html: `
+          <div style="text-align: left; margin-bottom: 16px;">
+            <p style="color: #DC2626; font-weight: 500; margin-bottom: 12px;">
+              ${blsConErrores.length} BL${blsConErrores.length > 1 ? 's tienen' : ' tiene'} errores críticos que deben corregirse:
+            </p>
+            <div style="max-height: 400px; overflow-y: auto; padding-right: 8px;">
+              ${erroresHTML}
+            </div>
+          </div>
+          <div style="background: #FEF3C7; padding: 12px; border-radius: 8px; margin-top: 16px; border: 1px solid #FCD34D;">
+            <p style="color: #92400E; font-size: 13px; margin: 0;">
+              💡 <strong>Solución:</strong> Edita los BLs para completar los campos faltantes antes de generar los XMLs.
+            </p>
+          </div>
+        `,
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#DC2626',
+        width: '600px',
+        customClass: {
+          popup: 'swal-wide'
+        }
+      });
+
+      return; // 🛑 DETENER LA EJECUCIÓN
+    }
+
+    // ⚠️ MOSTRAR ADVERTENCIAS (pero permitir continuar)
+    const blsConWarnings = selectedBlsArray
+      .map(blNumber => {
+        const bl = bls.find(b => b.bl_number === blNumber);
+        return { blNumber, validation: validateBL(bl) };
+      })
+      .filter(item => item.validation.level === 'warning');
+
+    if (blsConWarnings.length > 0) {
+      const warningsHTML = blsConWarnings.map(item => 
+        `<div style="text-align: left; margin-bottom: 10px;">
+          <strong style="color: #F59E0B;">${item.blNumber}</strong><br/>
+          <ul style="margin: 4px 0; padding-left: 20px; font-size: 13px; color: #92400E;">
+            ${item.validation.warnings.map(w => `<li>${w}</li>`).join('')}
           </ul>
         </div>`
       ).join('');
 
       const result = await Swal.fire({
-        icon: 'error',
-        title: '⚠️ BLs con errores críticos',
+        icon: 'warning',
+        title: '⚠️ BLs con advertencias',
         html: `
-          <div style="max-height: 300px; overflow-y: auto;">
-            ${erroresHTML}
+          <div style="max-height: 300px; overflow-y: auto; text-align: left;">
+            ${warningsHTML}
           </div>
-          <p style="margin-top: 16px; font-size: 14px;">¿Deseas generar XMLs de todos modos?</p>
+          <p style="margin-top: 16px; font-size: 14px;">
+            Los XMLs se generarán pero pueden tener datos incompletos. ¿Deseas continuar?
+          </p>
         `,
         showCancelButton: true,
         confirmButtonText: 'Sí, generar',
         cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#DC2626',
+        confirmButtonColor: '#F59E0B',
         cancelButtonColor: '#6B7280'
       });
 
@@ -252,11 +283,41 @@ const GenerarXML = () => {
         body: JSON.stringify({ blNumbers: selectedBlsArray })
       });
 
+      const data = await res.json();
+
+      // 🚫 MANEJAR ERROR DEL BACKEND
       if (!res.ok) {
-        throw new Error("Error al generar XMLs");
+        if (data.bls_con_errores) {
+          const erroresHTML = data.bls_con_errores.map(item => 
+            `<div style="text-align: left; margin-bottom: 10px; padding: 10px; background: #FEE2E2; border-radius: 6px;">
+              <strong style="color: #DC2626;">${item.bl_number}</strong><br/>
+              <ul style="margin: 4px 0; padding-left: 20px; font-size: 13px; color: #991B1B;">
+                ${item.errors.map(e => `<li>${e}</li>`).join('')}
+              </ul>
+            </div>`
+          ).join('');
+
+          Swal.fire({
+            icon: 'error',
+            title: '🚫 Error de validación en el servidor',
+            html: `
+              <div style="max-height: 300px; overflow-y: auto;">
+                ${erroresHTML}
+              </div>
+              <p style="margin-top: 16px; color: #DC2626; font-weight: 500;">
+                Corrige estos errores antes de generar los XMLs.
+              </p>
+            `,
+            confirmButtonColor: '#DC2626',
+            width: '600px'
+          });
+          return;
+        }
+
+        throw new Error(data.error || "Error al generar XMLs");
       }
 
-      // Descargar el ZIP
+      // ✅ DESCARGA EXITOSA
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -285,77 +346,50 @@ const GenerarXML = () => {
     }
   };
 
-  const generarXMLIndividual = async (blNumber, skipPreview = false) => {
-    const bl = bls.find(b => b.bl_number === blNumber);
-    const validation = validateBL(bl);
-
-    // Mostrar preview con validación (solo si no se salta el preview)
-    if (!skipPreview && (validation.level === 'error' || validation.level === 'warning')) {
-      const issues = [
-        ...(validation.errors.length > 0 ? [`<strong style="color: #DC2626;">Errores críticos:</strong><ul style="padding-left: 20px;">${validation.errors.map(e => `<li>${e}</li>`).join('')}</ul>`] : []),
-        ...(validation.warnings.length > 0 ? [`<strong style="color: #F59E0B;">Advertencias:</strong><ul style="padding-left: 20px;">${validation.warnings.map(w => `<li>${w}</li>`).join('')}</ul>`] : [])
-      ].join('');
-
-      const result = await Swal.fire({
-        icon: validation.level === 'error' ? 'error' : 'warning',
-        title: `${validation.level === 'error' ? '⚠️' : '⚡'} Validación del BL ${blNumber}`,
-        html: `
-          <div style="text-align: left; max-height: 300px; overflow-y: auto;">
-            ${issues}
-          </div>
-          <p style="margin-top: 16px;">¿Deseas generar el XML de todos modos?</p>
-        `,
-        showCancelButton: true,
-        confirmButtonText: 'Generar XML',
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: validation.level === 'error' ? '#DC2626' : '#F59E0B',
-        cancelButtonColor: '#6B7280'
-      });
-
-      if (!result.isConfirmed) return;
-    }
-
-    try {
-      const res = await fetch(`http://localhost:4000/api/bls/${blNumber}/generar-xml`, {
-        method: "POST"
-      });
-
-      if (!res.ok) {
-        throw new Error("Error al generar XML");
-      }
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `BMS_V1_SNA-BL-1.0-${blNumber}.xml`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-
-      Swal.fire({
-        icon: 'success',
-        title: 'XML generado',
-        text: `BL ${blNumber} descargado correctamente`,
-        timer: 2000,
-        showConfirmButton: false
-      });
-    } catch (e) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error al generar XML',
-        text: e?.message || 'Ocurrió un error inesperado',
-        confirmButtonColor: '#DC2626'
-      });
-    }
-  };
-
+  // 🔍 FUNCIÓN: Mostrar vista previa del XML
   const mostrarVistaPrevia = async (blNumber) => {
     const bl = bls.find(b => b.bl_number === blNumber);
     const validation = validateBL(bl);
 
-    // Mostrar loading mientras se genera el preview
+    // 🚫 SI HAY ERRORES CRÍTICOS, MOSTRAR SOLO LA VALIDACIÓN
+    if (validation.level === 'error') {
+      const erroresHTML = validation.errors.map(e => 
+        `<li style="margin: 4px 0; color: #991B1B;">${e}</li>`
+      ).join('');
+
+      const result = await Swal.fire({
+        icon: 'error',
+        title: `BL ${blNumber} - Errores Críticos`,
+        html: `
+          <div style="text-align: left; background: #FEE2E2; padding: 16px; border-radius: 8px; border: 1px solid #FCA5A5;">
+            <strong style="color: #DC2626;">No se puede generar el XML por los siguientes errores:</strong>
+            <ul style="margin: 8px 0; padding-left: 20px;">
+              ${erroresHTML}
+            </ul>
+          </div>
+          <div style="background: #FEF3C7; padding: 12px; border-radius: 8px; margin-top: 16px; border: 1px solid #FCD34D;">
+            <p style="color: #92400E; font-size: 13px; margin: 0;">
+              💡 <strong>Solución:</strong> Edita el BL para completar los campos faltantes.
+            </p>
+          </div>
+        `,
+        showCancelButton: true,
+        showDenyButton: true,
+        confirmButtonText: ' Cerrar',
+        denyButtonText: ' Editar BL',
+        confirmButtonColor: '#DC2626',
+        denyButtonColor: '#3B82F6',
+        cancelButtonColor: '#6B7280'
+      });
+
+      if (result.isDenied) {
+        navigate(`/expo/${blNumber}/edit?returnTo=xml-preview&manifestId=${id}`);
+      }
+
+      return; // 🛑 NO GENERAR PREVIEW DEL XML
+    }
+
+    // ✅ SI NO HAY ERRORES CRÍTICOS, GENERAR PREVIEW
     Swal.fire({
       title: 'Generando vista previa...',
       text: 'Por favor espera',
@@ -366,19 +400,18 @@ const GenerarXML = () => {
     });
 
     try {
-      // Obtener el XML completo del BL
       const res = await fetch(`http://localhost:4000/api/bls/${blNumber}/generar-xml`, {
         method: "POST"
       });
 
       if (!res.ok) {
-        throw new Error("Error al generar preview del XML");
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Error al generar preview del XML");
       }
 
       const blob = await res.blob();
       const xmlText = await blob.text();
 
-      // Formatear el XML para que se vea bien
       const formattedXML = xmlText
         .replace(/></g, '>\n<')
         .split('\n')
@@ -386,7 +419,6 @@ const GenerarXML = () => {
         .filter(line => line.length > 0)
         .join('\n');
 
-      // Construir el HTML de validación
       const validationHTML = validation.level !== 'ok' ? `
         <div style="margin-bottom: 16px; padding: 12px; background: ${validation.level === 'error' ? '#FEE2E2' : '#FEF3C7'}; border-radius: 8px; text-align: left;">
           ${validation.errors.length > 0 ? `
@@ -408,7 +440,7 @@ const GenerarXML = () => {
         </div>
       ` : `
         <div style="margin-bottom: 16px; padding: 12px; background: #D1FAE5; border-radius: 8px; color: #065F46; text-align: left;">
-          <strong>Sin problemas detectados</strong> - El XML está listo para ser generado.
+          <strong> Sin problemas detectados</strong> - El XML está listo para ser generado.
         </div>
       `;
 
@@ -434,7 +466,7 @@ const GenerarXML = () => {
         `,
         width: '800px',
         showCancelButton: true,
-  showDenyButton: true, // ✅ Siempre mostrar botón de editar
+        showDenyButton: true,
         confirmButtonText: 'Descargar XML',
         denyButtonText: 'Editar BL',
         cancelButtonText: 'Cerrar',
@@ -447,7 +479,6 @@ const GenerarXML = () => {
       });
 
       if (result.isConfirmed) {
-        // Descargar el XML
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -464,9 +495,9 @@ const GenerarXML = () => {
           timer: 2000,
           showConfirmButton: false
         });
-} else if (result.isDenied) {
-navigate(`/expo/${blNumber}/edit?returnTo=xml-preview&manifestId=${id}`);}
-      
+      } else if (result.isDenied) {
+        navigate(`/expo/${blNumber}/edit?returnTo=xml-preview&manifestId=${id}`);
+      }
 
     } catch (e) {
       Swal.fire({
@@ -486,7 +517,7 @@ navigate(`/expo/${blNumber}/edit?returnTo=xml-preview&manifestId=${id}`);}
         {/* Header */}
         <div className="mb-8">
           <button
-            onClick={() => navigate(`/manifiestos/${id}`)}
+            onClick={() => navigate(`/manifiestos`)}
             className="text-sm text-slate-600 hover:text-slate-900 mb-2"
           >
             ← Volver al manifiesto
@@ -520,7 +551,6 @@ navigate(`/expo/${blNumber}/edit?returnTo=xml-preview&manifestId=${id}`);}
             {/* 🔍 Barra de búsqueda y filtros */}
             <div className="mb-4 bg-white rounded-xl shadow-sm border border-slate-200 p-4">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                {/* Buscador */}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
@@ -532,7 +562,6 @@ navigate(`/expo/${blNumber}/edit?returnTo=xml-preview&manifestId=${id}`);}
                   />
                 </div>
 
-                {/* Filtro por Status */}
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
@@ -545,7 +574,6 @@ navigate(`/expo/${blNumber}/edit?returnTo=xml-preview&manifestId=${id}`);}
                   <option value="ANULADO">ANULADO</option>
                 </select>
 
-                {/* Ordenamiento */}
                 <select
                   value={sortOrder}
                   onChange={(e) => setSortOrder(e.target.value)}
@@ -555,7 +583,6 @@ navigate(`/expo/${blNumber}/edit?returnTo=xml-preview&manifestId=${id}`);}
                   <option value="oldest">Más antiguos primero</option>
                 </select>
 
-                {/* Toggle errores */}
                 <label className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 bg-white cursor-pointer hover:bg-slate-50">
                   <input
                     type="checkbox"
@@ -567,7 +594,6 @@ navigate(`/expo/${blNumber}/edit?returnTo=xml-preview&manifestId=${id}`);}
                 </label>
               </div>
 
-              {/* Contador de resultados */}
               <div className="mt-3 text-sm text-slate-600">
                 Mostrando {filteredAndSortedBLs.length} de {bls.length} BLs
               </div>
@@ -652,7 +678,6 @@ navigate(`/expo/${blNumber}/edit?returnTo=xml-preview&manifestId=${id}`);}
                         />
                       </td>
                       
-                      {/* ⚠️ Columna de validación */}
                       <td className="px-6 py-4">
                         {validation.level === 'ok' && (
                           <div 
@@ -669,7 +694,6 @@ navigate(`/expo/${blNumber}/edit?returnTo=xml-preview&manifestId=${id}`);}
                             <AlertTriangle className="w-5 h-5" />
                             <span className="text-xs font-medium">{validation.count}</span>
                             
-                            {/* Tooltip mejorado */}
                             <div className="absolute left-0 top-8 hidden group-hover:block z-50 w-72 bg-white rounded-lg shadow-xl border border-amber-200 p-3">
                               <div className="text-xs text-left">
                                 <div className="font-semibold text-amber-700 mb-2">⚠️ Advertencias:</div>
@@ -695,7 +719,6 @@ navigate(`/expo/${blNumber}/edit?returnTo=xml-preview&manifestId=${id}`);}
                             <XCircle className="w-5 h-5" />
                             <span className="text-xs font-medium">{validation.count}</span>
                             
-                            {/* Tooltip mejorado */}
                             <div className="absolute left-0 top-8 hidden group-hover:block z-50 w-72 bg-white rounded-lg shadow-xl border border-red-200 p-3">
                               <div className="text-xs text-left">
                                 <div className="font-semibold text-red-700 mb-2">❌ Errores críticos:</div>
@@ -721,7 +744,7 @@ navigate(`/expo/${blNumber}/edit?returnTo=xml-preview&manifestId=${id}`);}
                                   </>
                                 )}
                                 <div className="mt-2 pt-2 border-t border-red-100 text-red-600 font-medium">
-                                  XML se generará con información faltante
+                                  🚫 No se puede generar XML
                                 </div>
                               </div>
                             </div>
