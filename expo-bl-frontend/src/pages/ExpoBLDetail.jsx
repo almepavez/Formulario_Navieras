@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
-import { AlertCircle, Ship } from "lucide-react";
+import { AlertCircle, Ship, AlertTriangle, RefreshCw } from "lucide-react";
 
 const estadoStyles = {
     "CREADO": "bg-blue-100 text-blue-800 ring-blue-200",
@@ -37,58 +37,74 @@ const ExpoBLDetail = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [puertosNoRegistrados, setPuertosNoRegistrados] = useState([]);
+    const [validaciones, setValidaciones] = useState([]);
+
+    const fetchBLDetail = async () => {
+        setLoading(true);
+        setError("");
+        try {
+            // Fetch BL básico (AHORA revalida automáticamente en el backend)
+            const res = await fetch(`http://localhost:4000/bls/${blNumber}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            setBl(data);
+
+            // Fetch items y contenedores
+            const resItems = await fetch(`http://localhost:4000/bls/${blNumber}/items-contenedores`);
+            if (resItems.ok) {
+                const dataItems = await resItems.json();
+                setItems(dataItems.items || []);
+                setContenedores(dataItems.contenedores || []);
+            }
+
+            // Fetch transbordos
+            const resTransbordos = await fetch(`http://localhost:4000/bls/${blNumber}/transbordos`);
+            if (resTransbordos.ok) {
+                const dataTransbordos = await resTransbordos.json();
+                setTransbordos(dataTransbordos || []);
+            }
+
+            // Fetch validaciones (ya actualizadas por el backend)
+            const resValidaciones = await fetch(`http://localhost:4000/bls/${blNumber}/validaciones`);
+            if (resValidaciones.ok) {
+                const dataValidaciones = await resValidaciones.json();
+                setValidaciones(dataValidaciones || []);
+            }
+
+            // Detectar puertos no registrados (de los códigos guardados)
+            const puertosNulos = [];
+            if (!data.lugar_emision_id && data.lugar_emision_cod) {
+                puertosNulos.push({ tipo: "Lugar Emisión", codigo: data.lugar_emision_cod });
+            }
+            if (!data.puerto_embarque_id && data.puerto_embarque_cod) {
+                puertosNulos.push({ tipo: "Puerto Embarque", codigo: data.puerto_embarque_cod });
+            }
+            if (!data.puerto_descarga_id && data.puerto_descarga_cod) {
+                puertosNulos.push({ tipo: "Puerto Descarga", codigo: data.puerto_descarga_cod });
+            }
+
+            setPuertosNoRegistrados(puertosNulos);
+        } catch (e) {
+            setError(e?.message || "Error desconocido");
+            setBl(null);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchBLDetail = async () => {
-            setLoading(true);
-            setError("");
-            try {
-                // Fetch BL básico
-                const res = await fetch(`http://localhost:4000/bls/${blNumber}`);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const data = await res.json();
-                setBl(data);
-
-                // Fetch items y contenedores
-                const resItems = await fetch(`http://localhost:4000/bls/${blNumber}/items-contenedores`);
-                if (resItems.ok) {
-                    const dataItems = await resItems.json();
-                    setItems(dataItems.items || []);
-                    setContenedores(dataItems.contenedores || []);
-                }
-
-                // 🆕 Fetch transbordos
-                const resTransbordos = await fetch(`http://localhost:4000/bls/${blNumber}/transbordos`);
-                if (resTransbordos.ok) {
-                    const dataTransbordos = await resTransbordos.json();
-                    setTransbordos(dataTransbordos || []);
-                }
-
-                // 🆕 Detectar puertos no registrados
-                const puertosNulos = [];
-                if (!data.lugar_emision_id && data.lugar_emision_cod) {
-                    puertosNulos.push({ tipo: "Lugar Emisión", codigo: data.lugar_emision_cod });
-                }
-                if (!data.puerto_embarque_id && data.puerto_embarque_cod) {
-                    puertosNulos.push({ tipo: "Puerto Embarque", codigo: data.puerto_embarque_cod });
-                }
-                if (!data.puerto_descarga_id && data.puerto_descarga_cod) {
-                    puertosNulos.push({ tipo: "Puerto Descarga", codigo: data.puerto_descarga_cod });
-                }
-                
-                setPuertosNoRegistrados(puertosNulos);
-            } catch (e) {
-                setError(e?.message || "Error desconocido");
-                setBl(null);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         if (blNumber) {
             fetchBLDetail();
         }
     }, [blNumber]);
+
+    const getValidacionTransbordo = (sec) => {
+        return validaciones.find(v => 
+            v.nivel === "TRANSBORDO" && 
+            v.campo === "puerto_id" && 
+            v.sec === sec
+        );
+    };
 
     if (loading) {
         return (
@@ -153,6 +169,16 @@ const ExpoBLDetail = () => {
                                 {bl.status}
                             </span>
 
+                            {/* 🆕 Botón para recargar validaciones */}
+                            <button
+                                onClick={fetchBLDetail}
+                                className="px-4 py-2 rounded-lg bg-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-300 transition-colors flex items-center gap-2"
+                                title="Recargar validaciones"
+                            >
+                                <RefreshCw className="w-4 h-4" />
+                                Actualizar
+                            </button>
+
                             <button
                                 onClick={() => navigate(`/expo/${bl.bl_number}/edit`)}
                                 className="px-6 py-2 rounded-lg bg-[#0F2A44] text-white text-sm font-medium hover:bg-[#1a3a5e] transition-colors"
@@ -163,7 +189,7 @@ const ExpoBLDetail = () => {
                     </div>
                 </div>
 
-                {/* 🆕 Alerta de puertos no registrados */}
+                {/* Alerta de puertos no registrados */}
                 {puertosNoRegistrados.length > 0 && (
                     <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
                         <div className="flex items-start gap-3">
@@ -213,7 +239,7 @@ const ExpoBLDetail = () => {
                         <div>
                             <p className="text-xs text-slate-500 mb-1">Tipo de Servicio</p>
                             <p className="text-sm font-medium text-slate-900">
-                            {bl.tipo_servicio_codigo || bl.tipo_servicio || "—"}
+                                {bl.tipo_servicio_codigo || bl.tipo_servicio || "—"}
                             </p>
                         </div>
 
@@ -277,7 +303,7 @@ const ExpoBLDetail = () => {
                     </div>
                 </div>
 
-                {/* 🆕 Transbordos */}
+                {/* Transbordos CON VALIDACIONES */}
                 {transbordos.length > 0 && (
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
                         <div className="flex items-center gap-2 mb-4">
@@ -288,31 +314,60 @@ const ExpoBLDetail = () => {
                         </div>
 
                         <div className="space-y-3">
-                            {transbordos.map((tb, idx) => (
-                                <div 
-                                    key={tb.id}
-                                    className="flex items-center gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200"
-                                >
-                                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[#0F2A44] text-white text-sm font-bold">
-                                        {idx + 1}
+                            {transbordos.map((tb, idx) => {
+                                const validacion = getValidacionTransbordo(tb.sec);
+                                const tieneError = !!validacion;
+
+                                return (
+                                    <div 
+                                        key={tb.id}
+                                        className={`flex items-center gap-4 p-4 rounded-lg border transition-all ${
+                                            tieneError 
+                                                ? 'bg-orange-50 border-orange-300 ring-2 ring-orange-200' 
+                                                : 'bg-slate-50 border-slate-200'
+                                        }`}
+                                    >
+                                        <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold ${
+                                            tieneError 
+                                                ? 'bg-orange-500 text-white' 
+                                                : 'bg-[#0F2A44] text-white'
+                                        }`}>
+                                            {idx + 1}
+                                        </div>
+                                        
+                                        <div className="flex-1">
+                                            <p className="text-sm font-medium text-slate-900">
+                                                {tb.puerto_nombre || tb.puerto_cod}
+                                            </p>
+                                            <p className="text-xs text-slate-500">
+                                                Código: {tb.puerto_cod}
+                                            </p>
+                                            
+                                            {validacion && (
+                                                <div className="mt-2 flex items-start gap-2">
+                                                    <AlertTriangle className="w-4 h-4 text-orange-600 flex-shrink-0 mt-0.5" />
+                                                    <p className="text-xs text-orange-700 font-medium">
+                                                        {validacion.mensaje}
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {tieneError ? (
+                                            <span className="px-3 py-1 rounded-full bg-orange-100 text-orange-800 text-xs font-medium border border-orange-200">
+                                                No registrado
+                                            </span>
+                                        ) : (
+                                            <span className="px-3 py-1 rounded-full bg-green-100 text-green-800 text-xs font-medium border border-green-200">
+                                                Registrado
+                                            </span>
+                                        )}
                                     </div>
-                                    <div className="flex-1">
-                                        <p className="text-sm font-medium text-slate-900">
-                                            {tb.puerto_nombre || tb.puerto_cod}
-                                        </p>
-                                        <p className="text-xs text-slate-500">
-                                            Código: {tb.puerto_cod}
-                                        </p>
-                                    </div>
-                                    {!tb.puerto_id && (
-                                        <span className="px-2 py-1 rounded bg-amber-100 text-amber-800 text-xs font-medium">
-                                            No registrado
-                                        </span>
-                                    )}
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
 
+                        {/* Ruta completa */}
                         <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
                             <p className="text-xs text-blue-700">
                                 <strong>Ruta completa:</strong> {bl.puerto_embarque || "—"} → {transbordos.map(t => t.puerto_cod).join(" → ")} → {bl.puerto_descarga || "—"}
@@ -321,7 +376,7 @@ const ExpoBLDetail = () => {
                     </div>
                 )}
 
-                {/* Carga */}
+                {/* Resto del componente (Carga, Items, Contenedores, Metadatos) sin cambios */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
                     <h2 className="text-lg font-semibold text-[#0F2A44] mb-4">
                         Detalles de Carga
@@ -361,13 +416,13 @@ const ExpoBLDetail = () => {
                     </div>
                 </div>
 
-                {/* Ítems del BL */}
+                {/* Items y Contenedores (sin cambios) */}
                 {items.length > 0 && (
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
                         <h2 className="text-lg font-semibold text-[#0F2A44] mb-4">
                             Ítems del BL ({items.length})
                         </h2>
-                        
+
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-slate-200">
                                 <thead className="bg-slate-50">
@@ -403,7 +458,7 @@ const ExpoBLDetail = () => {
                                                 {item.contenedores && item.contenedores.length > 0 ? (
                                                     <div className="flex flex-col gap-1">
                                                         {item.contenedores.map((cont, idx) => (
-                                                            <span 
+                                                            <span
                                                                 key={idx}
                                                                 className="inline-flex items-center px-2 py-1 rounded bg-indigo-100 text-indigo-800 text-xs font-mono font-medium"
                                                                 title={`Tipo: ${cont.tipo_cnt || 'N/A'}`}
@@ -429,11 +484,10 @@ const ExpoBLDetail = () => {
                                                 {formatNumber(item.volumen)} {item.unidad_volumen || ""}
                                             </td>
                                             <td className="px-4 py-3 text-sm">
-                                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                                    item.carga_peligrosa === 'S' 
-                                                        ? 'bg-red-100 text-red-800' 
+                                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${item.carga_peligrosa === 'S'
+                                                        ? 'bg-red-100 text-red-800'
                                                         : 'bg-green-100 text-green-800'
-                                                }`}>
+                                                    }`}>
                                                     {item.carga_peligrosa === 'S' ? 'Sí' : 'No'}
                                                 </span>
                                             </td>
@@ -445,13 +499,12 @@ const ExpoBLDetail = () => {
                     </div>
                 )}
 
-                {/* Contenedores */}
                 {contenedores.length > 0 && (
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
                         <h2 className="text-lg font-semibold text-[#0F2A44] mb-4">
                             Contenedores ({contenedores.length})
                         </h2>
-                        
+
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-slate-200">
                                 <thead className="bg-slate-50">
@@ -482,7 +535,7 @@ const ExpoBLDetail = () => {
                                                 {cont.sellos ? (
                                                     <div className="flex flex-wrap gap-1">
                                                         {cont.sellos.split(', ').map((sello, idx) => (
-                                                            <span 
+                                                            <span
                                                                 key={idx}
                                                                 className="inline-flex items-center px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs font-medium"
                                                             >
@@ -502,7 +555,6 @@ const ExpoBLDetail = () => {
                     </div>
                 )}
 
-                {/* Metadatos */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                     <h2 className="text-lg font-semibold text-[#0F2A44] mb-4">
                         Información del Sistema

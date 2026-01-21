@@ -644,6 +644,10 @@ app.post("/manifiestos", async (req, res) => {
     return res.status(400).json({ error: "Faltan campos obligatorios del manifiesto." });
   }
 
+// 🆕 VALIDAR STATUS
+  const validStatuses = ["Activo", "Inactivo", "Enviado"];
+  const statusFinal = status && validStatuses.includes(status) ? status : "Activo";
+  
   const allowedOps = new Set(["EX", "IM", "CROSS"]);
   if (!allowedOps.has(String(tipoOperacion).toUpperCase())) {
     return res.status(400).json({ error: "tipoOperacion inválido." });
@@ -689,7 +693,7 @@ app.post("/manifiestos", async (req, res) => {
         String(viaje).trim(),
         String(tipoOperacion).toUpperCase(),
         String(operadorNave).trim(),
-        status || "En edición",
+        statusFinal,
         remark || null,
         String(emisorDocumento).trim(),
         String(representante).trim(),
@@ -3158,7 +3162,13 @@ app.put("/manifiestos/:id", async (req, res) => {
     numeroManifiestoAduana,
     itinerario = [],
   } = req.body || {};
-
+  // 🆕 VALIDAR STATUS
+  const validStatuses = ["Activo", "Inactivo", "Enviado"];
+  if (status && !validStatuses.includes(status)) {
+    return res.status(400).json({ 
+      error: `Status inválido. Debe ser: ${validStatuses.join(", ")}` 
+    });
+  }
   // Validación mínima
   if (!operadorNave || !emisorDocumento || !representante || !fechaManifiestoAduana || !numeroManifiestoAduana) {
     return res.status(400).json({ error: "Faltan campos obligatorios" });
@@ -3188,7 +3198,7 @@ app.put("/manifiestos/:id", async (req, res) => {
        WHERE id = ?`,
       [
         String(operadorNave).trim(),
-        status || "En edición",
+        status,
         remark || null,
         String(emisorDocumento).trim(),
         String(representante).trim(),
@@ -3281,8 +3291,12 @@ app.get("/bls", async (req, res) => {
 });
 
 // GET un BL específico por número
+// REEMPLAZA tu GET /bls/:blNumber actual por este:
 app.get("/bls/:blNumber", async (req, res) => {
+  const conn = await pool.getConnection();
   try {
+    await conn.beginTransaction();
+
     const { blNumber } = req.params;
 
     const query = `
@@ -3315,13 +3329,29 @@ app.get("/bls/:blNumber", async (req, res) => {
       LIMIT 1
     `;
 
-    const [rows] = await pool.query(query, [blNumber]);
+    const [rows] = await conn.query(query, [blNumber]);
 
-    if (rows.length === 0) return res.status(404).json({ error: "BL no encontrado" });
-    res.json(rows[0]);
+    if (rows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: "BL no encontrado" });
+    }
+
+    const blId = rows[0].id;
+
+    // 🔄 REVALIDAR AUTOMÁTICAMENTE
+    await revalidarBLCompleto(conn, blId);
+
+    // Recargar datos actualizados
+    const [updatedRows] = await conn.query(query, [blNumber]);
+
+    await conn.commit();
+    res.json(updatedRows[0]);
   } catch (error) {
+    await conn.rollback();
     console.error("Error al obtener BL:", error);
     res.status(500).json({ error: "Error al obtener BL", details: error.message });
+  } finally {
+    conn.release();
   }
 });
 
@@ -4339,6 +4369,412 @@ app.get("/bls/:blNumber/transbordos", async (req, res) => {
     res.status(500).json({ error: "Error al obtener transbordos" });
   }
 }); 
+// 🆕 PUT /bls/:blNumber/transbordos
+// Actualizar transbordos de un BL
+app.put("/bls/:blNumber/transbordos", async (req, res) => {
+  const { blNumber } = req.params;
+  const { transbordos } = req.body;
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // 1) Obtener bl_id
+    const [blRows] = await conn.query(
+      "SELECT id FROM bls WHERE bl_number = ? LIMIT 1",
+      [blNumber]
+    );
+
+    if (blRows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: "BL no encontrado" });
+    }
+
+    const blId = blRows[0].id;
+
+    // 2) Eliminar transbordos existentes
+    await conn.query("DELETE FROM bl_transbordos WHERE bl_id = ?", [blId]);
+
+    // 3) Insertar nuevos transbordos
+    if (Array.isArray(transbordos) && transbordos.length > 0) {
+      for (const tb of transbordos) {
+        if (!tb.puerto_cod) continue;
+
+        const [puertoRows] = await conn.query(
+          "SELECT id FROM puertos WHERE codigo = ? LIMIT 1",
+          [tb.puerto_cod]
+        );
+
+        const puertoId = puertoRows.length > 0 ? puertoRows[0].id : null;
+
+        await conn.query(
+          `INSERT INTO bl_transbordos (bl_id, sec, puerto_cod, puerto_id)
+           VALUES (?, ?, ?, ?)`,
+          [blId, tb.sec, tb.puerto_cod, puertoId]
+        );
+      }
+    }
+
+    await conn.commit();
+    res.json({ success: true, message: "Transbordos actualizados correctamente" });
+  } catch (error) {
+    await conn.rollback();
+    console.error("Error al actualizar transbordos:", error);
+    res.status(500).json({ error: "Error al actualizar transbordos" });
+  } finally {
+    conn.release();
+  }
+});
+
+// 🆕 GET /bls/:blNumber/validaciones
+app.get("/bls/:blNumber/validaciones", async (req, res) => {
+  try {
+    const { blNumber } = req.params;
+
+    const [blRows] = await pool.query(
+      "SELECT id FROM bls WHERE bl_number = ? LIMIT 1",
+      [blNumber]
+    );
+
+    if (blRows.length === 0) {
+      return res.status(404).json({ error: "BL no encontrado" });
+    }
+
+    const blId = blRows[0].id;
+
+    const [validaciones] = await pool.query(`
+      SELECT 
+        id, nivel, ref_id, sec, severidad, campo, mensaje, valor_crudo, created_at
+      FROM bl_validaciones
+      WHERE bl_id = ?
+      ORDER BY 
+        FIELD(nivel, 'BL', 'ITEM', 'CONTENEDOR', 'TRANSBORDO'),
+        FIELD(severidad, 'ERROR', 'OBS'),
+        sec ASC
+    `, [blId]);
+
+    res.json(validaciones);
+  } catch (error) {
+    console.error("Error al obtener validaciones:", error);
+    res.status(500).json({ error: "Error al obtener validaciones" });
+  }
+});
+
+// 🆕 POST /api/bls/:blNumber/revalidar
+// Recalcula las validaciones de un BL
+app.post("/api/bls/:blNumber/revalidar", async (req, res) => {
+  const { blNumber } = req.params;
+  const conn = await pool.getConnection();
+
+  try {
+    await conn.beginTransaction();
+
+    // 1) Obtener bl_id
+    const [blRows] = await conn.query(
+      "SELECT id, manifiesto_id FROM bls WHERE bl_number = ? LIMIT 1",
+      [blNumber]
+    );
+
+    if (blRows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: "BL no encontrado" });
+    }
+
+    const blId = blRows[0].id;
+
+    // 2) Limpiar validaciones existentes
+    await conn.query("DELETE FROM bl_validaciones WHERE bl_id = ?", [blId]);
+
+    // 3) Recargar transbordos y revisar si los puertos existen ahora
+    const [transbordos] = await conn.query(
+      "SELECT id, sec, puerto_cod FROM bl_transbordos WHERE bl_id = ? ORDER BY sec",
+      [blId]
+    );
+
+    for (const tb of transbordos) {
+      const [puertoRows] = await conn.query(
+        "SELECT id FROM puertos WHERE codigo = ? LIMIT 1",
+        [tb.puerto_cod]
+      );
+
+      if (puertoRows.length === 0) {
+        // Puerto sigue sin existir -> crear validación OBS
+        await addValidacion(conn, {
+          blId,
+          nivel: "TRANSBORDO",
+          sec: tb.sec,
+          severidad: "OBS",
+          campo: "puerto_id",
+          mensaje: "Puerto de transbordo no existe en mantenedor (no afecta XML)",
+          valorCrudo: tb.puerto_cod
+        });
+      } else {
+        // Puerto ahora existe -> actualizar la FK
+        await conn.query(
+          "UPDATE bl_transbordos SET puerto_id = ? WHERE id = ?",
+          [puertoRows[0].id, tb.id]
+        );
+      }
+    }
+
+    // 4) Actualizar resumen de validaciones
+    await refreshResumenValidacionBL(conn, blId);
+
+    await conn.commit();
+    res.json({ success: true, message: "Validaciones actualizadas" });
+  } catch (error) {
+    await conn.rollback();
+    console.error("Error al revalidar BL:", error);
+    res.status(500).json({ error: "Error al revalidar BL" });
+  } finally {
+    conn.release();
+  }
+});
+// ============================================
+// 🔄 REVALIDACIÓN AUTOMÁTICA AL CARGAR DETALLE
+// ============================================
+
+// REEMPLAZA tu función revalidarBLCompleto() actual por esta versión COMPLETA:
+
+async function revalidarBLCompleto(conn, blId) {
+  console.log(`🔄 Revalidando BL ID: ${blId}`);
+
+  // 1) Obtener datos actuales del BL
+  const [blRows] = await conn.query(`
+    SELECT 
+      b.*,
+      le.id AS lugar_emision_id_actual,
+      pe.id AS puerto_embarque_id_actual,
+      pd.id AS puerto_descarga_id_actual,
+      ld.id AS lugar_destino_id_actual,
+      lem.id AS lugar_entrega_id_actual,
+      lrm.id AS lugar_recepcion_id_actual
+    FROM bls b
+    LEFT JOIN puertos le ON le.codigo = b.lugar_emision_cod
+    LEFT JOIN puertos pe ON pe.codigo = b.puerto_embarque_cod
+    LEFT JOIN puertos pd ON pd.codigo = b.puerto_descarga_cod
+    LEFT JOIN puertos ld ON ld.codigo = b.lugar_destino_cod
+    LEFT JOIN puertos lem ON lem.codigo = b.lugar_entrega_cod
+    LEFT JOIN puertos lrm ON lrm.codigo = b.lugar_recepcion_cod
+    WHERE b.id = ?
+    LIMIT 1
+  `, [blId]);
+
+  if (blRows.length === 0) {
+    console.log(`❌ BL no encontrado: ${blId}`);
+    return;
+  }
+
+  const bl = blRows[0];
+
+  // 2) Actualizar FKs de puertos en el BL si ahora existen
+  const updates = [];
+  if (bl.lugar_emision_id_actual && bl.lugar_emision_id !== bl.lugar_emision_id_actual) {
+    updates.push({ campo: 'lugar_emision_id', valor: bl.lugar_emision_id_actual });
+  }
+  if (bl.puerto_embarque_id_actual && bl.puerto_embarque_id !== bl.puerto_embarque_id_actual) {
+    updates.push({ campo: 'puerto_embarque_id', valor: bl.puerto_embarque_id_actual });
+  }
+  if (bl.puerto_descarga_id_actual && bl.puerto_descarga_id !== bl.puerto_descarga_id_actual) {
+    updates.push({ campo: 'puerto_descarga_id', valor: bl.puerto_descarga_id_actual });
+  }
+  if (bl.lugar_destino_id_actual && bl.lugar_destino_id !== bl.lugar_destino_id_actual) {
+    updates.push({ campo: 'lugar_destino_id', valor: bl.lugar_destino_id_actual });
+  }
+  if (bl.lugar_entrega_id_actual && bl.lugar_entrega_id !== bl.lugar_entrega_id_actual) {
+    updates.push({ campo: 'lugar_entrega_id', valor: bl.lugar_entrega_id_actual });
+  }
+  if (bl.lugar_recepcion_id_actual && bl.lugar_recepcion_id !== bl.lugar_recepcion_id_actual) {
+    updates.push({ campo: 'lugar_recepcion_id', valor: bl.lugar_recepcion_id_actual });
+  }
+
+  for (const upd of updates) {
+    await conn.query(`UPDATE bls SET ${upd.campo} = ? WHERE id = ?`, [upd.valor, blId]);
+    console.log(`✅ Actualizado ${upd.campo} -> ${upd.valor}`);
+  }
+
+  // 3) Actualizar transbordos (puerto_id si ahora existe)
+  const [transbordos] = await conn.query(
+    "SELECT id, sec, puerto_cod, puerto_id FROM bl_transbordos WHERE bl_id = ? ORDER BY sec",
+    [blId]
+  );
+
+  for (const tb of transbordos) {
+    const [puertoRows] = await conn.query(
+      "SELECT id FROM puertos WHERE codigo = ? LIMIT 1",
+      [tb.puerto_cod]
+    );
+
+    if (puertoRows.length > 0 && tb.puerto_id !== puertoRows[0].id) {
+      await conn.query(
+        "UPDATE bl_transbordos SET puerto_id = ? WHERE id = ?",
+        [puertoRows[0].id, tb.id]
+      );
+      console.log(`✅ Transbordo sec ${tb.sec}: puerto_id actualizado -> ${puertoRows[0].id}`);
+    }
+  }
+
+  // 4) 🆕 Obtener items y contenedores para revalidar
+  const [items] = await conn.query(
+    "SELECT * FROM bl_items WHERE bl_id = ? ORDER BY numero_item",
+    [blId]
+  );
+
+  const [contenedores] = await conn.query(
+    "SELECT * FROM bl_contenedores WHERE bl_id = ? ORDER BY codigo",
+    [blId]
+  );
+
+  // 5) Limpiar validaciones y regenerar TODAS
+  await conn.query("DELETE FROM bl_validaciones WHERE bl_id = ?", [blId]);
+  console.log(`🗑️ Validaciones antiguas eliminadas`);
+
+  const pendingValidations = [];
+
+  // ==========================================
+  // 6) VALIDACIONES DE BL (puertos principales)
+  // ==========================================
+  if (!bl.lugar_emision_id_actual) {
+    pendingValidations.push({
+      nivel: "BL", severidad: "ERROR", campo: "lugar_emision_id",
+      mensaje: "Lugar de emisión no existe en mantenedor de puertos",
+      valorCrudo: bl.lugar_emision_cod || null
+    });
+  }
+  if (!bl.puerto_embarque_id_actual) {
+    pendingValidations.push({
+      nivel: "BL", severidad: "ERROR", campo: "puerto_embarque_id",
+      mensaje: "Puerto de embarque no existe en mantenedor de puertos",
+      valorCrudo: bl.puerto_embarque_cod || null
+    });
+  }
+  if (!bl.puerto_descarga_id_actual) {
+    pendingValidations.push({
+      nivel: "BL", severidad: "ERROR", campo: "puerto_descarga_id",
+      mensaje: "Puerto de descarga no existe en mantenedor de puertos",
+      valorCrudo: bl.puerto_descarga_cod || null
+    });
+  }
+
+  // Otras validaciones de BL (las mismas del procesamiento PMS)
+  if (!bl.lugar_destino_id_actual) {
+    pendingValidations.push({
+      nivel: "BL", severidad: "ERROR", campo: "lugar_destino_id",
+      mensaje: "Lugar destino no existe en mantenedor de puertos",
+      valorCrudo: bl.lugar_destino_cod || null
+    });
+  }
+  if (!bl.lugar_entrega_id_actual) {
+    pendingValidations.push({
+      nivel: "BL", severidad: "ERROR", campo: "lugar_entrega_id",
+      mensaje: "Lugar entrega no existe en mantenedor de puertos",
+      valorCrudo: bl.lugar_entrega_cod || null
+    });
+  }
+  if (!bl.lugar_recepcion_id_actual) {
+    pendingValidations.push({
+      nivel: "BL", severidad: "ERROR", campo: "lugar_recepcion_id",
+      mensaje: "Lugar recepción no existe en mantenedor de puertos",
+      valorCrudo: bl.lugar_recepcion_cod || null
+    });
+  }
+
+  // ==========================================
+  // 7) VALIDACIONES DE TRANSBORDOS
+  // ==========================================
+  for (const tb of transbordos) {
+    const [puertoRows] = await conn.query(
+      "SELECT id FROM puertos WHERE codigo = ? LIMIT 1",
+      [tb.puerto_cod]
+    );
+
+    if (puertoRows.length === 0) {
+      pendingValidations.push({
+        nivel: "TRANSBORDO",
+        sec: tb.sec,
+        severidad: "OBS",
+        campo: "puerto_id",
+        mensaje: "Puerto de transbordo no existe en mantenedor (no afecta XML)",
+        valorCrudo: tb.puerto_cod
+      });
+    }
+  }
+
+  // ==========================================
+  // 8) 🆕 VALIDACIONES DE ITEMS
+  // ==========================================
+  for (const it of items) {
+    const itemNum = Number(it.numero_item) || null;
+
+    // Solo item 1 requiere descripcion y marcas
+    if (itemNum === 1) {
+      if (!it.descripcion) {
+        pendingValidations.push({
+          nivel: "ITEM", refId: it.id, sec: itemNum, severidad: "ERROR",
+          campo: "descripcion",
+          mensaje: "Descripción obligatoria (solo item 1)",
+          valorCrudo: it.descripcion ?? null
+        });
+      }
+      if (!it.marcas) {
+        pendingValidations.push({
+          nivel: "ITEM", refId: it.id, sec: itemNum, severidad: "ERROR",
+          campo: "marcas",
+          mensaje: "Marcas obligatorias (solo item 1)",
+          valorCrudo: it.marcas ?? null
+        });
+      }
+    }
+
+    // Validar tipo_bulto para todos los items
+    if (!it.tipo_bulto) {
+      pendingValidations.push({
+        nivel: "ITEM", refId: it.id, sec: itemNum, severidad: "ERROR",
+        campo: "tipo_bulto",
+        mensaje: "No se pudo determinar tipo_bulto para el item",
+        valorCrudo: it.tipo_bulto ?? null
+      });
+    }
+  }
+
+  // ==========================================
+  // 9) 🆕 VALIDACIONES DE CONTENEDORES
+  // ==========================================
+  for (const c of contenedores) {
+    const itemNo = c.item_id ? 
+      items.find(it => it.id === c.item_id)?.numero_item : null;
+
+    if (!c.codigo) {
+      pendingValidations.push({
+        nivel: "CONTENEDOR", refId: c.id, sec: itemNo, severidad: "ERROR",
+        campo: "codigo",
+        mensaje: "Contenedor sin código",
+        valorCrudo: c.codigo ?? null
+      });
+    }
+
+    if (!c.tipo_cnt) {
+      pendingValidations.push({
+        nivel: "CONTENEDOR", refId: c.id, sec: itemNo, severidad: "ERROR",
+        campo: "tipo_cnt",
+        mensaje: "Contenedor sin tipo_cnt",
+        valorCrudo: c.tipo_cnt ?? null
+      });
+    }
+  }
+
+  // ==========================================
+  // 10) Insertar todas las validaciones
+  // ==========================================
+  for (const v of pendingValidations) {
+    await addValidacion(conn, { blId, ...v });
+  }
+
+  // 11) Actualizar resumen
+  await refreshResumenValidacionBL(conn, blId);
+
+  console.log(`✅ Revalidación completa: ${pendingValidations.length} validaciones generadas`);
+}
 // ============================================
 // INICIAR SERVIDOR
 // ============================================

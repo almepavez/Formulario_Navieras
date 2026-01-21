@@ -23,6 +23,8 @@ const formatDTCL = (iso) => {
   return `${dd}-${mm}-${yyyy} ${hh}:${mi}`;
 };
 
+
+
 const toInputDate = (iso) => {
   if (!iso) return "";
   const d = new Date(iso);
@@ -460,10 +462,15 @@ const ManifiestoDetalle = () => {
                   </>
                 ) : (
                   <>
-                    <InfoEditable
+                    <InfoEditableSelect
                       label="Status"
                       value={formData.status}
                       onChange={(v) => handleInputChange("status", v)}
+                      options={[
+                        { value: "Activo", label: "Activo" },
+                        { value: "Inactivo", label: "Inactivo" },
+                        { value: "Enviado", label: "Enviado" }
+                      ]}
                     />
                     <InfoEditable
                       label="Operador nave"
@@ -669,5 +676,20 @@ const InfoEditableDate = ({ label, value, onChange }) => (
     />
   </div>
 );
-
+const InfoEditableSelect = ({ label, value, onChange, options }) => (
+  <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
+    <div className="text-xs font-medium text-slate-700">{label}</div>
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+    >
+      {options.map(opt => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
+  </div>
+);
 export default ManifiestoDetalle;

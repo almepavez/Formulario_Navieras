@@ -4,10 +4,9 @@ import Sidebar from "../components/Sidebar";
 import { FileText } from "lucide-react";
 
 const estadoStyles = {
-  "En edición": "bg-amber-100 text-amber-800 ring-amber-200",
-  "En revisión": "bg-blue-100 text-blue-800 ring-blue-200",
-  "Enviado a Aduana": "bg-emerald-100 text-emerald-800 ring-emerald-200",
-  Cerrado: "bg-slate-200 text-slate-700 ring-slate-300",
+  "Activo": "bg-emerald-100 text-emerald-800 ring-emerald-200",
+  "Inactivo": "bg-red-100 text-red-800 ring-red-200",
+  "Enviado": "bg-orange-100 text-orange-800 ring-orange-200",
 };
 
 // Para fechas que vienen como "2025-11-25T03:00:00.000Z"
