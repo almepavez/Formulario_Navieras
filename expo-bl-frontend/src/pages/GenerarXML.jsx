@@ -220,7 +220,7 @@ const GenerarXML = () => {
           </div>
           <div style="background: #FEF3C7; padding: 12px; border-radius: 8px; margin-top: 16px; border: 1px solid #FCD34D;">
             <p style="color: #92400E; font-size: 13px; margin: 0;">
-              💡 <strong>Solución:</strong> Edita los BLs para completar los campos faltantes antes de generar los XMLs.
+              <strong>Solución:</strong> Edita los BLs para completar los campos faltantes antes de generar los XMLs.
             </p>
           </div>
         `,
@@ -370,7 +370,7 @@ const GenerarXML = () => {
           </div>
           <div style="background: #FEF3C7; padding: 12px; border-radius: 8px; margin-top: 16px; border: 1px solid #FCD34D;">
             <p style="color: #92400E; font-size: 13px; margin: 0;">
-              💡 <strong>Solución:</strong> Edita el BL para completar los campos faltantes.
+              <strong>Solución:</strong> Edita el BL para completar los campos faltantes.
             </p>
           </div>
         `,
