@@ -3198,11 +3198,11 @@ app.get("/bls/:blNumber", async (req, res) => {
         ts.codigo AS tipo_servicio_codigo,
         ts.nombre AS tipo_servicio,
 
-        le.codigo AS lugar_emision_codigo,
+        le.codigo AS lugar_emision_cod,
         le.nombre AS lugar_emision,
-        pe.codigo AS puerto_embarque_codigo,
+        pe.codigo AS puerto_embarque_cod,
         pe.nombre AS puerto_embarque,
-        pd.codigo AS puerto_descarga_codigo,
+        pd.codigo AS puerto_descarga_cod,
         pd.nombre AS puerto_descarga,
 
         n.nombre AS nave_nombre
@@ -3619,6 +3619,20 @@ function validateBLForXML(bl) {
     errors.push("Falta Shipper");
   }
 
+    // Lugar Destino (LD)
+  if (!bl.lugar_destino_codigo && !bl.lugar_destino_id) {
+    errors.push("Falta Lugar de Destino (LD)");
+  }
+
+  // Lugar Entrega (LEM)
+  if (!bl.lugar_entrega_codigo && !bl.lugar_entrega_id) {
+    errors.push("Falta Lugar de Entrega (LEM)");
+  }
+
+  // Lugar Recepción (LRM)
+  if (!bl.lugar_recepcion_codigo && !bl.lugar_recepcion_id) {
+    errors.push("Falta Lugar de Recepción (LRM)");
+  } 
   if (!bl.consignee || bl.consignee.trim() === '') {
     errors.push("Falta Consignee");
   }
@@ -3679,6 +3693,10 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
         b.id,
         b.bl_number,
         b.shipper,
+        b.lugar_destino_cod,
+        b.lugar_entrega_cod,
+        b.lugar_recepcion_cod,
+                b.lugar_emision_cod,
         b.consignee,
         b.notify_party,
         b.descripcion_carga,
@@ -3693,13 +3711,13 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
         b.fecha_embarque,
         b.fecha_presentacion,
         b.created_at,
-        pe.codigo AS puerto_embarque_codigo,
+        pe.codigo AS puerto_embarque_cod,
         pe.nombre AS puerto_embarque,
-        pd.codigo AS puerto_descarga_codigo,
+        pd.codigo AS puerto_descarga_cod,
         pd.nombre AS puerto_descarga,
-        le.codigo AS lugar_emision_codigo,
+        le.codigo AS lugar_emision_cod,
         le.nombre AS lugar_emision,
-        ts.codigo AS tipo_servicio_codigo,
+        ts.codigo AS tipo_servicio_cod,
         ts.nombre AS tipo_servicio
       FROM bls b
       LEFT JOIN puertos pe ON b.puerto_embarque_id = pe.id

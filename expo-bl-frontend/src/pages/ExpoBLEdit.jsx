@@ -208,25 +208,9 @@ const ExpoBLEdit = () => {
                         confirmButtonColor: "#0F2A44"
                     });
                     return false;
-                }
-                // 🆕 VALIDACIÓN DE PUERTOS
-                if (!formData.puerto_embarque) {
-                    Swal.fire({
-                        icon: "warning",
-                        title: "Campo requerido",
-                        text: "Debes seleccionar el puerto de embarque",
-                        confirmButtonColor: "#0F2A44"
-                    });
-                    return false;
-                }
-                if (!formData.puerto_descarga) {
-                    Swal.fire({
-                        icon: "warning",
-                        title: "Campo requerido",
-                        text: "Debes seleccionar el puerto de descarga",
-                        confirmButtonColor: "#0F2A44"
-                    });
-                    return false;
+                
+             
+        
                 }
                 break;
 
@@ -261,15 +245,7 @@ const ExpoBLEdit = () => {
                     });
                     return false;
                 }
-                if (!formData.volumen || parseFloat(formData.volumen) <= 0) {
-                    Swal.fire({
-                        icon: "warning",
-                        title: "Campo requerido",
-                        text: "El volumen debe ser mayor a 0",
-                        confirmButtonColor: "#0F2A44"
-                    });
-                    return false;
-                }
+              
                 if (!formData.bultos || parseInt(formData.bultos) <= 0) {
                     Swal.fire({
                         icon: "warning",

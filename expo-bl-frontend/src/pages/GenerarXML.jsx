@@ -68,16 +68,27 @@ const GenerarXML = () => {
       errors.push("Falta Consignee");
     }
     
-    if (!bl.puerto_embarque && !bl.puerto_embarque_codigo) {
+    if (!bl.puerto_embarque && !bl.puerto_embarque_cod) {
       errors.push("Falta Puerto de Embarque (POL)");
     }
     
-    if (!bl.puerto_descarga && !bl.puerto_descarga_codigo) {
+    if (!bl.puerto_descarga && !bl.puerto_descarga_cod) {
       errors.push("Falta Puerto de Descarga (POD)");
     }
 
-    if (!bl.lugar_emision && !bl.lugar_emision_codigo) {
+    if (!bl.lugar_emision && !bl.lugar_emision_cod) {
       errors.push("Falta Lugar de Emisión (LE)");
+    }
+       if (!bl.lugar_destino && !bl.lugar_destino_cod) {
+      errors.push("Falta Lugar de Destino (LD)");
+    }
+
+    if (!bl.lugar_entrega && !bl.lugar_entrega_cod) {
+      errors.push("Falta Lugar de Entrega (LEM)");
+    }
+
+    if (!bl.lugar_recepcion && !bl.lugar_recepcion_cod) {
+      errors.push("Falta Lugar de Recepción (LRM)");
     }
     
     // Warnings (pueden generar XML pero con datos incompletos)
