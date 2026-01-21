@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
+import { AlertCircle, Ship } from "lucide-react";
 
 const estadoStyles = {
     "CREADO": "bg-blue-100 text-blue-800 ring-blue-200",
@@ -32,8 +33,10 @@ const ExpoBLDetail = () => {
     const [bl, setBl] = useState(null);
     const [items, setItems] = useState([]);
     const [contenedores, setContenedores] = useState([]);
+    const [transbordos, setTransbordos] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [puertosNoRegistrados, setPuertosNoRegistrados] = useState([]);
 
     useEffect(() => {
         const fetchBLDetail = async () => {
@@ -53,6 +56,27 @@ const ExpoBLDetail = () => {
                     setItems(dataItems.items || []);
                     setContenedores(dataItems.contenedores || []);
                 }
+
+                // 🆕 Fetch transbordos
+                const resTransbordos = await fetch(`http://localhost:4000/bls/${blNumber}/transbordos`);
+                if (resTransbordos.ok) {
+                    const dataTransbordos = await resTransbordos.json();
+                    setTransbordos(dataTransbordos || []);
+                }
+
+                // 🆕 Detectar puertos no registrados
+                const puertosNulos = [];
+                if (!data.lugar_emision_id && data.lugar_emision_cod) {
+                    puertosNulos.push({ tipo: "Lugar Emisión", codigo: data.lugar_emision_cod });
+                }
+                if (!data.puerto_embarque_id && data.puerto_embarque_cod) {
+                    puertosNulos.push({ tipo: "Puerto Embarque", codigo: data.puerto_embarque_cod });
+                }
+                if (!data.puerto_descarga_id && data.puerto_descarga_cod) {
+                    puertosNulos.push({ tipo: "Puerto Descarga", codigo: data.puerto_descarga_cod });
+                }
+                
+                setPuertosNoRegistrados(puertosNulos);
             } catch (e) {
                 setError(e?.message || "Error desconocido");
                 setBl(null);
@@ -139,6 +163,36 @@ const ExpoBLDetail = () => {
                     </div>
                 </div>
 
+                {/* 🆕 Alerta de puertos no registrados */}
+                {puertosNoRegistrados.length > 0 && (
+                    <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                        <div className="flex items-start gap-3">
+                            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                                <h3 className="text-sm font-semibold text-amber-800 mb-2">
+                                    Puertos no registrados en el sistema
+                                </h3>
+                                <div className="space-y-1 mb-3">
+                                    {puertosNoRegistrados.map((p, idx) => (
+                                        <p key={idx} className="text-sm text-amber-700">
+                                            • <strong>{p.tipo}:</strong> {p.codigo}
+                                        </p>
+                                    ))}
+                                </div>
+                                <p className="text-sm text-amber-700">
+                                    Para que estos puertos aparezcan correctamente, debes registrarlos en:{" "}
+                                    <button
+                                        onClick={() => navigate("/mantenedores/puertos")}
+                                        className="font-semibold underline hover:text-amber-900"
+                                    >
+                                        Mantenedores → Puertos
+                                    </button>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Información General */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
                     <h2 className="text-lg font-semibold text-[#0F2A44] mb-4">
@@ -223,6 +277,50 @@ const ExpoBLDetail = () => {
                     </div>
                 </div>
 
+                {/* 🆕 Transbordos */}
+                {transbordos.length > 0 && (
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+                        <div className="flex items-center gap-2 mb-4">
+                            <Ship className="w-5 h-5 text-[#0F2A44]" />
+                            <h2 className="text-lg font-semibold text-[#0F2A44]">
+                                Transbordos ({transbordos.length})
+                            </h2>
+                        </div>
+
+                        <div className="space-y-3">
+                            {transbordos.map((tb, idx) => (
+                                <div 
+                                    key={tb.id}
+                                    className="flex items-center gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200"
+                                >
+                                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[#0F2A44] text-white text-sm font-bold">
+                                        {idx + 1}
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-sm font-medium text-slate-900">
+                                            {tb.puerto_nombre || tb.puerto_cod}
+                                        </p>
+                                        <p className="text-xs text-slate-500">
+                                            Código: {tb.puerto_cod}
+                                        </p>
+                                    </div>
+                                    {!tb.puerto_id && (
+                                        <span className="px-2 py-1 rounded bg-amber-100 text-amber-800 text-xs font-medium">
+                                            No registrado
+                                        </span>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                            <p className="text-xs text-blue-700">
+                                <strong>Ruta completa:</strong> {bl.puerto_embarque || "—"} → {transbordos.map(t => t.puerto_cod).join(" → ")} → {bl.puerto_descarga || "—"}
+                            </p>
+                        </div>
+                    </div>
+                )}
+
                 {/* Carga */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
                     <h2 className="text-lg font-semibold text-[#0F2A44] mb-4">
@@ -263,89 +361,89 @@ const ExpoBLDetail = () => {
                     </div>
                 </div>
 
- {/* Ítems del BL */}
-{items.length > 0 && (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
-        <h2 className="text-lg font-semibold text-[#0F2A44] mb-4">
-            Ítems del BL ({items.length})
-        </h2>
-        
-        <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
-                    <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Item</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Descripción</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Marcas</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Contenedores</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Tipo Bulto</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Cantidad</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Peso</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Volumen</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Peligrosa</th>
-                    </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-slate-200">
-                    {items.map((item) => (
-                        <tr key={item.id} className="hover:bg-slate-50">
-                            <td className="px-4 py-3 text-sm font-medium text-slate-900">
-                                {item.numero_item}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-slate-600 max-w-md">
-                                <div className="line-clamp-2" title={item.descripcion}>
-                                    {item.descripcion || "—"}
-                                </div>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-slate-600 max-w-xs">
-                                <div className="line-clamp-1" title={item.marcas}>
-                                    {item.marcas || "—"}
-                                </div>
-                            </td>
-                            <td className="px-4 py-3 text-sm">
-                                {item.contenedores && item.contenedores.length > 0 ? (
-                                    <div className="flex flex-col gap-1">
-                                        {item.contenedores.map((cont, idx) => (
-                                            <span 
-                                                key={idx}
-                                                className="inline-flex items-center px-2 py-1 rounded bg-indigo-100 text-indigo-800 text-xs font-mono font-medium"
-                                                title={`Tipo: ${cont.tipo_cnt || 'N/A'}`}
-                                            >
-                                                {cont.codigo}
-                                            </span>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <span className="text-slate-400 text-xs">Sin contenedores</span>
-                                )}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-slate-900">
-                                {item.tipo_bulto || "—"}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-slate-900">
-                                {item.cantidad || "—"}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-slate-900">
-                                {formatNumber(item.peso_bruto)} {item.unidad_peso || ""}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-slate-900">
-                                {formatNumber(item.volumen)} {item.unidad_volumen || ""}
-                            </td>
-                            <td className="px-4 py-3 text-sm">
-                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                    item.carga_peligrosa === 'S' 
-                                        ? 'bg-red-100 text-red-800' 
-                                        : 'bg-green-100 text-green-800'
-                                }`}>
-                                    {item.carga_peligrosa === 'S' ? 'Sí' : 'No'}
-                                </span>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    </div>
-)}
+                {/* Ítems del BL */}
+                {items.length > 0 && (
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+                        <h2 className="text-lg font-semibold text-[#0F2A44] mb-4">
+                            Ítems del BL ({items.length})
+                        </h2>
+                        
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-slate-200">
+                                <thead className="bg-slate-50">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Item</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Descripción</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Marcas</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Contenedores</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Tipo Bulto</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Cantidad</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Peso</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Volumen</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Peligrosa</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-slate-200">
+                                    {items.map((item) => (
+                                        <tr key={item.id} className="hover:bg-slate-50">
+                                            <td className="px-4 py-3 text-sm font-medium text-slate-900">
+                                                {item.numero_item}
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-slate-600 max-w-md">
+                                                <div className="line-clamp-2" title={item.descripcion}>
+                                                    {item.descripcion || "—"}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-slate-600 max-w-xs">
+                                                <div className="line-clamp-1" title={item.marcas}>
+                                                    {item.marcas || "—"}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3 text-sm">
+                                                {item.contenedores && item.contenedores.length > 0 ? (
+                                                    <div className="flex flex-col gap-1">
+                                                        {item.contenedores.map((cont, idx) => (
+                                                            <span 
+                                                                key={idx}
+                                                                className="inline-flex items-center px-2 py-1 rounded bg-indigo-100 text-indigo-800 text-xs font-mono font-medium"
+                                                                title={`Tipo: ${cont.tipo_cnt || 'N/A'}`}
+                                                            >
+                                                                {cont.codigo}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-slate-400 text-xs">Sin contenedores</span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-slate-900">
+                                                {item.tipo_bulto || "—"}
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-slate-900">
+                                                {item.cantidad || "—"}
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-slate-900">
+                                                {formatNumber(item.peso_bruto)} {item.unidad_peso || ""}
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-slate-900">
+                                                {formatNumber(item.volumen)} {item.unidad_volumen || ""}
+                                            </td>
+                                            <td className="px-4 py-3 text-sm">
+                                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                                    item.carga_peligrosa === 'S' 
+                                                        ? 'bg-red-100 text-red-800' 
+                                                        : 'bg-green-100 text-green-800'
+                                                }`}>
+                                                    {item.carga_peligrosa === 'S' ? 'Sí' : 'No'}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
 
                 {/* Contenedores */}
                 {contenedores.length > 0 && (

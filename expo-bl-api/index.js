@@ -4300,7 +4300,45 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
   }
 });
 
+// 🆕 GET /bls/:blNumber/transbordos
+// Obtener transbordos de un BL específico
+app.get("/bls/:blNumber/transbordos", async (req, res) => {
+  try {
+    const { blNumber } = req.params;
 
+    // 1) Obtener bl_id
+    const [blRows] = await pool.query(
+      "SELECT id FROM bls WHERE bl_number = ? LIMIT 1",
+      [blNumber]
+    );
+
+    if (blRows.length === 0) {
+      return res.status(404).json({ error: "BL no encontrado" });
+    }
+
+    const blId = blRows[0].id;
+
+    // 2) Obtener transbordos con info del puerto
+    const [transbordos] = await pool.query(`
+      SELECT 
+        t.id,
+        t.sec,
+        t.puerto_cod,
+        t.puerto_id,
+        p.nombre AS puerto_nombre,
+        p.pais AS puerto_pais
+      FROM bl_transbordos t
+      LEFT JOIN puertos p ON t.puerto_id = p.id
+      WHERE t.bl_id = ?
+      ORDER BY t.sec ASC
+    `, [blId]);
+
+    res.json(transbordos);
+  } catch (error) {
+    console.error("Error al obtener transbordos:", error);
+    res.status(500).json({ error: "Error al obtener transbordos" });
+  }
+}); 
 // ============================================
 // INICIAR SERVIDOR
 // ============================================
