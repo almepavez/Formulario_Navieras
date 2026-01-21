@@ -1728,58 +1728,6 @@ function parseLine56(raw) {
   return { itemNo, seqNo, un, clase };
 }
 
-
-
-
-function itemNoFromLine(line, tag) {
-  // tag "41"/"44"/"47" con formato: "41   001 ...."
-  const m = String(line || "").match(new RegExp(`^${tag}\\s+(\\d{3})`));
-  return m ? parseInt(m[1], 10) : null;
-}
-
-function extractItemNumbersSet(bLines) {
-  const set = new Set();
-  for (const t of ["41", "44", "47"]) {
-    for (const l of pickAll(bLines, t)) {
-      const n = itemNoFromLine(l, t);
-      if (n) set.add(n);
-    }
-  }
-  return [...set].sort((a, b) => a - b);
-}
-
-function extractMarcasForItem(lines44, itemNo) {
-  return lines44
-    .filter(l => itemNoFromLine(l, "44") === itemNo)
-    .map(l => String(l).replace(/^44\s+\d{3}/, "").trim())
-    .filter(Boolean)
-    .join(" | ") || null;
-}
-
-function extractDescripcionForItem(lines47, itemNo) {
-  return lines47
-    .filter(l => itemNoFromLine(l, "47") === itemNo)
-    .map(l => String(l).replace(/^47\s+\d{3}/, "").trim())
-    .filter(Boolean)
-    .join(" ") || null;
-}
-
-// Si ya tienes extractWeightVolumeFrom41 / extractUnitsFrom41, úsalas acá.
-function extractPesoVolDesde41(lines41, itemNo) {
-  const l41 = lines41.find(l => itemNoFromLine(l, "41") === itemNo);
-  if (!l41) return { peso_bruto: null, volumen: null, unidad_peso: null, unidad_volumen: null };
-
-  const { peso, volumen } = extractWeightVolumeFrom41(l41) || {};
-  const u = extractUnitsFrom41(l41) || {};
-
-  return {
-    peso_bruto: typeof peso === "number" ? peso : null,
-    volumen: typeof volumen === "number" ? volumen : null,
-    unidad_peso: u.unidadPeso || null,
-    unidad_volumen: u.unidadVolumen || null,
-  };
-}
-
 function parseLine51(raw) {
   const line = String(raw || "").toUpperCase();
 
@@ -1876,6 +1824,10 @@ function parseLine51(raw) {
     volumen,
     unidad_volumen,
     sellos,
+
+    // ===== defaults seguridad (punto 3) =====
+    _hasLinea56: false,
+    imo: [],
   };
 }
 
@@ -1888,69 +1840,19 @@ function extractContainersFrom51(lines51) {
 
   for (const l of lines51) {
     const c = parseLine51(l);
-    if (c) out.push(c);
+    if (!c) continue;
+
+    // Defaults (punto 3)
+    c._hasLinea56 = false;
+    c.imo = Array.isArray(c.imo) ? c.imo : [];
+
+    out.push(c);
   }
 
   const seen = new Set();
   return out.filter(c => c.codigo && !seen.has(c.codigo) && seen.add(c.codigo));
 }
 
-function splitContainerCode(iso11) {
-  const s = String(iso11 || "").trim().toUpperCase();
-  const m = s.match(/^([A-Z]{4})(\d{6})(\d)$/);
-  if (!m) return { codigo: null, sigla: null, numero: null, digito: null };
-  return { codigo: m[1] + m[2] + m[3], sigla: m[1], numero: m[2], digito: m[3] };
-}
-
-function extractTipoCntFrom51(line) {
-  const s = String(line || "").toUpperCase();
-
-  // Caso real PMS: ...N45G1F... / ...N45R1F...
-  // (no hay espacios, así que NO uses \b)
-  let m = s.match(/N(\d{2}[A-Z]\d)/);  // 45G1, 45R1, 22G1, etc
-  if (m) return m[1];
-
-  // Fallback por si alguna vez viene sin N (raro, pero seguro)
-  m = s.match(/(\d{2}[A-Z]\d)/);
-  return m ? m[1] : null;
-}
-
-
-function extractSellosFrom51(line) {
-  // Heurística segura:
-  // - después del tipo de empaque (PE/CT/CS/PK/etc) suelen venir 1..n sellos
-  // - en tu PMS: "PE   243379              CL006167"
-  const s = String(line || "");
-
-  // Intento 1: capturar segmento luego de " PE " (o CT/CS/PK) hasta fin
-  const m = s.match(/\b(?:PE|CT|CS|PK|BX|BG)\b([\s\S]*)$/);
-  if (!m) return [];
-
-  const tail = m[1];
-
-  // Tokens: alfanuméricos “de sello” (6 a 35 chars), descartando basura típica
-  const tokens = tail
-    .split(/\s+/)
-    .map(t => t.trim())
-    .filter(Boolean)
-    .filter(t => /^[A-Z0-9-]{6,35}$/i.test(t))
-    .filter(t => !/^(KGM|MTQ|PCS|PACKAGE|CARTON|PALLET|BAG|CASE|CT|CS|PE)$/i.test(t));
-
-  // Dedupe preservando orden
-  const out = [];
-  const seen = new Set();
-  for (const t of tokens) {
-    const up = t.toUpperCase();
-    if (!seen.has(up)) {
-      seen.add(up);
-      out.push(up);
-    }
-  }
-
-  // OJO: si por algún PMS raro se “cuelan” tokens que no son sellos,
-  // igual no rompe nada: solo insertas sellos válidos si quieres.
-  return out;
-}
 
 function extractServiceCodeFrom12(line12) {
   // Ej: "... TWKHHCLVAPFF  YY ..." -> FF
@@ -2049,21 +1951,6 @@ function extractVolumeFrom51(line51) {
   return n / 1000; // 017920 => 17.920
 }
 
-function sumVolumeFrom51(lines51) {
-  let sum = 0;
-  let found = false;
-
-  for (const l of lines51) {
-    const v = extractVolumeFrom51(l);
-    if (typeof v === "number") {
-      sum += v;
-      found = true;
-    }
-  }
-
-  // redondeo a 3 decimales para decimal(12,3)
-  return found ? Math.round(sum * 1000) / 1000 : null;
-}
 
 // Agrupa en bloques BL, pero “arrastra” el último 00 y 11 hacia cada bloque
 function splitIntoBLBlocks(lines) {
@@ -2349,6 +2236,9 @@ function parsePmsTxt(content) {
           Number(x.itemNo) === Number(c.itemNo) &&
           Number(x.seqNo) === Number(c.seqNo)
         );
+
+        c._hasLinea56 = hits.length > 0;
+
         c.imo = hits.map(h => ({ clase_imo: h.clase, numero_imo: h.un }));
       }
 
@@ -2359,8 +2249,8 @@ function parsePmsTxt(content) {
 
         it.cantidad = contsDelItem.length || null;
 
-        const tieneIMO = contsDelItem.some(c => Array.isArray(c.imo) && c.imo.length > 0);
-        it.carga_peligrosa = tieneIMO ? "S" : "N";
+        const tieneLinea56 = contsDelItem.some(c => c._hasLinea56 === true);
+        it.carga_peligrosa = tieneLinea56 ? "S" : "N";
       }
 
       const lugar_recepcion_cod = puertoEmbarqueCod; // LRM
@@ -2503,7 +2393,6 @@ async function insertImo(conn, blId, contenedorId, itemNo, imoArr, codigoCont = 
 }
 
 const isBlank = (v) => v == null || String(v).trim() === "";
-const isNumBad = (v) => v == null || Number.isNaN(Number(v));
 const num = (v) => {
   if (v == null) return null;
   const n = Number(v);
