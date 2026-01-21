@@ -5,10 +5,11 @@ import Sidebar from "../components/Sidebar";
 
 const steps = [
     { id: 1, name: "General", description: "Información básica del BL" },
-    { id: 2, name: "Addr.", description: "Shipper, Consignee, Notify" },
-    { id: 3, name: "Carga", description: "Descripción y medidas" },
-    { id: 4, name: "Items", description: "Ítems y contenedores" },
-    { id: 5, name: "Revisión", description: "Confirmar cambios" }
+    { id: 2, name: "Rutas", description: "Puertos y transbordos" },
+    { id: 3, name: "Addr.", description: "Shipper, Consignee, Notify" },
+    { id: 4, name: "Carga", description: "Descripción y medidas" },
+    { id: 5, name: "Items", description: "Ítems y contenedores" },
+    { id: 6, name: "Revisión", description: "Confirmar cambios" }
 ];
 
 const ExpoBLEdit = () => {
@@ -18,9 +19,11 @@ const ExpoBLEdit = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
-    const [puertos, setPuertos] = useState([]); 
+    const [puertos, setPuertos] = useState([]);
     const [items, setItems] = useState([]);
     const [contenedores, setContenedores] = useState([]);
+    const [transbordos, setTransbordos] = useState([]);
+    
 
     // Estado del formulario
     const [formData, setFormData] = useState({
@@ -30,8 +33,8 @@ const ExpoBLEdit = () => {
         fecha_emision: "",
         fecha_zarpe: "",
         fecha_embarque: "",
-        puerto_embarque: "",      
-        puerto_descarga: "",      
+        puerto_embarque: "",
+        puerto_descarga: "",
         shipper: "",
         consignee: "",
         notify_party: "",
@@ -52,26 +55,26 @@ const ExpoBLEdit = () => {
                     throw new Error(`Error ${resBL.status}: No se pudo cargar el BL`);
                 }
                 const dataBL = await resBL.json();
-                
+
                 // 🆕 Cargar lista de puertos
                 const resPuertos = await fetch(`http://localhost:4000/puertos`);
                 if (resPuertos.ok) {
                     const dataPuertos = await resPuertos.json();
                     setPuertos(dataPuertos);
                 }
-                
+
                 // Función para convertir fecha MySQL a formato input[type="date"]
                 const formatDate = (mysqlDate) => {
                     if (!mysqlDate) return "";
                     return mysqlDate.split("T")[0];
                 };
-                
+
                 // Función para convertir datetime MySQL a formato input[type="datetime-local"]
                 const formatDateTime = (mysqlDateTime) => {
                     if (!mysqlDateTime) return "";
                     return mysqlDateTime.substring(0, 16);
                 };
-                
+
                 // Mapear datos del BL al formulario
                 setFormData({
                     bl_number: dataBL.bl_number || "",
@@ -81,7 +84,7 @@ const ExpoBLEdit = () => {
                     fecha_zarpe: formatDateTime(dataBL.fecha_zarpe),
                     fecha_embarque: formatDateTime(dataBL.fecha_embarque),
                     puerto_embarque: dataBL.puerto_embarque_codigo || "",  // 🆕 NUEVO
-                    puerto_descarga: dataBL.puerto_descarga_codigo || "",  
+                    puerto_descarga: dataBL.puerto_descarga_codigo || "",
                     shipper: dataBL.shipper || "",
                     consignee: dataBL.consignee || "",
                     notify_party: dataBL.notify_party || "",
@@ -98,10 +101,16 @@ const ExpoBLEdit = () => {
                     setItems(dataItems.items || []);
                     setContenedores(dataItems.contenedores || []);
                 }
+                // 🆕 Cargar transbordos
+                const resTransbordos = await fetch(`http://localhost:4000/bls/${blNumber}/transbordos`);
+                if (resTransbordos.ok) {
+                    const dataTransbordos = await resTransbordos.json();
+                    setTransbordos(dataTransbordos || []);
+                }
             } catch (e) {
                 console.error("Error completo:", e);
                 setError(e?.message || "Error desconocido");
-                
+
                 Swal.fire({
                     icon: "error",
                     title: "Error al cargar BL",
@@ -122,12 +131,51 @@ const ExpoBLEdit = () => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
-const updateItem = (itemId, field, value) => {
+   const updateItem = (itemId, field, value) => {
         setItems(prevItems =>
             prevItems.map(item =>
                 item.id === itemId ? { ...item, [field]: value } : item
             )
         );
+    };
+
+   
+    // 🆕 Función para actualizar transbordo
+    const updateTransbordo = (id, puertoCod) => {
+        setTransbordos(prev => prev.map(tb => {
+            if (tb.id === id) {
+                const puerto = puertos.find(p => p.codigo === puertoCod);
+                return {
+                    ...tb,
+                    puerto_cod: puertoCod,
+                    puerto_id: puerto?.id || null,
+                    puerto_nombre: puerto?.nombre || null
+                };
+            }
+            return tb;
+        }));
+    };
+
+    // 🆕 Función para eliminar transbordo
+    const removeTransbordo = (id) => {
+        Swal.fire({
+            title: "¿Eliminar transbordo?",
+            text: "Esta acción no se puede deshacer",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Sí, eliminar",
+            cancelButtonText: "Cancelar",
+            confirmButtonColor: "#ef4444",
+            cancelButtonColor: "#64748b"
+        }).then((result) => {
+            if (result.isConfirmed) {
+                setTransbordos(prev => {
+                    const filtered = prev.filter(tb => tb.id !== id);
+                    // Reordenar sec
+                    return filtered.map((tb, idx) => ({ ...tb, sec: idx + 1 }));
+                });
+            }
+        });
     };
     // ✅ VALIDACIONES
     const validateStep = (step) => {
@@ -241,7 +289,7 @@ const updateItem = (itemId, field, value) => {
                 }
                 break;
 
-                case 4: // Items
+            case 4: // Items
                 if (items.length === 0) {
                     Swal.fire({
                         icon: "warning",
@@ -276,7 +324,7 @@ const updateItem = (itemId, field, value) => {
 
         setSaving(true);
         setError("");
-        
+
         try {
             const formatToMysql = (dateTimeLocal) => {
                 if (!dateTimeLocal) return null;
@@ -307,7 +355,7 @@ const updateItem = (itemId, field, value) => {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(dataToSend)
             });
-            
+
             if (!res.ok) {
                 const errorData = await res.json();
                 throw new Error(errorData.error || "Error al guardar");
@@ -324,38 +372,49 @@ const updateItem = (itemId, field, value) => {
                     console.warn("Error al actualizar items (no crítico)");
                 }
             }
-            
-         await Swal.fire({
-    icon: "success",
-    title: "¡Cambios guardados!",
-    html: `
+            // 🆕 Guardar transbordos
+            if (transbordos.length > 0) {
+                const resTransbordos = await fetch(`http://localhost:4000/bls/${blNumber}/transbordos`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ transbordos })
+                });
+
+                if (!resTransbordos.ok) {
+                    console.warn("Error al actualizar transbordos (no crítico)");
+                }
+            }
+            await Swal.fire({
+                icon: "success",
+                title: "¡Cambios guardados!",
+                html: `
         <p class="text-sm text-gray-600">El BL <strong>${formData.bl_number}</strong> se actualizó correctamente</p>
     `,
-    timer: 2000,
-    showConfirmButton: false
-});
+                timer: 2000,
+                showConfirmButton: false
+            });
 
-// 🔥 REDIRECCIÓN INTELIGENTE CON DEBUG
-const params = new URLSearchParams(window.location.search);
-const returnTo = params.get('returnTo');
-const manifestId = params.get('manifestId');
+            // 🔥 REDIRECCIÓN INTELIGENTE CON DEBUG
+            const params = new URLSearchParams(window.location.search);
+            const returnTo = params.get('returnTo');
+            const manifestId = params.get('manifestId');
 
-console.log('=== DEBUG GUARDAR ===');
-console.log('URL:', window.location.href);
-console.log('returnTo:', returnTo);
-console.log('manifestId:', manifestId);
+            console.log('=== DEBUG GUARDAR ===');
+            console.log('URL:', window.location.href);
+            console.log('returnTo:', returnTo);
+            console.log('manifestId:', manifestId);
 
-if (returnTo === 'xml-preview' && manifestId) {
-  console.log('✅ Redirigiendo a XML');
-  navigate(`/manifiestos/${manifestId}/generar-xml`);
-} else {
-  console.log('ℹ️ Redirigiendo a detalle');
-  navigate(`/expo/detail/${blNumber}`);
-}
+            if (returnTo === 'xml-preview' && manifestId) {
+                console.log('✅ Redirigiendo a XML');
+                navigate(`/manifiestos/${manifestId}/generar-xml`);
+            } else {
+                console.log('ℹ️ Redirigiendo a detalle');
+                navigate(`/expo/detail/${blNumber}`);
+            }
         } catch (e) {
             console.error("Error al guardar:", e);
             setError(e?.message || "Error al guardar");
-            
+
             Swal.fire({
                 icon: "error",
                 title: "Error al guardar",
@@ -425,30 +484,30 @@ if (returnTo === 'xml-preview' && manifestId) {
             <main className="flex-1 p-10">
                 {/* Header */}
                 <div className="mb-6">
-                  
-<button
-  onClick={() => {
-    const params = new URLSearchParams(window.location.search);
-    const returnTo = params.get('returnTo');
-    const manifestId = params.get('manifestId');
-    
-    console.log('=== DEBUG VOLVER ===');
-    console.log('URL:', window.location.href);
-    console.log('returnTo:', returnTo);
-    console.log('manifestId:', manifestId);
-    
-    if (returnTo === 'xml-preview' && manifestId) {
-      console.log('✅ Volviendo a XML');
-      navigate(`/manifiestos/${manifestId}/generar-xml`);
-    } else {
-      console.log('ℹ️ Volviendo a detalle');
-      navigate(`/expo/detail/${blNumber}`);
-    }
-  }}
-  className="text-sm text-slate-500 hover:text-slate-800 mb-2"
->
-  ← Volver
-</button>
+
+                    <button
+                        onClick={() => {
+                            const params = new URLSearchParams(window.location.search);
+                            const returnTo = params.get('returnTo');
+                            const manifestId = params.get('manifestId');
+
+                            console.log('=== DEBUG VOLVER ===');
+                            console.log('URL:', window.location.href);
+                            console.log('returnTo:', returnTo);
+                            console.log('manifestId:', manifestId);
+
+                            if (returnTo === 'xml-preview' && manifestId) {
+                                console.log('✅ Volviendo a XML');
+                                navigate(`/manifiestos/${manifestId}/generar-xml`);
+                            } else {
+                                console.log('ℹ️ Volviendo a detalle');
+                                navigate(`/expo/detail/${blNumber}`);
+                            }
+                        }}
+                        className="text-sm text-slate-500 hover:text-slate-800 mb-2"
+                    >
+                        ← Volver
+                    </button>
                     <h1 className="text-2xl font-semibold text-slate-900">
                         Editar BL: {formData.bl_number}
                     </h1>
@@ -613,9 +672,128 @@ if (returnTo === 'xml-preview' && manifestId) {
                             </div>
                         </div>
                     )}
-
-                    {/* STEP 2: DIRECCIONES */}
+                    {/* STEP 2: RUTAS Y TRANSBORDOS */}
                     {currentStep === 2 && (
+                        <div className="space-y-8">
+                            {/* Puertos Principales */}
+                            <div className="border-b pb-6">
+                                <h3 className="font-semibold text-slate-800 mb-4">
+                                    Puertos Principales
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Puerto Embarque */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            Puerto Embarque <span className="text-red-500">*</span>
+                                        </label>
+                                        <select
+                                            value={formData.puerto_embarque}
+                                            onChange={(e) => updateField("puerto_embarque", e.target.value)}
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
+                                        >
+                                            <option value="">Seleccionar puerto...</option>
+                                            {puertos.map(puerto => (
+                                                <option key={puerto.id} value={puerto.codigo}>
+                                                    {puerto.codigo} - {puerto.nombre}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Puerto Descarga */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            Puerto Descarga <span className="text-red-500">*</span>
+                                        </label>
+                                        <select
+                                            value={formData.puerto_descarga}
+                                            onChange={(e) => updateField("puerto_descarga", e.target.value)}
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
+                                        >
+                                            <option value="">Seleccionar puerto...</option>
+                                            {puertos.map(puerto => (
+                                                <option key={puerto.id} value={puerto.codigo}>
+                                                    {puerto.codigo} - {puerto.nombre}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Transbordos */}
+                            <div>
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="font-semibold text-slate-800">
+                                        Transbordos ({transbordos.length})
+                                    </h3>
+                                   
+                                </div>
+
+                                {transbordos.length === 0 ? (
+                                    <div className="text-center py-8 bg-slate-50 rounded-lg border-2 border-dashed border-slate-300">
+                                        <p className="text-slate-500 text-sm">
+                                            Este BL no tiene transbordos. Haz clic en "Agregar Transbordo" para añadir uno.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {transbordos.map((tb, idx) => (
+                                            <div
+                                                key={tb.id}
+                                                className="flex items-center gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200"
+                                            >
+                                                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white text-sm font-bold flex-shrink-0">
+                                                    {idx + 1}
+                                                </div>
+
+                                                <div className="flex-1">
+                                                    <select
+                                                        value={tb.puerto_cod}
+                                                        onChange={(e) => updateTransbordo(tb.id, e.target.value)}
+                                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500"
+                                                    >
+                                                        <option value="">Seleccionar puerto...</option>
+                                                        {puertos.map(puerto => (
+                                                            <option key={puerto.id} value={puerto.codigo}>
+                                                                {puerto.codigo} - {puerto.nombre}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeTransbordo(tb.id)}
+                                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                    title="Eliminar transbordo"
+                                                >
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Ruta completa preview */}
+                                {transbordos.length > 0 && (
+                                    <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                        <p className="text-xs text-blue-700">
+                                            <strong>Ruta completa:</strong> {formData.puerto_embarque || "?"} → {transbordos.map(t => t.puerto_cod || "?").join(" → ")} → {formData.puerto_descarga || "?"}
+                                        </p>
+                                    </div>
+                                )}
+
+                                <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
+                                    <strong>Nota:</strong> Si un puerto no aparece en la lista, ve a <strong>Mantenedores → Puertos</strong> para agregarlo.
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    {/* STEP 3: DIRECCIONES */}
+                    {currentStep === 3 && (
                         <div className="space-y-8">
                             <div className="border-b pb-6">
                                 <h3 className="font-semibold text-slate-800 mb-4">
@@ -661,8 +839,8 @@ if (returnTo === 'xml-preview' && manifestId) {
                         </div>
                     )}
 
-                    {/* STEP 3: CARGA */}
-                    {currentStep === 3 && (
+                    {/* STEP 4: CARGA */}
+                    {currentStep === 4 && (
                         <div className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div>
@@ -718,8 +896,8 @@ if (returnTo === 'xml-preview' && manifestId) {
                             </div>
                         </div>
                     )}
-{/* STEP 4: ITEMS Y CONTENEDORES */}
-                    {currentStep === 4 && (
+                    {/* STEP 5: ITEMS Y CONTENEDORES */}
+                    {currentStep === 5 && (
                         <div className="space-y-6">
                             {items.length === 0 ? (
                                 <div className="text-center py-8 text-slate-500">
@@ -850,8 +1028,8 @@ if (returnTo === 'xml-preview' && manifestId) {
                             </div>
                         </div>
                     )}
-                    {/* STEP 5: REVISIÓN */}
-                    {currentStep === 5 && (
+                    {/* STEP 6: REVISIÓN */}
+                    {currentStep === 6 && (
                         <div className="space-y-6">
                             <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
                                 <h3 className="font-semibold text-blue-900 mb-4 text-lg">
