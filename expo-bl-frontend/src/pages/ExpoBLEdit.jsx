@@ -23,7 +23,7 @@ const ExpoBLEdit = () => {
     const [items, setItems] = useState([]);
     const [contenedores, setContenedores] = useState([]);
     const [transbordos, setTransbordos] = useState([]);
-    
+
 
     // Estado del formulario
     const [formData, setFormData] = useState({
@@ -33,6 +33,13 @@ const ExpoBLEdit = () => {
         fecha_emision: "",
         fecha_zarpe: "",
         fecha_embarque: "",
+        // 🆕 AGREGAR ESTOS 6 CAMPOS
+        lugar_emision: "",
+        puerto_embarque: "",
+        puerto_descarga: "",
+        lugar_destino: "",
+        lugar_entrega: "",
+        lugar_recepcion: "",
         puerto_embarque: "",
         puerto_descarga: "",
         shipper: "",
@@ -84,6 +91,13 @@ const ExpoBLEdit = () => {
                     fecha_zarpe: formatDateTime(dataBL.fecha_zarpe),
                     fecha_embarque: formatDateTime(dataBL.fecha_embarque),
                     puerto_embarque: dataBL.puerto_embarque_codigo || "",  // 🆕 NUEVO
+                    // 🆕 MAPEAR LOS 6 CAMPOS
+                    lugar_emision: dataBL.lugar_emision_cod || "",
+                    puerto_embarque: dataBL.puerto_embarque_cod || "",
+                    puerto_descarga: dataBL.puerto_descarga_cod || "",
+                    lugar_destino: dataBL.lugar_destino_cod || "",
+                    lugar_entrega: dataBL.lugar_entrega_cod || "",
+                    lugar_recepcion: dataBL.lugar_recepcion_cod || "",
                     puerto_descarga: dataBL.puerto_descarga_codigo || "",
                     shipper: dataBL.shipper || "",
                     consignee: dataBL.consignee || "",
@@ -131,7 +145,7 @@ const ExpoBLEdit = () => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
-   const updateItem = (itemId, field, value) => {
+    const updateItem = (itemId, field, value) => {
         setItems(prevItems =>
             prevItems.map(item =>
                 item.id === itemId ? { ...item, [field]: value } : item
@@ -139,7 +153,7 @@ const ExpoBLEdit = () => {
         );
     };
 
-   
+
     // 🆕 Función para actualizar transbordo
     const updateTransbordo = (id, puertoCod) => {
         setTransbordos(prev => prev.map(tb => {
@@ -220,30 +234,21 @@ const ExpoBLEdit = () => {
                 }
                 break;
 
-            case 2: // Direcciones
-                if (!formData.shipper || formData.shipper.trim().length < 5) {
+            case 2: // Rutas
+                if (!formData.puerto_embarque) {
                     Swal.fire({
                         icon: "warning",
                         title: "Campo requerido",
-                        text: "Debes completar la información del Shipper (mínimo 5 caracteres)",
+                        text: "Debes seleccionar el puerto de embarque",
                         confirmButtonColor: "#0F2A44"
                     });
                     return false;
                 }
-                if (!formData.consignee || formData.consignee.trim().length < 5) {
+                if (!formData.puerto_descarga) {
                     Swal.fire({
                         icon: "warning",
                         title: "Campo requerido",
-                        text: "Debes completar la información del Consignatario (mínimo 5 caracteres)",
-                        confirmButtonColor: "#0F2A44"
-                    });
-                    return false;
-                }
-                if (!formData.notify_party || formData.notify_party.trim().length < 5) {
-                    Swal.fire({
-                        icon: "warning",
-                        title: "Campo requerido",
-                        text: "Debes completar la información del Notify Party (mínimo 5 caracteres)",
+                        text: "Debes seleccionar el puerto de descarga",
                         confirmButtonColor: "#0F2A44"
                     });
                     return false;
@@ -339,6 +344,13 @@ const ExpoBLEdit = () => {
                 fecha_embarque: formatToMysql(formData.fecha_embarque),
                 puerto_embarque: formData.puerto_embarque || null,  // 🆕 NUEVO
                 puerto_descarga: formData.puerto_descarga || null,  // 🆕 NUEVO
+                // 🆕 AGREGAR LOS 6 CAMPOS
+                lugar_emision: formData.lugar_emision || null,
+                puerto_embarque: formData.puerto_embarque || null,
+                puerto_descarga: formData.puerto_descarga || null,
+                lugar_destino: formData.lugar_destino || null,
+                lugar_entrega: formData.lugar_entrega || null,
+                lugar_recepcion: formData.lugar_recepcion || null,
                 shipper: formData.shipper || null,
                 consignee: formData.consignee || null,
                 notify_party: formData.notify_party || null,
@@ -632,49 +644,57 @@ const ExpoBLEdit = () => {
                                     className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
                                 />
                             </div>
-
-                            {/* 🆕 PUERTO EMBARQUE */}
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">
-                                    Puerto Embarque <span className="text-red-500">*</span>
-                                </label>
-                                <select
-                                    value={formData.puerto_embarque}
-                                    onChange={(e) => updateField("puerto_embarque", e.target.value)}
-                                    className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
-                                >
-                                    <option value="">Seleccionar puerto...</option>
-                                    {puertos.map(puerto => (
-                                        <option key={puerto.id} value={puerto.codigo}>
-                                            {puerto.codigo} - {puerto.nombre}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* 🆕 PUERTO DESCARGA */}
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">
-                                    Puerto Descarga <span className="text-red-500">*</span>
-                                </label>
-                                <select
-                                    value={formData.puerto_descarga}
-                                    onChange={(e) => updateField("puerto_descarga", e.target.value)}
-                                    className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
-                                >
-                                    <option value="">Seleccionar puerto...</option>
-                                    {puertos.map(puerto => (
-                                        <option key={puerto.id} value={puerto.codigo}>
-                                            {puerto.codigo} - {puerto.nombre}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
                         </div>
                     )}
                     {/* STEP 2: RUTAS Y TRANSBORDOS */}
                     {currentStep === 2 && (
                         <div className="space-y-8">
+                            {/* Lugares de Origen */}
+                            <div className="border-b pb-6">
+                                <h3 className="font-semibold text-slate-800 mb-4">
+                                    Lugares de Origen
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Lugar Emisión */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            Lugar Emisión
+                                        </label>
+                                        <select
+                                            value={formData.lugar_emision}
+                                            onChange={(e) => updateField("lugar_emision", e.target.value)}
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
+                                        >
+                                            <option value="">Seleccionar lugar...</option>
+                                            {puertos.map(puerto => (
+                                                <option key={puerto.id} value={puerto.codigo}>
+                                                    {puerto.codigo} - {puerto.nombre}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Lugar Recepción */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            Lugar Recepción
+                                        </label>
+                                        <select
+                                            value={formData.lugar_recepcion}
+                                            onChange={(e) => updateField("lugar_recepcion", e.target.value)}
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
+                                        >
+                                            <option value="">Seleccionar lugar...</option>
+                                            {puertos.map(puerto => (
+                                                <option key={puerto.id} value={puerto.codigo}>
+                                                    {puerto.codigo} - {puerto.nombre}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* Puertos Principales */}
                             <div className="border-b pb-6">
                                 <h3 className="font-semibold text-slate-800 mb-4">
@@ -721,19 +741,64 @@ const ExpoBLEdit = () => {
                                 </div>
                             </div>
 
+                            {/* Lugares de Destino */}
+                            <div className="border-b pb-6">
+                                <h3 className="font-semibold text-slate-800 mb-4">
+                                    Lugares de Destino
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Lugar Destino */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            Lugar Destino
+                                        </label>
+                                        <select
+                                            value={formData.lugar_destino}
+                                            onChange={(e) => updateField("lugar_destino", e.target.value)}
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
+                                        >
+                                            <option value="">Seleccionar lugar...</option>
+                                            {puertos.map(puerto => (
+                                                <option key={puerto.id} value={puerto.codigo}>
+                                                    {puerto.codigo} - {puerto.nombre}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Lugar Entrega */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            Lugar Entrega
+                                        </label>
+                                        <select
+                                            value={formData.lugar_entrega}
+                                            onChange={(e) => updateField("lugar_entrega", e.target.value)}
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
+                                        >
+                                            <option value="">Seleccionar lugar...</option>
+                                            {puertos.map(puerto => (
+                                                <option key={puerto.id} value={puerto.codigo}>
+                                                    {puerto.codigo} - {puerto.nombre}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* Transbordos */}
                             <div>
                                 <div className="flex items-center justify-between mb-4">
                                     <h3 className="font-semibold text-slate-800">
                                         Transbordos ({transbordos.length})
                                     </h3>
-                                   
                                 </div>
 
                                 {transbordos.length === 0 ? (
                                     <div className="text-center py-8 bg-slate-50 rounded-lg border-2 border-dashed border-slate-300">
                                         <p className="text-slate-500 text-sm">
-                                            Este BL no tiene transbordos. Haz clic en "Agregar Transbordo" para añadir uno.
+                                            Este BL no tiene transbordos.
                                         </p>
                                     </div>
                                 ) : (
@@ -778,10 +843,12 @@ const ExpoBLEdit = () => {
                                 )}
 
                                 {/* Ruta completa preview */}
-                                {transbordos.length > 0 && (
+                                {(formData.puerto_embarque || transbordos.length > 0 || formData.puerto_descarga) && (
                                     <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
                                         <p className="text-xs text-blue-700">
-                                            <strong>Ruta completa:</strong> {formData.puerto_embarque || "?"} → {transbordos.map(t => t.puerto_cod || "?").join(" → ")} → {formData.puerto_descarga || "?"}
+                                            <strong>Ruta completa:</strong> {formData.puerto_embarque || "?"}
+                                            {transbordos.length > 0 && ` → ${transbordos.map(t => t.puerto_cod || "?").join(" → ")}`}
+                                            {formData.puerto_descarga && ` → ${formData.puerto_descarga}`}
                                         </p>
                                     </div>
                                 )}
