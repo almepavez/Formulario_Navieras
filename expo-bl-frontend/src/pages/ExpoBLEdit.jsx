@@ -40,8 +40,6 @@ const ExpoBLEdit = () => {
         lugar_destino: "",
         lugar_entrega: "",
         lugar_recepcion: "",
-        puerto_embarque: "",
-        puerto_descarga: "",
         shipper: "",
         consignee: "",
         notify_party: "",
@@ -93,8 +91,6 @@ const ExpoBLEdit = () => {
                     puerto_embarque: dataBL.puerto_embarque_codigo || "",  // 🆕 NUEVO
                     // 🆕 MAPEAR LOS 6 CAMPOS
                     lugar_emision: dataBL.lugar_emision_cod || "",
-                    puerto_embarque: dataBL.puerto_embarque_cod || "",
-                    puerto_descarga: dataBL.puerto_descarga_cod || "",
                     lugar_destino: dataBL.lugar_destino_cod || "",
                     lugar_entrega: dataBL.lugar_entrega_cod || "",
                     lugar_recepcion: dataBL.lugar_recepcion_cod || "",
@@ -346,8 +342,6 @@ const ExpoBLEdit = () => {
                 puerto_descarga: formData.puerto_descarga || null,  // 🆕 NUEVO
                 // 🆕 AGREGAR LOS 6 CAMPOS
                 lugar_emision: formData.lugar_emision || null,
-                puerto_embarque: formData.puerto_embarque || null,
-                puerto_descarga: formData.puerto_descarga || null,
                 lugar_destino: formData.lugar_destino || null,
                 lugar_entrega: formData.lugar_entrega || null,
                 lugar_recepcion: formData.lugar_recepcion || null,
