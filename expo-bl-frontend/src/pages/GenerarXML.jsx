@@ -7,13 +7,13 @@ import Swal from "sweetalert2";
 const GenerarXML = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  
+
   const [bls, setBls] = useState([]);
   const [selectedBls, setSelectedBls] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [generando, setGenerando] = useState(false);
-  
+
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [sortOrder, setSortOrder] = useState("recent");
@@ -32,14 +32,14 @@ const GenerarXML = () => {
   const fetchBLs = async () => {
     setLoading(true);
     setError("");
-    
+
     try {
       const res = await fetch(`http://localhost:4000/api/manifiestos/${id}/bls-para-xml`);
-      
+
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
-      
+
       const data = await res.json();
       setBls(Array.isArray(data) ? data : []);
     } catch (e) {
@@ -51,6 +51,7 @@ const GenerarXML = () => {
   };
 
   // ⚠️ Validación de BL
+  // ⚠️ Validación de BL MEJORADA CON IMO
   const validateBL = (bl) => {
     const errors = [];
     const warnings = [];
@@ -59,19 +60,19 @@ const GenerarXML = () => {
     if (!bl.bl_number || bl.bl_number.trim() === '') {
       errors.push("Falta número de BL");
     }
-    
+
     if (!bl.shipper || bl.shipper.trim() === '') {
       errors.push("Falta Shipper");
     }
-    
+
     if (!bl.consignee || bl.consignee.trim() === '') {
       errors.push("Falta Consignee");
     }
-    
+
     if (!bl.puerto_embarque && !bl.puerto_embarque_cod) {
       errors.push("Falta Puerto de Embarque (POL)");
     }
-    
+
     if (!bl.puerto_descarga && !bl.puerto_descarga_cod) {
       errors.push("Falta Puerto de Descarga (POD)");
     }
@@ -79,7 +80,8 @@ const GenerarXML = () => {
     if (!bl.lugar_emision && !bl.lugar_emision_cod) {
       errors.push("Falta Lugar de Emisión (LE)");
     }
-       if (!bl.lugar_destino && !bl.lugar_destino_cod) {
+
+    if (!bl.lugar_destino && !bl.lugar_destino_cod) {
       errors.push("Falta Lugar de Destino (LD)");
     }
 
@@ -90,34 +92,44 @@ const GenerarXML = () => {
     if (!bl.lugar_recepcion && !bl.lugar_recepcion_cod) {
       errors.push("Falta Lugar de Recepción (LRM)");
     }
-    
+
+    // 🆕 VALIDACIÓN IMO: Verificar en valid_status y valid_count_error
+    if (bl.valid_status === 'ERROR' && bl.valid_count_error > 0) {
+      errors.push(`BL tiene ${bl.valid_count_error} error(es) de validación - revisar detalle`);
+    }
+
     // Warnings (pueden generar XML pero con datos incompletos)
     if (!bl.notify_party || bl.notify_party.trim() === '') {
       warnings.push("Falta Notify Party");
     }
-    
+
     if (!bl.bultos || bl.bultos === 0) {
       warnings.push("Sin bultos o bultos = 0");
     }
-    
+
     if (!bl.peso_bruto || bl.peso_bruto === 0) {
       warnings.push("Sin peso o peso = 0");
     }
-    
+
     if (!bl.fecha_emision) {
       warnings.push("Falta Fecha de Emisión");
     }
-    
+
     if (!bl.fecha_zarpe) {
       warnings.push("Falta Fecha de Zarpe");
     }
-    
+
     if (!bl.descripcion_carga || bl.descripcion_carga.trim() === '') {
       warnings.push("Sin descripción de carga");
     }
 
     if (bl.carga_peligrosa === 'S') {
-      warnings.push("BL marcado como carga peligrosa - verificar datos IMO");
+      warnings.push("BL marcado como carga peligrosa - verificar datos IMO en detalle");
+    }
+
+    // 🆕 Advertencia si hay observaciones
+    if (bl.valid_status === 'OBS' && bl.valid_count_obs > 0) {
+      warnings.push(`BL tiene ${bl.valid_count_obs} observación(es) - revisar si afecta XML`);
     }
 
     const totalIssues = errors.length + warnings.length;
@@ -138,7 +150,7 @@ const GenerarXML = () => {
 
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      result = result.filter(bl => 
+      result = result.filter(bl =>
         bl.bl_number?.toLowerCase().includes(term) ||
         bl.shipper?.toLowerCase().includes(term) ||
         bl.consignee?.toLowerCase().includes(term)
@@ -208,7 +220,7 @@ const GenerarXML = () => {
 
     // 🚫 SI HAY ERRORES CRÍTICOS, NO PERMITIR GENERAR
     if (blsConErrores.length > 0) {
-      const erroresHTML = blsConErrores.map(item => 
+      const erroresHTML = blsConErrores.map(item =>
         `<div style="text-align: left; margin-bottom: 12px; padding: 12px; background: #FEE2E2; border-radius: 8px; border: 1px solid #FCA5A5;">
           <strong style="color: #DC2626; font-size: 14px;">📄 ${item.blNumber}</strong><br/>
           <ul style="margin: 8px 0; padding-left: 20px; font-size: 13px; color: #991B1B;">
@@ -255,7 +267,7 @@ const GenerarXML = () => {
       .filter(item => item.validation.level === 'warning');
 
     if (blsConWarnings.length > 0) {
-      const warningsHTML = blsConWarnings.map(item => 
+      const warningsHTML = blsConWarnings.map(item =>
         `<div style="text-align: left; margin-bottom: 10px;">
           <strong style="color: #F59E0B;">${item.blNumber}</strong><br/>
           <ul style="margin: 4px 0; padding-left: 20px; font-size: 13px; color: #92400E;">
@@ -297,10 +309,10 @@ const GenerarXML = () => {
 
       // 🚫 MANEJAR ERROR DEL BACKEND
       if (!res.ok) {
-        
-      const data = await res.json();
+
+        const data = await res.json();
         if (data.bls_con_errores) {
-          const erroresHTML = data.bls_con_errores.map(item => 
+          const erroresHTML = data.bls_con_errores.map(item =>
             `<div style="text-align: left; margin-bottom: 10px; padding: 10px; background: #FEE2E2; border-radius: 6px;">
               <strong style="color: #DC2626;">${item.bl_number}</strong><br/>
               <ul style="margin: 4px 0; padding-left: 20px; font-size: 13px; color: #991B1B;">
@@ -365,7 +377,7 @@ const GenerarXML = () => {
 
     // 🚫 SI HAY ERRORES CRÍTICOS, MOSTRAR SOLO LA VALIDACIÓN
     if (validation.level === 'error') {
-      const erroresHTML = validation.errors.map(e => 
+      const erroresHTML = validation.errors.map(e =>
         `<li style="margin: 4px 0; color: #991B1B;">${e}</li>`
       ).join('');
 
@@ -534,7 +546,7 @@ const GenerarXML = () => {
           >
             ← Volver al manifiesto
           </button>
-          
+
           <h1 className="text-2xl font-semibold text-[#0F2A44]">
             Generar XMLs - Manifiesto #{id}
           </h1>
@@ -675,7 +687,7 @@ const GenerarXML = () => {
               <tbody>
                 {filteredAndSortedBLs.map((bl) => {
                   const validation = validateBL(bl);
-                  
+
                   return (
                     <tr
                       key={bl.bl_number}
@@ -689,23 +701,23 @@ const GenerarXML = () => {
                           className="w-4 h-4 rounded border-slate-300"
                         />
                       </td>
-                      
+
                       <td className="px-6 py-4">
                         {validation.level === 'ok' && (
-                          <div 
-                            className="flex items-center gap-1 text-emerald-600 cursor-help" 
+                          <div
+                            className="flex items-center gap-1 text-emerald-600 cursor-help"
                             title="Sin problemas detectados"
                           >
                             <CheckCircle2 className="w-5 h-5" />
                           </div>
                         )}
                         {validation.level === 'warning' && (
-                          <div 
-                            className="flex items-center gap-2 text-amber-600 cursor-help group relative" 
+                          <div
+                            className="flex items-center gap-2 text-amber-600 cursor-help group relative"
                           >
                             <AlertTriangle className="w-5 h-5" />
                             <span className="text-xs font-medium">{validation.count}</span>
-                            
+
                             <div className="absolute left-0 top-8 hidden group-hover:block z-50 w-72 bg-white rounded-lg shadow-xl border border-amber-200 p-3">
                               <div className="text-xs text-left">
                                 <div className="font-semibold text-amber-700 mb-2">⚠️ Advertencias:</div>
@@ -725,12 +737,12 @@ const GenerarXML = () => {
                           </div>
                         )}
                         {validation.level === 'error' && (
-                          <div 
+                          <div
                             className="flex items-center gap-2 text-red-600 cursor-help group relative"
                           >
                             <XCircle className="w-5 h-5" />
                             <span className="text-xs font-medium">{validation.count}</span>
-                            
+
                             <div className="absolute left-0 top-8 hidden group-hover:block z-50 w-72 bg-white rounded-lg shadow-xl border border-red-200 p-3">
                               <div className="text-xs text-left">
                                 <div className="font-semibold text-red-700 mb-2">❌ Errores críticos:</div>

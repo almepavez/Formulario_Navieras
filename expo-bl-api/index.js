@@ -2859,7 +2859,6 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
               valorCrudo: c.codigo
             });
           } else {
-            // Si guardas sigla/numero/digito, valida consistencia (ERROR)
             if ((c.sigla && c.sigla !== iso.sigla) ||
               (c.numero && c.numero !== iso.numero) ||
               (c.digito && String(c.digito) !== iso.digito)) {
@@ -2873,11 +2872,10 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
           }
         }
 
-
         if (!c.codigo) {
           pendingContValidations.push({
             nivel: "CONTENEDOR",
-            sec: itemNo, // o null si prefieres
+            sec: itemNo,
             severidad: "ERROR",
             campo: "codigo",
             mensaje: "Contenedor sin código",
@@ -2918,7 +2916,7 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
           });
         }
 
-        // VALIDACION: carga_cnt (si quieres forzar no-null / S|N)
+        // VALIDACION: carga_cnt
         if (!isSN(c.carga_cnt)) {
           pendingContValidations.push({
             nivel: "CONTENEDOR",
@@ -2929,7 +2927,6 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
             valorCrudo: c.carga_cnt ?? null
           });
         }
-
 
         if (num(c.peso) == null || num(c.peso) <= 0) {
           pendingContValidations.push({
@@ -2961,8 +2958,6 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
           });
         }
 
-
-
         const [cIns] = await conn.query(insertContSql, [
           blId,
           itemId,
@@ -2971,14 +2966,13 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
           c.numero || null,
           c.digito || null,
           c.tipo_cnt || null,
-          c.carga_cnt || null,         // "S"
-          c.peso ?? null,              // ✅ ahora ya te funciona
-          c.unidad_peso || null,       // KGM
-          c.volumen ?? null,           // normalmente NULL
-          c.unidad_volumen || null,    // MTQ
+          c.carga_cnt || null,
+          c.peso ?? null,
+          c.unidad_peso || null,
+          c.volumen ?? null,
+          c.unidad_volumen || null,
         ]);
 
-        // 2) Ahora sí existe ref_id real
         const contenedorId = cIns.insertId;
 
         // 3) Guardas validaciones con ref_id real
@@ -2986,29 +2980,39 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
           await addValidacion(conn, { blId, refId: contenedorId, ...v });
         }
 
-        const insertedImo = await insertImo(conn, blId, contenedorId, itemNo, c.imo || [], c.codigo || null);
-
+        // =========================
+        // 🆕 VALIDACIÓN IMO ESTRICTA
+        // =========================
         const itemObj = itemNo ? items.find(it => Number(it.numero_item) === itemNo) : null;
         const itemPeligroso = itemObj && String(itemObj.carga_peligrosa || "").toUpperCase() === "S";
 
-        if (itemPeligroso && insertedImo < 1) {
-          await addValidacion(conn, {
-            blId,
-            nivel: "CONTENEDOR",
-            refId: contenedorId,
-            sec: itemNo,
-            severidad: "ERROR",
-            campo: "imo",
-            mensaje: "Item con carga_peligrosa='S' pero el contenedor no tiene IMO válido",
-            valorCrudo: c.codigo || null
-          });
+        // Insertar IMOs
+        const insertedImo = await insertImo(conn, blId, contenedorId, itemNo, c.imo || [], c.codigo || null);
+
+        // ✅ NUEVA VALIDACIÓN: Si el ítem es peligroso, TODOS los contenedores deben tener IMO
+        if (itemPeligroso) {
+          const tieneImoValido = Array.isArray(c.imo) &&
+            c.imo.length > 0 &&
+            c.imo.some(x => x.clase_imo && x.numero_imo);
+
+          if (!tieneImoValido) {
+            await addValidacion(conn, {
+              blId,
+              nivel: "CONTENEDOR",
+              refId: contenedorId,
+              sec: itemNo,
+              severidad: "ERROR",
+              campo: "imo",
+              mensaje: "Item marcado como carga_peligrosa='S' - este contenedor debe tener datos IMO (clase_imo y numero_imo)",
+              valorCrudo: JSON.stringify({ codigo: c.codigo, imo: c.imo })
+            });
+          }
         }
 
         // =========================
-        // 3) SELLOS (si tienes tabla)
+        // SELLOS
         // =========================
-        // Si tienes una tabla tipo bl_contenedor_sellos(contenedor_id, numero):
-        await insertSellos(conn, cIns.insertId, c.sellos || []);
+        await insertSellos(conn, contenedorId, c.sellos || []);
         if (!Array.isArray(c.sellos) || c.sellos.length === 0) {
           await addValidacion(conn, {
             blId,
@@ -3023,11 +3027,14 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
         }
       }
 
+
       await refreshResumenValidacionBL(conn, blId);
     }
 
     await conn.commit();
+
     res.json({ ok: true, pmsId: pms.id, inserted: bls.length, sample: bls.slice(0, 2) });
+
   } catch (err) {
     await conn.rollback();
     res.status(500).json({ error: err?.message || "Error procesando PMS" });
@@ -3619,7 +3626,7 @@ function validateBLForXML(bl) {
     errors.push("Falta Shipper");
   }
 
-    // Lugar Destino (LD)
+  // Lugar Destino (LD)
   if (!bl.lugar_destino_codigo && !bl.lugar_destino_id) {
     errors.push("Falta Lugar de Destino (LD)");
   }
@@ -3632,7 +3639,7 @@ function validateBLForXML(bl) {
   // Lugar Recepción (LRM)
   if (!bl.lugar_recepcion_codigo && !bl.lugar_recepcion_id) {
     errors.push("Falta Lugar de Recepción (LRM)");
-  } 
+  }
   if (!bl.consignee || bl.consignee.trim() === '') {
     errors.push("Falta Consignee");
   }
@@ -3696,7 +3703,10 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
         b.lugar_destino_cod,
         b.lugar_entrega_cod,
         b.lugar_recepcion_cod,
-                b.lugar_emision_cod,
+        b.lugar_emision_cod,
+        b.valid_status,           -- 🆕 AGREGAR
+        b.valid_count_error,      -- 🆕 AGREGAR
+        b.valid_count_obs,        -- 🆕 AGREGAR
         b.consignee,
         b.notify_party,
         b.descripcion_carga,
@@ -3739,9 +3749,7 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
 // POST /api/bls/:blNumber/generar-xml
 // Genera el XML completo de un BL específico
 // POST /api/bls/:blNumber/generar-xml
-// Genera el XML completo de un BL específico
-// POST /api/bls/:blNumber/generar-xml
-// Genera el XML completo de un BL específico
+// Genera el XML completo de un BL específico CON VALIDACIÓN IMO
 app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
   try {
     const { blNumber } = req.params;
@@ -3803,7 +3811,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
       ORDER BY numero_item
     `, [bl.id]);
 
-    // 3️⃣ Obtener contenedores con sellos E IMO
+    // 3️⃣ Obtener contenedores con sellos E IMO (MEJORADO - obtiene TODOS los IMOs)
     const [contenedores] = await pool.query(`
       SELECT
         c.id,
@@ -3819,8 +3827,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
         c.volumen,
         c.unidad_volumen,
         GROUP_CONCAT(DISTINCT s.sello ORDER BY s.sello SEPARATOR '|') as sellos,
-        MAX(i.clase_imo) as clase_imo,
-        MAX(i.numero_imo) as numero_imo
+        GROUP_CONCAT(DISTINCT CONCAT(i.clase_imo, ':', i.numero_imo) SEPARATOR '|') as imo_data
       FROM bl_contenedores c
       LEFT JOIN bl_contenedor_sellos s ON s.contenedor_id = c.id
       LEFT JOIN bl_contenedor_imo i ON i.contenedor_id = c.id
@@ -3830,7 +3837,33 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
       ORDER BY c.codigo
     `, [bl.id]);
 
-    // 4️⃣ Construir XML según estructura del ejemplo
+    // 🆕 VALIDACIÓN IMO ANTES DE GENERAR XML
+    const erroresIMO = [];
+    for (const item of items) {
+      if (String(item.carga_peligrosa || "").toUpperCase() === "S") {
+        const contsDelItem = contenedores.filter(c => c.item_id === item.id);
+
+        for (const cont of contsDelItem) {
+          if (!cont.imo_data) {
+            erroresIMO.push({
+              item: item.numero_item,
+              contenedor: cont.codigo,
+              mensaje: "Contenedor sin datos IMO (carga peligrosa requiere clase_imo y numero_imo)"
+            });
+          }
+        }
+      }
+    }
+
+    if (erroresIMO.length > 0) {
+      return res.status(400).json({
+        error: "Contenedores de carga peligrosa sin datos IMO",
+        details: erroresIMO,
+        bl_number: blNumber
+      });
+    }
+
+    // 4️⃣ Construir XML
     const xmlObj = {
       Documento: {
         '@tipo': 'BL',
@@ -3856,74 +3889,29 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
 
         Fechas: {
           fecha: [
-            bl.fecha_presentacion && {
-              nombre: 'FPRES',
-              valor: formatDateTimeCL(bl.fecha_presentacion)
-            },
-            bl.fecha_emision && {
-              nombre: 'FEM',
-              valor: formatDateCL(bl.fecha_emision)
-            },
-            bl.fecha_zarpe && {
-              nombre: 'FZARPE',
-              valor: formatDateTimeCL(bl.fecha_zarpe)
-            },
-            bl.fecha_embarque && {
-              nombre: 'FEMB',
-              valor: formatDateTimeCL(bl.fecha_embarque)
-            }
+            bl.fecha_presentacion && { nombre: 'FPRES', valor: formatDateTimeCL(bl.fecha_presentacion) },
+            bl.fecha_emision && { nombre: 'FEM', valor: formatDateCL(bl.fecha_emision) },
+            bl.fecha_zarpe && { nombre: 'FZARPE', valor: formatDateTimeCL(bl.fecha_zarpe) },
+            bl.fecha_embarque && { nombre: 'FEMB', valor: formatDateTimeCL(bl.fecha_embarque) }
           ].filter(Boolean)
         },
 
         Locaciones: {
           locacion: [
-            bl.lugar_emision_codigo && {
-              nombre: 'LE',
-              codigo: bl.lugar_emision_codigo,
-              descripcion: bl.lugar_emision_nombre
-            },
-            bl.puerto_embarque_codigo && {
-              nombre: 'PE',
-              codigo: bl.puerto_embarque_codigo,
-              descripcion: bl.puerto_embarque_nombre
-            },
-            bl.puerto_descarga_codigo && {
-              nombre: 'PD',
-              codigo: bl.puerto_descarga_codigo,
-              descripcion: bl.puerto_descarga_nombre
-            },
-            bl.lugar_destino_codigo && {
-              nombre: 'LD',
-              codigo: bl.lugar_destino_codigo,
-              descripcion: bl.lugar_destino_nombre
-            },
-            bl.lugar_entrega_codigo && {
-              nombre: 'LEM',
-              codigo: bl.lugar_entrega_codigo,
-              descripcion: bl.lugar_entrega_nombre
-            },
-            bl.lugar_recepcion_codigo && {
-              nombre: 'LRM',
-              codigo: bl.lugar_recepcion_codigo,
-              descripcion: bl.lugar_recepcion_nombre
-            }
+            bl.lugar_emision_codigo && { nombre: 'LE', codigo: bl.lugar_emision_codigo, descripcion: bl.lugar_emision_nombre },
+            bl.puerto_embarque_codigo && { nombre: 'PE', codigo: bl.puerto_embarque_codigo, descripcion: bl.puerto_embarque_nombre },
+            bl.puerto_descarga_codigo && { nombre: 'PD', codigo: bl.puerto_descarga_codigo, descripcion: bl.puerto_descarga_nombre },
+            bl.lugar_destino_codigo && { nombre: 'LD', codigo: bl.lugar_destino_codigo, descripcion: bl.lugar_destino_nombre },
+            bl.lugar_entrega_codigo && { nombre: 'LEM', codigo: bl.lugar_entrega_codigo, descripcion: bl.lugar_entrega_nombre },
+            bl.lugar_recepcion_codigo && { nombre: 'LRM', codigo: bl.lugar_recepcion_codigo, descripcion: bl.lugar_recepcion_nombre }
           ].filter(Boolean)
         },
 
         Participaciones: {
           participacion: [
-            bl.shipper && {
-              nombre: 'EMI',
-              nombres: bl.shipper
-            },
-            bl.consignee && {
-              nombre: 'CONS',
-              nombres: bl.consignee
-            },
-            bl.notify_party && {
-              nombre: 'NOTI',
-              nombres: bl.notify_party
-            }
+            bl.shipper && { nombre: 'EMI', nombres: bl.shipper },
+            bl.consignee && { nombre: 'CONS', nombres: bl.consignee },
+            bl.notify_party && { nombre: 'NOTI', nombres: bl.notify_party }
           ].filter(Boolean)
         },
 
@@ -3945,26 +3933,38 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
               'carga-cnt': 'S',
 
               Contenedores: contsDelItem.length > 0 ? {
-                contenedor: contsDelItem.map(c => ({
-                  sigla: c.sigla || '',
-                  numero: c.numero || '',
-                  digito: c.digito || '',
-                  'tipo-cnt': c.tipo_cnt || '',
-                  'cnt-so': '',
-                  peso: c.peso || 0,
-                  status: bl.tipo_servicio_nombre || 'FCL/FCL',
+                contenedor: contsDelItem.map(c => {
+                  // Parsear datos IMO
+                  let imoList = [];
+                  if (c.imo_data) {
+                    imoList = c.imo_data.split('|')
+                      .map(item => {
+                        const [clase, numero] = item.split(':');
+                        return { clase_imo: clase, numero_imo: numero };
+                      })
+                      .filter(x => x.clase_imo && x.numero_imo);
+                  }
 
-                  CntIMO: (c.clase_imo && c.numero_imo) ? {
-                    cntimo: {
-                      'clase-imo': String(c.clase_imo),
-                      'numero-imo': String(c.numero_imo)
-                    }
-                  } : undefined,
+                  return {
+                    sigla: c.sigla || '',
+                    numero: c.numero || '',
+                    digito: c.digito || '',
+                    'tipo-cnt': c.tipo_cnt || '',
+                    'cnt-so': '',
+                    peso: c.peso || 0,
+                    status: bl.tipo_servicio_nombre || 'FCL/FCL',
 
-                  Sellos: c.sellos ? {
-                    sello: c.sellos.split('|').map(s => ({ numero: s }))
-                  } : undefined
-                }))
+                    CntIMO: imoList.length > 0 ? {
+                      cntimo: imoList.length === 1
+                        ? { 'clase-imo': String(imoList[0].clase_imo), 'numero-imo': String(imoList[0].numero_imo) }
+                        : imoList.map(imo => ({ 'clase-imo': String(imo.clase_imo), 'numero-imo': String(imo.numero_imo) }))
+                    } : undefined,
+
+                    Sellos: c.sellos ? {
+                      sello: c.sellos.split('|').map(s => ({ numero: s }))
+                    } : undefined
+                  };
+                })
               } : undefined
             };
           })
@@ -3987,8 +3987,6 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
   }
 });
 
-// POST /api/manifiestos/:id/generar-xmls-multiples
-// Genera múltiples XMLs y los devuelve en un ZIP
 // POST /api/manifiestos/:id/generar-xmls-multiples
 // Genera múltiples XMLs y los devuelve en un ZIP
 app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
@@ -4090,30 +4088,29 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
       `, [bl.id]);
 
       const [contenedores] = await pool.query(`
-        SELECT
-          c.id,
-          c.item_id,
-          c.codigo,
-          c.sigla,
-          c.numero,
-          c.digito,
-          c.tipo_cnt,
-          c.carga_cnt,
-          c.peso,
-          c.unidad_peso,
-          c.volumen,
-          c.unidad_volumen,
-          GROUP_CONCAT(DISTINCT s.sello ORDER BY s.sello SEPARATOR '|') as sellos,
-          MAX(i.clase_imo) as clase_imo,
-          MAX(i.numero_imo) as numero_imo
-        FROM bl_contenedores c
-        LEFT JOIN bl_contenedor_sellos s ON s.contenedor_id = c.id
-        LEFT JOIN bl_contenedor_imo i ON i.contenedor_id = c.id
-        WHERE c.bl_id = ?
-        GROUP BY c.id, c.item_id, c.codigo, c.sigla, c.numero, c.digito, 
-                 c.tipo_cnt, c.carga_cnt, c.peso, c.unidad_peso, c.volumen, c.unidad_volumen
-        ORDER BY c.codigo
-      `, [bl.id]);
+  SELECT
+    c.id,
+    c.item_id,
+    c.codigo,
+    c.sigla,
+    c.numero,
+    c.digito,
+    c.tipo_cnt,
+    c.carga_cnt,
+    c.peso,
+    c.unidad_peso,
+    c.volumen,
+    c.unidad_volumen,
+    GROUP_CONCAT(DISTINCT s.sello ORDER BY s.sello SEPARATOR '|') as sellos,
+    GROUP_CONCAT(DISTINCT CONCAT(i.clase_imo, ':', i.numero_imo) SEPARATOR '|') as imo_data
+  FROM bl_contenedores c
+  LEFT JOIN bl_contenedor_sellos s ON s.contenedor_id = c.id
+  LEFT JOIN bl_contenedor_imo i ON i.contenedor_id = c.id
+  WHERE c.bl_id = ?
+  GROUP BY c.id, c.item_id, c.codigo, c.sigla, c.numero, c.digito, 
+           c.tipo_cnt, c.carga_cnt, c.peso, c.unidad_peso, c.volumen, c.unidad_volumen
+  ORDER BY c.codigo
+`, [bl.id]);
 
       const xmlObj = {
         Documento: {
@@ -4642,6 +4639,9 @@ async function revalidarBLCompleto(conn, blId) {
   // ==========================================
   // 9) 🆕 VALIDACIONES DE CONTENEDORES
   // ==========================================
+  // ==========================================
+  // 9) 🆕 VALIDACIONES DE CONTENEDORES CON IMO
+  // ==========================================
   for (const c of contenedores) {
     const itemNo = c.item_id ?
       items.find(it => it.id === c.item_id)?.numero_item : null;
@@ -4662,31 +4662,51 @@ async function revalidarBLCompleto(conn, blId) {
         mensaje: "Contenedor sin tipo_cnt",
         valorCrudo: c.tipo_cnt ?? null
       });
-      // Agregar esta validación:
-      if (num(c.volumen) == null || num(c.volumen) < 0) {
+    }
+
+    if (num(c.volumen) == null || num(c.volumen) < 0) {
+      pendingValidations.push({
+        nivel: "CONTENEDOR", refId: c.id, sec: itemNo, severidad: "ERROR",
+        campo: "volumen",
+        mensaje: "Volumen debe ser >= 0 (puede ser 0)",
+        valorCrudo: c.volumen ?? null
+      });
+    }
+
+    // 🆕 VALIDACIÓN IMO: Si el ítem es carga peligrosa, el contenedor debe tener IMO
+    const itemObj = items.find(it => it.id === c.item_id);
+    if (itemObj && String(itemObj.carga_peligrosa || "").toUpperCase() === "S") {
+      // Verificar si tiene datos IMO en la BD
+      const [imoRows] = await conn.query(
+        "SELECT COUNT(*) as count FROM bl_contenedor_imo WHERE contenedor_id = ?",
+        [c.id]
+      );
+
+      if (imoRows[0].count === 0) {
         pendingValidations.push({
-          nivel: "CONTENEDOR", refId: c.id, sec: itemNo, severidad: "ERROR",
-          campo: "volumen",
-          mensaje: "Volumen debe ser >= 0 (puede ser 0)",
-          valorCrudo: c.volumen ?? null
+          nivel: "CONTENEDOR",
+          refId: c.id,
+          sec: itemNo,
+          severidad: "ERROR",
+          campo: "imo",
+          mensaje: "Item marcado como carga_peligrosa='S' - este contenedor debe tener datos IMO (clase_imo y numero_imo)",
+          valorCrudo: JSON.stringify({ codigo: c.codigo, item: itemNo })
         });
       }
     }
-
   }
 
+  // ==========================================
+  // 10) Insertar todas las validaciones
+  // ==========================================
+  for (const v of pendingValidations) {
+    await addValidacion(conn, { blId, ...v });
+  }
 
-// ==========================================
-// 10) Insertar todas las validaciones
-// ==========================================
-for (const v of pendingValidations) {
-  await addValidacion(conn, { blId, ...v });
-}
+  // 11) Actualizar resumen
+  await refreshResumenValidacionBL(conn, blId);
 
-// 11) Actualizar resumen
-await refreshResumenValidacionBL(conn, blId);
-
-console.log(`✅ Revalidación completa: ${pendingValidations.length} validaciones generadas`);
+  console.log(`✅ Revalidación completa: ${pendingValidations.length} validaciones generadas`);
 }
 // ============================================
 // INICIAR SERVIDOR
