@@ -578,44 +578,6 @@ app.post("/api/auth/verify-code", async (req, res) => {
   }
 });
 
-// ============================================
-// AQUÍ VA TODO TU CÓDIGO EXISTENTE DE MANIFIESTOS, BLS, ETC.
-
-
-// [... resto de tus rutas de manifiestos, puertos, servicios, naves, BLs, etc ...]
-app.get("/manifiestos", async (_req, res) => {
-  try {
-    const [rows] = await pool.query(
-      `SELECT
-          m.id,
-          s.codigo AS servicio,
-          n.nombre AS nave,
-          m.viaje,
-          pc.nombre AS puertoCentral,
-          m.tipo_operacion AS tipoOperacion,
-          m.operador_nave AS operadorNave,
-          m.status,
-          m.remark,
-          m.emisor_documento AS emisorDocumento,
-          m.representante,
-          m.fecha_manifiesto_aduana AS fechaManifiestoAduana,
-          m.numero_manifiesto_aduana AS numeroManifiestoAduana,
-          m.created_at AS createdAt,
-          m.updated_at AS updatedAt
-       FROM manifiestos m
-       JOIN servicios s ON s.id = m.servicio_id
-       JOIN naves n ON n.id = m.nave_id
-       JOIN puertos pc ON pc.id = m.puerto_central_id
-       ORDER BY m.created_at DESC
-       LIMIT 20`
-    );
-
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err?.message || "Error listando manifiestos" });
-  }
-});
-
 
 
 app.post("/manifiestos", async (req, res) => {
@@ -753,11 +715,119 @@ app.post("/manifiestos", async (req, res) => {
 
 
 
+app.put("/manifiestos/:id", async (req, res) => {
+  const { id } = req.params;
+  const {
+    operadorNave,
+    status,
+    remark,
+    emisorDocumento,
+    representante,
+    fechaManifiestoAduana,
+    numeroManifiestoAduana,
+    itinerario
+  } = req.body;
+
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    // 1️⃣ ACTUALIZAR EL MANIFIESTO
+    await connection.query(
+      `UPDATE manifiestos 
+       SET operador_nave = ?, 
+           status = ?, 
+           remark = ?,
+           emisor_documento = ?,
+           representante = ?,
+           fecha_manifiesto_aduana = ?,
+           numero_manifiesto_aduana = ?,
+           updated_at = NOW()
+       WHERE id = ?`,
+      [operadorNave, status, remark, emisorDocumento, representante,
+        fechaManifiestoAduana, numeroManifiestoAduana, id]
+    );
+
+    // 2️⃣ ACTUALIZAR ITINERARIO
+    if (itinerario && Array.isArray(itinerario)) {
+      for (const item of itinerario) {
+        await connection.query(
+          `UPDATE itinerarios 
+           SET eta = ?, ets = ?
+           WHERE id = ?`,
+          [item.eta || null, item.ets || null, item.id]
+        );
+      }
+    }
+
+    // 3️⃣ OBTENER TODOS LOS BLS DE ESTE MANIFIESTO
+    const [bls] = await connection.query(
+      'SELECT id FROM bls WHERE manifiesto_id = ?',
+      [id]
+    );
+
+    // 4️⃣ RE-VALIDAR CADA BL
+    for (const bl of bls) {
+      await revalidarBL(connection, bl.id);
+    }
+
+    await connection.commit();
+    res.json({ success: true, message: 'Manifiesto actualizado y re-validado' });
+
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error actualizando manifiesto:', error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    connection.release();
+  }
+});
+
+// ============================================
+// CRUD MANIFIESTOS
+// ============================================
+
+// GET - Listar manifiestos
+app.get("/manifiestos", async (_req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT
+          m.id,
+          s.codigo AS servicio,
+          n.nombre AS nave,
+          m.viaje,
+          pc.nombre AS puertoCentral,
+          m.tipo_operacion AS tipoOperacion,
+          m.operador_nave AS operadorNave,
+          m.status,
+          m.remark,
+          m.emisor_documento AS emisorDocumento,
+          m.representante,
+          m.fecha_manifiesto_aduana AS fechaManifiestoAduana,
+          m.numero_manifiesto_aduana AS numeroManifiestoAduana,
+          m.created_at AS createdAt,
+          m.updated_at AS updatedAt
+       FROM manifiestos m
+       JOIN servicios s ON s.id = m.servicio_id
+       JOIN naves n ON n.id = m.nave_id
+       JOIN puertos pc ON pc.id = m.puerto_central_id
+       ORDER BY m.created_at DESC
+       LIMIT 20`
+    );
+
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err?.message || "Error listando manifiestos" });
+  }
+});
+
+// GET - Detalle de un manifiesto específico
 app.get("/manifiestos/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
-    const [mRows] = await pool.query(
+    const [rows] = await pool.query(
       `SELECT
           m.id,
           s.codigo AS servicio,
@@ -782,32 +852,38 @@ app.get("/manifiestos/:id", async (req, res) => {
       [id]
     );
 
-    if (mRows.length === 0) return res.status(404).json({ error: "No existe" });
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Manifiesto no encontrado" });
+    }
 
-    const manifiesto = mRows[0];
-
-    const [iRows] = await pool.query(
-      `SELECT
+    const [itinerario] = await pool.query(
+      `SELECT 
           i.id,
           p.codigo AS port,
-          p.nombre AS portNombre,
           i.port_type AS portType,
           i.eta,
           i.ets,
-          i.orden,
-          i.created_at AS createdAt
+          i.orden
        FROM itinerarios i
        JOIN puertos p ON p.id = i.puerto_id
        WHERE i.manifiesto_id = ?
-       ORDER BY i.orden ASC, i.id ASC`,
+       ORDER BY i.orden`,
       [id]
     );
 
-    res.json({ manifiesto, itinerario: iRows });
+    const response = {
+      manifiesto: rows[0],
+      itinerario
+    };
+
+    res.json(response);
+
   } catch (err) {
-    res.status(500).json({ error: err?.message || "Error cargando manifiesto" });
+    console.error(`❌ Error:`, err);
+    res.status(500).json({ error: "Error al obtener manifiesto" });
   }
 });
+
 
 
 
@@ -1775,7 +1851,7 @@ function parseLine56(raw) {
   if (!m) return null;
 
   const itemNo = Number(m[2]); // "001" => 1
-  const seqNo  = Number(m[3]); // "004" => 4 (según tu PMS)
+  const seqNo = Number(m[3]); // "004" => 4 (según tu PMS)
 
   // ✅ CLAVE: buscar IMO SOLO después del header (evita capturar 01001004 como UN=1004)
   const tail = s.slice(m[0].length);
@@ -3110,9 +3186,48 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
       await refreshResumenValidacionBL(conn, blId);
     }
 
+    // ✅ CÓDIGO NUEVO:
     await conn.commit();
 
-    res.json({ ok: true, pmsId: pms.id, inserted: bls.length, sample: bls.slice(0, 2) });
+    // 🆕 Obtener BLs con errores y sus validaciones
+    const [blsConErrores] = await conn.query(`
+  SELECT 
+    b.bl_number,
+    b.valid_count_error,
+    b.valid_count_obs,
+    GROUP_CONCAT(
+      CONCAT(
+        CASE 
+          WHEN v.nivel = 'BL' THEN '📄 '
+          WHEN v.nivel = 'ITEM' THEN '📦 Item '
+          WHEN v.nivel = 'CONTENEDOR' THEN '📦 Contenedor '
+          WHEN v.nivel = 'TRANSBORDO' THEN '🚢 Transbordo '
+          ELSE ''
+        END,
+        CASE WHEN v.sec IS NOT NULL THEN CONCAT(v.sec, ': ') ELSE '' END,
+        v.mensaje
+      ) 
+      SEPARATOR '|'
+    ) AS errores
+  FROM bls b
+  LEFT JOIN bl_validaciones v ON v.bl_id = b.id AND v.severidad = 'ERROR'
+  WHERE b.manifiesto_id = ? AND b.valid_count_error > 0
+  GROUP BY b.id, b.bl_number, b.valid_count_error, b.valid_count_obs
+`, [id]);
+
+    // Formatear errores para el frontend
+    const blsConErroresFormateados = blsConErrores.map(bl => ({
+      bl_number: bl.bl_number,
+      total_errores: bl.valid_count_error,
+      errores: bl.errores ? bl.errores.split('|') : []
+    }));
+
+    res.json({
+      ok: true,
+      pmsId: pms.id,
+      inserted: bls.length,
+      blsConErrores: blsConErroresFormateados
+    });
 
   } catch (err) {
     await conn.rollback();
@@ -3268,11 +3383,10 @@ app.get("/bls", async (req, res) => {
 
 // GET un BL específico por número
 // REEMPLAZA tu GET /bls/:blNumber actual por este:
+// REEMPLAZA tu GET /bls/:blNumber (línea ~2570) por este:
 app.get("/bls/:blNumber", async (req, res) => {
   const conn = await pool.getConnection();
   try {
-    await conn.beginTransaction();
-
     const { blNumber } = req.params;
 
     const query = `
@@ -3280,26 +3394,21 @@ app.get("/bls/:blNumber", async (req, res) => {
         b.*,
         m.viaje,
         m.tipo_operacion,
-
         ts.codigo AS tipo_servicio_codigo,
         ts.nombre AS tipo_servicio,
-
         le.codigo AS lugar_emision_cod,
         le.nombre AS lugar_emision,
         pe.codigo AS puerto_embarque_cod,
         pe.nombre AS puerto_embarque,
         pd.codigo AS puerto_descarga_cod,
         pd.nombre AS puerto_descarga,
-
         n.nombre AS nave_nombre
       FROM bls b
       LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
       LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
-
       LEFT JOIN puertos le ON b.lugar_emision_id   = le.id
       LEFT JOIN puertos pe ON b.puerto_embarque_id = pe.id
       LEFT JOIN puertos pd ON b.puerto_descarga_id = pd.id
-
       LEFT JOIN naves n ON m.nave_id = n.id
       WHERE b.bl_number = ?
       LIMIT 1
@@ -3308,22 +3417,19 @@ app.get("/bls/:blNumber", async (req, res) => {
     const [rows] = await conn.query(query, [blNumber]);
 
     if (rows.length === 0) {
-      await conn.rollback();
       return res.status(404).json({ error: "BL no encontrado" });
     }
 
     const blId = rows[0].id;
 
-    // 🔄 REVALIDAR AUTOMÁTICAMENTE
-    await revalidarBLCompleto(conn, blId);
+    // 🔄 REVALIDAR SIN TRANSACCIÓN (es un SELECT, no modifica nada crítico)
+    await revalidarBL(conn, blId);
 
     // Recargar datos actualizados
     const [updatedRows] = await conn.query(query, [blNumber]);
 
-    await conn.commit();
     res.json(updatedRows[0]);
   } catch (error) {
-    await conn.rollback();
     console.error("Error al obtener BL:", error);
     res.status(500).json({ error: "Error al obtener BL", details: error.message });
   } finally {
@@ -3728,10 +3834,25 @@ function formatDateCL(isoDate) {
 // IMPORTANTE: Si este endpoint NO existe en tu index.js, agrégalo.
 // Si existe, reemplaza el SELECT por este completo.
 
+// 🔥 REEMPLAZA ESTE ENDPOINT COMPLETO (línea ~3850)
 app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
+  const conn = await pool.getConnection();
   try {
     const { id } = req.params;
 
+    // 1️⃣ Obtener todos los BLs del manifiesto
+    const [bls] = await conn.query(
+      'SELECT id FROM bls WHERE manifiesto_id = ?',
+      [id]
+    );
+
+    // 2️⃣ 🆕 REVALIDAR CADA BL ANTES DE DEVOLVERLOS
+    console.log(`🔄 Revalidando ${bls.length} BLs del manifiesto ${id}...`);
+    for (const bl of bls) {
+      await revalidarBL(conn, bl.id);
+    }
+
+    // 3️⃣ Ahora sí, obtener los datos actualizados con las validaciones frescas
     const query = `
       SELECT
         b.id,
@@ -3741,9 +3862,9 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
         b.lugar_entrega_cod,
         b.lugar_recepcion_cod,
         b.lugar_emision_cod,
-        b.valid_status,           -- 🆕 AGREGAR
-        b.valid_count_error,      -- 🆕 AGREGAR
-        b.valid_count_obs,        -- 🆕 AGREGAR
+        b.valid_status,           -- 🆕 Ya actualizado
+        b.valid_count_error,      -- 🆕 Ya actualizado
+        b.valid_count_obs,        -- 🆕 Ya actualizado
         b.consignee,
         b.notify_party,
         b.descripcion_carga,
@@ -3775,11 +3896,15 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
       ORDER BY b.bl_number
     `;
 
-    const [rows] = await pool.query(query, [id]);
+    const [rows] = await conn.query(query, [id]);
+
+    console.log(`✅ ${rows.length} BLs revalidados y devueltos`);
     res.json(rows);
   } catch (error) {
-    console.error("Error al obtener BLs para XML:", error);
+    console.error("❌ Error al obtener BLs para XML:", error);
     res.status(500).json({ error: "Error al obtener BLs" });
+  } finally {
+    conn.release();
   }
 });
 
@@ -4460,22 +4585,23 @@ app.post("/api/bls/:blNumber/revalidar", async (req, res) => {
 // ============================================
 // 🔄 REVALIDACIÓN AUTOMÁTICA AL CARGAR DETALLE
 // ============================================
+// 🔥 REEMPLAZA AMBAS funciones (línea ~600 y ~3200) por esta ÚNICA función:
 
-// REEMPLAZA tu función revalidarBLCompleto() actual por esta versión COMPLETA:
-
-async function revalidarBLCompleto(conn, blId) {
+async function revalidarBL(connection, blId) {
   console.log(`🔄 Revalidando BL ID: ${blId}`);
 
-  // 1) Obtener datos actuales del BL
-  const [blRows] = await conn.query(`
+  // ==========================================
+  // PASO 1: ACTUALIZAR FKs DE PUERTOS (de revalidarBLCompleto)
+  // ==========================================
+  const [blRows] = await connection.query(`
     SELECT 
       b.*,
-      le.id AS lugar_emision_id_actual,
-      pe.id AS puerto_embarque_id_actual,
-      pd.id AS puerto_descarga_id_actual,
-      ld.id AS lugar_destino_id_actual,
-      lem.id AS lugar_entrega_id_actual,
-      lrm.id AS lugar_recepcion_id_actual
+      le.id AS lugar_emision_id_valido,
+      pe.id AS puerto_embarque_id_valido,
+      pd.id AS puerto_descarga_id_valido,
+      ld.id AS lugar_destino_id_valido,
+      lem.id AS lugar_entrega_id_valido,
+      lrm.id AS lugar_recepcion_id_valido
     FROM bls b
     LEFT JOIN puertos le ON le.codigo = b.lugar_emision_cod
     LEFT JOIN puertos pe ON pe.codigo = b.puerto_embarque_cod
@@ -4494,256 +4620,437 @@ async function revalidarBLCompleto(conn, blId) {
 
   const bl = blRows[0];
 
-  // 2) Actualizar FKs de puertos en el BL si ahora existen
+  // Actualizar FKs si ahora existen
   const updates = [];
-  if (bl.lugar_emision_id_actual && bl.lugar_emision_id !== bl.lugar_emision_id_actual) {
-    updates.push({ campo: 'lugar_emision_id', valor: bl.lugar_emision_id_actual });
+  if (bl.lugar_emision_id_valido && bl.lugar_emision_id !== bl.lugar_emision_id_valido) {
+    updates.push({ campo: 'lugar_emision_id', valor: bl.lugar_emision_id_valido });
   }
-  if (bl.puerto_embarque_id_actual && bl.puerto_embarque_id !== bl.puerto_embarque_id_actual) {
-    updates.push({ campo: 'puerto_embarque_id', valor: bl.puerto_embarque_id_actual });
+  if (bl.puerto_embarque_id_valido && bl.puerto_embarque_id !== bl.puerto_embarque_id_valido) {
+    updates.push({ campo: 'puerto_embarque_id', valor: bl.puerto_embarque_id_valido });
   }
-  if (bl.puerto_descarga_id_actual && bl.puerto_descarga_id !== bl.puerto_descarga_id_actual) {
-    updates.push({ campo: 'puerto_descarga_id', valor: bl.puerto_descarga_id_actual });
+  if (bl.puerto_descarga_id_valido && bl.puerto_descarga_id !== bl.puerto_descarga_id_valido) {
+    updates.push({ campo: 'puerto_descarga_id', valor: bl.puerto_descarga_id_valido });
   }
-  if (bl.lugar_destino_id_actual && bl.lugar_destino_id !== bl.lugar_destino_id_actual) {
-    updates.push({ campo: 'lugar_destino_id', valor: bl.lugar_destino_id_actual });
+  if (bl.lugar_destino_id_valido && bl.lugar_destino_id !== bl.lugar_destino_id_valido) {
+    updates.push({ campo: 'lugar_destino_id', valor: bl.lugar_destino_id_valido });
   }
-  if (bl.lugar_entrega_id_actual && bl.lugar_entrega_id !== bl.lugar_entrega_id_actual) {
-    updates.push({ campo: 'lugar_entrega_id', valor: bl.lugar_entrega_id_actual });
+  if (bl.lugar_entrega_id_valido && bl.lugar_entrega_id !== bl.lugar_entrega_id_valido) {
+    updates.push({ campo: 'lugar_entrega_id', valor: bl.lugar_entrega_id_valido });
   }
-  if (bl.lugar_recepcion_id_actual && bl.lugar_recepcion_id !== bl.lugar_recepcion_id_actual) {
-    updates.push({ campo: 'lugar_recepcion_id', valor: bl.lugar_recepcion_id_actual });
+  if (bl.lugar_recepcion_id_valido && bl.lugar_recepcion_id !== bl.lugar_recepcion_id_valido) {
+    updates.push({ campo: 'lugar_recepcion_id', valor: bl.lugar_recepcion_id_valido });
   }
 
   for (const upd of updates) {
-    await conn.query(`UPDATE bls SET ${upd.campo} = ? WHERE id = ?`, [upd.valor, blId]);
-    console.log(`✅ Actualizado ${upd.campo} -> ${upd.valor}`);
+    await connection.query(`UPDATE bls SET ${upd.campo} = ? WHERE id = ?`, [upd.valor, blId]);
+    console.log(`✅ FK actualizado: ${upd.campo} -> ${upd.valor}`);
   }
 
-  // 3) Actualizar transbordos (puerto_id si ahora existe)
-  const [transbordos] = await conn.query(
+  // ==========================================
+  // PASO 2: ACTUALIZAR TRANSBORDOS
+  // ==========================================
+  const [transbordos] = await connection.query(
     "SELECT id, sec, puerto_cod, puerto_id FROM bl_transbordos WHERE bl_id = ? ORDER BY sec",
     [blId]
   );
 
   for (const tb of transbordos) {
-    const [puertoRows] = await conn.query(
+    const [puertoRows] = await connection.query(
       "SELECT id FROM puertos WHERE codigo = ? LIMIT 1",
       [tb.puerto_cod]
     );
 
     if (puertoRows.length > 0 && tb.puerto_id !== puertoRows[0].id) {
-      await conn.query(
+      await connection.query(
         "UPDATE bl_transbordos SET puerto_id = ? WHERE id = ?",
         [puertoRows[0].id, tb.id]
       );
-      console.log(`✅ Transbordo sec ${tb.sec}: puerto_id actualizado -> ${puertoRows[0].id}`);
+      console.log(`✅ Transbordo sec ${tb.sec}: puerto_id actualizado`);
     }
   }
 
-  // 4) 🆕 Obtener items y contenedores para revalidar
-  const [items] = await conn.query(
-    "SELECT * FROM bl_items WHERE bl_id = ? ORDER BY numero_item",
-    [blId]
-  );
-
-  const [contenedores] = await conn.query(
-    "SELECT * FROM bl_contenedores WHERE bl_id = ? ORDER BY codigo",
-    [blId]
-  );
-
-  // 5) Limpiar validaciones y regenerar TODAS
-  await conn.query("DELETE FROM bl_validaciones WHERE bl_id = ?", [blId]);
+  // ==========================================
+  // PASO 3: ELIMINAR VALIDACIONES ANTIGUAS
+  // ==========================================
+  await connection.query('DELETE FROM bl_validaciones WHERE bl_id = ?', [blId]);
   console.log(`🗑️ Validaciones antiguas eliminadas`);
 
-  const pendingValidations = [];
+  const errores = [];
 
   // ==========================================
-  // 6) VALIDACIONES DE BL (puertos principales)
+  // PASO 4: VALIDACIONES A NIVEL BL
   // ==========================================
-  if (!bl.lugar_emision_id_actual) {
-    pendingValidations.push({
-      nivel: "BL", severidad: "ERROR", campo: "lugar_emision_id",
-      mensaje: "Lugar de emisión no existe en mantenedor de puertos",
-      valorCrudo: bl.lugar_emision_cod || null
-    });
-  }
-  if (!bl.puerto_embarque_id_actual) {
-    pendingValidations.push({
-      nivel: "BL", severidad: "ERROR", campo: "puerto_embarque_id",
-      mensaje: "Puerto de embarque no existe en mantenedor de puertos",
-      valorCrudo: bl.puerto_embarque_cod || null
-    });
-  }
-  if (!bl.puerto_descarga_id_actual) {
-    pendingValidations.push({
-      nivel: "BL", severidad: "ERROR", campo: "puerto_descarga_id",
-      mensaje: "Puerto de descarga no existe en mantenedor de puertos",
-      valorCrudo: bl.puerto_descarga_cod || null
+
+  // ✅ Validar shipper (obligatorio)
+  if (!bl.shipper || bl.shipper.trim() === '') {
+    errores.push({
+      nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
+      campo: 'shipper', mensaje: 'Shipper es obligatorio',
+      valor_crudo: bl.shipper
     });
   }
 
-  // Otras validaciones de BL (las mismas del procesamiento PMS)
-  if (!bl.lugar_destino_id_actual) {
-    pendingValidations.push({
-      nivel: "BL", severidad: "ERROR", campo: "lugar_destino_id",
-      mensaje: "Lugar destino no existe en mantenedor de puertos",
-      valorCrudo: bl.lugar_destino_cod || null
+  // ✅ Validar consignee (obligatorio)
+  if (!bl.consignee || bl.consignee.trim() === '') {
+    errores.push({
+      nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
+      campo: 'consignee', mensaje: 'Consignee es obligatorio',
+      valor_crudo: bl.consignee
     });
   }
-  if (!bl.lugar_entrega_id_actual) {
-    pendingValidations.push({
-      nivel: "BL", severidad: "ERROR", campo: "lugar_entrega_id",
-      mensaje: "Lugar entrega no existe en mantenedor de puertos",
-      valorCrudo: bl.lugar_entrega_cod || null
+
+  // ✅ Validar notify_party (obligatorio)
+  if (!bl.notify_party || bl.notify_party.trim() === '') {
+    errores.push({
+      nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
+      campo: 'notify_party', mensaje: 'Notify Party es obligatorio',
+      valor_crudo: bl.notify_party
     });
   }
-  if (!bl.lugar_recepcion_id_actual) {
-    pendingValidations.push({
-      nivel: "BL", severidad: "ERROR", campo: "lugar_recepcion_id",
-      mensaje: "Lugar recepción no existe en mantenedor de puertos",
-      valorCrudo: bl.lugar_recepcion_cod || null
+
+  // ✅ Validar descripcion_carga (obligatorio)
+  if (!bl.descripcion_carga || bl.descripcion_carga.trim() === '') {
+    errores.push({
+      nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
+      campo: 'descripcion_carga', mensaje: 'Descripción de carga es obligatoria',
+      valor_crudo: bl.descripcion_carga
+    });
+  }
+
+  // ✅ Validar puertos (deben existir en mantenedor)
+  if (!bl.puerto_embarque_id_valido && bl.puerto_embarque_cod) {
+    errores.push({
+      nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
+      campo: 'puerto_embarque_id',
+      mensaje: 'Puerto de embarque no existe en mantenedor de puertos',
+      valor_crudo: bl.puerto_embarque_cod
+    });
+  }
+
+  if (!bl.puerto_descarga_id_valido && bl.puerto_descarga_cod) {
+    errores.push({
+      nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
+      campo: 'puerto_descarga_id',
+      mensaje: 'Puerto de descarga no existe en mantenedor de puertos',
+      valor_crudo: bl.puerto_descarga_cod
+    });
+  }
+
+  if (!bl.lugar_destino_id_valido && bl.lugar_destino_cod) {
+    errores.push({
+      nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
+      campo: 'lugar_destino_id',
+      mensaje: 'Lugar destino no existe en mantenedor de puertos',
+      valor_crudo: bl.lugar_destino_cod
+    });
+  }
+
+  if (!bl.lugar_entrega_id_valido && bl.lugar_entrega_cod) {
+    errores.push({
+      nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
+      campo: 'lugar_entrega_id',
+      mensaje: 'Lugar entrega no existe en mantenedor de puertos',
+      valor_crudo: bl.lugar_entrega_cod
+    });
+  }
+
+  if (!bl.lugar_emision_id_valido && bl.lugar_emision_cod) {
+    errores.push({
+      nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
+      campo: 'lugar_emision_id',
+      mensaje: 'Lugar emisión no existe en mantenedor de puertos',
+      valor_crudo: bl.lugar_emision_cod
+    });
+  }
+
+  if (!bl.lugar_recepcion_id_valido && bl.lugar_recepcion_cod) {
+    errores.push({
+      nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
+      campo: 'lugar_recepcion_id',
+      mensaje: 'Lugar recepción no existe en mantenedor de puertos',
+      valor_crudo: bl.lugar_recepcion_cod
+    });
+  }
+
+  // ✅ Validar fechas (obligatorias)
+  if (!bl.fecha_emision) {
+    errores.push({
+      nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
+      campo: 'fecha_emision', mensaje: 'Fecha de emisión es obligatoria',
+      valor_crudo: null
+    });
+  }
+
+  if (!bl.fecha_presentacion) {
+    errores.push({
+      nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
+      campo: 'fecha_presentacion', mensaje: 'Fecha de presentación es obligatoria',
+      valor_crudo: null
+    });
+  }
+
+  if (!bl.fecha_embarque) {
+    errores.push({
+      nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
+      campo: 'fecha_embarque', mensaje: 'Fecha de embarque es obligatoria',
+      valor_crudo: null
+    });
+  }
+
+  if (!bl.fecha_zarpe) {
+    errores.push({
+      nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
+      campo: 'fecha_zarpe', mensaje: 'Fecha de zarpe es obligatoria',
+      valor_crudo: null
+    });
+  }
+
+  // ✅ Validar tipo_servicio_id (obligatorio)
+  if (!bl.tipo_servicio_id) {
+    errores.push({
+      nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
+      campo: 'tipo_servicio_id', mensaje: 'Tipo de servicio es obligatorio',
+      valor_crudo: null
+    });
+  }
+
+  // ✅ Validar peso_bruto (obligatorio y > 0)
+  if (!bl.peso_bruto || bl.peso_bruto <= 0) {
+    errores.push({
+      nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
+      campo: 'peso_bruto', mensaje: 'Peso bruto debe ser mayor a 0',
+      valor_crudo: bl.peso_bruto
+    });
+  }
+
+  // ✅ Validar unidad_peso (obligatorio)
+  if (!bl.unidad_peso) {
+    errores.push({
+      nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
+      campo: 'unidad_peso', mensaje: 'Unidad de peso es obligatoria',
+      valor_crudo: null
+    });
+  }
+
+  // ✅ Validar volumen (puede ser 0 pero no null)
+  if (bl.volumen == null) {
+    errores.push({
+      nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
+      campo: 'volumen', mensaje: 'Volumen es obligatorio (puede ser 0)',
+      valor_crudo: bl.volumen
+    });
+  }
+
+  // ✅ Validar unidad_volumen (obligatorio)
+  if (!bl.unidad_volumen) {
+    errores.push({
+      nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
+      campo: 'unidad_volumen', mensaje: 'Unidad de volumen es obligatoria',
+      valor_crudo: null
+    });
+  }
+
+  // ✅ Validar bultos (>= 1)
+  if (!bl.bultos || bl.bultos < 1) {
+    errores.push({
+      nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
+      campo: 'bultos', mensaje: 'Bultos debe ser >= 1',
+      valor_crudo: bl.bultos
+    });
+  }
+
+  // ✅ Validar total_items (>= 1)
+  if (!bl.total_items || bl.total_items < 1) {
+    errores.push({
+      nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
+      campo: 'total_items', mensaje: 'Total items debe ser >= 1',
+      valor_crudo: bl.total_items
     });
   }
 
   // ==========================================
-  // 7) VALIDACIONES DE TRANSBORDOS
+  // PASO 5: VALIDAR CONTENEDORES
   // ==========================================
-  for (const tb of transbordos) {
-    const [puertoRows] = await conn.query(
-      "SELECT id FROM puertos WHERE codigo = ? LIMIT 1",
-      [tb.puerto_cod]
-    );
+  const [contenedores] = await connection.query(
+    'SELECT * FROM bl_contenedores WHERE bl_id = ?',
+    [blId]
+  );
 
-    if (puertoRows.length === 0) {
-      pendingValidations.push({
-        nivel: "TRANSBORDO",
-        sec: tb.sec,
-        severidad: "OBS",
-        campo: "puerto_id",
-        mensaje: "Puerto de transbordo no existe en mantenedor (no afecta XML)",
-        valorCrudo: tb.puerto_cod
+  for (const cnt of contenedores) {
+    // Código obligatorio
+    if (!cnt.codigo || cnt.codigo.trim() === '') {
+      errores.push({
+        nivel: 'CONTENEDOR', ref_id: cnt.id, sec: null, severidad: 'ERROR',
+        campo: 'codigo', mensaje: 'Código de contenedor es obligatorio',
+        valor_crudo: cnt.codigo
       });
     }
-  }
 
-  // ==========================================
-  // 8) 🆕 VALIDACIONES DE ITEMS
-  // ==========================================
-  for (const it of items) {
-    const itemNum = Number(it.numero_item) || null;
+    // Tipo obligatorio
+    if (!cnt.tipo_cnt) {
+      errores.push({
+        nivel: 'CONTENEDOR', ref_id: cnt.id, sec: null, severidad: 'ERROR',
+        campo: 'tipo_cnt', mensaje: 'Tipo de contenedor es obligatorio',
+        valor_crudo: cnt.tipo_cnt
+      });
+    }
 
-    // Solo item 1 requiere descripcion y marcas
-    if (itemNum === 1) {
-      if (!it.descripcion) {
-        pendingValidations.push({
-          nivel: "ITEM", refId: it.id, sec: itemNum, severidad: "ERROR",
-          campo: "descripcion",
-          mensaje: "Descripción obligatoria (solo item 1)",
-          valorCrudo: it.descripcion ?? null
-        });
-        // Validar volumen >= 0
-        if (num(it.volumen) == null || num(it.volumen) < 0) {
-          pendingValidations.push({
-            nivel: "ITEM", refId: it.id, sec: itemNum, severidad: "ERROR",
-            campo: "volumen",
-            mensaje: "Volumen debe ser >= 0 (puede ser 0)",
-            valorCrudo: it.volumen ?? null
+    // Peso obligatorio y > 0
+    if (!cnt.peso || cnt.peso <= 0) {
+      errores.push({
+        nivel: 'CONTENEDOR', ref_id: cnt.id, sec: null, severidad: 'ERROR',
+        campo: 'peso', mensaje: 'Peso del contenedor debe ser mayor a 0',
+        valor_crudo: cnt.peso
+      });
+    }
+
+    // ✅ VALIDAR IMO si el item es carga peligrosa
+    if (cnt.item_id) {
+      const [itemRows] = await connection.query(
+        'SELECT carga_peligrosa FROM bl_items WHERE id = ?',
+        [cnt.item_id]
+      );
+
+      if (itemRows.length > 0 && itemRows[0].carga_peligrosa === 'S') {
+        const [imoRows] = await connection.query(
+          'SELECT COUNT(*) as count FROM bl_contenedor_imo WHERE contenedor_id = ?',
+          [cnt.id]
+        );
+
+        if (imoRows[0].count === 0) {
+          errores.push({
+            nivel: 'CONTENEDOR', ref_id: cnt.id, sec: null, severidad: 'ERROR',
+            campo: 'imo',
+            mensaje: 'Contenedor de carga peligrosa sin datos IMO (clase_imo y numero_imo obligatorios)',
+            valor_crudo: cnt.codigo
           });
         }
       }
-      if (!it.marcas) {
-        pendingValidations.push({
-          nivel: "ITEM", refId: it.id, sec: itemNum, severidad: "ERROR",
-          campo: "marcas",
-          mensaje: "Marcas obligatorias (solo item 1)",
-          valorCrudo: it.marcas ?? null
+    }
+  }
+
+  // ==========================================
+  // PASO 6: VALIDAR ITEMS
+  // ==========================================
+  const [items] = await connection.query(
+    'SELECT * FROM bl_items WHERE bl_id = ?',
+    [blId]
+  );
+
+  for (const item of items) {
+    // Solo item 1 requiere descripcion y marcas
+    if (item.numero_item === 1) {
+      if (!item.descripcion || item.descripcion.trim() === '') {
+        errores.push({
+          nivel: 'ITEM', ref_id: item.id, sec: item.numero_item, severidad: 'ERROR',
+          campo: 'descripcion', mensaje: 'Descripción obligatoria (solo item 1)',
+          valor_crudo: item.descripcion
+        });
+      }
+
+      if (!item.marcas || item.marcas.trim() === '') {
+        errores.push({
+          nivel: 'ITEM', ref_id: item.id, sec: item.numero_item, severidad: 'ERROR',
+          campo: 'marcas', mensaje: 'Marcas obligatorias (solo item 1)',
+          valor_crudo: item.marcas
         });
       }
     }
 
-    // Validar tipo_bulto para todos los items
-    if (!it.tipo_bulto) {
-      pendingValidations.push({
-        nivel: "ITEM", refId: it.id, sec: itemNum, severidad: "ERROR",
-        campo: "tipo_bulto",
-        mensaje: "No se pudo determinar tipo_bulto para el item",
-        valorCrudo: it.tipo_bulto ?? null
+    // Peso bruto obligatorio y > 0
+    if (!item.peso_bruto || item.peso_bruto <= 0) {
+      errores.push({
+        nivel: 'ITEM', ref_id: item.id, sec: item.numero_item, severidad: 'OBS',
+        campo: 'peso_bruto', mensaje: 'Peso bruto debe ser mayor a 0',
+        valor_crudo: item.peso_bruto
+      });
+    }
+
+    // Cantidad obligatoria
+    if (!item.cantidad || item.cantidad <= 0) {
+      errores.push({
+        nivel: 'ITEM', ref_id: item.id, sec: item.numero_item, severidad: 'OBS',
+        campo: 'cantidad', mensaje: 'Cantidad de bultos debe ser mayor a 0',
+        valor_crudo: item.cantidad
+      });
+    }
+
+    // Tipo bulto obligatorio
+    if (!item.tipo_bulto) {
+      errores.push({
+        nivel: 'ITEM', ref_id: item.id, sec: item.numero_item, severidad: 'ERROR',
+        campo: 'tipo_bulto', mensaje: 'Tipo de bulto es obligatorio',
+        valor_crudo: item.tipo_bulto
       });
     }
   }
 
   // ==========================================
-  // 9) 🆕 VALIDACIONES DE CONTENEDORES
+  // PASO 7: VALIDAR TRANSBORDOS
   // ==========================================
-  // ==========================================
-  // 9) 🆕 VALIDACIONES DE CONTENEDORES CON IMO
-  // ==========================================
-  for (const c of contenedores) {
-    const itemNo = c.item_id ?
-      items.find(it => it.id === c.item_id)?.numero_item : null;
+  for (const tbd of transbordos) {
+    const [puertoRows] = await connection.query(
+      "SELECT id FROM puertos WHERE codigo = ? LIMIT 1",
+      [tbd.puerto_cod]
+    );
 
-    if (!c.codigo) {
-      pendingValidations.push({
-        nivel: "CONTENEDOR", refId: c.id, sec: itemNo, severidad: "ERROR",
-        campo: "codigo",
-        mensaje: "Contenedor sin código",
-        valorCrudo: c.codigo ?? null
+    if (puertoRows.length === 0) {
+      errores.push({
+        nivel: 'TRANSBORDO', ref_id: null, sec: tbd.sec, severidad: 'OBS',
+        campo: 'puerto_id',
+        mensaje: 'Puerto de transbordo no existe en mantenedor (no afecta XML)',
+        valor_crudo: tbd.puerto_cod
       });
-    }
-
-    if (!c.tipo_cnt) {
-      pendingValidations.push({
-        nivel: "CONTENEDOR", refId: c.id, sec: itemNo, severidad: "ERROR",
-        campo: "tipo_cnt",
-        mensaje: "Contenedor sin tipo_cnt",
-        valorCrudo: c.tipo_cnt ?? null
-      });
-    }
-
-    if (num(c.volumen) == null || num(c.volumen) < 0) {
-      pendingValidations.push({
-        nivel: "CONTENEDOR", refId: c.id, sec: itemNo, severidad: "ERROR",
-        campo: "volumen",
-        mensaje: "Volumen debe ser >= 0 (puede ser 0)",
-        valorCrudo: c.volumen ?? null
-      });
-    }
-
-    // 🆕 VALIDACIÓN IMO: Si el ítem es carga peligrosa, el contenedor debe tener IMO
-    const itemObj = items.find(it => it.id === c.item_id);
-    if (itemObj && String(itemObj.carga_peligrosa || "").toUpperCase() === "S") {
-      // Verificar si tiene datos IMO en la BD
-      const [imoRows] = await conn.query(
-        "SELECT COUNT(*) as count FROM bl_contenedor_imo WHERE contenedor_id = ?",
-        [c.id]
-      );
-
-      if (imoRows[0].count === 0) {
-        pendingValidations.push({
-          nivel: "CONTENEDOR",
-          refId: c.id,
-          sec: itemNo,
-          severidad: "ERROR",
-          campo: "imo",
-          mensaje: "Item marcado como carga_peligrosa='S' - este contenedor debe tener datos IMO (clase_imo y numero_imo)",
-          valorCrudo: JSON.stringify({ codigo: c.codigo, item: itemNo })
-        });
-      }
     }
   }
 
   // ==========================================
-  // 10) Insertar todas las validaciones
+  // PASO 8: INSERTAR NUEVAS VALIDACIONES
   // ==========================================
-  for (const v of pendingValidations) {
-    await addValidacion(conn, { blId, ...v });
+  if (errores.length > 0) {
+    const values = errores.map(e => [
+      blId, e.nivel, e.ref_id, e.sec, e.severidad,
+      e.campo, e.mensaje, e.valor_crudo
+    ]);
+
+    await connection.query(
+      `INSERT INTO bl_validaciones 
+       (bl_id, nivel, ref_id, sec, severidad, campo, mensaje, valor_crudo)
+       VALUES ?`,
+      [values]
+    );
   }
 
-  // 11) Actualizar resumen
-  await refreshResumenValidacionBL(conn, blId);
+  // ==========================================
+  // PASO 9: ACTUALIZAR RESUMEN
+  // ==========================================
+  const [counts] = await connection.query(
+    `SELECT 
+       SUM(CASE WHEN severidad = 'ERROR' THEN 1 ELSE 0 END) as total_errores,
+       SUM(CASE WHEN severidad = 'OBS' THEN 1 ELSE 0 END) as total_obs
+     FROM bl_validaciones
+     WHERE bl_id = ?`,
+    [blId]
+  );
 
-  console.log(`✅ Revalidación completa: ${pendingValidations.length} validaciones generadas`);
+  const totalErrores = parseInt(counts[0]?.total_errores) || 0;
+  const totalObs = parseInt(counts[0]?.total_obs) || 0;
+
+  let validStatus = 'OK';
+  if (totalErrores > 0) validStatus = 'ERROR';
+  else if (totalObs > 0) validStatus = 'OBS';
+
+  await connection.query(
+    `UPDATE bls 
+     SET valid_status = ?,
+         valid_count_error = ?,
+         valid_count_obs = ?,
+         valid_last_run = NOW()
+     WHERE id = ?`,
+    [validStatus, totalErrores, totalObs, blId]
+  );
+
+  console.log(`✅ Revalidación completa: ${errores.length} validaciones, Status: ${validStatus}`);
 }
 
 // PUT /bls/:blNumber/contenedores

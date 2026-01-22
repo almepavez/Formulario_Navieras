@@ -27,6 +27,17 @@ const GenerarXML = () => {
     }
 
     fetchBLs();
+    // 🆕 Recargar cuando la ventana recupera el foco (vuelves desde otra pestaña/ventana)
+    const handleFocus = () => {
+      console.log('🔄 Ventana recuperó el foco - Recargando BLs...');
+      fetchBLs();
+    };
+
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [id]);
 
   const fetchBLs = async () => {
@@ -222,7 +233,7 @@ const GenerarXML = () => {
     if (blsConErrores.length > 0) {
       const erroresHTML = blsConErrores.map(item =>
         `<div style="text-align: left; margin-bottom: 12px; padding: 12px; background: #FEE2E2; border-radius: 8px; border: 1px solid #FCA5A5;">
-          <strong style="color: #DC2626; font-size: 14px;">📄 ${item.blNumber}</strong><br/>
+          <strong style="color: #DC2626; font-size: 14px;"> ${item.blNumber}</strong><br/>
           <ul style="margin: 8px 0; padding-left: 20px; font-size: 13px; color: #991B1B;">
             ${item.validation.errors.map(e => `<li style="margin: 4px 0;">${e}</li>`).join('')}
           </ul>
@@ -231,7 +242,7 @@ const GenerarXML = () => {
 
       await Swal.fire({
         icon: 'error',
-        title: '🚫 No se puede generar XML',
+        title: 'No se puede generar XML',
         html: `
           <div style="text-align: left; margin-bottom: 16px;">
             <p style="color: #DC2626; font-weight: 500; margin-bottom: 12px;">
@@ -371,39 +382,81 @@ const GenerarXML = () => {
   };
 
   // 🔍 FUNCIÓN: Mostrar vista previa del XML
+  // 🔥 REEMPLAZA TODA LA FUNCIÓN mostrarVistaPrevia por esta:
   const mostrarVistaPrevia = async (blNumber) => {
     const bl = bls.find(b => b.bl_number === blNumber);
-    const validation = validateBL(bl);
 
-    // 🚫 SI HAY ERRORES CRÍTICOS, MOSTRAR SOLO LA VALIDACIÓN
-    if (validation.level === 'error') {
-      const erroresHTML = validation.errors.map(e =>
-        `<li style="margin: 4px 0; color: #991B1B;">${e}</li>`
-      ).join('');
+    // 🆕 Obtener validaciones reales de la BD
+    let validacionesReales = [];
+
+    if (bl.valid_status === 'ERROR' || bl.valid_status === 'OBS') {
+      try {
+        const res = await fetch(`http://localhost:4000/bls/${blNumber}/validaciones`);
+        if (res.ok) {
+          validacionesReales = await res.json();
+        }
+      } catch (e) {
+        console.error('Error al cargar validaciones:', e);
+      }
+    }
+
+    // Separar errores y observaciones
+    const errores = validacionesReales.filter(v => v.severidad === 'ERROR');
+    const observaciones = validacionesReales.filter(v => v.severidad === 'OBS');
+
+    // 🚫 SI HAY ERRORES CRÍTICOS, MOSTRAR LOS REALES
+    if (errores.length > 0) {
+      const erroresHTML = errores.map(e => {
+        let icono = '<span style="color: #DC2626;">●</span>';
+        let prefijo = '';
+
+        if (e.nivel === 'ITEM') {
+          prefijo = `<strong style="color: #DC2626;">Item ${e.sec || ''}:</strong> `;
+        } else if (e.nivel === 'CONTENEDOR') {
+          prefijo = `<strong style="color: #DC2626;">Contenedor${e.sec ? ' ' + e.sec : ''}:</strong> `;
+        } else if (e.nivel === 'TRANSBORDO') {
+          prefijo = `<strong style="color: #DC2626;">Transbordo ${e.sec || ''}:</strong> `;
+        } else if (e.nivel === 'BL') {
+          prefijo = '<strong style="color: #DC2626;">BL:</strong> ';
+        }
+
+        return `<li style="margin: 6px 0; color: #991B1B;">${icono} ${prefijo}${e.mensaje}</li>`;
+      }).join('');
+
+      const obsHTML = observaciones.length > 0 ? `
+      <div style="margin-top: 12px; background: #FEF3C7; padding: 12px; border-radius: 6px; border: 1px solid #FCD34D;">
+        <strong style="color: #92400E;">⚠️ Observaciones (${observaciones.length}):</strong>
+        <ul style="margin: 4px 0; padding-left: 20px; font-size: 13px;">
+          ${observaciones.map(o => `<li style="margin: 4px 0; color: #92400E;">${o.mensaje}</li>`).join('')}
+        </ul>
+      </div>
+    ` : '';
 
       const result = await Swal.fire({
         icon: 'error',
         title: `BL ${blNumber} - Errores Críticos`,
         html: `
-          <div style="text-align: left; background: #FEE2E2; padding: 16px; border-radius: 8px; border: 1px solid #FCA5A5;">
-            <strong style="color: #DC2626;">No se puede generar el XML por los siguientes errores:</strong>
-            <ul style="margin: 8px 0; padding-left: 20px;">
-              ${erroresHTML}
-            </ul>
-          </div>
-          <div style="background: #FEF3C7; padding: 12px; border-radius: 8px; margin-top: 16px; border: 1px solid #FCD34D;">
-            <p style="color: #92400E; font-size: 13px; margin: 0;">
-              <strong>Solución:</strong> Edita el BL para completar los campos faltantes.
-            </p>
-          </div>
-        `,
+        <div style="text-align: left; background: #FEE2E2; padding: 16px; border-radius: 8px; border: 1px solid #FCA5A5;">
+          <strong style="color: #DC2626;">No se puede generar el XML por los siguientes errores:</strong>
+          <ul style="margin: 8px 0; padding-left: 20px;">
+            ${erroresHTML}
+          </ul>
+        </div>
+        ${obsHTML}
+        <div style="background: #FEF3C7; padding: 12px; border-radius: 8px; margin-top: 16px; border: 1px solid #FCD34D;">
+          <p style="color: #92400E; font-size: 13px; margin: 0;">
+            <strong>💡 Solución:</strong> Edita el BL para completar los campos faltantes.
+          </p>
+        </div>
+      `,
         showCancelButton: true,
         showDenyButton: true,
-        confirmButtonText: ' Cerrar',
-        denyButtonText: ' Editar BL',
+        confirmButtonText: 'Cerrar',
+        denyButtonText: 'Editar BL',
         confirmButtonColor: '#DC2626',
         denyButtonColor: '#3B82F6',
-        cancelButtonColor: '#6B7280'
+        cancelButtonColor: '#6B7280',
+        width: '700px'
       });
 
       if (result.isDenied) {
@@ -436,58 +489,117 @@ const GenerarXML = () => {
       const blob = await res.blob();
       const xmlText = await blob.text();
 
-      const formattedXML = xmlText
-        .replace(/></g, '>\n<')
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line.length > 0)
-        .join('\n');
+      // 🎨 Formatear XML con indentación correcta
+      // 🎨 Formatear XML - Versión simple y efectiva
+// 🎨 Formatear y escapar XML para mostrar correctamente
+// 🎨 Formatear y escapar XML para mostrar correctamente
+      const formatXML = (xml) => {
+        // Agregar declaración si falta
+        if (!xml.trim().startsWith('<?xml')) {
+          xml = '<?xml version="1.0" encoding="ISO-8859-1"?>\n' + xml;
+        }
 
-      const validationHTML = validation.level !== 'ok' ? `
-        <div style="margin-bottom: 16px; padding: 12px; background: ${validation.level === 'error' ? '#FEE2E2' : '#FEF3C7'}; border-radius: 8px; text-align: left;">
-          ${validation.errors.length > 0 ? `
-            <div style="margin-bottom: 8px;">
-              <strong style="color: #DC2626;">Errores críticos (${validation.errors.length}):</strong>
-              <ul style="padding-left: 20px; margin: 4px 0; font-size: 13px;">
-                ${validation.errors.map(e => `<li>${e}</li>`).join('')}
-              </ul>
-            </div>
-          ` : ''}
-          ${validation.warnings.length > 0 ? `
-            <div>
-              <strong style="color: #F59E0B;">Advertencias (${validation.warnings.length}):</strong>
-              <ul style="padding-left: 20px; margin: 4px 0; font-size: 13px;">
-                ${validation.warnings.map(w => `<li>${w}</li>`).join('')}
-              </ul>
-            </div>
-          ` : ''}
+        let formatted = '';
+        let indent = 0;
+        const INDENT = '  ';
+        const regex = /(<\?[^?]+\?>|<!\[CDATA\[[\s\S]*?\]\]>|<!--[\s\S]*?-->|<[^>]+>|[^<]+)/g;
+        const parts = xml.match(regex);
+
+        if (!parts) return xml;
+
+        for (let i = 0; i < parts.length; i++) {
+          const part = parts[i];
+          const trimmed = part.trim();
+          if (!trimmed) continue;
+
+          // Declaración XML
+          if (trimmed.startsWith('<?')) {
+            formatted += trimmed + '\n';
+          }
+          // Comentarios
+          else if (trimmed.startsWith('<!--')) {
+            formatted += INDENT.repeat(indent) + trimmed + '\n';
+          }
+          // Tag de cierre
+          else if (trimmed.startsWith('</')) {
+            indent = Math.max(0, indent - 1);
+            formatted += INDENT.repeat(indent) + trimmed + '\n';
+          }
+          // Tag auto-cerrado
+          else if (trimmed.endsWith('/>')) {
+            formatted += INDENT.repeat(indent) + trimmed + '\n';
+          }
+          // Tag de apertura
+          else if (trimmed.startsWith('<')) {
+            // Verificar si el siguiente elemento es contenido de texto
+            const nextPart = parts[i + 1];
+            const nextTrimmed = nextPart ? nextPart.trim() : '';
+            const afterNext = parts[i + 2];
+            const afterNextTrimmed = afterNext ? afterNext.trim() : '';
+            
+            // Si tiene texto seguido de un tag de cierre inmediato, es contenido inline
+            if (nextTrimmed && !nextTrimmed.startsWith('<') && afterNextTrimmed.startsWith('</')) {
+              formatted += INDENT.repeat(indent) + trimmed + nextTrimmed + afterNextTrimmed + '\n';
+              i += 2; // Saltar los próximos 2 elementos porque ya los procesamos
+            } else {
+              // Es un elemento con hijos
+              formatted += INDENT.repeat(indent) + trimmed + '\n';
+              indent++;
+            }
+          }
+        }
+
+        return formatted;
+      };
+
+      // 🔒 Escapar HTML para que se muestren las etiquetas XML
+      const escapeHTML = (str) => {
+        return str
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      };
+
+      const formattedXML = escapeHTML(formatXML(xmlText));
+
+      const obsHTML = observaciones.length > 0 ? `
+      <div style="margin-bottom: 16px; padding: 12px; background: #FEF3C7; border-radius: 8px; text-align: left;">
+        <strong style="color: #F59E0B;">⚠️ Observaciones (${observaciones.length}):</strong>
+        <ul style="padding-left: 20px; margin: 4px 0; font-size: 13px;">
+          ${observaciones.map(o => `<li style="color: #92400E;">${o.mensaje}</li>`).join('')}
+        </ul>
+        <div style="margin-top: 8px; color: #92400E; font-size: 12px;">
+          ℹ️ Estas observaciones no impiden generar el XML, pero deberías revisarlas.
         </div>
-      ` : `
-        <div style="margin-bottom: 16px; padding: 12px; background: #D1FAE5; border-radius: 8px; color: #065F46; text-align: left;">
-          <strong> Sin problemas detectados</strong> - El XML está listo para ser generado.
-        </div>
-      `;
+      </div>
+    ` : `
+      <div style="margin-bottom: 16px; padding: 12px; background: #D1FAE5; border-radius: 8px; color: #065F46; text-align: left;">
+        <strong>Sin problemas detectados</strong> - El XML está listo para ser generado.
+      </div>
+    `;
 
       const result = await Swal.fire({
         title: `Vista Previa XML - ${blNumber}`,
         html: `
-          ${validationHTML}
-          <div style="text-align: left;">
-            <strong style="font-size: 14px;">Contenido del XML:</strong>
-            <pre style="
-              background: #1E293B; 
-              color: #E2E8F0; 
-              padding: 16px; 
-              border-radius: 8px; 
-              max-height: 400px; 
-              overflow-y: auto; 
-              text-align: left;
-              font-size: 12px;
-              line-height: 1.5;
-              margin-top: 8px;
-            ">${formattedXML}</pre>
-          </div>
-        `,
+        ${obsHTML}
+        <div style="text-align: left;">
+          <strong style="font-size: 14px;">Contenido del XML:</strong>
+          <pre style="
+            background: #1E293B; 
+            color: #E2E8F0; 
+            padding: 16px; 
+            border-radius: 8px; 
+            max-height: 400px; 
+            overflow-y: auto; 
+            text-align: left;
+            font-size: 12px;
+            line-height: 1.5;
+            margin-top: 8px;
+          ">${formattedXML}</pre>
+        </div>
+      `,
         width: '800px',
         showCancelButton: true,
         showDenyButton: true,
