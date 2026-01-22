@@ -908,6 +908,19 @@ app.get("/puertos", async (_req, res) => {
   }
 });
 
+// GET - Obtener tipos de bulto para selectores (SIN /api/mantenedores)
+app.get("/tipos-bulto", async (_req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT DISTINCT tipo_bulto FROM tipo_cnt_tipo_bulto WHERE activo = 1 ORDER BY tipo_bulto"
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error("Error al obtener tipos de bulto:", error);
+    res.status(500).json({ error: "Error al obtener tipos de bulto" });
+  }
+});
+
 // ============================================
 // CRUD SERVICIOS (codigo, nombre, descripcion)
 // ============================================
@@ -4708,6 +4721,55 @@ async function revalidarBLCompleto(conn, blId) {
 
   console.log(`✅ Revalidación completa: ${pendingValidations.length} validaciones generadas`);
 }
+
+// PUT /bls/:blNumber/contenedores
+app.put('/bls/:blNumber/contenedores', async (req, res) => {
+  const { blNumber } = req.params;
+  const { contenedores } = req.body;
+
+  try {
+    // 1. Obtener bl_id desde el bl_number
+    const [blRows] = await pool.query('SELECT id FROM bls WHERE bl_number = ?', [blNumber]);
+    if (blRows.length === 0) return res.status(404).json({ error: 'BL no encontrado' });
+    const bl_id = blRows[0].id;
+
+    // 2. Para cada contenedor, actualizar datos
+    for (const cont of contenedores) {
+      // Actualizar contenedor básico (si hay cambios en código, tipo_cnt, etc.)
+      await pool.query(
+        'UPDATE bl_contenedores SET codigo = ?, tipo_cnt = ? WHERE id = ?',
+        [cont.codigo, cont.tipo_cnt, cont.id]
+      );
+
+      // 3. Eliminar sellos actuales y reinsertar
+      await pool.query('DELETE FROM bl_contenedor_sellos WHERE contenedor_id = ?', [cont.id]);
+      if (cont.sellos && cont.sellos.length > 0) {
+        for (const sello of cont.sellos) {
+          await pool.query(
+            'INSERT INTO bl_contenedor_sellos (contenedor_id, sello) VALUES (?, ?)',
+            [cont.id, sello]
+          );
+        }
+      }
+
+      // 4. Eliminar IMOs actuales y reinsertar
+      await pool.query('DELETE FROM bl_contenedor_imo WHERE contenedor_id = ?', [cont.id]);
+      if (cont.imos && cont.imos.length > 0) {
+        for (const imo of cont.imos) {
+          await pool.query(
+            'INSERT INTO bl_contenedor_imo (contenedor_id, clase_imo, numero_imo) VALUES (?, ?, ?)',
+            [cont.id, imo.clase, imo.numero]
+          );
+        }
+      }
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error al actualizar contenedores:', error);
+    res.status(500).json({ error: 'Error al actualizar contenedores' });
+  }
+});
 // ============================================
 // INICIAR SERVIDOR
 // ============================================

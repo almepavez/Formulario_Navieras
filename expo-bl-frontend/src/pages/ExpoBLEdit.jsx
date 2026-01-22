@@ -23,6 +23,8 @@ const ExpoBLEdit = () => {
     const [items, setItems] = useState([]);
     const [contenedores, setContenedores] = useState([]);
     const [transbordos, setTransbordos] = useState([]);
+    const [tiposBulto, setTiposBulto] = useState([]); // 🆕 NUEVO
+
 
 
     // Estado del formulario
@@ -66,6 +68,12 @@ const ExpoBLEdit = () => {
                 if (resPuertos.ok) {
                     const dataPuertos = await resPuertos.json();
                     setPuertos(dataPuertos);
+                }
+                // 🆕 AGREGAR ESTAS LÍNEAS 👇
+                const resTiposBulto = await fetch(`http://localhost:4000/tipos-bulto`);
+                if (resTiposBulto.ok) {
+                    const dataTiposBulto = await resTiposBulto.json();
+                    setTiposBulto(dataTiposBulto);
                 }
 
                 // Función para convertir fecha MySQL a formato input[type="date"]
@@ -208,9 +216,9 @@ const ExpoBLEdit = () => {
                         confirmButtonColor: "#0F2A44"
                     });
                     return false;
-                
-             
-        
+
+
+
                 }
                 break;
 
@@ -245,7 +253,7 @@ const ExpoBLEdit = () => {
                     });
                     return false;
                 }
-              
+
                 if (!formData.bultos || parseInt(formData.bultos) <= 0) {
                     Swal.fire({
                         icon: "warning",
@@ -1005,13 +1013,18 @@ const ExpoBLEdit = () => {
                                                     <label className="block text-sm font-medium text-slate-700 mb-2">
                                                         Tipo Bulto
                                                     </label>
-                                                    <input
-                                                        type="text"
+                                                    <select
                                                         value={item.tipo_bulto || ""}
                                                         onChange={(e) => updateItem(item.id, "tipo_bulto", e.target.value)}
                                                         className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm"
-                                                        placeholder="Ej: 73, 76"
-                                                    />
+                                                    >
+                                                        <option value="">Seleccionar...</option>
+                                                        {tiposBulto.map(tipo => (
+                                                            <option key={tipo.id} value={tipo.tipo_bulto}>
+                                                                {tipo.tipo_bulto}
+                                                            </option>
+                                                        ))}
+                                                    </select>
                                                 </div>
 
                                                 {/* Cantidad */}
