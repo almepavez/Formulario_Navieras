@@ -317,6 +317,52 @@ const ManifiestoDetalle = () => {
     }
   };
 
+  // 📍 INSERTAR AQUÍ (línea ~355, después de handleUploadPMS y ANTES de handleProcessPMS)
+
+  const handleDeletePMS = async () => {
+    const result = await Swal.fire({
+      title: "¿Eliminar PMS?",
+      text: "Se eliminará el archivo PMS cargado. Podrás subir uno nuevo.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#e43a3aff",
+      cancelButtonColor: "#64748b",
+      confirmButtonText: "Sí, eliminar",
+      cancelButtonText: "Cancelar",
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/manifiestos/${id}/pms`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(txt || `HTTP ${res.status}`);
+      }
+
+      await Swal.fire({
+        title: "¡PMS eliminado!",
+        text: "Ahora puedes subir un nuevo archivo",
+        icon: "success",
+        confirmButtonColor: "#10b981",
+        timer: 2000,
+      });
+
+      setPmsInfo(null);
+      setPmsFile(null);
+    } catch (e) {
+      Swal.fire({
+        title: "Error",
+        text: e?.message || "No se pudo eliminar el PMS",
+        icon: "error",
+        confirmButtonColor: "#10b981",
+      });
+    }
+  };
+
   const handleProcessPMS = async () => {
     const result = await Swal.fire({
       title: "¿Procesar PMS?",
@@ -519,23 +565,33 @@ const ManifiestoDetalle = () => {
                   </p>
                 </div>
 
-                {!pmsInfo ? (
-                  <button
-                    onClick={handleUploadPMS}
-                    disabled={pmsUploading || !pmsFile}
-                    className="px-4 py-2 rounded-lg bg-[#0F2A44] text-white text-sm font-medium disabled:opacity-60 hover:bg-[#1a3f5f]"
-                  >
-                    {pmsUploading ? "Subiendo..." : "Subir archivo"}
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleProcessPMS}
-                    disabled={processingPMS}
-                    className="px-4 py-2 rounded-lg bg-[#0F2A44] text-white text-sm font-medium disabled:opacity-60 hover:bg-[#1a3f5f]"
-                  >
-                    {processingPMS ? "Procesando..." : "Procesar PMS"}
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  {!pmsInfo ? (
+                    <button
+                      onClick={handleUploadPMS}
+                      disabled={pmsUploading || !pmsFile}
+                      className="px-4 py-2 rounded-lg bg-[#0F2A44] text-white text-sm font-medium disabled:opacity-60 hover:bg-[#1a3f5f]"
+                    >
+                      {pmsUploading ? "Subiendo..." : "Subir archivo"}
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={handleProcessPMS}
+                        disabled={processingPMS}
+                        className="px-4 py-2 rounded-lg bg-[#0F2A44] text-white text-sm font-medium disabled:opacity-60 hover:bg-[#1a3f5f]"
+                      >
+                        {processingPMS ? "Procesando..." : "Procesar PMS"}
+                      </button>
+                      <button
+                        onClick={handleDeletePMS}
+                        className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700"
+                      >
+                        Eliminar PMS
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
 
               <div className="flex items-center gap-3">
