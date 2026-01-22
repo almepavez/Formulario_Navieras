@@ -2031,11 +2031,26 @@ function extractWeightFrom12(line12) {
   return safeNumberFromText(m?.[1] || null);
 }
 
-function extractPartyName(line) {
-  if (!line) return "";
-  const body = line.slice(2);
-  const m = body.match(/[A-Z0-9]{2,}\s+([A-Z0-9][A-Z0-9\s\.,&'\-\/]{5,})/i);
-  return normalizeStr(m?.[1] || "");
+function extractPartyName(rawLine) {
+  if (!rawLine) return null;
+
+  const s = String(rawLine);
+
+  // Quita el prefijo "16   CL101367" o "21   KR" o "26  1KR800791"
+  // (2 dígitos de tipo + espacios + id + espacios)
+  const rest = s.replace(/^\s*\d{2}\s+\S+\s+/, "");
+
+  // Split por "columnas" (2+ espacios)
+  const cols = rest.split(/\s{2,}/).map(x => x.trim()).filter(Boolean);
+
+  // El nombre debería ser la primera columna
+  const name = cols[0] || null;
+
+  // Si justo quedó un código tipo "CLSCL" o "KRSEL" como "nombre", es porque faltaba el nombre.
+  // En ese caso devuelve null para que dispare tu validación.
+  if (name && /^[A-Z]{5}$/.test(name)) return null;
+
+  return name;
 }
 
 function extractDescripcionFrom41(line41) {
@@ -2814,9 +2829,9 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
       if (num(b.total_items) < 1) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "total_items", mensaje: "total_items debe ser >= 1", valorCrudo: b.total_items });
 
       // shipper/consignee/notify obligatorios (ERROR)
-      if (isBlank(b.shipper)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "shipper", mensaje: "Falta shipper", valorCrudo: b.shipper || null });
-      if (isBlank(b.consignee)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "consignee", mensaje: "Falta consignee", valorCrudo: b.consignee || null });
-      if (isBlank(b.notify)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "notify_party", mensaje: "Falta notify", valorCrudo: b.notify || null });
+      if (isBlank(b.shipper)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "shipper", mensaje: "Falta shipper (Linea 16)", valorCrudo: b.shipper || null });
+      if (isBlank(b.consignee)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "consignee", mensaje: "Falta consignee (Linea 21)", valorCrudo: b.consignee || null });
+      if (isBlank(b.notify)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "notify_party", mensaje: "Falta notify (Linea 26)", valorCrudo: b.notify || null });
 
       // descripcion obligatoria (ERROR)
       if (isBlank(b.descripcion_carga)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "descripcion_carga", mensaje: "Falta descripcion_carga", valorCrudo: b.descripcion_carga || null });
