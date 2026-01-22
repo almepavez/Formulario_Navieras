@@ -1720,26 +1720,42 @@ function pickPEPD(lines14) {
 function parseLine56(raw) {
   const s = String(raw || "").toUpperCase();
 
-  // 56 01 001 001 (en tu caso viene: 56 01001001...)
+  // 56 01 001 001  (ej: "56 01001004 ...")
   const m = s.match(/^56\s*(\d{2})(\d{3})(\d{3})/);
   if (!m) return null;
 
-  const itemNo = Number(m[2]); // 001 -> 1
-  const seqNo = Number(m[3]); // 001 -> 1
+  const itemNo = Number(m[2]); // "001" => 1
+  const seqNo  = Number(m[3]); // "004" => 4 (según tu PMS)
 
-  // OJO: viene pegado a números antes, así que NO uses \b
-  // Soporta: 3077A9 / 3077 A9 / UN3077A9 / UN 3077 A9
-  let mm = s.match(/UN?\s*(\d{4})\s*A\s*(\d{1,2})/i);
-  if (!mm) mm = s.match(/(\d{4})\s*A\s*(\d{1,2})/i);
-  if (!mm) mm = s.match(/(\d{4})A(\d{1,2})/i);
+  // ✅ CLAVE: buscar IMO SOLO después del header (evita capturar 01001004 como UN=1004)
+  const tail = s.slice(m[0].length);
 
-  if (!mm) return null;
+  let un = "";
+  let clase = "";
 
-  const un = mm[1];
-  const clase = mm[2];
+  // 1) Preferido: "UN3077" (con o sin espacios / ceros)
+  const unMatch = tail.match(/UN\s*0*(\d{4})/);
+  if (unMatch) un = unMatch[1];
 
+  // 2) Preferido: "CLASS 9" (con o sin espacios / ceros)
+  const classMatch = tail.match(/CLASS\s*0*(\d{1,2})/);
+  if (classMatch) clase = classMatch[1];
+
+  // 3) Fallback: formato compacto "3077A9" o "3077 A9"
+  //    (usamos (^|[^0-9]) para no enganchar dígitos pegados raros)
+  if (!un || !clase) {
+    const compact = tail.match(/(^|[^0-9])0*(\d{4})\s*A\s*0*(\d{1,2})/);
+    if (compact) {
+      if (!un) un = compact[2];
+      if (!clase) clase = compact[3];
+    }
+  }
+
+  // ✅ IMPORTANTE: NO retornes null si falta IMO.
+  // Queremos que "exista línea 56" para _hasLinea56 y para que insertImo valide calidad.
   return { itemNo, seqNo, un, clase };
 }
+
 
 function parseLine51(raw) {
   const line = String(raw || "").toUpperCase();
@@ -2378,19 +2394,8 @@ async function insertImo(conn, blId, contenedorId, itemNo, imoArr, codigoCont = 
     const clase = String(x?.clase_imo ?? "").trim();
     const numero = String(x?.numero_imo ?? "").trim();
 
-    if (!clase || !numero) {
-      await addValidacion(conn, {
-        blId,
-        nivel: "CONTENEDOR",
-        refId: contenedorId,
-        sec: itemNo ?? null,
-        severidad: "ERROR",
-        campo: "imo",
-        mensaje: "IMO incompleto: falta clase_imo o numero_imo",
-        valorCrudo: JSON.stringify({ codigo: codigoCont, ...x })
-      });
-      continue;
-    }
+    // Si viene incompleto, NO insert y NO validación (para no duplicar)
+    if (!clase || !numero) continue;
 
     const [r] = await conn.query(
       `INSERT IGNORE INTO bl_contenedor_imo (contenedor_id, clase_imo, numero_imo)
@@ -2999,27 +3004,21 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
         const itemObj = itemNo ? items.find(it => Number(it.numero_item) === itemNo) : null;
         const itemPeligroso = itemObj && String(itemObj.carga_peligrosa || "").toUpperCase() === "S";
 
-        // Insertar IMOs
+        // Insertar IMOs (insertImo ya ignora incompletos)
         const insertedImo = await insertImo(conn, blId, contenedorId, itemNo, c.imo || [], c.codigo || null);
 
-        // ✅ NUEVA VALIDACIÓN: Si el ítem es peligroso, TODOS los contenedores deben tener IMO
-        if (itemPeligroso) {
-          const tieneImoValido = Array.isArray(c.imo) &&
-            c.imo.length > 0 &&
-            c.imo.some(x => x.clase_imo && x.numero_imo);
-
-          if (!tieneImoValido) {
-            await addValidacion(conn, {
-              blId,
-              nivel: "CONTENEDOR",
-              refId: contenedorId,
-              sec: itemNo,
-              severidad: "ERROR",
-              campo: "imo",
-              mensaje: "Item marcado como carga_peligrosa='S' - este contenedor debe tener datos IMO (clase_imo y numero_imo)",
-              valorCrudo: JSON.stringify({ codigo: c.codigo, imo: c.imo })
-            });
-          }
+        // ✅ Validación única: si el item es peligroso, este contenedor debe tener al menos 1 IMO válido insertado
+        if (itemPeligroso && insertedImo < 1) {
+          await addValidacion(conn, {
+            blId,
+            nivel: "CONTENEDOR",
+            refId: contenedorId,
+            sec: itemNo,
+            severidad: "ERROR",
+            campo: "imo",
+            mensaje: "Item marcado como carga_peligrosa='S' - este contenedor debe tener datos IMO (clase_imo y numero_imo) Linea 56",
+            valorCrudo: JSON.stringify({ codigo: c.codigo || null })
+          });
         }
 
         // =========================
