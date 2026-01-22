@@ -99,9 +99,9 @@ const ExpoBLDetail = () => {
     }, [blNumber]);
 
     const getValidacionTransbordo = (sec) => {
-        return validaciones.find(v => 
-            v.nivel === "TRANSBORDO" && 
-            v.campo === "puerto_id" && 
+        return validaciones.find(v =>
+            v.nivel === "TRANSBORDO" &&
+            v.campo === "puerto_id" &&
             v.sec === sec
         );
     };
@@ -319,22 +319,20 @@ const ExpoBLDetail = () => {
                                 const tieneError = !!validacion;
 
                                 return (
-                                    <div 
+                                    <div
                                         key={tb.id}
-                                        className={`flex items-center gap-4 p-4 rounded-lg border transition-all ${
-                                            tieneError 
-                                                ? 'bg-orange-50 border-orange-300 ring-2 ring-orange-200' 
-                                                : 'bg-slate-50 border-slate-200'
-                                        }`}
+                                        className={`flex items-center gap-4 p-4 rounded-lg border transition-all ${tieneError
+                                            ? 'bg-orange-50 border-orange-300 ring-2 ring-orange-200'
+                                            : 'bg-slate-50 border-slate-200'
+                                            }`}
                                     >
-                                        <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold ${
-                                            tieneError 
-                                                ? 'bg-orange-500 text-white' 
-                                                : 'bg-[#0F2A44] text-white'
-                                        }`}>
+                                        <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold ${tieneError
+                                            ? 'bg-orange-500 text-white'
+                                            : 'bg-[#0F2A44] text-white'
+                                            }`}>
                                             {idx + 1}
                                         </div>
-                                        
+
                                         <div className="flex-1">
                                             <p className="text-sm font-medium text-slate-900">
                                                 {tb.puerto_nombre || tb.puerto_cod}
@@ -342,7 +340,7 @@ const ExpoBLDetail = () => {
                                             <p className="text-xs text-slate-500">
                                                 Código: {tb.puerto_cod}
                                             </p>
-                                            
+
                                             {validacion && (
                                                 <div className="mt-2 flex items-start gap-2">
                                                     <AlertTriangle className="w-4 h-4 text-orange-600 flex-shrink-0 mt-0.5" />
@@ -485,8 +483,8 @@ const ExpoBLDetail = () => {
                                             </td>
                                             <td className="px-4 py-3 text-sm">
                                                 <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${item.carga_peligrosa === 'S'
-                                                        ? 'bg-red-100 text-red-800'
-                                                        : 'bg-green-100 text-green-800'
+                                                    ? 'bg-red-100 text-red-800'
+                                                    : 'bg-green-100 text-green-800'
                                                     }`}>
                                                     {item.carga_peligrosa === 'S' ? 'Sí' : 'No'}
                                                 </span>
@@ -514,6 +512,7 @@ const ExpoBLDetail = () => {
                                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Peso</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Volumen</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Sellos</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">IMO</th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-slate-200">
@@ -532,19 +531,41 @@ const ExpoBLDetail = () => {
                                                 {formatNumber(cont.volumen)} {cont.unidad_volumen || ""}
                                             </td>
                                             <td className="px-4 py-3 text-sm text-slate-600">
-                                                {cont.sellos ? (
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {cont.sellos.split(', ').map((sello, idx) => (
+                                                {(() => {
+                                                    const sellosArray = Array.isArray(cont.sellos)
+                                                        ? cont.sellos
+                                                        : (cont.sellos || '').split(',').filter(s => s.trim());
+
+                                                    return sellosArray.length > 0
+                                                        ? sellosArray.map((sello, i) => (
                                                             <span
-                                                                key={idx}
-                                                                className="inline-flex items-center px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs font-medium"
+                                                                key={i}
+                                                                className="inline-block px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs mr-1 mb-1"
                                                             >
                                                                 {sello}
                                                             </span>
-                                                        ))}
-                                                    </div>
+                                                        ))
+                                                        : <span className="text-slate-400 italic">Sin sellos</span>;
+                                                })()}
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-slate-600">
+                                                {cont.carga_cnt === 'S' ? (
+                                                    (() => {
+                                                        const imosArray = cont.imos || [];
+
+                                                        return imosArray.length > 0
+                                                            ? imosArray.map((imo, i) => (
+                                                                <div
+                                                                    key={i}
+                                                                    className="inline-block px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs mr-1 mb-1 font-mono"
+                                                                >
+                                                                    {imo.clase}/{imo.numero}
+                                                                </div>
+                                                            ))
+                                                            : <span className="text-amber-600 text-xs font-medium">⚠️ Sin IMO</span>;
+                                                    })()
                                                 ) : (
-                                                    "—"
+                                                    <span className="text-slate-400 italic text-xs">—</span>
                                                 )}
                                             </td>
                                         </tr>

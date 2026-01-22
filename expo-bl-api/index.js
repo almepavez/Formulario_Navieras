@@ -1519,6 +1519,56 @@ app.get("/manifiestos/:id/pms", async (req, res) => {
   }
 });
 
+// 📍 INSERTAR AQUÍ (después del GET /manifiestos/:id/pms, línea ~1780)
+
+// DELETE - Eliminar archivo PMS
+app.delete("/manifiestos/:id/pms", async (req, res) => {
+  const { id } = req.params;
+  const conn = await pool.getConnection();
+
+  try {
+    await conn.beginTransaction();
+
+    // 1. Obtener info del archivo antes de eliminarlo
+    const [pmsRows] = await conn.query(
+      "SELECT path_archivo FROM pms_archivos WHERE manifiesto_id = ? ORDER BY created_at DESC LIMIT 1",
+      [id]
+    );
+
+    if (pmsRows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: "No hay archivo PMS para eliminar" });
+    }
+
+    const pathArchivo = pmsRows[0].path_archivo;
+
+    // 2. Eliminar archivo físico del disco
+    const absPath = path.isAbsolute(pathArchivo)
+      ? pathArchivo
+      : path.join(__dirname, pathArchivo);
+
+    if (fs.existsSync(absPath)) {
+      fs.unlinkSync(absPath);
+      console.log(`🗑️ Archivo eliminado: ${absPath}`);
+    }
+
+    // 3. Eliminar registro de la base de datos
+    await conn.query(
+      "DELETE FROM pms_archivos WHERE manifiesto_id = ?",
+      [id]
+    );
+
+    await conn.commit();
+    res.json({ ok: true, message: "PMS eliminado correctamente" });
+
+  } catch (err) {
+    await conn.rollback();
+    console.error("Error al eliminar PMS:", err);
+    res.status(500).json({ error: err?.message || "Error eliminando PMS" });
+  } finally {
+    conn.release();
+  }
+});
 // ===============================
 // PMS TXT (00/11/12/13/.../99)
 // ===============================
@@ -3006,6 +3056,8 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
 
         // Insertar IMOs (insertImo ya ignora incompletos)
         const insertedImo = await insertImo(conn, blId, contenedorId, itemNo, c.imo || [], c.codigo || null);
+        // 🆕 VALIDACIÓN: Detectar inconsistencia entre carga_peligrosa='N' pero con datos IMO
+        const itemNoPeligroso = itemObj && String(itemObj.carga_peligrosa || "").toUpperCase() === "N";
 
         // ✅ Validación única: si el item es peligroso, este contenedor debe tener al menos 1 IMO válido insertado
         if (itemPeligroso && insertedImo < 1) {
@@ -3324,103 +3376,61 @@ app.put("/bls/:blNumber/items", async (req, res) => {
 });
 
 // GET items y contenedores de un BL específico
-app.get("/bls/:blNumber/items-contenedores", async (req, res) => {
+app.get('/bls/:blNumber/items-contenedores', async (req, res) => {
+  const { blNumber } = req.params;
+
   try {
-    const { blNumber } = req.params;
-
-    // 1) Obtener el BL
-    const [blRows] = await pool.query(
-      "SELECT id FROM bls WHERE bl_number = ? LIMIT 1",
-      [blNumber]
-    );
-
+    // 1. Obtener bl_id
+    const [blRows] = await pool.query('SELECT id FROM bls WHERE bl_number = ?', [blNumber]);
     if (blRows.length === 0) {
-      return res.status(404).json({ error: "BL no encontrado" });
+      return res.status(404).json({ error: 'BL no encontrado' });
     }
+    const bl_id = blRows[0].id;
 
-    const blId = blRows[0].id;
-    console.log(`📦 BL ID: ${blId} para BL Number: ${blNumber}`);
-
-    // 2) Obtener ítems
+    // 2. Obtener items
     const [items] = await pool.query(
-      `SELECT 
-        id, numero_item, descripcion, marcas, carga_peligrosa,
-        tipo_bulto, cantidad, peso_bruto, unidad_peso, volumen, unidad_volumen
-      FROM bl_items
-      WHERE bl_id = ?
-      ORDER BY numero_item ASC`,
-      [blId]
+      'SELECT * FROM bl_items WHERE bl_id = ? ORDER BY numero_item',
+      [bl_id]
     );
 
-    console.log(`📋 Items encontrados: ${items.length}`);
-
-    // 3) Obtener contenedores POR ITEM
-    const [contenedoresPorItem] = await pool.query(
-      `SELECT 
-        c.item_id,
-        c.id as contenedor_id,
-        c.codigo,
-        c.tipo_cnt,
-        c.peso,
-        c.unidad_peso,
-        c.volumen,
-        c.unidad_volumen
-      FROM bl_contenedores c
-      WHERE c.bl_id = ?
-      ORDER BY c.item_id, c.codigo ASC`,
-      [blId]
+    // 3. Obtener contenedores
+    const [contenedores] = await pool.query(
+      'SELECT * FROM bl_contenedores WHERE bl_id = ? ORDER BY id',
+      [bl_id]
     );
 
-    console.log(`📦 Contenedores totales: ${contenedoresPorItem.length}`);
-    console.log(`🔍 Contenedores con item_id:`, contenedoresPorItem.filter(c => c.item_id).length);
+    // 4. Para cada contenedor, obtener sus sellos e IMOs
+    for (const cont of contenedores) {
+      // Obtener sellos
+      const [sellos] = await pool.query(
+        'SELECT sello FROM bl_contenedor_sellos WHERE contenedor_id = ?',
+        [cont.id]
+      );
+      // ✅ ASEGURARSE DE QUE SIEMPRE SEA UN ARRAY
+      cont.sellos = sellos.map(s => s.sello) || [];
 
-    // 4) Agrupar contenedores por item_id
-    const contsPorItemMap = {};
-    for (const cont of contenedoresPorItem) {
-      if (cont.item_id) {
-        if (!contsPorItemMap[cont.item_id]) {
-          contsPorItemMap[cont.item_id] = [];
-        }
-        contsPorItemMap[cont.item_id].push({
-          codigo: cont.codigo,
-          tipo_cnt: cont.tipo_cnt
-        });
-      }
+      // Obtener IMOs
+      const [imos] = await pool.query(
+        'SELECT clase_imo as clase, numero_imo as numero FROM bl_contenedor_imo WHERE contenedor_id = ?',
+        [cont.id]
+      );
+      // ✅ ASEGURARSE DE QUE SIEMPRE SEA UN ARRAY
+      cont.imos = imos || [];
     }
 
-    console.log(`🗂️ Items con contenedores:`, Object.keys(contsPorItemMap).length);
-    console.log(`📊 Mapa de contenedores:`, JSON.stringify(contsPorItemMap, null, 2));
+    // 5. Asociar contenedores a items
+    for (const item of items) {
+      const itemContenedores = contenedores.filter(c => c.item_id === item.id);
+      item.contenedores = itemContenedores.map(c => ({ codigo: c.codigo }));
+    }
 
-    // 5) Agregar contenedores a cada ítem
-    const itemsConContenedores = items.map(item => ({
-      ...item,
-      contenedores: contsPorItemMap[item.id] || []
-    }));
+    console.log('✅ Contenedores cargados:', contenedores.length);
+    console.log('📦 Ejemplo contenedor:', contenedores[0] || 'Sin contenedores');
 
-    // 6) Obtener TODOS los contenedores con sellos (para la tabla separada)
-    const [contenedores] = await pool.query(
-      `SELECT 
-        c.id, c.item_id, c.codigo, c.sigla, c.numero, c.digito,
-        c.tipo_cnt, c.carga_cnt, c.peso, c.unidad_peso, c.volumen, c.unidad_volumen,
-        GROUP_CONCAT(s.sello ORDER BY s.sello SEPARATOR ', ') as sellos
-      FROM bl_contenedores c
-      LEFT JOIN bl_contenedor_sellos s ON s.contenedor_id = c.id
-      WHERE c.bl_id = ?
-      GROUP BY c.id
-      ORDER BY c.codigo ASC`,
-      [blId]
-    );
-
-    res.json({
-      items: itemsConContenedores || [],
-      contenedores: contenedores || []
-    });
+    res.json({ items, contenedores });
   } catch (error) {
-    console.error("❌ Error al obtener items y contenedores:", error);
-    res.status(500).json({
-      error: "Error al obtener items y contenedores",
-      details: error.message
-    });
+    console.error('❌ Error al obtener items y contenedores:', error);
+    res.status(500).json({ error: 'Error al obtener datos' });
   }
 });
 
