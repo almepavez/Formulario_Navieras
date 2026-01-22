@@ -421,7 +421,6 @@ const ManifiestoDetalle = () => {
 
         {isEditing && hasUnsavedChanges && (
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-center gap-2">
-            <span className="text-lg">⚠️</span>
             <span className="font-medium">Tienes cambios sin guardar</span>
           </div>
         )}

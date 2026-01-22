@@ -2577,7 +2577,7 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
           nivel: "BL",
           severidad: "ERROR",
           campo: "lugar_emision_id",
-          mensaje: "Lugar de emisión no existe en mantenedor de puertos",
+          mensaje: "Lugar de emisión no existe en mantenedor de puertos (Linea 74)",
           valorCrudo: b.lugar_emision_cod || null
         });
       }
@@ -2588,7 +2588,7 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
           nivel: "BL",
           severidad: "ERROR",
           campo: "puerto_embarque_id",
-          mensaje: "Puerto de embarque no existe en mantenedor de puertos",
+          mensaje: "Puerto de embarque no existe en mantenedor de puertos (Linea 14 o 13)",
           valorCrudo: b.puerto_embarque_cod || null
         });
       }
@@ -2599,7 +2599,7 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
           nivel: "BL",
           severidad: "ERROR",
           campo: "puerto_descarga_id",
-          mensaje: "Puerto de descarga no existe en mantenedor de puertos",
+          mensaje: "Puerto de descarga no existe en mantenedor de puertos (Linea 14 o 13)",
           valorCrudo: b.puerto_descarga_cod || null
         });
       }
@@ -2674,9 +2674,9 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
       const blId = blIns.insertId;
       await conn.query("DELETE FROM bl_validaciones WHERE bl_id = ?", [blId]);
 
-      if (!lugarDestinoId) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_destino_id", mensaje: "Lugar destino no existe en mantenedor de puertos", valorCrudo: b.lugar_destino_cod || null });
-      if (!lugarEntregaId) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_entrega_id", mensaje: "Lugar entrega no existe en mantenedor de puertos", valorCrudo: b.lugar_entrega_cod || null });
-      if (!lugarRecepcionId) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_recepcion_id", mensaje: "Lugar recepción no existe en mantenedor de puertos", valorCrudo: b.lugar_recepcion_cod || null });
+      if (!lugarDestinoId) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_destino_id", mensaje: "Lugar destino no existe en mantenedor de puertos (Revisar puerto de descarga)", valorCrudo: b.lugar_destino_cod || null });
+      if (!lugarEntregaId) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_entrega_id", mensaje: "Lugar entrega no existe en mantenedor de puertos (Revisar puerto de descarga)", valorCrudo: b.lugar_entrega_cod || null });
+      if (!lugarRecepcionId) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_recepcion_id", mensaje: "Lugar recepción no existe en mantenedor de puertos (Revisar puerto de embarque)", valorCrudo: b.lugar_recepcion_cod || null });
 
       if (isBlank(b.fecha_emision)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_emision", mensaje: "Falta fecha_emision", valorCrudo: b.fecha_emision || null });
       if (isBlank(b.fecha_presentacion)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_presentacion", mensaje: "Falta fecha_presentacion", valorCrudo: b.fecha_presentacion || null });
@@ -4407,7 +4407,7 @@ app.post("/api/bls/:blNumber/revalidar", async (req, res) => {
           sec: tb.sec,
           severidad: "OBS",
           campo: "puerto_id",
-          mensaje: "Puerto de transbordo no existe en mantenedor (no afecta XML)",
+          mensaje: "Puerto de transbordo no existe en mantenedor (no afecta XML) (Linea 14)",
           valorCrudo: tb.puerto_cod
         });
       } else {
