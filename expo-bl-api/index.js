@@ -2390,12 +2390,14 @@ function parsePmsTxt(content) {
 
       // ---------- 51: CONTENEDORES + SELLOS (nuevo, NO rompe) ----------
       const lines51 = pickAll(bLines, "51");
-      const totalContainers = countContainersFrom51(lines51); // lo sigues usando para bultos
+       // lo sigues usando para bultos
 
       const weightKgs = extractWeightFrom12(l12);
 
       const items = extractItemsFrom41_44_47(bLines) || []; // tu función actual
       const contenedores = extractContainersFrom51(pickAll(bLines, "51")) || [];
+
+      const totalContainers = contenedores.length;
 
       const raw56 = pickAll(bLines, "56");
       const lines56 = raw56.map(parseLine56).filter(Boolean);
@@ -2819,11 +2821,11 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
       if (!lugarEntregaId) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_entrega_id", mensaje: "Lugar entrega no existe en mantenedor de puertos (Revisar puerto de descarga)", valorCrudo: b.lugar_entrega_cod || null });
       if (!lugarRecepcionId) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_recepcion_id", mensaje: "Lugar recepción no existe en mantenedor de puertos (Revisar puerto de embarque)", valorCrudo: b.lugar_recepcion_cod || null });
 
-      if (isBlank(b.fecha_emision)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_emision", mensaje: "Falta fecha_emision", valorCrudo: b.fecha_emision || null });
-      if (isBlank(b.fecha_presentacion)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_presentacion", mensaje: "Falta fecha_presentacion", valorCrudo: b.fecha_presentacion || null });
+      if (isBlank(b.fecha_emision)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_emision", mensaje: "Falta fecha_emision (Linea 11)", valorCrudo: b.fecha_emision || null });
+      if (isBlank(b.fecha_presentacion)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_presentacion", mensaje: "Falta fecha_presentacion (Linea 00)", valorCrudo: b.fecha_presentacion || null });
 
       if (num(b.peso_bruto) <= 0) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "peso_bruto", mensaje: "peso_bruto debe ser > 0", valorCrudo: b.peso_bruto });
-      if (isBlank(b.unidad_peso)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "unidad_peso", mensaje: "Falta unidad_peso", valorCrudo: b.unidad_peso || null });
+      if (isBlank(b.unidad_peso)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "unidad_peso", mensaje: "Falta unidad_peso (Linea 41)", valorCrudo: b.unidad_peso || null });
 
       if (num(b.bultos) < 1) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "bultos", mensaje: "bultos debe ser >= 1", valorCrudo: b.bultos });
       if (num(b.total_items) < 1) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "total_items", mensaje: "total_items debe ser >= 1", valorCrudo: b.total_items });
@@ -2834,12 +2836,12 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
       if (isBlank(b.notify)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "notify_party", mensaje: "Falta notify (Linea 26)", valorCrudo: b.notify || null });
 
       // fechas obligatorias faltantes
-      if (isBlank(b.fecha_embarque)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_embarque", mensaje: "Falta fecha_embarque", valorCrudo: b.fecha_embarque || null });
-      if (isBlank(b.fecha_zarpe)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_zarpe", mensaje: "Falta fecha_zarpe", valorCrudo: b.fecha_zarpe || null });
+      if (isBlank(b.fecha_embarque)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_embarque", mensaje: "Falta fecha_embarque (Linea 14)", valorCrudo: b.fecha_embarque || null });
+      if (isBlank(b.fecha_zarpe)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_zarpe", mensaje: "Falta fecha_zarpe (Linea 14)", valorCrudo: b.fecha_zarpe || null });
 
       // volumen y unidad_volumen: unidad SI o SI; volumen puede ser 0 pero no null
-      if (isBlank(b.unidad_volumen)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "unidad_volumen", mensaje: "Falta unidad_volumen", valorCrudo: b.unidad_volumen || null });
-      if (num(b.volumen) == null) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "volumen", mensaje: "Falta volumen (puede ser 0, no null)", valorCrudo: b.volumen });
+      if (isBlank(b.unidad_volumen)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "unidad_volumen", mensaje: "Falta unidad_volumen (Linea 41)", valorCrudo: b.unidad_volumen || null });
+      if (num(b.volumen) == null) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "volumen", mensaje: "Falta Volumen debe ser >= 0 (puede ser 0)", valorCrudo: b.volumen });
 
 
       for (const v of pendingValidations) {
@@ -2878,9 +2880,9 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
           pendingItemValidations.push({
             nivel: "ITEM",
             sec: itemNum,
-            severidad: "ERROR",
+            severidad: "OBS",
             campo: "descripcion",
-            mensaje: "Descripción obligatoria",
+            mensaje: "Falta Descripción",
             valorCrudo: it.descripcion ?? null
           });
         }
@@ -2889,9 +2891,9 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
           pendingItemValidations.push({
             nivel: "ITEM",
             sec: itemNum,
-            severidad: "ERROR",
+            severidad: "OBS",
             campo: "marcas",
-            mensaje: "Marcas obligatorias",
+            mensaje: "Falta Marcas",
             valorCrudo: it.marcas ?? null
           });
         }
@@ -2926,7 +2928,7 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
             sec: itemNum,
             severidad: "ERROR",
             campo: "cantidad",
-            mensaje: "cantidad debe ser >= 1 (nº contenedores del item)",
+            mensaje: "Cantidad de contenedores debe ser >= 1 para un item (Linea 51)",
             valorCrudo: it.cantidad
           });
         }
@@ -2934,14 +2936,14 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
         if (num(it.peso_bruto) == null || num(it.peso_bruto) <= 0) {
           pendingItemValidations.push({
             nivel: "ITEM", sec: itemNum, severidad: "ERROR",
-            campo: "peso_bruto", mensaje: "peso_bruto debe ser > 0",
+            campo: "peso_bruto", mensaje: "peso_bruto debe ser > 0 (Linea 41)",
             valorCrudo: it.peso_bruto
           });
         }
         if (isBlank(it.unidad_peso)) {
           pendingItemValidations.push({
             nivel: "ITEM", sec: itemNum, severidad: "ERROR",
-            campo: "unidad_peso", mensaje: "Falta unidad_peso",
+            campo: "unidad_peso", mensaje: "Falta unidad_peso (Linea 41)",
             valorCrudo: it.unidad_peso ?? null
           });
         }
@@ -2951,14 +2953,14 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
         if (num(it.volumen) == null || num(it.volumen) < 0) {
           pendingItemValidations.push({
             nivel: "ITEM", sec: itemNum, severidad: "ERROR",
-            campo: "volumen", mensaje: "Volumen debe ser >= 0 (puede ser 0)",
+            campo: "volumen", mensaje: "Falta Volumen debe ser >= 0 (Linea 41)",
             valorCrudo: it.volumen
           });
         }
         if (isBlank(it.unidad_volumen)) {
           pendingItemValidations.push({
             nivel: "ITEM", sec: itemNum, severidad: "ERROR",
-            campo: "unidad_volumen", mensaje: "Falta unidad_volumen",
+            campo: "unidad_volumen", mensaje: "Falta unidad_volumen (Linea 41)",
             valorCrudo: it.unidad_volumen ?? null
           });
         }
@@ -4837,15 +4839,6 @@ async function revalidarBL(connection, blId) {
       nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
       campo: 'notify_party', mensaje: 'Notify Party es obligatorio',
       valor_crudo: bl.notify_party
-    });
-  }
-
-  // ✅ Validar descripcion_carga (obligatorio)
-  if (!bl.descripcion_carga || bl.descripcion_carga.trim() === '') {
-    errores.push({
-      nivel: 'BL', ref_id: null, sec: null, severidad: 'ERROR',
-      campo: 'descripcion_carga', mensaje: 'Descripción de carga es obligatoria',
-      valor_crudo: bl.descripcion_carga
     });
   }
 
