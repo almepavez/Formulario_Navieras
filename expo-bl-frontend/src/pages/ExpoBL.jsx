@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
-import { Pencil } from "lucide-react";
+import { Pencil, Edit3 } from "lucide-react"; // ← Agregado Edit3
 
 const estadoStyles = {
     "CREADO": "bg-blue-100 text-blue-800 ring-blue-200",
     "VALIDADO": "bg-green-100 text-green-800 ring-green-200",
     "ENVIADO": "bg-purple-100 text-purple-800 ring-purple-200",
     "ANULADO": "bg-red-100 text-red-800 ring-red-200",
+    "ACTIVO": "bg-emerald-100 text-emerald-800 ring-emerald-200",
+    "INACTIVO": "bg-slate-100 text-slate-800 ring-slate-200",
 };
 
 // Formatear fecha
@@ -128,9 +130,11 @@ const ExpoBL = () => {
     };
 
     return (
-<div className="flex min-h-screen bg-slate-100">            <Sidebar />
+        <div className="flex min-h-screen bg-slate-100">
+            <Sidebar />
 
-<main className="flex-1 p-6 lg:p-10">                {/* Header + Filtros */}
+            <main className="flex-1 p-6 lg:p-10">
+                {/* Header + Filtros */}
                 <div className="mb-6">
                     <div className="flex items-start justify-between gap-6 mb-4">
                         <div>
@@ -142,10 +146,19 @@ const ExpoBL = () => {
                             </p>
                         </div>
 
+                        {/* Botones de acción */}
                         <div className="flex items-center gap-3">
                             <button
+                                onClick={() => navigate("/expo/bulk-edit")}
+                                className="px-4 py-2 rounded-lg bg-[#0F2A44] text-white text-sm font-medium hover:bg-[#1a3a5c] flex items-center gap-2 transition-colors"
+                                title="Edición Masiva"
+                            >
+                                <Edit3 className="w-4 h-4" />
+                                Editar Varios BLs
+                            </button>
+                            <button
                                 onClick={fetchBLs}
-                                className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
+                                className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 transition-colors"
                                 title="Actualizar"
                             >
                                 Actualizar
@@ -193,6 +206,8 @@ const ExpoBL = () => {
                                     <option value="VALIDADO">Validado</option>
                                     <option value="ENVIADO">Enviado</option>
                                     <option value="ANULADO">Anulado</option>
+                                    <option value="ACTIVO">Activo</option>
+                                    <option value="INACTIVO">Inactivo</option>
                                 </select>
                             </div>
                         </div>
@@ -250,7 +265,6 @@ const ExpoBL = () => {
                                     <th className="text-right px-6 py-3 font-semibold">Peso (KG)</th>
                                     <th className="text-center px-6 py-3 font-semibold">Bultos</th>
                                     <th className="text-left px-6 py-3 font-semibold">Status</th>
-                              
                                 </tr>
                             </thead>
 
@@ -301,13 +315,12 @@ const ExpoBL = () => {
                                                     {bl.status}
                                                 </span>
                                             </td>
-                                            
                                         </tr>
                                     ))}
 
                                 {!loading && filteredBLs.length === 0 && (
                                     <tr>
-                                        <td className="px-6 py-10 text-center text-slate-500" colSpan={10}>
+                                        <td className="px-6 py-10 text-center text-slate-500" colSpan={9}>
                                             {searchTerm || statusFilter !== "TODOS" || viajeFilter !== "TODOS"
                                                 ? "No se encontraron BLs con los filtros aplicados"
                                                 : "No hay BLs registrados aún"}

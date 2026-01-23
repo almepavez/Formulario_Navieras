@@ -3555,6 +3555,141 @@ app.get('/bls/:blNumber/items-contenedores', async (req, res) => {
   }
 });
 
+// ============================================
+// ACTUALIZAR UN BL INDIVIDUAL (para puertos)
+// ============================================
+// ============================================
+// ACTUALIZAR UN BL INDIVIDUAL (para puertos)
+// ============================================
+app.patch('/bls/:blNumber', async (req, res) => {
+  const connection = await pool.getConnection();
+  
+  try {
+    const { blNumber } = req.params;
+    const updates = req.body;
+    
+  // 🔥 AGREGAR ESTAS 3 LÍNEAS
+    console.log('═══════════════════════════════════');
+    console.log('📥 PATCH recibido para BL:', blNumber);
+    console.log('📦 Body completo:', JSON.stringify(updates, null, 2));
+    console.log('📦 Campos recibidos:', Object.keys(updates));
+    console.log('═══════════════════════════════════');
+
+    
+    await connection.beginTransaction();
+
+    // 1️⃣ Obtener BL ID
+    const [blRows] = await connection.query(
+      'SELECT id FROM bls WHERE bl_number = ?',
+      [blNumber]
+    );
+
+    if (blRows.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ error: 'BL no encontrado' });
+    }
+
+    const blId = blRows[0].id;
+
+    // 2️⃣ Preparar campos para UPDATE
+    const setClauses = [];
+    const values = [];
+
+    // 🔥 MAPEO DE CÓDIGOS → IDs
+    const puertoFields = [
+      'lugar_recepcion_cod',
+      'puerto_embarque_cod',
+      'puerto_descarga_cod',
+      'lugar_entrega_cod',
+      'lugar_destino_cod',
+      'lugar_emision_cod'
+    ];
+
+    for (const field of Object.keys(updates)) {
+      const value = updates[field];
+
+      // 🔥 Si es un campo de puerto, resolver ID
+      if (puertoFields.includes(field)) {
+        const codigo = value;
+        
+        if (!codigo) {
+          // Si viene vacío, NULL en ambos
+          const idField = field.replace('_cod', '_id');
+          setClauses.push(`${field} = NULL`, `${idField} = NULL`);
+          continue;
+        }
+
+        // Buscar puerto en BD
+        const [puertoRows] = await connection.query(
+          'SELECT id FROM puertos WHERE codigo = ?',
+          [codigo]
+        );
+
+        const puertoId = puertoRows.length > 0 ? puertoRows[0].id : null;
+
+        // Actualizar AMBOS: código + ID
+        const idField = field.replace('_cod', '_id');
+        setClauses.push(`${field} = ?`, `${idField} = ?`);
+        values.push(codigo, puertoId);
+
+        console.log(`🔄 Puerto ${field}: ${codigo} → ID: ${puertoId}`);
+      }
+      // 🔥 Otros campos permitidos
+      else if (['shipper', 'consignee', 'notify_party', 'descripcion_carga', 'status'].includes(field)) {
+        setClauses.push(`${field} = ?`);
+        values.push(value);
+      }
+    }
+
+    if (setClauses.length === 0) {
+      await connection.rollback();
+      return res.status(400).json({ error: 'No hay campos válidos para actualizar' });
+    }
+
+    // 3️⃣ Agregar updated_at
+    setClauses.push('updated_at = NOW()');
+    values.push(blNumber);
+
+    // 4️⃣ Ejecutar UPDATE
+    const query = `
+      UPDATE bls 
+      SET ${setClauses.join(', ')}
+      WHERE bl_number = ?
+    `;
+
+    console.log('📝 Query:', query);
+    console.log('📝 Values:', values);
+
+    const [result] = await connection.query(query, values);
+    
+    if (result.affectedRows === 0) {
+      await connection.rollback();
+      return res.status(404).json({ error: 'BL no encontrado' });
+    }
+
+    // 5️⃣ 🆕 REVALIDAR BL DESPUÉS DE ACTUALIZAR
+    await revalidarBL(connection, blId);
+
+    await connection.commit();
+    
+    console.log(`✅ BL ${blNumber} actualizado - ${result.affectedRows} fila(s)`);
+    
+    res.json({ 
+      success: true,
+      message: 'BL actualizado exitosamente',
+      bl_number: blNumber 
+    });
+  } catch (error) {
+    await connection.rollback();
+    console.error('❌ Error al actualizar BL:', error);
+    res.status(500).json({ 
+      error: 'Error al actualizar BL',
+      details: error.message 
+    });
+  } finally {
+    connection.release();
+  }
+});
 
 app.get("/manifiestos/:id/bls", async (req, res) => {
   try {
@@ -5101,6 +5236,145 @@ app.put('/bls/:blNumber/contenedores', async (req, res) => {
     res.status(500).json({ error: 'Error al actualizar contenedores' });
   }
 });
+
+// ============================================
+// ENDPOINTS PARA EDICIÓN MASIVA DE BLs
+// ============================================
+
+// Obtener BLs por viaje/manifesto
+app.get('/bls/by-viaje/:viaje', async (req, res) => {
+  try {
+    const { viaje } = req.params;
+    const [rows] = await pool.query(
+      'SELECT * FROM bls WHERE viaje = ? ORDER BY bl_number',
+      [viaje]
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('Error al obtener BLs por viaje:', error);
+    res.status(500).json({ error: 'Error al obtener BLs' });
+  }
+});
+
+// Obtener lista de viajes únicos
+app.get('/bls/viajes/list', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT DISTINCT viaje FROM bls WHERE viaje IS NOT NULL ORDER BY viaje'
+    );
+    res.json(rows.map(row => row.viaje));
+  } catch (error) {
+    console.error('Error al obtener viajes:', error);
+    res.status(500).json({ error: 'Error al obtener viajes' });
+  }
+});
+
+// ============================================
+// ACTUALIZACIÓN MASIVA DE BLs
+// ============================================
+app.patch('/bls/bulk-update', async (req, res) => {
+  const connection = await pool.getConnection();
+  
+  try {
+    const { blNumbers, updates } = req.body;
+    
+    // Validaciones
+    if (!blNumbers || !Array.isArray(blNumbers) || blNumbers.length === 0) {
+      return res.status(400).json({ error: 'Debe proporcionar una lista de BL numbers' });
+    }
+
+    if (!updates || Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'Debe proporcionar campos a actualizar' });
+    }
+
+    await connection.beginTransaction();
+
+    // Campos permitidos según tu esquema de base de datos
+    const validFields = [
+      'shipper', 
+      'consignee', 
+      'notify_party',
+      'descripcion_carga', 
+      'bultos', 
+      'peso_bruto',
+      'volumen',
+      'status'
+    ];
+
+    // Construir SET clauses
+    const setClauses = [];
+    const values = [];
+
+    Object.keys(updates).forEach(field => {
+      if (validFields.includes(field)) {
+        setClauses.push(`${field} = ?`);
+        values.push(updates[field]);
+      }
+    });
+
+    if (setClauses.length === 0) {
+      await connection.rollback();
+      return res.status(400).json({ error: 'No hay campos válidos para actualizar' });
+    }
+
+    // Agregar updated_at
+    setClauses.push('updated_at = NOW()');
+
+    // Agregar BL numbers
+    values.push(...blNumbers);
+
+    // Placeholders para IN clause
+    const placeholders = blNumbers.map(() => '?').join(',');
+
+    // Query final
+    const query = `
+      UPDATE bls 
+      SET ${setClauses.join(', ')}
+      WHERE bl_number IN (${placeholders})
+    `;
+
+    console.log('Query:', query);
+    console.log('Values:', values);
+
+    const [result] = await connection.query(query, values);
+
+    await connection.commit();
+
+    res.json({
+      success: true,
+      message: `${result.affectedRows} BL(s) actualizados correctamente`,
+      affectedRows: result.affectedRows,
+      blNumbers: blNumbers
+    });
+
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error en actualización masiva:', error);
+    res.status(500).json({ 
+      error: 'Error al actualizar BLs',
+      details: error.message 
+    });
+  } finally {
+    connection.release();
+  }
+});
+
+/// ============================================
+// ENDPOINT PARA OBTENER PUERTOS
+// ============================================
+app.get('/mantenedores/puertos', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT id, codigo, nombre, pais FROM puertos ORDER BY nombre'
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('Error al obtener puertos:', error);
+    res.status(500).json({ error: 'Error al obtener puertos' });
+  }
+});
+
+
 // ============================================
 // INICIAR SERVIDOR
 // ============================================

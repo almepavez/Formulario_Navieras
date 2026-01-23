@@ -13,6 +13,7 @@ import ExpoBLEdit from "./pages/ExpoBLEdit";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import GenerarXML from "./pages/GenerarXML";
+import BulkEditBL from "./pages/BulkEditBL";
 
 function App() {
   return (
@@ -75,6 +76,16 @@ function App() {
           element={
             <ProtectedRoute>
               <ExpoBL />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 🔥 RUTA DE EDICIÓN MASIVA - Debe ir ANTES de /expo/:blNumber */}
+        <Route
+          path="/expo/bulk-edit"
+          element={
+            <ProtectedRoute>
+              <BulkEditBL />
             </ProtectedRoute>
           }
         />

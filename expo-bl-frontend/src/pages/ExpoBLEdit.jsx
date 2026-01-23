@@ -97,13 +97,13 @@ const ExpoBLEdit = () => {
                     fecha_emision: formatDate(dataBL.fecha_emision),
                     fecha_zarpe: formatDateTime(dataBL.fecha_zarpe),
                     fecha_embarque: formatDateTime(dataBL.fecha_embarque),
-                    puerto_embarque: dataBL.puerto_embarque_codigo || "",  // 🆕 NUEVO
+                    puerto_embarque: dataBL.puerto_embarque_cod || "",  // 🆕 NUEVO
                     // 🆕 MAPEAR LOS 6 CAMPOS
                     lugar_emision: dataBL.lugar_emision_cod || "",
                     lugar_destino: dataBL.lugar_destino_cod || "",
                     lugar_entrega: dataBL.lugar_entrega_cod || "",
                     lugar_recepcion: dataBL.lugar_recepcion_cod || "",
-                    puerto_descarga: dataBL.puerto_descarga_codigo || "",
+                    puerto_descarga: dataBL.puerto_descarga_cod || "",
                     shipper: dataBL.shipper || "",
                     consignee: dataBL.consignee || "",
                     notify_party: dataBL.notify_party || "",
