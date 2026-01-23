@@ -130,10 +130,6 @@ const GenerarXML = () => {
       warnings.push("Falta Fecha de Zarpe");
     }
 
-    if (!bl.descripcion_carga || bl.descripcion_carga.trim() === '') {
-      warnings.push("Sin descripción de carga");
-    }
-
     if (bl.carga_peligrosa === 'S') {
       warnings.push("BL marcado como carga peligrosa - verificar datos IMO en detalle");
     }
@@ -289,7 +285,7 @@ const GenerarXML = () => {
 
       const result = await Swal.fire({
         icon: 'warning',
-        title: '⚠️ BLs con advertencias',
+        title: 'BLs con advertencias',
         html: `
           <div style="max-height: 300px; overflow-y: auto; text-align: left;">
             ${warningsHTML}
@@ -832,7 +828,7 @@ const GenerarXML = () => {
 
                             <div className="absolute left-0 top-8 hidden group-hover:block z-50 w-72 bg-white rounded-lg shadow-xl border border-amber-200 p-3">
                               <div className="text-xs text-left">
-                                <div className="font-semibold text-amber-700 mb-2">⚠️ Advertencias:</div>
+                                <div className="font-semibold text-amber-700 mb-2">Advertencias:</div>
                                 <ul className="space-y-1 text-slate-700">
                                   {validation.warnings.map((w, i) => (
                                     <li key={i} className="flex items-start gap-2">
@@ -868,7 +864,7 @@ const GenerarXML = () => {
                                 </ul>
                                 {validation.warnings.length > 0 && (
                                   <>
-                                    <div className="font-semibold text-amber-600 mt-3 mb-2">⚠️ Advertencias:</div>
+                                    <div className="font-semibold text-amber-600 mt-3 mb-2">Advertencias:</div>
                                     <ul className="space-y-1 text-slate-700">
                                       {validation.warnings.map((w, i) => (
                                         <li key={i} className="flex items-start gap-2">
