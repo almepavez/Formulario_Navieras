@@ -425,7 +425,7 @@ const GenerarXML = () => {
 
       const obsHTML = observaciones.length > 0 ? `
       <div style="margin-top: 12px; background: #FEF3C7; padding: 12px; border-radius: 6px; border: 1px solid #FCD34D;">
-        <strong style="color: #92400E;">⚠️ Observaciones (${observaciones.length}):</strong>
+        <strong style="color: #92400E;">Observaciones (${observaciones.length}):</strong>
         <ul style="margin: 4px 0; padding-left: 20px; font-size: 13px;">
           ${observaciones.map(o => `<li style="margin: 4px 0; color: #92400E;">${o.mensaje}</li>`).join('')}
         </ul>
@@ -445,7 +445,7 @@ const GenerarXML = () => {
         ${obsHTML}
         <div style="background: #FEF3C7; padding: 12px; border-radius: 8px; margin-top: 16px; border: 1px solid #FCD34D;">
           <p style="color: #92400E; font-size: 13px; margin: 0;">
-            <strong>💡 Solución:</strong> Edita el BL para completar los campos faltantes.
+            <strong> Solución:</strong> Edita el BL para completar los campos faltantes.
           </p>
         </div>
       `,
@@ -566,12 +566,12 @@ const GenerarXML = () => {
 
       const obsHTML = observaciones.length > 0 ? `
       <div style="margin-bottom: 16px; padding: 12px; background: #FEF3C7; border-radius: 8px; text-align: left;">
-        <strong style="color: #F59E0B;">⚠️ Observaciones (${observaciones.length}):</strong>
+        <strong style="color: #F59E0B;">Observaciones (${observaciones.length}):</strong>
         <ul style="padding-left: 20px; margin: 4px 0; font-size: 13px;">
           ${observaciones.map(o => `<li style="color: #92400E;">${o.mensaje}</li>`).join('')}
         </ul>
         <div style="margin-top: 8px; color: #92400E; font-size: 12px;">
-          ℹ️ Estas observaciones no impiden generar el XML, pero deberías revisarlas.
+          Estas observaciones no impiden generar el XML, pero deberías revisarlas.
         </div>
       </div>
     ` : `

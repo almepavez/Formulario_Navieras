@@ -210,7 +210,7 @@ const CRUDMantenedor = () => {
 
     if (missingFields.length > 0) {
       Swal.fire({
-        title: "⚠️ Campos obligatorios faltantes",
+        title: "Campos obligatorios faltantes",
         html: `
           <p style="margin-bottom: 12px;">Por favor completa los siguientes campos:</p>
           <ul style="text-align: left; padding-left: 24px; color: #dc2626;">
@@ -286,7 +286,7 @@ const CRUDMantenedor = () => {
         dataToSend.activo = Number(dataToSend.activo);
       }
 
-      console.log('📤 Enviando:', { url, method, data: dataToSend });
+      console.log('Enviando:', { url, method, data: dataToSend });
 
       const response = await fetch(url, {
         method,
@@ -300,7 +300,7 @@ const CRUDMantenedor = () => {
       }
 
       await Swal.fire({
-        title: "✅ ¡Guardado!",
+        title: "¡Guardado!",
         text: `${config.singular} ${action === "crear" ? "creado" : "actualizado"} correctamente`,
         icon: "success",
         confirmButtonColor: "#0F2A44",
@@ -313,9 +313,9 @@ const CRUDMantenedor = () => {
       setFormData({});
       setEditingItem(null);
     } catch (err) {
-      console.error('❌ Error al guardar:', err);
+      console.error('Error al guardar:', err);
       await Swal.fire({
-        title: "❌ Error al guardar",
+        title: "Error al guardar",
         text: err.message || "No se pudo guardar el registro",
         icon: "error",
         confirmButtonColor: "#0F2A44",

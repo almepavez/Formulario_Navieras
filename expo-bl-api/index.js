@@ -2436,7 +2436,7 @@ function parsePmsTxt(content) {
         shipper,
         consignee,
         notify,
-        descripcion_carga: descripcion,
+        descripcion_carga: null,
 
         peso_bruto: weightKgs,
         unidad_peso: unidadPeso,
@@ -2794,7 +2794,7 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
         b.lugar_recepcion_cod || null,
 
 
-        b.descripcion_carga || null,
+        null, // descripcion_carga
 
         b.peso_bruto ?? null,
         b.unidad_peso || null,
@@ -2832,9 +2832,6 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
       if (isBlank(b.shipper)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "shipper", mensaje: "Falta shipper (Linea 16)", valorCrudo: b.shipper || null });
       if (isBlank(b.consignee)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "consignee", mensaje: "Falta consignee (Linea 21)", valorCrudo: b.consignee || null });
       if (isBlank(b.notify)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "notify_party", mensaje: "Falta notify (Linea 26)", valorCrudo: b.notify || null });
-
-      // descripcion obligatoria (ERROR)
-      if (isBlank(b.descripcion_carga)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "descripcion_carga", mensaje: "Falta descripcion_carga", valorCrudo: b.descripcion_carga || null });
 
       // fechas obligatorias faltantes
       if (isBlank(b.fecha_embarque)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_embarque", mensaje: "Falta fecha_embarque", valorCrudo: b.fecha_embarque || null });
@@ -2876,29 +2873,29 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
           });
         }
 
-        // ✅ NUEVA REGLA: SOLO el item 1 requiere descripcion y marcas
-        if (itemNum === 1) {
-          if (!it.descripcion) {
-            pendingItemValidations.push({
-              nivel: "ITEM",
-              sec: itemNum,
-              severidad: "ERROR",
-              campo: "descripcion",
-              mensaje: "Descripción obligatoria (solo item 1)",
-              valorCrudo: it.descripcion ?? null
-            });
-          }
-          if (!it.marcas) {
-            pendingItemValidations.push({
-              nivel: "ITEM",
-              sec: itemNum,
-              severidad: "ERROR",
-              campo: "marcas",
-              mensaje: "Marcas obligatorias (solo item 1)",
-              valorCrudo: it.marcas ?? null
-            });
-          }
+        // ✅ NUEVA REGLA: TODOS los items requieren descripcion y marcas
+        if (isBlank(it.descripcion)) {
+          pendingItemValidations.push({
+            nivel: "ITEM",
+            sec: itemNum,
+            severidad: "ERROR",
+            campo: "descripcion",
+            mensaje: "Descripción obligatoria",
+            valorCrudo: it.descripcion ?? null
+          });
         }
+
+        if (isBlank(it.marcas)) {
+          pendingItemValidations.push({
+            nivel: "ITEM",
+            sec: itemNum,
+            severidad: "ERROR",
+            campo: "marcas",
+            mensaje: "Marcas obligatorias",
+            valorCrudo: it.marcas ?? null
+          });
+        }
+
 
         // VALIDACION: tipo_bulto (para cualquier item)
         if (!it.tipo_bulto) {
