@@ -2507,15 +2507,18 @@ async function insertTransbordos(conn, blId, transbordos) {
     const puertoId = await getPuertoIdByCodigo(conn, c); // 👈 AQUÍ
 
     if (!puertoId) {
-      await addValidacion(conn, {
-        blId,
-        nivel: "TRANSBORDO",
-        sec, // importante: número del transbordo
-        severidad: "OBS", // 👈 NO ERROR
-        campo: "puerto_id",
-        mensaje: "Puerto de transbordo no existe en mantenedor (no afecta XML)",
-        valorCrudo: c
-      });
+        const payload = {
+          blId,
+          nivel: "TRANSBORDO",
+          sec,
+          severidad: "OBS", // NO ERROR
+          campo: "puerto_id",
+          mensaje: "Puerto de transbordo no existe en mantenedor (no afecta XML)",
+          valorCrudo: c
+        };
+
+        await addValidacion(conn, payload);
+        await addValidacionPMS(conn, payload); // solo si esto está en carga PMS
     }
 
     await conn.query(sql, [blId, sec++, c, puertoId]);
@@ -2583,6 +2586,33 @@ async function addValidacion(conn, {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `, [blId, nivel, refId, sec, severidad, campo, mensaje, valorCrudo]);
 }
+
+async function addValidacionPMS(conn, {
+  blId,
+  nivel = "BL",               // BL | ITEM | CONTENEDOR | TRANSBORDO
+  refId = null,               // id del item/contenedor/transbordo si aplica
+  sec = null,                 // numero_item o sec del transbordo
+  severidad = "ERROR",        // ERROR | OBS
+  campo,
+  mensaje,
+  valorCrudo = null,
+
+  // extras PMS
+  lineaPms = null,            // "41", "44", "47", "51", etc.
+  codigoPms = null,           // si existe
+  rawLine = null              // línea completa (opcional)
+}) {
+  await conn.query(`
+    INSERT INTO bl_validaciones_pms
+      (bl_id, nivel, ref_id, sec, severidad, campo, mensaje, valor_crudo,
+       linea_pms, codigo_pms, raw_line)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [
+    blId, nivel, refId, sec, severidad, campo, mensaje, valorCrudo,
+    lineaPms, codigoPms, rawLine
+  ]);
+}
+
 
 async function refreshResumenValidacionBL(conn, blId) {
   const [[c]] = await conn.query(`
@@ -2841,6 +2871,7 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
 
       for (const v of pendingValidations) {
         await addValidacion(conn, { blId, ...v });
+        await addValidacionPMS(conn, { blId, ...v });
       }
 
 
@@ -2982,8 +3013,10 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
 
         // 3) Guardas validaciones con ref_id real
         for (const v of pendingItemValidations) {
-          await addValidacion(conn, { blId, refId: itemId, ...v });
+          await addValidacion(conn,    { blId, ...v, refId: itemId });
+          await addValidacionPMS(conn, { blId, ...v, refId: itemId });
         }
+
 
       }
       // ==========================================
@@ -3130,8 +3163,10 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
 
         // 3) Guardas validaciones con ref_id real
         for (const v of pendingContValidations) {
-          await addValidacion(conn, { blId, refId: contenedorId, ...v });
+          await addValidacion(conn,    { blId, ...v, refId: contenedorId, sec: itemNo });
+          await addValidacionPMS(conn, { blId, ...v, refId: contenedorId, sec: itemNo });
         }
+
 
         // =========================
         // 🆕 VALIDACIÓN IMO ESTRICTA
@@ -3146,7 +3181,7 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
 
         // ✅ Validación única: si el item es peligroso, este contenedor debe tener al menos 1 IMO válido insertado
         if (itemPeligroso && insertedImo < 1) {
-          await addValidacion(conn, {
+          const payload = {
             blId,
             nivel: "CONTENEDOR",
             refId: contenedorId,
@@ -3155,15 +3190,19 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
             campo: "imo",
             mensaje: "Item marcado como carga_peligrosa='S' - este contenedor debe tener datos IMO (clase_imo y numero_imo) Linea 56",
             valorCrudo: JSON.stringify({ codigo: c.codigo || null })
-          });
+          };
+
+          await addValidacion(conn, payload);
+          await addValidacionPMS(conn, payload);
         }
 
         // =========================
         // SELLOS
         // =========================
         await insertSellos(conn, contenedorId, c.sellos || []);
+
         if (!Array.isArray(c.sellos) || c.sellos.length === 0) {
-          await addValidacion(conn, {
+          const payload = {
             blId,
             nivel: "CONTENEDOR",
             refId: contenedorId,
@@ -3172,11 +3211,12 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
             campo: "sellos",
             mensaje: "Contenedor sin sellos en PMS (no siempre aplica)",
             valorCrudo: c.codigo || null
-          });
+          };
+
+          await addValidacion(conn, payload);
+          await addValidacionPMS(conn, payload);
         }
       }
-
-
       await refreshResumenValidacionBL(conn, blId);
     }
 
@@ -4692,7 +4732,7 @@ app.post("/api/bls/:blNumber/revalidar", async (req, res) => {
 
       if (puertoRows.length === 0) {
         // Puerto sigue sin existir -> crear validación OBS
-        await addValidacion(conn, {
+        const payload = {
           blId,
           nivel: "TRANSBORDO",
           sec: tb.sec,
@@ -4700,7 +4740,11 @@ app.post("/api/bls/:blNumber/revalidar", async (req, res) => {
           campo: "puerto_id",
           mensaje: "Puerto de transbordo no existe en mantenedor (no afecta XML) (Linea 14)",
           valorCrudo: tb.puerto_cod
-        });
+        };
+
+        await addValidacion(conn, payload);
+        await addValidacionPMS(conn, payload);
+        
       } else {
         // Puerto ahora existe -> actualizar la FK
         await conn.query(
