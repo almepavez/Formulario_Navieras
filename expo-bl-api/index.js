@@ -4821,6 +4821,7 @@ async function revalidarBL(connection, blId) {
 
   const errores = [];
 
+  /*
   // ==========================================
   // PASO 4: VALIDACIONES A NIVEL BL
   // ==========================================
@@ -5155,6 +5156,7 @@ async function revalidarBL(connection, blId) {
       [values]
     );
   }
+*/
 
   // ==========================================
   // PASO 9: ACTUALIZAR RESUMEN

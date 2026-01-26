@@ -33,7 +33,7 @@ const ExpoBLEdit = () => {
     const [formData, setFormData] = useState({
         bl_number: "",
         viaje: "",
-        tipo_servicio: "",
+        tipo_servicio: "", //REVISAR
         fecha_emision: "",
         fecha_zarpe: "",
         fecha_embarque: "",
@@ -570,9 +570,9 @@ const ExpoBLEdit = () => {
                 notify_party: formData.notify_party || null,
                 descripcion_carga: formData.descripcion_carga?.trim() || null,
                 peso_bruto: formData.peso_bruto ? parseFloat(formData.peso_bruto) : null,
-                unidad_peso: formData.unidad_peso || "KGM",                                  // ← AGREGAR
+                unidad_peso: formData.unidad_peso || null,                                  // ← AGREGAR
                 volumen: formData.volumen ? parseFloat(formData.volumen) : null,
-                unidad_volumen: formData.unidad_volumen || "MTQ",                           // ← AGREGAR
+                unidad_volumen: formData.unidad_volumen || null,                           // ← AGREGAR
                 bultos: formData.bultos ? parseInt(formData.bultos) : null
             };
 
