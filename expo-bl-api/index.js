@@ -3469,7 +3469,9 @@ app.put("/bls/:blNumber/items", async (req, res) => {
              tipo_bulto = ?,
              cantidad = ?,
              peso_bruto = ?,
-             volumen = ?
+             unidad_peso = ?,        
+             volumen = ?,
+             unidad_volumen = ?
          WHERE id = ? AND bl_id = ?`,
         [
           item.descripcion || null,
@@ -3477,7 +3479,9 @@ app.put("/bls/:blNumber/items", async (req, res) => {
           item.tipo_bulto || null,
           item.cantidad || null,
           item.peso_bruto || null,
+          item.unidad_peso || null,       // ← AGREGAR
           item.volumen || null,
+          item.unidad_volumen || null,    // ← AGREGAR
           item.id,
           blId
         ]
@@ -3742,6 +3746,8 @@ app.put("/bls/:blNumber", async (req, res) => {
     lugar_destino,
     lugar_entrega,
     lugar_recepcion,
+    unidad_peso,      // ← AGREGAR
+    unidad_volumen,   // ← AGREGAR
     // FIN NUEVOS CAMPOS
     shipper,
     consignee,
@@ -3804,8 +3810,10 @@ app.put("/bls/:blNumber", async (req, res) => {
         shipper = COALESCE(?, shipper),
         consignee = COALESCE(?, consignee),
         notify_party = COALESCE(?, notify_party),
-        descripcion_carga = COALESCE(?, descripcion_carga),
+        descripcion_carga = ?,
         peso_bruto = COALESCE(?, peso_bruto),
+        unidad_volumen = ?,    
+        unidad_peso = ?,    
         volumen = COALESCE(?, volumen),
         bultos = COALESCE(?, bultos),
         updated_at = NOW()
@@ -3832,6 +3840,8 @@ app.put("/bls/:blNumber", async (req, res) => {
       notify_party,
       descripcion_carga,
       peso_bruto,
+      unidad_peso,        // ← AGREGAR
+      unidad_volumen,     // ← AGREGAR
       volumen,
       bultos,
       blNumber

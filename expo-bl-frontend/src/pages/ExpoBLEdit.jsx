@@ -29,14 +29,14 @@ const ExpoBLEdit = () => {
 
 
     // Estado del formulario
+    // REEMPLAZAR POR:
     const [formData, setFormData] = useState({
         bl_number: "",
         viaje: "",
-        tipo_servicio: "FF",
+        tipo_servicio: "",
         fecha_emision: "",
         fecha_zarpe: "",
         fecha_embarque: "",
-        // 🆕 AGREGAR ESTOS 6 CAMPOS
         lugar_emision: "",
         puerto_embarque: "",
         puerto_descarga: "",
@@ -48,7 +48,9 @@ const ExpoBLEdit = () => {
         notify_party: "",
         descripcion_carga: "",
         peso_bruto: "",
+        unidad_peso: "",        // ← AGREGAR
         volumen: "",
+        unidad_volumen: "",     // ← AGREGAR
         bultos: ""
     });
 
@@ -90,6 +92,7 @@ const ExpoBLEdit = () => {
                 };
 
                 // Mapear datos del BL al formulario
+                // Mapear datos del BL al formulario
                 setFormData({
                     bl_number: dataBL.bl_number || "",
                     viaje: dataBL.viaje || "",
@@ -97,22 +100,22 @@ const ExpoBLEdit = () => {
                     fecha_emision: formatDate(dataBL.fecha_emision),
                     fecha_zarpe: formatDateTime(dataBL.fecha_zarpe),
                     fecha_embarque: formatDateTime(dataBL.fecha_embarque),
-                    puerto_embarque: dataBL.puerto_embarque_cod || "",  // 🆕 NUEVO
-                    // 🆕 MAPEAR LOS 6 CAMPOS
                     lugar_emision: dataBL.lugar_emision_cod || "",
+                    puerto_embarque: dataBL.puerto_embarque_cod || "",
+                    puerto_descarga: dataBL.puerto_descarga_cod || "",
                     lugar_destino: dataBL.lugar_destino_cod || "",
                     lugar_entrega: dataBL.lugar_entrega_cod || "",
                     lugar_recepcion: dataBL.lugar_recepcion_cod || "",
-                    puerto_descarga: dataBL.puerto_descarga_cod || "",
                     shipper: dataBL.shipper || "",
                     consignee: dataBL.consignee || "",
                     notify_party: dataBL.notify_party || "",
                     descripcion_carga: dataBL.descripcion_carga || "",
                     peso_bruto: dataBL.peso_bruto || "",
+                    unidad_peso: dataBL.unidad_peso || "",
                     volumen: dataBL.volumen || "",
+                    unidad_volumen: dataBL.unidad_volumen || "",
                     bultos: dataBL.bultos || ""
                 });
-
                 // 🆕 Cargar items y contenedores
                 const resItems = await fetch(`http://localhost:4000/bls/${blNumber}/items-contenedores`);
                 if (resItems.ok) {
@@ -442,15 +445,17 @@ const ExpoBLEdit = () => {
                     });
                     return false;
                 }
-                if (!formData.descripcion_carga || formData.descripcion_carga.trim().length < 10) {
-                    Swal.fire({
-                        icon: "warning",
-                        title: "Campo requerido",
-                        text: "La descripción de la carga debe tener al menos 10 caracteres",
-                        confirmButtonColor: "#0F2A44"
-                    });
-                    return false;
-                }
+                /*
+               if (!formData.descripcion_carga || formData.descripcion_carga.trim().length < 10) {
+                   Swal.fire({
+                       icon: "warning",
+                       title: "Campo requerido",
+                       text: "La descripción de la carga debe tener al menos 10 caracteres",
+                       confirmButtonColor: "#0F2A44"
+                   });
+                   return false;
+               }
+                     */
                 break;
             case 5: // Items
                 if (items.length === 0) {
@@ -462,6 +467,32 @@ const ExpoBLEdit = () => {
                     });
                     return true;
                 }
+
+                // 🆕 AGREGAR ESTA VALIDACIÓN:
+                for (const item of items) {
+                    // Validar peso bruto
+                    if (!item.peso_bruto || parseFloat(item.peso_bruto) <= 0) {
+                        Swal.fire({
+                            icon: "warning",
+                            title: "Campo requerido",
+                            text: `El Item ${item.numero_item} debe tener un peso bruto mayor a 0`,
+                            confirmButtonColor: "#0F2A44"
+                        });
+                        return false;
+                    }
+
+                    // Validar volumen (puede ser 0, pero debe existir)
+                    if (item.volumen === null || item.volumen === undefined || item.volumen === '') {
+                        Swal.fire({
+                            icon: "warning",
+                            title: "Campo requerido",
+                            text: `El Item ${item.numero_item} debe tener un volumen (puede ser 0)`,
+                            confirmButtonColor: "#0F2A44"
+                        });
+                        return false;
+                    }
+                }
+
                 break;
 
             case 6: // Contenedores
@@ -528,9 +559,8 @@ const ExpoBLEdit = () => {
                 fecha_emision: formData.fecha_emision || null,
                 fecha_zarpe: formatToMysql(formData.fecha_zarpe),
                 fecha_embarque: formatToMysql(formData.fecha_embarque),
-                puerto_embarque: formData.puerto_embarque || null,  // 🆕 NUEVO
-                puerto_descarga: formData.puerto_descarga || null,  // 🆕 NUEVO
-                // 🆕 AGREGAR LOS 6 CAMPOS
+                puerto_embarque: formData.puerto_embarque || null,
+                puerto_descarga: formData.puerto_descarga || null,
                 lugar_emision: formData.lugar_emision || null,
                 lugar_destino: formData.lugar_destino || null,
                 lugar_entrega: formData.lugar_entrega || null,
@@ -538,15 +568,20 @@ const ExpoBLEdit = () => {
                 shipper: formData.shipper || null,
                 consignee: formData.consignee || null,
                 notify_party: formData.notify_party || null,
-                descripcion_carga: formData.descripcion_carga || null,
+                descripcion_carga: formData.descripcion_carga?.trim() || null,
                 peso_bruto: formData.peso_bruto ? parseFloat(formData.peso_bruto) : null,
+                unidad_peso: formData.unidad_peso || "KGM",                                  // ← AGREGAR
                 volumen: formData.volumen ? parseFloat(formData.volumen) : null,
+                unidad_volumen: formData.unidad_volumen || "MTQ",                           // ← AGREGAR
                 bultos: formData.bultos ? parseInt(formData.bultos) : null
             };
 
-            console.log("📋 Enviando datos BL:", dataToSend);
-            console.log("📦 Contenedores a guardar:", contenedores);
-            console.log("📦 Primer contenedor completo:", contenedores[0]);
+            // 🔥 AGREGAR ESTE DEBUG
+            console.log("=== DEBUG DESCRIPCION_CARGA ===");
+            console.log("Valor original:", formData.descripcion_carga);
+            console.log("Valor después de trim:", formData.descripcion_carga?.trim());
+            console.log("Valor final a enviar:", dataToSend.descripcion_carga);
+            console.log("JSON completo:", JSON.stringify(dataToSend, null, 2));
 
             const res = await fetch(`http://localhost:4000/bls/${blNumber}`, {
                 method: "PUT",
@@ -1114,9 +1149,10 @@ const ExpoBLEdit = () => {
                     {currentStep === 4 && (
                         <div className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div>
+                                {/* Peso Bruto */}
+                                <div className="md:col-span-2">
                                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                                        Peso Bruto (KGM) <span className="text-red-500">*</span>
+                                        Peso Bruto <span className="text-red-500">*</span>
                                     </label>
                                     <input
                                         type="number"
@@ -1127,9 +1163,26 @@ const ExpoBLEdit = () => {
                                     />
                                 </div>
 
+                                {/* Unidad Peso */}
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                                        Volumen (MTQ) <span className="text-red-500">*</span>
+                                        Unidad Peso <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.unidad_peso}
+                                        onChange={(e) => updateField("unidad_peso", e.target.value.toUpperCase())}
+                                        placeholder="Ej: KGM, LBR, TNE"
+                                        maxLength="3"
+                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 uppercase"
+                                    />
+                                    <p className="text-xs text-slate-500 mt-1">Sugerido: KGM, LBR, TNE</p>
+                                </div>
+
+                                {/* Volumen */}
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                                        Volumen <span className="text-red-500">*</span>
                                     </label>
                                     <input
                                         type="number"
@@ -1140,7 +1193,24 @@ const ExpoBLEdit = () => {
                                     />
                                 </div>
 
+                                {/* Unidad Volumen */}
                                 <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                                        Unidad Volumen <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.unidad_volumen}
+                                        onChange={(e) => updateField("unidad_volumen", e.target.value.toUpperCase())}
+                                        placeholder="Ej: MTQ, FTQ, LTR"
+                                        maxLength="3"
+                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 uppercase"
+                                    />
+                                    <p className="text-xs text-slate-500 mt-1">Sugerido: MTQ, FTQ, LTR</p>
+                                </div>
+
+                                {/* Bultos */}
+                                <div className="md:col-span-3">
                                     <label className="block text-sm font-medium text-slate-700 mb-2">
                                         Cantidad de Bultos <span className="text-red-500">*</span>
                                     </label>
@@ -1155,7 +1225,7 @@ const ExpoBLEdit = () => {
 
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                                    Descripción de Mercancía <span className="text-red-500">*</span>
+                                    Descripción de Mercancía
                                 </label>
                                 <textarea
                                     rows={8}
@@ -1167,6 +1237,9 @@ const ExpoBLEdit = () => {
                             </div>
                         </div>
                     )}
+
+
+
                     {/* STEP 5: ITEMS Y CONTENEDORES */}
                     {currentStep === 5 && (
                         <div className="space-y-6">
@@ -1269,7 +1342,7 @@ const ExpoBLEdit = () => {
                                                 {/* Peso */}
                                                 <div>
                                                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                                                        Peso Bruto (KGM)
+                                                        Peso Bruto <span className="text-red-500">*</span>
                                                     </label>
                                                     <input
                                                         type="number"
@@ -1280,10 +1353,25 @@ const ExpoBLEdit = () => {
                                                     />
                                                 </div>
 
+                                                {/* Unidad Peso */}
+                                                <div>
+                                                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                        Unidad Peso
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={item.unidad_peso || ""}
+                                                        onChange={(e) => updateItem(item.id, "unidad_peso", e.target.value.toUpperCase())}
+                                                        placeholder="KGM"
+                                                        maxLength="3"
+                                                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm uppercase"
+                                                    />
+                                                </div>
+
                                                 {/* Volumen */}
                                                 <div>
                                                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                                                        Volumen (MTQ)
+                                                        Volumen <span className="text-red-500">*</span>
                                                     </label>
                                                     <input
                                                         type="number"
@@ -1291,6 +1379,21 @@ const ExpoBLEdit = () => {
                                                         value={item.volumen || ""}
                                                         onChange={(e) => updateItem(item.id, "volumen", e.target.value)}
                                                         className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm"
+                                                    />
+                                                </div>
+
+                                                {/* Unidad Volumen */}
+                                                <div>
+                                                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                        Unidad Volumen
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={item.unidad_volumen || ""}
+                                                        onChange={(e) => updateItem(item.id, "unidad_volumen", e.target.value.toUpperCase())}
+                                                        placeholder="MTQ"
+                                                        maxLength="3"
+                                                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm uppercase"
                                                     />
                                                 </div>
                                             </div>
@@ -1308,59 +1411,59 @@ const ExpoBLEdit = () => {
                     {/* STEP 6: CONTENEDORES */}
                     {currentStep === 6 && (
                         <div className="space-y-6">
-                              {/* 🆕 BOTÓN DE LIMPIEZA */}
-        {contenedores.some(cont => !esContenedorCargaPeligrosa(cont.codigo) && cont.imos && cont.imos.length > 0) && (
-            <div className="bg-amber-50 border border-amber-300 rounded-lg p-4">
-                <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                        <p className="text-sm font-medium text-amber-900 mb-1">
-                            ⚠️ Datos IMO innecesarios detectados
-                        </p>
-                        <p className="text-xs text-amber-700">
-                            Algunos contenedores sin carga peligrosa tienen datos IMO. Puedes limpiarlos automáticamente.
-                        </p>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            const contsSinPeligro = contenedores.filter(cont => 
-                                !esContenedorCargaPeligrosa(cont.codigo) && cont.imos && cont.imos.length > 0
-                            );
-                            
-                            Swal.fire({
-                                title: '¿Limpiar datos IMO?',
-                                html: `Se eliminarán los datos IMO de ${contsSinPeligro.length} contenedor(es):<br><strong>${contsSinPeligro.map(c => c.codigo).join(', ')}</strong>`,
-                                icon: 'question',
-                                showCancelButton: true,
-                                confirmButtonText: 'Sí, limpiar',
-                                cancelButtonText: 'Cancelar',
-                                confirmButtonColor: '#f59e0b'
-                            }).then((result) => {
-                                if (result.isConfirmed) {
-                                    setContenedores(prev => prev.map(cont => {
-                                        if (!esContenedorCargaPeligrosa(cont.codigo)) {
-                                            return { ...cont, imos: [] };
-                                        }
-                                        return cont;
-                                    }));
-                                    
-                                    Swal.fire({
-                                        icon: 'success',
-                                        title: 'Limpieza completada',
-                                        text: 'Se eliminaron los datos IMO innecesarios',
-                                        timer: 2000,
-                                        showConfirmButton: false
-                                    });
-                                }
-                            });
-                        }}
-                        className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm font-medium whitespace-nowrap"
-                    >
-                        Limpiar IMOs
-                    </button>
-                </div>
-            </div>
-        )}
+                            {/* 🆕 BOTÓN DE LIMPIEZA */}
+                            {contenedores.some(cont => !esContenedorCargaPeligrosa(cont.codigo) && cont.imos && cont.imos.length > 0) && (
+                                <div className="bg-amber-50 border border-amber-300 rounded-lg p-4">
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="flex-1">
+                                            <p className="text-sm font-medium text-amber-900 mb-1">
+                                                ⚠️ Datos IMO innecesarios detectados
+                                            </p>
+                                            <p className="text-xs text-amber-700">
+                                                Algunos contenedores sin carga peligrosa tienen datos IMO. Puedes limpiarlos automáticamente.
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const contsSinPeligro = contenedores.filter(cont =>
+                                                    !esContenedorCargaPeligrosa(cont.codigo) && cont.imos && cont.imos.length > 0
+                                                );
+
+                                                Swal.fire({
+                                                    title: '¿Limpiar datos IMO?',
+                                                    html: `Se eliminarán los datos IMO de ${contsSinPeligro.length} contenedor(es):<br><strong>${contsSinPeligro.map(c => c.codigo).join(', ')}</strong>`,
+                                                    icon: 'question',
+                                                    showCancelButton: true,
+                                                    confirmButtonText: 'Sí, limpiar',
+                                                    cancelButtonText: 'Cancelar',
+                                                    confirmButtonColor: '#f59e0b'
+                                                }).then((result) => {
+                                                    if (result.isConfirmed) {
+                                                        setContenedores(prev => prev.map(cont => {
+                                                            if (!esContenedorCargaPeligrosa(cont.codigo)) {
+                                                                return { ...cont, imos: [] };
+                                                            }
+                                                            return cont;
+                                                        }));
+
+                                                        Swal.fire({
+                                                            icon: 'success',
+                                                            title: 'Limpieza completada',
+                                                            text: 'Se eliminaron los datos IMO innecesarios',
+                                                            timer: 2000,
+                                                            showConfirmButton: false
+                                                        });
+                                                    }
+                                                });
+                                            }}
+                                            className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm font-medium whitespace-nowrap"
+                                        >
+                                            Limpiar IMOs
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                             {contenedores.length === 0 ? (
                                 <div className="text-center py-8 text-slate-500">
                                     <p>Este BL no tiene contenedores cargados</p>
@@ -1573,11 +1676,11 @@ const ExpoBLEdit = () => {
                                     </div>
                                     <div>
                                         <p className="text-blue-700 font-medium">Peso Bruto:</p>
-                                        <p className="text-blue-900">{formData.peso_bruto} KGM</p>
+                                        <p className="text-blue-900">{formData.peso_bruto} {formData.unidad_peso}</p>
                                     </div>
                                     <div>
                                         <p className="text-blue-700 font-medium">Volumen:</p>
-                                        <p className="text-blue-900">{formData.volumen} MTQ</p>
+                                        <p className="text-blue-900">{formData.volumen} {formData.unidad_volumen}</p>
                                     </div>
                                     <div>
                                         <p className="text-blue-700 font-medium">Bultos:</p>
