@@ -66,6 +66,17 @@ const BulkEditBL = () => {
     const [editarPuertos, setEditarPuertos] = useState(false);
     const [puertosIndividuales, setPuertosIndividuales] = useState({});
 
+    // 🆕 ESTADOS PARA EDICIÓN MASIVA DE PUERTOS
+    const [editarPuertosMasivo, setEditarPuertosMasivo] = useState(false);
+    const [puertosMasivos, setPuertosMasivos] = useState({
+        lugar_recepcion_cod: '',
+        puerto_embarque_cod: '',
+        puerto_descarga_cod: '',
+        lugar_entrega_cod: '',
+        lugar_destino_cod: '',
+        lugar_emision_cod: ''
+    });
+
     // Step 5: Confirmación y guardado
     const [saving, setSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
@@ -117,7 +128,7 @@ const BulkEditBL = () => {
                 (bl.shipper || "").toLowerCase().includes(term) ||
                 (bl.consignee || "").toLowerCase().includes(term)
             );
-            
+
             const viajes = [...new Set(bls.map(bl => bl.viaje))];
             if (viajes.length > 1) {
                 setError("Los BLs encontrados pertenecen a diferentes manifiestos. Por favor, refina tu búsqueda.");
@@ -131,6 +142,8 @@ const BulkEditBL = () => {
         }
     }, [searchMode, selectedViaje, searchTerm, allBLs]);
 
+
+
     // Inicializar puertos individuales cuando se seleccionan BLs
     useEffect(() => {
         if (selectedBLs.length > 0 && filteredBLs.length > 0) {
@@ -138,17 +151,50 @@ const BulkEditBL = () => {
             selectedBLs.forEach(blNumber => {
                 const bl = filteredBLs.find(b => b.bl_number === blNumber);
                 if (bl) {
+                    // 🆕 DEBUG: Ver qué datos tiene el BL
+                    console.log('🔍 BL encontrado:', blNumber);
+                    console.log('📦 Datos del BL:', {
+                        lugar_recepcion_cod: bl.lugar_recepcion_cod,
+                        puerto_embarque_cod: bl.puerto_embarque_cod,
+                        puerto_descarga_cod: bl.puerto_descarga_cod,
+                        lugar_entrega_cod: bl.lugar_entrega_cod,
+                        lugar_destino_cod: bl.lugar_destino_cod,
+                        lugar_emision_cod: bl.lugar_emision_cod
+                    });
+
                     initialPuertos[blNumber] = {
-                        lugar_recepcion: bl.lugar_recepcion_cod || '',
-                        puerto_embarque: bl.puerto_embarque_cod || '',
-                        puerto_descarga: bl.puerto_descarga_cod || '',
-                        lugar_entrega: bl.lugar_entrega_cod || '',
+                        lugar_recepcion_cod: bl.lugar_recepcion_cod || '',
+                        puerto_embarque_cod: bl.puerto_embarque_cod || '',
+                        puerto_descarga_cod: bl.puerto_descarga_cod || '',
+                        lugar_entrega_cod: bl.lugar_entrega_cod || '',
+                        lugar_destino_cod: bl.lugar_destino_cod || '',
+                        lugar_emision_cod: bl.lugar_emision_cod || ''
                     };
                 }
             });
+
+            // 🆕 DEBUG: Ver qué se guardó en el estado
+            console.log('💾 Puertos individuales inicializados:', initialPuertos);
             setPuertosIndividuales(initialPuertos);
         }
     }, [selectedBLs, filteredBLs]);
+
+    // 🆕 Inicializar puertos masivos con el primer BL seleccionado
+    useEffect(() => {
+        if (editarPuertosMasivo && selectedBLs.length > 0 && filteredBLs.length > 0) {
+            const primerBL = filteredBLs.find(b => b.bl_number === selectedBLs[0]);
+            if (primerBL) {
+                setPuertosMasivos({
+                    lugar_recepcion_cod: primerBL.lugar_recepcion_cod || '',
+                    puerto_embarque_cod: primerBL.puerto_embarque_cod || '',
+                    puerto_descarga_cod: primerBL.puerto_descarga_cod || '',
+                    lugar_entrega_cod: primerBL.lugar_entrega_cod || '',
+                    lugar_destino_cod: primerBL.lugar_destino_cod || '',
+                    lugar_emision_cod: primerBL.lugar_emision_cod || ''
+                });
+            }
+        }
+    }, [editarPuertosMasivo, selectedBLs, filteredBLs]);
 
     const handleSelectAll = () => {
         if (selectedBLs.length === filteredBLs.length) {
@@ -210,7 +256,18 @@ const BulkEditBL = () => {
                     throw new Error(errorData.error || 'Error al actualizar campos generales');
                 }
             }
+            // 2. 🆕 Actualizar puertos MASIVOS (todos los BLs reciben lo mismo)
+            if (editarPuertosMasivo) {
+                const promises = selectedBLs.map(blNumber => {
+                    return fetch(`http://localhost:4000/bls/${blNumber}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(puertosMasivos)
+                    });
+                });
 
+                await Promise.all(promises);
+            }
             if (editarPuertos) {
                 const promises = selectedBLs.map(blNumber => {
                     const puertos = puertosIndividuales[blNumber];
@@ -223,7 +280,7 @@ const BulkEditBL = () => {
 
                 await Promise.all(promises);
             }
-            
+
             setSaveSuccess(true);
             setTimeout(() => {
                 navigate("/expo-bl");
@@ -235,7 +292,7 @@ const BulkEditBL = () => {
             setSaving(false);
         }
     };
-  // 👇 VALIDACIONES - AQUÍ ESTÁ LA PARTE QUE FALTABA
+    // 👇 VALIDACIONES - AQUÍ ESTÁ LA PARTE QUE FALTABA
     const canContinue = {
         1: searchMode === "viaje" ? selectedViaje : filteredBLs.length > 0,
         2: selectedBLs.length > 0,
@@ -243,8 +300,7 @@ const BulkEditBL = () => {
         4: true,
     };
 
-    const hasChangesToSave = Object.values(fieldsToEdit).some(v => v) || editarPuertos;
-    // 👆 FIN DE VALIDACIONES
+    const hasChangesToSave = Object.values(fieldsToEdit).some(v => v) || editarPuertos || editarPuertosMasivo;    // 👆 FIN DE VALIDACIONES
 
     // Validaciones para continuar en cada step
     const canProceedStep1 = searchMode === "viaje" ? selectedViaje : filteredBLs.length > 0;
@@ -297,8 +353,8 @@ const BulkEditBL = () => {
                                             currentStep > step.number
                                                 ? "bg-green-500 text-white"
                                                 : currentStep === step.number
-                                                ? "bg-[#0F2A44] text-white ring-4 ring-blue-100"
-                                                : "bg-slate-200 text-slate-500"
+                                                    ? "bg-[#0F2A44] text-white ring-4 ring-blue-100"
+                                                    : "bg-slate-200 text-slate-500"
                                         ].join(" ")}
                                     >
                                         {currentStep > step.number ? (
@@ -657,29 +713,224 @@ const BulkEditBL = () => {
                                     ¿Deseas editar los puertos de cada BL?
                                 </h2>
                                 <p className="text-sm text-slate-600">
-                                    Puedes ajustar los puertos individualmente para cada BL seleccionado
+                                    Puedes ajustar los puertos de forma masiva o individual para cada BL seleccionado
                                 </p>
                             </div>
 
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                <label className="flex items-start gap-3 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={editarPuertos}
-                                        onChange={(e) => setEditarPuertos(e.target.checked)}
-                                        className="mt-1 w-5 h-5 text-[#0F2A44] rounded focus:ring-2 focus:ring-[#0F2A44]"
-                                    />
-                                    <div>
-                                        <div className="font-medium text-blue-900">
-                                            Editar puertos de forma individual
+                            {/* 🆕 SECCIÓN DE OPCIONES */}
+                            <div className="space-y-3">
+                                {/* Opción 1: Edición Masiva */}
+                                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                    <label className="flex items-start gap-3 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={editarPuertosMasivo}
+                                            onChange={(e) => {
+                                                setEditarPuertosMasivo(e.target.checked);
+                                                if (e.target.checked) setEditarPuertos(false); // Desactivar individual
+                                            }}
+                                            className="mt-1 w-5 h-5 text-green-600 rounded focus:ring-2 focus:ring-green-500"
+                                        />
+                                        <div>
+                                            <div className="font-medium text-green-900">
+                                                Editar puertos de forma masiva
+                                            </div>
+                                            <div className="text-sm text-green-700 mt-1">
+                                                Todos los BLs seleccionados tendrán los mismos puertos
+                                            </div>
                                         </div>
-                                        <div className="text-sm text-blue-700 mt-1">
-                                            Activa esta opción si necesitas configurar puertos diferentes para cada BL
+                                    </label>
+                                </div>
+
+                                {/* Opción 2: Edición Individual */}
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <label className="flex items-start gap-3 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={editarPuertos}
+                                            onChange={(e) => {
+                                                setEditarPuertos(e.target.checked);
+                                                if (e.target.checked) setEditarPuertosMasivo(false); // Desactivar masivo
+                                            }}
+                                            className="mt-1 w-5 h-5 text-[#0F2A44] rounded focus:ring-2 focus:ring-[#0F2A44]"
+                                        />
+                                        <div>
+                                            <div className="font-medium text-blue-900">
+                                                Editar puertos de forma individual
+                                            </div>
+                                            <div className="text-sm text-blue-700 mt-1">
+                                                Configura puertos diferentes para cada BL
+                                            </div>
                                         </div>
-                                    </div>
-                                </label>
+                                    </label>
+                                </div>
                             </div>
 
+                            {/* 🆕 FORMULARIO DE EDICIÓN MASIVA */}
+                            {editarPuertosMasivo && (
+                                <div className="border border-green-200 rounded-lg p-6 bg-green-50">
+                                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-green-200">
+                                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                        <h3 className="font-semibold text-green-900">
+                                            Configuración Masiva - Se aplicará a {selectedBLs.length} BL(s)
+                                        </h3>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white p-5 rounded-lg">
+                                        {/* Lugar de Recepción */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                Lugar de Recepción (LRM)
+                                            </label>
+                                            <select
+                                                value={puertosMasivos.lugar_recepcion_cod}
+                                                onChange={(e) => setPuertosMasivos(prev => ({
+                                                    ...prev,
+                                                    lugar_recepcion_cod: e.target.value
+                                                }))}
+                                                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                            >
+                                                <option value="">Seleccionar puerto...</option>
+                                                {puertosDisponibles.map(puerto => (
+                                                    <option key={puerto.id} value={puerto.codigo}>
+                                                        {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        {/* Puerto de Embarque */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                Puerto de Embarque (PE) *
+                                            </label>
+                                            <select
+                                                value={puertosMasivos.puerto_embarque_cod}
+                                                onChange={(e) => setPuertosMasivos(prev => ({
+                                                    ...prev,
+                                                    puerto_embarque_cod: e.target.value
+                                                }))}
+                                                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                            >
+                                                <option value="">Seleccionar puerto...</option>
+                                                {puertosDisponibles.map(puerto => (
+                                                    <option key={puerto.id} value={puerto.codigo}>
+                                                        {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        {/* Puerto de Descarga */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                Puerto de Descarga (PD) *
+                                            </label>
+                                            <select
+                                                value={puertosMasivos.puerto_descarga_cod}
+                                                onChange={(e) => setPuertosMasivos(prev => ({
+                                                    ...prev,
+                                                    puerto_descarga_cod: e.target.value
+                                                }))}
+                                                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                            >
+                                                <option value="">Seleccionar puerto...</option>
+                                                {puertosDisponibles.map(puerto => (
+                                                    <option key={puerto.id} value={puerto.codigo}>
+                                                        {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        {/* Lugar de Entrega */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                Lugar de Entrega (LEM)
+                                            </label>
+                                            <select
+                                                value={puertosMasivos.lugar_entrega_cod}
+                                                onChange={(e) => setPuertosMasivos(prev => ({
+                                                    ...prev,
+                                                    lugar_entrega_cod: e.target.value
+                                                }))}
+                                                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                            >
+                                                <option value="">Seleccionar puerto...</option>
+                                                {puertosDisponibles.map(puerto => (
+                                                    <option key={puerto.id} value={puerto.codigo}>
+                                                        {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        {/* Lugar de Destino */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                Lugar de Destino (LD)
+                                            </label>
+                                            <select
+                                                value={puertosMasivos.lugar_destino_cod}
+                                                onChange={(e) => setPuertosMasivos(prev => ({
+                                                    ...prev,
+                                                    lugar_destino_cod: e.target.value
+                                                }))}
+                                                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                            >
+                                                <option value="">Seleccionar puerto...</option>
+                                                {puertosDisponibles.map(puerto => (
+                                                    <option key={puerto.id} value={puerto.codigo}>
+                                                        {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        {/* Lugar de Emisión */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                Lugar de Emisión (LE)
+                                            </label>
+                                            <select
+                                                value={puertosMasivos.lugar_emision_cod}
+                                                onChange={(e) => setPuertosMasivos(prev => ({
+                                                    ...prev,
+                                                    lugar_emision_cod: e.target.value
+                                                }))}
+                                                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                            >
+                                                <option value="">Seleccionar puerto...</option>
+                                                {puertosDisponibles.map(puerto => (
+                                                    <option key={puerto.id} value={puerto.codigo}>
+                                                        {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {/* Vista previa de ruta */}
+                                    {(puertosMasivos.puerto_embarque_cod || puertosMasivos.puerto_descarga_cod) && (
+                                        <div className="mt-4 p-4 bg-white rounded-lg border border-green-300">
+                                            <div className="text-sm font-medium text-green-900 mb-2">
+                                                📍 Vista previa de ruta:
+                                            </div>
+                                            <div className="flex items-center gap-2 text-sm text-slate-700">
+                                                <span className="font-medium">
+                                                    {puertosMasivos.puerto_embarque_cod || '---'}
+                                                </span>
+                                                <span className="text-slate-400">→</span>
+                                                <span className="font-medium">
+                                                    {puertosMasivos.puerto_descarga_cod || '---'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* FORMULARIO DE EDICIÓN INDIVIDUAL (el que ya tenías) */}
                             {editarPuertos && (
                                 <div className="space-y-4">
                                     {selectedBLs.map((blNumber) => {
@@ -698,9 +949,10 @@ const BulkEditBL = () => {
                                                 </div>
 
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    {/* Lugar de Recepción */}
                                                     <div>
                                                         <label className="block text-sm font-medium text-slate-700 mb-2">
-                                                            Lugar de Recepción
+                                                            Lugar de Recepción (LRM)
                                                         </label>
                                                         <select
                                                             value={puertosIndividuales[blNumber]?.lugar_recepcion_cod || ''}
@@ -716,9 +968,10 @@ const BulkEditBL = () => {
                                                         </select>
                                                     </div>
 
+                                                    {/* Puerto de Embarque */}
                                                     <div>
                                                         <label className="block text-sm font-medium text-slate-700 mb-2">
-                                                            Puerto de Embarque
+                                                            Puerto de Embarque (PE) *
                                                         </label>
                                                         <select
                                                             value={puertosIndividuales[blNumber]?.puerto_embarque_cod || ''}
@@ -734,9 +987,10 @@ const BulkEditBL = () => {
                                                         </select>
                                                     </div>
 
+                                                    {/* Puerto de Descarga */}
                                                     <div>
                                                         <label className="block text-sm font-medium text-slate-700 mb-2">
-                                                            Puerto de Descarga
+                                                            Puerto de Descarga (PD) *
                                                         </label>
                                                         <select
                                                             value={puertosIndividuales[blNumber]?.puerto_descarga_cod || ''}
@@ -752,13 +1006,52 @@ const BulkEditBL = () => {
                                                         </select>
                                                     </div>
 
+                                                    {/* Lugar de Entrega */}
                                                     <div>
                                                         <label className="block text-sm font-medium text-slate-700 mb-2">
-                                                            Lugar de Entrega
+                                                            Lugar de Entrega (LEM)
                                                         </label>
                                                         <select
                                                             value={puertosIndividuales[blNumber]?.lugar_entrega_cod || ''}
                                                             onChange={(e) => handlePuertoChange(blNumber, 'lugar_entrega_cod', e.target.value)}
+                                                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
+                                                        >
+                                                            <option value="">Seleccionar puerto...</option>
+                                                            {puertosDisponibles.map(puerto => (
+                                                                <option key={puerto.id} value={puerto.codigo}>
+                                                                    {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+
+                                                    {/* 🆕 LUGAR DE DESTINO */}
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                            Lugar de Destino (LD)
+                                                        </label>
+                                                        <select
+                                                            value={puertosIndividuales[blNumber]?.lugar_destino_cod || ''}
+                                                            onChange={(e) => handlePuertoChange(blNumber, 'lugar_destino_cod', e.target.value)}
+                                                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
+                                                        >
+                                                            <option value="">Seleccionar puerto...</option>
+                                                            {puertosDisponibles.map(puerto => (
+                                                                <option key={puerto.id} value={puerto.codigo}>
+                                                                    {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+
+                                                    {/* 🆕 LUGAR DE EMISIÓN */}
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                            Lugar de Emisión (LE)
+                                                        </label>
+                                                        <select
+                                                            value={puertosIndividuales[blNumber]?.lugar_emision_cod || ''}
+                                                            onChange={(e) => handlePuertoChange(blNumber, 'lugar_emision_cod', e.target.value)}
                                                             className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
                                                         >
                                                             <option value="">Seleccionar puerto...</option>
@@ -776,10 +1069,10 @@ const BulkEditBL = () => {
                                 </div>
                             )}
 
-                            {!editarPuertos && (
+                            {!editarPuertos && !editarPuertosMasivo && (
                                 <div className="text-center py-12 text-slate-500">
                                     <p>Los puertos se mantendrán sin cambios</p>
-                                    <p className="text-sm mt-2">Activa la opción de arriba si necesitas editarlos</p>
+                                    <p className="text-sm mt-2">Activa una de las opciones de arriba si necesitas editarlos</p>
                                 </div>
                             )}
                         </div>
@@ -865,17 +1158,17 @@ const BulkEditBL = () => {
                                                         <div key={blNumber} className="text-sm bg-white rounded p-3 border border-slate-200">
                                                             <div className="font-medium text-slate-900 mb-2">{blNumber}</div>
                                                             <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
-                                                                {puertosIndividuales[blNumber]?.lugar_recepcion && (
-                                                                    <div>Recepción: {puertosIndividuales[blNumber].lugar_recepcion}</div>
+                                                                {puertosIndividuales[blNumber]?.lugar_recepcion_cod && (
+                                                                    <div>Recepción: {puertosIndividuales[blNumber].lugar_recepcion_cod}</div>
                                                                 )}
-                                                                {puertosIndividuales[blNumber]?.puerto_embarque && (
-                                                                    <div>Embarque: {puertosIndividuales[blNumber].puerto_embarque}</div>
+                                                                {puertosIndividuales[blNumber]?.puerto_embarque_cod && (
+                                                                    <div>Embarque: {puertosIndividuales[blNumber].puerto_embarque_cod}</div>
                                                                 )}
-                                                                {puertosIndividuales[blNumber]?.puerto_descarga && (
-                                                                    <div>Descarga: {puertosIndividuales[blNumber].puerto_descarga}</div>
+                                                                {puertosIndividuales[blNumber]?.puerto_descarga_cod && (
+                                                                    <div>Descarga: {puertosIndividuales[blNumber].puerto_descarga_cod}</div>
                                                                 )}
-                                                                {puertosIndividuales[blNumber]?.lugar_entrega && (
-                                                                    <div>Entrega: {puertosIndividuales[blNumber].lugar_entrega}</div>
+                                                                {puertosIndividuales[blNumber]?.lugar_entrega_cod && (
+                                                                    <div>Entrega: {puertosIndividuales[blNumber].lugar_entrega_cod}</div>
                                                                 )}
                                                             </div>
                                                         </div>
@@ -889,7 +1182,7 @@ const BulkEditBL = () => {
                                         <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                                         <div className="text-sm text-amber-800">
                                             <div className="font-medium mb-1">Atención</div>
-                                            Esta acción modificará {selectedBLs.length} BL(s) simultáneamente. 
+                                            Esta acción modificará {selectedBLs.length} BL(s) simultáneamente.
                                             Asegúrate de que la información sea correcta antes de continuar.
                                         </div>
                                     </div>
@@ -899,7 +1192,7 @@ const BulkEditBL = () => {
                                             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                                             <div className="text-sm text-red-800">
                                                 <div className="font-medium mb-1">No hay cambios para guardar</div>
-                                                Debes seleccionar al menos un campo para editar en el Step 3, 
+                                                Debes seleccionar al menos un campo para editar en el Step 3,
                                                 o activar la edición de puertos en el Step 4.
                                             </div>
                                         </div>
@@ -908,49 +1201,48 @@ const BulkEditBL = () => {
                             )}
                         </div>
                     )}
-
-                    {/* Navigation Buttons */}
-                    {!saveSuccess && (
-                        <div className="flex items-center justify-between pt-6 border-t border-slate-200 mt-8">
-                            <button
-                                onClick={() => setCurrentStep(prev => prev - 1)}
-                                disabled={currentStep === 1}
-                                className="px-6 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            >
-                                Atrás
-                            </button>
-
-                            {currentStep < 5 ? (
-                                <button
-                                    onClick={() => setCurrentStep(prev => prev + 1)}
-                                    disabled={!canContinue[currentStep]}
-                                    className="px-6 py-2.5 text-sm font-medium text-white bg-[#0F2A44] hover:bg-[#1a3a5c] rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                >
-                                    Continuar
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={handleSave}
-                                    disabled={saving || !hasChangesToSave}
-                                    className="px-6 py-2.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                                    title={!hasChangesToSave ? "Debes seleccionar al menos un campo o activar edición de puertos" : ""}
-                                >
-                                    {saving ? (
-                                        <>
-                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                            Guardando...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Check className="w-4 h-4" />
-                                            Guardar Cambios
-                                        </>
-                                    )}
-                                </button>
-                            )}
-                        </div>
-                    )}
                 </div>
+
+                {/* Navigation Buttons */}
+                {!saveSuccess && (
+                    <div className="flex items-center justify-between pt-6 border-t border-slate-200 mt-8">
+                        <button
+                            onClick={() => setCurrentStep(prev => prev - 1)}
+                            disabled={currentStep === 1}
+                            className="px-6 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                            Atrás
+                        </button>
+
+                        {currentStep < 5 ? (
+                            <button
+                                onClick={() => setCurrentStep(prev => prev + 1)}
+                                disabled={!canContinue[currentStep]}
+                                className="px-6 py-2.5 text-sm font-medium text-white bg-[#0F2A44] hover:bg-[#1a3a5c] rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                Continuar
+                            </button>
+                        ) : (
+                            <button
+                                onClick={handleSave}
+                                disabled={saving || !hasChangesToSave}
+                                className="px-6 py-2.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                            >
+                                {saving ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        Guardando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Check className="w-4 h-4" />
+                                        Guardar Cambios
+                                    </>
+                                )}
+                            </button>
+                        )}
+                    </div>
+                )}
             </main>
         </div>
     );

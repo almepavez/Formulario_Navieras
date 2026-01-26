@@ -35,6 +35,7 @@ const ExpoBLEdit = () => {
         viaje: "",
         tipo_servicio: "",
         fecha_emision: "",
+        fecha_presentacion: "",  // ← AGREGAR AQUÍ
         fecha_zarpe: "",
         fecha_embarque: "",
         lugar_emision: "",
@@ -96,8 +97,11 @@ const ExpoBLEdit = () => {
                 setFormData({
                     bl_number: dataBL.bl_number || "",
                     viaje: dataBL.viaje || "",
-                    tipo_servicio: dataBL.tipo_servicio_id === 1 ? "FF" : "MM",
+                    tipo_servicio: dataBL.tipo_servicio_id === 1 ? "FF" :
+                        dataBL.tipo_servicio_id === 2 ? "MM" :
+                            "", // 👈 Si es NULL, quedará vacío                    
                     fecha_emision: formatDate(dataBL.fecha_emision),
+                    fecha_presentacion: formatDateTime(dataBL.fecha_presentacion),  // ← AGREGAR AQUÍ
                     fecha_zarpe: formatDateTime(dataBL.fecha_zarpe),
                     fecha_embarque: formatDateTime(dataBL.fecha_embarque),
                     lugar_emision: dataBL.lugar_emision_cod || "",
@@ -347,7 +351,6 @@ const ExpoBLEdit = () => {
             }
         });
     };
-    // ✅ VALIDACIONES
     const validateStep = (step) => {
         switch (step) {
             case 1: // General
@@ -368,9 +371,36 @@ const ExpoBLEdit = () => {
                         confirmButtonColor: "#0F2A44"
                     });
                     return false;
-
-
-
+                }
+                // 🆕 Fecha presentación obligatoria
+                if (!formData.fecha_presentacion) {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "Campo requerido",
+                        text: "La fecha de presentación es obligatoria",
+                        confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
+                }
+                // 🆕 Fecha zarpe obligatoria
+                if (!formData.fecha_zarpe) {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "Campo requerido",
+                        text: "La fecha de zarpe es obligatoria",
+                        confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
+                }
+                // 🆕 Fecha embarque obligatoria
+                if (!formData.fecha_embarque) {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "Campo requerido",
+                        text: "La fecha de embarque es obligatoria",
+                        confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
                 }
                 break;
 
@@ -389,6 +419,46 @@ const ExpoBLEdit = () => {
                         icon: "warning",
                         title: "Campo requerido",
                         text: "Debes seleccionar el puerto de descarga",
+                        confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
+                }
+                // 🆕 Lugar emisión obligatorio
+                if (!formData.lugar_emision) {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "Campo requerido",
+                        text: "Debes seleccionar el lugar de emisión",
+                        confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
+                }
+                // 🆕 Lugar destino obligatorio
+                if (!formData.lugar_destino) {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "Campo requerido",
+                        text: "Debes seleccionar el lugar de destino",
+                        confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
+                }
+                // 🆕 Lugar entrega obligatorio
+                if (!formData.lugar_entrega) {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "Campo requerido",
+                        text: "Debes seleccionar el lugar de entrega",
+                        confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
+                }
+                // 🆕 Lugar recepción obligatorio
+                if (!formData.lugar_recepcion) {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "Campo requerido",
+                        text: "Debes seleccionar el lugar de recepción",
                         confirmButtonColor: "#0F2A44"
                     });
                     return false;
@@ -435,7 +505,36 @@ const ExpoBLEdit = () => {
                     });
                     return false;
                 }
-
+                // 🆕 Unidad peso obligatoria
+                if (!formData.unidad_peso || formData.unidad_peso.trim() === '') {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "Campo requerido",
+                        text: "La unidad de peso es obligatoria",
+                        confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
+                }
+                // 🆕 Volumen obligatorio (puede ser 0)
+                if (formData.volumen === null || formData.volumen === undefined || formData.volumen === '') {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "Campo requerido",
+                        text: "El volumen es obligatorio (puede ser 0)",
+                        confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
+                }
+                // 🆕 Unidad volumen obligatoria
+                if (!formData.unidad_volumen || formData.unidad_volumen.trim() === '') {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "Campo requerido",
+                        text: "La unidad de volumen es obligatoria",
+                        confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
+                }
                 if (!formData.bultos || parseInt(formData.bultos) <= 0) {
                     Swal.fire({
                         icon: "warning",
@@ -445,18 +544,9 @@ const ExpoBLEdit = () => {
                     });
                     return false;
                 }
-                /*
-               if (!formData.descripcion_carga || formData.descripcion_carga.trim().length < 10) {
-                   Swal.fire({
-                       icon: "warning",
-                       title: "Campo requerido",
-                       text: "La descripción de la carga debe tener al menos 10 caracteres",
-                       confirmButtonColor: "#0F2A44"
-                   });
-                   return false;
-               }
-                     */
+                // ✅ descripcion_carga NO es obligatoria (comentada)
                 break;
+
             case 5: // Items
                 if (items.length === 0) {
                     Swal.fire({
@@ -465,10 +555,9 @@ const ExpoBLEdit = () => {
                         text: "Este BL no tiene items para editar",
                         confirmButtonColor: "#0F2A44"
                     });
-                    return true;
+                    return true; // No bloquea si no hay items
                 }
 
-                // 🆕 AGREGAR ESTA VALIDACIÓN:
                 for (const item of items) {
                     // Validar peso bruto
                     if (!item.peso_bruto || parseFloat(item.peso_bruto) <= 0) {
@@ -476,6 +565,17 @@ const ExpoBLEdit = () => {
                             icon: "warning",
                             title: "Campo requerido",
                             text: `El Item ${item.numero_item} debe tener un peso bruto mayor a 0`,
+                            confirmButtonColor: "#0F2A44"
+                        });
+                        return false;
+                    }
+
+                    // 🆕 Validar unidad_peso
+                    if (!item.unidad_peso || item.unidad_peso.trim() === '') {
+                        Swal.fire({
+                            icon: "warning",
+                            title: "Campo requerido",
+                            text: `El Item ${item.numero_item} debe tener una unidad de peso`,
                             confirmButtonColor: "#0F2A44"
                         });
                         return false;
@@ -491,8 +591,40 @@ const ExpoBLEdit = () => {
                         });
                         return false;
                     }
-                }
 
+                    // 🆕 Validar unidad_volumen
+                    if (!item.unidad_volumen || item.unidad_volumen.trim() === '') {
+                        Swal.fire({
+                            icon: "warning",
+                            title: "Campo requerido",
+                            text: `El Item ${item.numero_item} debe tener una unidad de volumen`,
+                            confirmButtonColor: "#0F2A44"
+                        });
+                        return false;
+                    }
+
+                    // 🆕 Validar tipo_bulto
+                    if (!item.tipo_bulto || item.tipo_bulto.trim() === '') {
+                        Swal.fire({
+                            icon: "warning",
+                            title: "Campo requerido",
+                            text: `El Item ${item.numero_item} debe tener un tipo de bulto`,
+                            confirmButtonColor: "#0F2A44"
+                        });
+                        return false;
+                    }
+
+                    // 🆕 Validar cantidad
+                    if (!item.cantidad || parseInt(item.cantidad) <= 0) {
+                        Swal.fire({
+                            icon: "warning",
+                            title: "Campo requerido",
+                            text: `El Item ${item.numero_item} debe tener una cantidad mayor a 0`,
+                            confirmButtonColor: "#0F2A44"
+                        });
+                        return false;
+                    }
+                }
                 break;
 
             case 6: // Contenedores
@@ -503,10 +635,10 @@ const ExpoBLEdit = () => {
                         text: "Este BL no tiene contenedores para editar",
                         confirmButtonColor: "#0F2A44"
                     });
-                    return true;
+                    return true; // No bloquea si no hay contenedores
                 }
 
-                // 🆕 Validar que contenedores con carga peligrosa tengan IMOs
+                // Validar que contenedores con carga peligrosa tengan IMOs
                 const contenedoresSinImo = contenedores.filter(cont => {
                     const esCargaPeligrosa = esContenedorCargaPeligrosa(cont.codigo);
                     return esCargaPeligrosa && (!cont.imos || cont.imos.length === 0);
@@ -557,6 +689,7 @@ const ExpoBLEdit = () => {
             const dataToSend = {
                 tipo_servicio: formData.tipo_servicio,
                 fecha_emision: formData.fecha_emision || null,
+                fecha_presentacion: formatToMysql(formData.fecha_presentacion),  // ← AGREGAR AQUÍ
                 fecha_zarpe: formatToMysql(formData.fecha_zarpe),
                 fecha_embarque: formatToMysql(formData.fecha_embarque),
                 puerto_embarque: formData.puerto_embarque || null,
@@ -843,6 +976,7 @@ const ExpoBLEdit = () => {
                                     onChange={(e) => updateField("tipo_servicio", e.target.value)}
                                     className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
                                 >
+                                    <option value="">Seleccionar tipo de servicio...</option> {/* 👈 AGREGAR */}
                                     <option value="FF">FCL/FCL (FF)</option>
                                     <option value="MM">EMPTY (MM)</option>
                                 </select>
@@ -860,9 +994,23 @@ const ExpoBLEdit = () => {
                                 />
                             </div>
 
+                            {/* ← AGREGAR ESTE NUEVO DIV AQUÍ */}
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                                    Fecha Zarpe
+                                    Fecha Presentación <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="datetime-local"
+                                    value={formData.fecha_presentacion}
+                                    onChange={(e) => updateField("fecha_presentacion", e.target.value)}
+                                    className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
+                                />
+                            </div>
+
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">
+                                    Fecha Zarpe <span className="text-red-500">*</span>
                                 </label>
                                 <input
                                     type="datetime-local"
@@ -874,7 +1022,7 @@ const ExpoBLEdit = () => {
 
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                                    Fecha Embarque
+                                    Fecha Embarque <span className="text-red-500">*</span>
                                 </label>
                                 <input
                                     type="datetime-local"
@@ -897,7 +1045,7 @@ const ExpoBLEdit = () => {
                                     {/* Lugar Emisión */}
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 mb-2">
-                                            Lugar Emisión
+                                            Lugar Emisión <span className="text-red-500">*</span>
                                         </label>
                                         <select
                                             value={formData.lugar_emision}
@@ -916,7 +1064,7 @@ const ExpoBLEdit = () => {
                                     {/* Lugar Recepción */}
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 mb-2">
-                                            Lugar Recepción
+                                            Lugar Recepción <span className="text-red-500">*</span>
                                         </label>
                                         <select
                                             value={formData.lugar_recepcion}
@@ -989,7 +1137,7 @@ const ExpoBLEdit = () => {
                                     {/* Lugar Destino */}
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 mb-2">
-                                            Lugar Destino
+                                            Lugar Destino <span className="text-red-500">*</span>
                                         </label>
                                         <select
                                             value={formData.lugar_destino}
@@ -1008,7 +1156,7 @@ const ExpoBLEdit = () => {
                                     {/* Lugar Entrega */}
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 mb-2">
-                                            Lugar Entrega
+                                            Lugar Entrega <span className="text-red-500">*</span>
                                         </label>
                                         <select
                                             value={formData.lugar_entrega}
@@ -1284,7 +1432,7 @@ const ExpoBLEdit = () => {
                                                 {/* Descripción */}
                                                 <div className="md:col-span-2">
                                                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                                                        Descripción
+                                                        Descripción <span className="text-red-500">*</span>
                                                     </label>
                                                     <textarea
                                                         rows={3}
@@ -1297,7 +1445,7 @@ const ExpoBLEdit = () => {
                                                 {/* Marcas */}
                                                 <div>
                                                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                                                        Marcas
+                                                        Marcas <span className="text-red-500">*</span>
                                                     </label>
                                                     <input
                                                         type="text"
@@ -1310,7 +1458,7 @@ const ExpoBLEdit = () => {
                                                 {/* Tipo Bulto */}
                                                 <div>
                                                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                                                        Tipo Bulto
+                                                        Tipo Bulto <span className="text-red-500">*</span>
                                                     </label>
                                                     <select
                                                         value={item.tipo_bulto || ""}
@@ -1329,7 +1477,7 @@ const ExpoBLEdit = () => {
                                                 {/* Cantidad */}
                                                 <div>
                                                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                                                        Cantidad
+                                                        Cantidad <span className="text-red-500">*</span>
                                                     </label>
                                                     <input
                                                         type="number"
@@ -1356,7 +1504,7 @@ const ExpoBLEdit = () => {
                                                 {/* Unidad Peso */}
                                                 <div>
                                                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                                                        Unidad Peso
+                                                        Unidad Peso <span className="text-red-500">*</span>
                                                     </label>
                                                     <input
                                                         type="text"
@@ -1385,7 +1533,7 @@ const ExpoBLEdit = () => {
                                                 {/* Unidad Volumen */}
                                                 <div>
                                                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                                                        Unidad Volumen
+                                                        Unidad Volumen <span className="text-red-500">*</span>
                                                     </label>
                                                     <input
                                                         type="text"
@@ -1502,7 +1650,7 @@ const ExpoBLEdit = () => {
                                                     {/* Código Contenedor */}
                                                     <div>
                                                         <label className="block text-sm font-medium text-slate-700 mb-2">
-                                                            Código Contenedor
+                                                            Código Contenedor <span className="text-red-500">*</span>
                                                         </label>
                                                         <input
                                                             type="text"
@@ -1664,6 +1812,13 @@ const ExpoBLEdit = () => {
                                     <div>
                                         <p className="text-blue-700 font-medium">Fecha Emisión:</p>
                                         <p className="text-blue-900">{formData.fecha_emision || "—"}</p>
+                                    </div>
+                                    {/* ← AGREGAR AQUÍ */}
+                                    <div>
+                                        <p className="text-blue-700 font-medium">Fecha Presentación:</p>
+                                        <p className="text-blue-900">{formData.fecha_presentacion ?
+                                            new Date(formData.fecha_presentacion).toLocaleString('es-CL') : "—"}
+                                        </p>
                                     </div>
                                     {/* 🆕 PUERTOS EN RESUMEN */}
                                     <div>

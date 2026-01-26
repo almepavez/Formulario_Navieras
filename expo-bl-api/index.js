@@ -2390,7 +2390,7 @@ function parsePmsTxt(content) {
 
       // ---------- 51: CONTENEDORES + SELLOS (nuevo, NO rompe) ----------
       const lines51 = pickAll(bLines, "51");
-       // lo sigues usando para bultos
+      // lo sigues usando para bultos
 
       const weightKgs = extractWeightFrom12(l12);
 
@@ -3340,6 +3340,14 @@ app.get("/bls", async (req, res) => {
         b.consignee,
         b.notify_party,
 
+        b.lugar_emision_cod,
+        b.puerto_embarque_cod,
+        b.puerto_descarga_cod,
+        b.lugar_recepcion_cod,
+        b.lugar_entrega_cod,
+        b.lugar_destino_cod,
+
+
         le.nombre  AS lugar_emision,
         pe.nombre  AS puerto_embarque,
         pd.nombre  AS puerto_descarga,
@@ -3362,9 +3370,12 @@ app.get("/bls", async (req, res) => {
 
       FROM bls b
       LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
-      LEFT JOIN puertos le ON b.lugar_emision_id   = le.id
+      LEFT JOIN puertos le ON b.lugar_emision_id = le.id
       LEFT JOIN puertos pe ON b.puerto_embarque_id = pe.id
       LEFT JOIN puertos pd ON b.puerto_descarga_id = pd.id
+      LEFT JOIN puertos lr ON b.lugar_recepcion_id = lr.id
+      LEFT JOIN puertos lem ON b.lugar_entrega_id = lem.id
+      LEFT JOIN puertos ld ON b.lugar_destino_id = ld.id
       LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
       ORDER BY b.created_at DESC
     `;
@@ -3566,19 +3577,19 @@ app.get('/bls/:blNumber/items-contenedores', async (req, res) => {
 // ============================================
 app.patch('/bls/:blNumber', async (req, res) => {
   const connection = await pool.getConnection();
-  
+
   try {
     const { blNumber } = req.params;
     const updates = req.body;
-    
-  // 🔥 AGREGAR ESTAS 3 LÍNEAS
+
+    // 🔥 AGREGAR ESTAS 3 LÍNEAS
     console.log('═══════════════════════════════════');
     console.log('📥 PATCH recibido para BL:', blNumber);
     console.log('📦 Body completo:', JSON.stringify(updates, null, 2));
     console.log('📦 Campos recibidos:', Object.keys(updates));
     console.log('═══════════════════════════════════');
 
-    
+
     await connection.beginTransaction();
 
     // 1️⃣ Obtener BL ID
@@ -3614,7 +3625,7 @@ app.patch('/bls/:blNumber', async (req, res) => {
       // 🔥 Si es un campo de puerto, resolver ID
       if (puertoFields.includes(field)) {
         const codigo = value;
-        
+
         if (!codigo) {
           // Si viene vacío, NULL en ambos
           const idField = field.replace('_cod', '_id');
@@ -3664,7 +3675,7 @@ app.patch('/bls/:blNumber', async (req, res) => {
     console.log('📝 Values:', values);
 
     const [result] = await connection.query(query, values);
-    
+
     if (result.affectedRows === 0) {
       await connection.rollback();
       return res.status(404).json({ error: 'BL no encontrado' });
@@ -3674,20 +3685,20 @@ app.patch('/bls/:blNumber', async (req, res) => {
     await revalidarBL(connection, blId);
 
     await connection.commit();
-    
+
     console.log(`✅ BL ${blNumber} actualizado - ${result.affectedRows} fila(s)`);
-    
-    res.json({ 
+
+    res.json({
       success: true,
       message: 'BL actualizado exitosamente',
-      bl_number: blNumber 
+      bl_number: blNumber
     });
   } catch (error) {
     await connection.rollback();
     console.error('❌ Error al actualizar BL:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Error al actualizar BL',
-      details: error.message 
+      details: error.message
     });
   } finally {
     connection.release();
@@ -3737,6 +3748,7 @@ app.put("/bls/:blNumber", async (req, res) => {
   const {
     tipo_servicio,
     fecha_emision,
+    fecha_presentacion,  // ← DEBE ESTAR AQUÍ
     fecha_zarpe,
     fecha_embarque,
     // 🆕 AGREGAR ESTOS 6 CAMPOS
@@ -3793,6 +3805,7 @@ app.put("/bls/:blNumber", async (req, res) => {
       UPDATE bls SET
         tipo_servicio_id = COALESCE(?, tipo_servicio_id),
         fecha_emision = COALESCE(?, fecha_emision),
+        fecha_presentacion = COALESCE(?, fecha_presentacion),  
         fecha_zarpe = COALESCE(?, fecha_zarpe),
         fecha_embarque = COALESCE(?, fecha_embarque),
         lugar_emision_id = COALESCE(?, lugar_emision_id),
@@ -3821,6 +3834,7 @@ app.put("/bls/:blNumber", async (req, res) => {
     `, [
       tipo_servicio_id,
       fecha_emision,
+      fecha_presentacion,
       fecha_zarpe,
       fecha_embarque,
       lugarEmisionId,
@@ -5095,7 +5109,7 @@ async function revalidarBL(connection, blId) {
     // Peso bruto obligatorio y > 0
     if (!item.peso_bruto || item.peso_bruto <= 0) {
       errores.push({
-        nivel: 'ITEM', ref_id: item.id, sec: item.numero_item, severidad: 'OBS',
+        nivel: 'ITEM', ref_id: item.id, sec: item.numero_item, severidad: 'ERROR',
         campo: 'peso_bruto', mensaje: 'Peso bruto debe ser mayor a 0',
         valor_crudo: item.peso_bruto
       });
@@ -5274,10 +5288,10 @@ app.get('/bls/viajes/list', async (req, res) => {
 // ============================================
 app.patch('/bls/bulk-update', async (req, res) => {
   const connection = await pool.getConnection();
-  
+
   try {
     const { blNumbers, updates } = req.body;
-    
+
     // Validaciones
     if (!blNumbers || !Array.isArray(blNumbers) || blNumbers.length === 0) {
       return res.status(400).json({ error: 'Debe proporcionar una lista de BL numbers' });
@@ -5291,11 +5305,11 @@ app.patch('/bls/bulk-update', async (req, res) => {
 
     // Campos permitidos según tu esquema de base de datos
     const validFields = [
-      'shipper', 
-      'consignee', 
+      'shipper',
+      'consignee',
       'notify_party',
-      'descripcion_carga', 
-      'bultos', 
+      'descripcion_carga',
+      'bultos',
       'peso_bruto',
       'volumen',
       'status'
@@ -5350,9 +5364,9 @@ app.patch('/bls/bulk-update', async (req, res) => {
   } catch (error) {
     await connection.rollback();
     console.error('Error en actualización masiva:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Error al actualizar BLs',
-      details: error.message 
+      details: error.message
     });
   } finally {
     connection.release();

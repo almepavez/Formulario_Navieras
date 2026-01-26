@@ -61,96 +61,6 @@ const GenerarXML = () => {
     }
   };
 
-  // ⚠️ Validación de BL
-  // ⚠️ Validación de BL MEJORADA CON IMO
-  const validateBL = (bl) => {
-    const errors = [];
-    const warnings = [];
-
-    // Errores críticos (impiden generar XML correctamente)
-    if (!bl.bl_number || bl.bl_number.trim() === '') {
-      errors.push("Falta número de BL");
-    }
-
-    if (!bl.shipper || bl.shipper.trim() === '') {
-      errors.push("Falta Shipper");
-    }
-
-    if (!bl.consignee || bl.consignee.trim() === '') {
-      errors.push("Falta Consignee");
-    }
-
-    if (!bl.puerto_embarque && !bl.puerto_embarque_cod) {
-      errors.push("Falta Puerto de Embarque (POL)");
-    }
-
-    if (!bl.puerto_descarga && !bl.puerto_descarga_cod) {
-      errors.push("Falta Puerto de Descarga (POD)");
-    }
-
-    if (!bl.lugar_emision && !bl.lugar_emision_cod) {
-      errors.push("Falta Lugar de Emisión (LE)");
-    }
-
-    if (!bl.lugar_destino && !bl.lugar_destino_cod) {
-      errors.push("Falta Lugar de Destino (LD)");
-    }
-
-    if (!bl.lugar_entrega && !bl.lugar_entrega_cod) {
-      errors.push("Falta Lugar de Entrega (LEM)");
-    }
-
-    if (!bl.lugar_recepcion && !bl.lugar_recepcion_cod) {
-      errors.push("Falta Lugar de Recepción (LRM)");
-    }
-
-    // 🆕 VALIDACIÓN IMO: Verificar en valid_status y valid_count_error
-    if (bl.valid_status === 'ERROR' && bl.valid_count_error > 0) {
-      errors.push(`BL tiene ${bl.valid_count_error} error(es) de validación - revisar detalle`);
-    }
-
-    // Warnings (pueden generar XML pero con datos incompletos)
-    if (!bl.notify_party || bl.notify_party.trim() === '') {
-      warnings.push("Falta Notify Party");
-    }
-
-    if (!bl.bultos || bl.bultos === 0) {
-      warnings.push("Sin bultos o bultos = 0");
-    }
-
-    if (!bl.peso_bruto || bl.peso_bruto === 0) {
-      warnings.push("Sin peso o peso = 0");
-    }
-
-    if (!bl.fecha_emision) {
-      warnings.push("Falta Fecha de Emisión");
-    }
-
-    if (!bl.fecha_zarpe) {
-      warnings.push("Falta Fecha de Zarpe");
-    }
-
-    if (bl.carga_peligrosa === 'S') {
-      warnings.push("BL marcado como carga peligrosa - verificar datos IMO en detalle");
-    }
-
-    // 🆕 Advertencia si hay observaciones
-    if (bl.valid_status === 'OBS' && bl.valid_count_obs > 0) {
-      warnings.push(`BL tiene ${bl.valid_count_obs} observación(es) - revisar si afecta XML`);
-    }
-
-    const totalIssues = errors.length + warnings.length;
-
-    return {
-      isValid: errors.length === 0,
-      hasWarnings: warnings.length > 0,
-      errors,
-      warnings,
-      level: errors.length > 0 ? 'error' : warnings.length > 0 ? 'warning' : 'ok',
-      count: totalIssues
-    };
-  };
-
   // 🔍 Filtrado y búsqueda
   const filteredAndSortedBLs = useMemo(() => {
     let result = [...bls];
@@ -169,10 +79,10 @@ const GenerarXML = () => {
     }
 
     if (showOnlyErrors) {
-      result = result.filter(bl => {
-        const validation = validateBL(bl);
-        return validation.level === 'error' || validation.level === 'warning';
-      });
+      // ✅ USAR DATOS DE LA BD
+      result = result.filter(bl =>
+        bl.valid_status === 'ERROR' || bl.valid_status === 'OBS'
+      );
     }
 
     if (sortOrder === "recent") {
@@ -217,61 +127,59 @@ const GenerarXML = () => {
     }
 
     // ⚠️ VALIDAR BLs seleccionados
-    const selectedBlsArray = Array.from(selectedBls);
-    const blsConErrores = selectedBlsArray
-      .map(blNumber => {
-        const bl = bls.find(b => b.bl_number === blNumber);
-        return { blNumber, validation: validateBL(bl) };
-      })
-      .filter(item => item.validation.level === 'error');
+    const generarXMLsMultiples = async () => {
 
-    // 🚫 SI HAY ERRORES CRÍTICOS, NO PERMITIR GENERAR
-    if (blsConErrores.length > 0) {
-      const erroresHTML = blsConErrores.map(item =>
-        `<div style="text-align: left; margin-bottom: 12px; padding: 12px; background: #FEE2E2; border-radius: 8px; border: 1px solid #FCA5A5;">
-          <strong style="color: #DC2626; font-size: 14px;"> ${item.blNumber}</strong><br/>
-          <ul style="margin: 8px 0; padding-left: 20px; font-size: 13px; color: #991B1B;">
-            ${item.validation.errors.map(e => `<li style="margin: 4px 0;">${e}</li>`).join('')}
-          </ul>
-        </div>`
-      ).join('');
+      const selectedBlsArray = Array.from(selectedBls);
+      const blsConErrores = bls.filter(bl =>
+        selectedBlsArray.includes(bl.bl_number) &&
+        bl.valid_status === 'ERROR'
+      );
+      // 🚫 SI HAY ERRORES CRÍTICOS, NO PERMITIR GENERAR
+      if (blsConErrores.length > 0) {
+        const erroresHTML = blsConErrores.map(bl =>
+          `<div style="text-align: left; margin-bottom: 12px; padding: 12px; background: #FEE2E2; border-radius: 8px; border: 1px solid #FCA5A5;">
+      <strong style="color: #DC2626; font-size: 14px;">📋 ${bl.bl_number}</strong><br/>
+      <p style="margin: 8px 0; font-size: 13px; color: #991B1B;">
+        ${bl.valid_count_error} error(es) crítico(s)
+      </p>
+      <p style="margin: 4px 0; font-size: 12px; color: #7C2D12;">
+        Haz clic en "Preview" para ver el detalle de los errores
+      </p>
+    </div>`
+        ).join('');
 
-      await Swal.fire({
-        icon: 'error',
-        title: 'No se puede generar XML',
-        html: `
-          <div style="text-align: left; margin-bottom: 16px;">
-            <p style="color: #DC2626; font-weight: 500; margin-bottom: 12px;">
-              ${blsConErrores.length} BL${blsConErrores.length > 1 ? 's tienen' : ' tiene'} errores críticos que deben corregirse:
-            </p>
-            <div style="max-height: 400px; overflow-y: auto; padding-right: 8px;">
-              ${erroresHTML}
-            </div>
-          </div>
-          <div style="background: #FEF3C7; padding: 12px; border-radius: 8px; margin-top: 16px; border: 1px solid #FCD34D;">
-            <p style="color: #92400E; font-size: 13px; margin: 0;">
-              <strong>Solución:</strong> Edita los BLs para completar los campos faltantes antes de generar los XMLs.
-            </p>
-          </div>
-        `,
-        confirmButtonText: 'Entendido',
-        confirmButtonColor: '#DC2626',
-        width: '600px',
-        customClass: {
-          popup: 'swal-wide'
-        }
-      });
+        await Swal.fire({
+          icon: 'error',
+          title: 'No se puede generar XML',
+          html: `
+      <div style="text-align: left; margin-bottom: 16px;">
+        <p style="color: #DC2626; font-weight: 500; margin-bottom: 12px;">
+          ${blsConErrores.length} BL${blsConErrores.length > 1 ? 's tienen' : ' tiene'} errores críticos:
+        </p>
+        <div style="max-height: 400px; overflow-y: auto; padding-right: 8px;">
+          ${erroresHTML}
+        </div>
+      </div>
+      <div style="background: #FEF3C7; padding: 12px; border-radius: 8px; margin-top: 16px; border: 1px solid #FCD34D;">
+        <p style="color: #92400E; font-size: 13px; margin: 0;">
+          <strong>💡 Solución:</strong> Edita los BLs con errores para completar los campos faltantes.
+        </p>
+      </div>
+    `,
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#DC2626',
+          width: '600px'
+        });
 
-      return; // 🛑 DETENER LA EJECUCIÓN
+        return;
+      }
     }
 
     // ⚠️ MOSTRAR ADVERTENCIAS (pero permitir continuar)
-    const blsConWarnings = selectedBlsArray
-      .map(blNumber => {
-        const bl = bls.find(b => b.bl_number === blNumber);
-        return { blNumber, validation: validateBL(bl) };
-      })
-      .filter(item => item.validation.level === 'warning');
+    const blsConWarnings = bls.filter(bl =>
+      selectedBlsArray.includes(bl.bl_number) &&
+      bl.valid_status === 'OBS'
+    );
 
     if (blsConWarnings.length > 0) {
       const warningsHTML = blsConWarnings.map(item =>
@@ -445,7 +353,6 @@ const GenerarXML = () => {
           </p>
         </div>
       `,
-        showCancelButton: true,
         showDenyButton: true,
         confirmButtonText: 'Cerrar',
         denyButtonText: 'Editar BL',
@@ -487,8 +394,8 @@ const GenerarXML = () => {
 
       // 🎨 Formatear XML con indentación correcta
       // 🎨 Formatear XML - Versión simple y efectiva
-// 🎨 Formatear y escapar XML para mostrar correctamente
-// 🎨 Formatear y escapar XML para mostrar correctamente
+      // 🎨 Formatear y escapar XML para mostrar correctamente
+      // 🎨 Formatear y escapar XML para mostrar correctamente
       const formatXML = (xml) => {
         // Agregar declaración si falta
         if (!xml.trim().startsWith('<?xml')) {
@@ -532,7 +439,7 @@ const GenerarXML = () => {
             const nextTrimmed = nextPart ? nextPart.trim() : '';
             const afterNext = parts[i + 2];
             const afterNextTrimmed = afterNext ? afterNext.trim() : '';
-            
+
             // Si tiene texto seguido de un tag de cierre inmediato, es contenido inline
             if (nextTrimmed && !nextTrimmed.startsWith('<') && afterNextTrimmed.startsWith('</')) {
               formatted += INDENT.repeat(indent) + trimmed + nextTrimmed + afterNextTrimmed + '\n';
@@ -767,161 +674,152 @@ const GenerarXML = () => {
 
         {/* Tabla de BLs */}
         {!loading && filteredAndSortedBLs.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-slate-600">
-                <tr>
-                  <th className="text-left px-6 py-3 font-semibold w-12">
-                    <input
-                      type="checkbox"
-                      checked={selectedBls.size === filteredAndSortedBLs.length && filteredAndSortedBLs.length > 0}
-                      onChange={toggleAll}
-                      className="w-4 h-4 rounded border-slate-300"
-                    />
-                  </th>
-                  <th className="text-left px-6 py-3 font-semibold">Estado</th>
-                  <th className="text-left px-6 py-3 font-semibold">BL Number</th>
-                  <th className="text-left px-6 py-3 font-semibold">Shipper</th>
-                  <th className="text-left px-6 py-3 font-semibold">Consignee</th>
-                  <th className="text-left px-6 py-3 font-semibold">POL</th>
-                  <th className="text-left px-6 py-3 font-semibold">POD</th>
-                  <th className="text-left px-6 py-3 font-semibold">Bultos</th>
-                  <th className="text-left px-6 py-3 font-semibold">Peso (kg)</th>
-                  <th className="text-left px-6 py-3 font-semibold">Status</th>
-                  <th className="text-left px-6 py-3 font-semibold">Acciones</th>
-                </tr>
-              </thead>
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible">  
+          <div className="overflow-x-auto"></div>          
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-slate-600">
+              <tr>
+                <th className="text-left px-6 py-3 font-semibold w-12">
+                  <input
+                    type="checkbox"
+                    checked={selectedBls.size === filteredAndSortedBLs.length && filteredAndSortedBLs.length > 0}
+                    onChange={toggleAll}
+                    className="w-4 h-4 rounded border-slate-300"
+                  />
+                </th>
+                <th className="text-left px-6 py-3 font-semibold">Estado</th>
+                <th className="text-left px-6 py-3 font-semibold">BL Number</th>
+                <th className="text-left px-6 py-3 font-semibold">Shipper</th>
+                <th className="text-left px-6 py-3 font-semibold">Consignee</th>
+                <th className="text-left px-6 py-3 font-semibold">POL</th>
+                <th className="text-left px-6 py-3 font-semibold">POD</th>
+                <th className="text-left px-6 py-3 font-semibold">Bultos</th>
+                <th className="text-left px-6 py-3 font-semibold">Peso (kg)</th>
+                <th className="text-left px-6 py-3 font-semibold">Status</th>
+                <th className="text-left px-6 py-3 font-semibold">Acciones</th>
+              </tr>
+            </thead>
 
-              <tbody>
-                {filteredAndSortedBLs.map((bl) => {
-                  const validation = validateBL(bl);
+            <tbody>
+              {filteredAndSortedBLs.map((bl) => {
+                const totalErrores = bl.valid_count_error || 0;
+                const totalObs = bl.valid_count_obs || 0;
+                const validStatus = bl.valid_status || 'OK';
 
-                  return (
-                    <tr
-                      key={bl.bl_number}
-                      className="border-t hover:bg-slate-50"
-                    >
-                      <td className="px-6 py-4">
-                        <input
-                          type="checkbox"
-                          checked={selectedBls.has(bl.bl_number)}
-                          onChange={() => toggleBL(bl.bl_number)}
-                          className="w-4 h-4 rounded border-slate-300"
-                        />
-                      </td>
+                return (
+                  <tr
+                    key={bl.bl_number}
+                    className="border-t hover:bg-slate-50"
+                  >
+                    <td className="px-6 py-4 relative">
+                      <input
+                        type="checkbox"
+                        checked={selectedBls.has(bl.bl_number)}
+                        onChange={() => toggleBL(bl.bl_number)}
+                        className="w-4 h-4 rounded border-slate-300"
+                      />
+                    </td>
 
-                      <td className="px-6 py-4">
-                        {validation.level === 'ok' && (
-                          <div
-                            className="flex items-center gap-1 text-emerald-600 cursor-help"
-                            title="Sin problemas detectados"
-                          >
-                            <CheckCircle2 className="w-5 h-5" />
-                          </div>
-                        )}
-                        {validation.level === 'warning' && (
-                          <div
-                            className="flex items-center gap-2 text-amber-600 cursor-help group relative"
-                          >
-                            <AlertTriangle className="w-5 h-5" />
-                            <span className="text-xs font-medium">{validation.count}</span>
-
-                            <div className="absolute left-0 top-8 hidden group-hover:block z-50 w-72 bg-white rounded-lg shadow-xl border border-amber-200 p-3">
-                              <div className="text-xs text-left">
-                                <div className="font-semibold text-amber-700 mb-2">Advertencias:</div>
-                                <ul className="space-y-1 text-slate-700">
-                                  {validation.warnings.map((w, i) => (
-                                    <li key={i} className="flex items-start gap-2">
-                                      <span className="text-amber-500 mt-0.5">•</span>
-                                      <span>{w}</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                                <div className="mt-2 pt-2 border-t border-amber-100 text-amber-600 font-medium">
-                                  Puede generar XML pero con datos incompletos
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                        {validation.level === 'error' && (
-                          <div
-                            className="flex items-center gap-2 text-red-600 cursor-help group relative"
-                          >
-                            <XCircle className="w-5 h-5" />
-                            <span className="text-xs font-medium">{validation.count}</span>
-
-                            <div className="absolute left-0 top-8 hidden group-hover:block z-50 w-72 bg-white rounded-lg shadow-xl border border-red-200 p-3">
-                              <div className="text-xs text-left">
-                                <div className="font-semibold text-red-700 mb-2">❌ Errores críticos:</div>
-                                <ul className="space-y-1 text-slate-700">
-                                  {validation.errors.map((e, i) => (
-                                    <li key={i} className="flex items-start gap-2">
-                                      <span className="text-red-500 mt-0.5">•</span>
-                                      <span>{e}</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                                {validation.warnings.length > 0 && (
-                                  <>
-                                    <div className="font-semibold text-amber-600 mt-3 mb-2">Advertencias:</div>
-                                    <ul className="space-y-1 text-slate-700">
-                                      {validation.warnings.map((w, i) => (
-                                        <li key={i} className="flex items-start gap-2">
-                                          <span className="text-amber-500 mt-0.5">•</span>
-                                          <span>{w}</span>
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </>
-                                )}
-                                <div className="mt-2 pt-2 border-t border-red-100 text-red-600 font-medium">
-                                  🚫 No se puede generar XML
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </td>
-
-                      <td className="px-6 py-4 font-medium">{bl.bl_number}</td>
-                      <td className="px-6 py-4 text-slate-600 truncate max-w-[200px]">
-                        {bl.shipper || <span className="text-red-400">Sin Shipper</span>}
-                      </td>
-                      <td className="px-6 py-4 text-slate-600 truncate max-w-[200px]">
-                        {bl.consignee || <span className="text-red-400">Sin Consignee</span>}
-                      </td>
-                      <td className="px-6 py-4">
-                        {bl.puerto_embarque || <span className="text-amber-500">—</span>}
-                      </td>
-                      <td className="px-6 py-4">
-                        {bl.puerto_descarga || <span className="text-amber-500">—</span>}
-                      </td>
-                      <td className="px-6 py-4">{bl.bultos || 0}</td>
-                      <td className="px-6 py-4">{bl.peso_bruto || 0}</td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-2 py-1 rounded text-xs bg-slate-100 text-slate-700">
-                          {bl.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <button
-                          onClick={() => mostrarVistaPrevia(bl.bl_number)}
-                          className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs hover:bg-blue-700 flex items-center gap-1"
-                          title="Vista previa del XML"
+                    <td className="px-6 py-4">
+                      {validStatus === 'OK' && (
+                        <div
+                          className="flex items-center gap-1 text-emerald-600 cursor-help"
+                          title="Sin problemas detectados"
                         >
-                          <FileText className="w-3 h-3" />
-                          Preview
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                          <CheckCircle2 className="w-5 h-5" />
+                        </div>
+                      )}
+
+                      {validStatus === 'OBS' && (
+                        <div
+                          className="flex items-center gap-2 text-amber-600 cursor-help group relative"
+                          title={`${totalObs} observación(es)`}
+                        >
+                          <AlertTriangle className="w-5 h-5" />
+                          <span className="text-xs font-medium">{totalObs}</span>
+
+                         <div className="absolute left-0 top-full mt-2 hidden group-hover:block z-[9999] w-72 bg-white rounded-lg shadow-xl border border-amber-200 p-3">
+                            <div className="text-xs text-left">
+                              <div className="font-semibold text-amber-700 mb-2">
+                                Observaciones ({totalObs})
+                              </div>
+                              <div className="text-amber-600 text-xs">
+                                Haz clic en "Preview" para ver el detalle completo
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {validStatus === 'ERROR' && (
+                        <div
+                          className="flex items-center gap-2 text-red-600 cursor-help group relative"
+                          title={`${totalErrores} error(es) crítico(s)`}
+                        >
+                          <XCircle className="w-5 h-5" />
+                          <span className="text-xs font-medium">{totalErrores}</span>
+
+                         <div className="absolute left-0 top-full mt-2 hidden group-hover:block z-[9999] w-72 bg-white rounded-lg shadow-xl border border-red-200 p-3">
+                            <div className="text-xs text-left">
+                              <div className="font-semibold text-red-700 mb-2">
+                                 Errores críticos ({totalErrores})
+                              </div>
+                              {totalObs > 0 && (
+                                <div className="font-semibold text-amber-600 mt-2">
+                                  Observaciones ({totalObs})
+                                </div>
+                              )}
+                              <div className="mt-2 pt-2 border-t border-red-100 text-red-600 font-medium text-xs">
+                                No se puede generar XML
+                              </div>
+                              <div className="text-slate-600 text-xs mt-1">
+                                Haz clic en "Preview" para ver el detalle completo
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </td>
+
+                    <td className="px-6 py-4 font-medium">{bl.bl_number}</td>
+                    <td className="px-6 py-4 text-slate-600 truncate max-w-[200px]">
+                      {bl.shipper || <span className="text-red-400">Sin Shipper</span>}
+                    </td>
+                    <td className="px-6 py-4 text-slate-600 truncate max-w-[200px]">
+                      {bl.consignee || <span className="text-red-400">Sin Consignee</span>}
+                    </td>
+                    <td className="px-6 py-4">
+                      {bl.puerto_embarque || <span className="text-amber-500">—</span>}
+                    </td>
+                    <td className="px-6 py-4">
+                      {bl.puerto_descarga || <span className="text-amber-500">—</span>}
+                    </td>
+                    <td className="px-6 py-4">{bl.bultos || 0}</td>
+                    <td className="px-6 py-4">{bl.peso_bruto || 0}</td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center px-2 py-1 rounded text-xs bg-slate-100 text-slate-700">
+                        {bl.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <button
+                        onClick={() => mostrarVistaPrevia(bl.bl_number)}
+                        className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs hover:bg-blue-700 flex items-center gap-1"
+                        title="Vista previa del XML"
+                      >
+                        <FileText className="w-3 h-3" />
+                        Preview
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
           </div>
         )}
 
+        {/* Mensajes cuando no hay resultados */}
         {!loading && bls.length > 0 && filteredAndSortedBLs.length === 0 && (
           <div className="text-center py-12 text-slate-500">
             No se encontraron BLs con los filtros aplicados
@@ -938,4 +836,4 @@ const GenerarXML = () => {
   );
 };
 
-export default GenerarXML;
+export default GenerarXML;        // Export
