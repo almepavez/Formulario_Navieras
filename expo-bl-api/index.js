@@ -1968,7 +1968,7 @@ function parseLine51(raw) {
     numero,
     digito,
     tipo_cnt,
-    carga_cnt: "S",
+    carga_cnt,
     peso,
     unidad_peso,
     volumen,
@@ -2209,7 +2209,7 @@ function extractItemsFrom41_44_47(bLines) {
         volumen: null,
         unidad_peso: null,
         unidad_volumen: null,
-        carga_cnt: "S",
+        carga_cnt: null,
       });
     }
     return byItem.get(n);
@@ -4273,7 +4273,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
               'unidad-peso': it.unidad_peso || 'KGM',
               volumen: it.volumen || 0,
               'unidad-volumen': it.unidad_volumen || 'MTQ',
-              'carga-cnt': 'S',
+  
 
               Contenedores: contsDelItem.length > 0 ? {
                 contenedor: contsDelItem.map(c => {
@@ -4294,6 +4294,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
                     digito: c.digito || '',
                     'tipo-cnt': c.tipo_cnt || '',
                     'cnt-so': '',
+                    'carga-cnt': '',  // 🔥 AGREGAR ESTA LÍNEA (vacío en vez de omitir)
                     peso: c.peso || 0,
                     status: bl.tipo_servicio_nombre || 'FCL/FCL',
 
@@ -4520,7 +4521,6 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
                 'unidad-peso': it.unidad_peso || 'KGM',
                 volumen: it.volumen || 0,
                 'unidad-volumen': it.unidad_volumen || 'MTQ',
-                'carga-cnt': 'S',
                 Contenedores: contsDelItem.length > 0 ? {
                   contenedor: contsDelItem.map(c => ({
                     sigla: c.sigla || '',
@@ -4528,6 +4528,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
                     digito: c.digito || '',
                     'tipo-cnt': c.tipo_cnt || '',
                     'cnt-so': '',
+                    'carga-cnt': '',  // 🔥 AGREGAR ESTA LÍNEA (vacío en vez de omitir)
                     peso: c.peso || 0,
                     status: bl.tipo_servicio_nombre || 'FCL/FCL',
 
@@ -5228,7 +5229,7 @@ async function revalidarBL(connection, blId) {
     [validStatus, totalErrores, totalObs, blId]
   );
 
-console.log(`
+  console.log(`
   ═══════════════════════════════════════════
   🔍 REVALIDACIÓN BL ID: ${blId}
   📊 Errores detectados: ${totalErrores}
@@ -5238,13 +5239,14 @@ console.log(`
   ═══════════════════════════════════════════
 `);
 
-// 🔥 DEBUG: Mostrar primeros 3 errores
-if (errores.length > 0) {
-  console.log('🚨 Primeros errores:');
-  errores.slice(0, 3).forEach((e, i) => {
-    console.log(`  ${i + 1}. [${e.severidad}] ${e.nivel} - ${e.campo}: ${e.mensaje}`);
-  });
-}}
+  // 🔥 DEBUG: Mostrar primeros 3 errores
+  if (errores.length > 0) {
+    console.log('🚨 Primeros errores:');
+    errores.slice(0, 3).forEach((e, i) => {
+      console.log(`  ${i + 1}. [${e.severidad}] ${e.nivel} - ${e.campo}: ${e.mensaje}`);
+    });
+  }
+}
 
 // PUT /bls/:blNumber/contenedores
 app.put('/bls/:blNumber/contenedores', async (req, res) => {
