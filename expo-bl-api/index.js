@@ -767,11 +767,6 @@ app.put("/manifiestos/:id", async (req, res) => {
       [id]
     );
 
-    // 4️⃣ RE-VALIDAR CADA BL
-    for (const bl of bls) {
-      await revalidarBL(connection, bl.id);
-    }
-
     await connection.commit();
     res.json({ success: true, message: 'Manifiesto actualizado y re-validado' });
 
@@ -3432,9 +3427,6 @@ app.get("/bls/:blNumber", async (req, res) => {
 
     const blId = rows[0].id;
 
-    // 🔄 REVALIDAR SIN TRANSACCIÓN (es un SELECT, no modifica nada crítico)
-    await revalidarBL(conn, blId);
-
     // Recargar datos actualizados
     const [updatedRows] = await conn.query(query, [blNumber]);
 
@@ -3680,9 +3672,6 @@ app.patch('/bls/:blNumber', async (req, res) => {
       await connection.rollback();
       return res.status(404).json({ error: 'BL no encontrado' });
     }
-
-    // 5️⃣ 🆕 REVALIDAR BL DESPUÉS DE ACTUALIZAR
-    await revalidarBL(connection, blId);
 
     await connection.commit();
 
@@ -4003,12 +3992,6 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
       'SELECT id FROM bls WHERE manifiesto_id = ?',
       [id]
     );
-
-    // 2️⃣ 🆕 REVALIDAR CADA BL ANTES DE DEVOLVERLOS
-    console.log(`🔄 Revalidando ${bls.length} BLs del manifiesto ${id}...`);
-    for (const bl of bls) {
-      await revalidarBL(conn, bl.id);
-    }
 
     // 3️⃣ Ahora sí, obtener los datos actualizados con las validaciones frescas
     const query = `
