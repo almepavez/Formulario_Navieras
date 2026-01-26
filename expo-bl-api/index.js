@@ -4818,7 +4818,7 @@ async function revalidarBL(connection, blId) {
 
   const errores = [];
 
-  /*
+
   // ==========================================
   // PASO 4: VALIDACIONES A NIVEL BL
   // ==========================================
@@ -5153,7 +5153,7 @@ async function revalidarBL(connection, blId) {
       [values]
     );
   }
-*/
+
 
   // ==========================================
   // PASO 9: ACTUALIZAR RESUMEN
@@ -5184,8 +5184,23 @@ async function revalidarBL(connection, blId) {
     [validStatus, totalErrores, totalObs, blId]
   );
 
-  console.log(`✅ Revalidación completa: ${errores.length} validaciones, Status: ${validStatus}`);
-}
+console.log(`
+  ═══════════════════════════════════════════
+  🔍 REVALIDACIÓN BL ID: ${blId}
+  📊 Errores detectados: ${totalErrores}
+  ⚠️  Observaciones: ${totalObs}
+  📋 Total validaciones: ${errores.length}
+  ✅ Status final: ${validStatus}
+  ═══════════════════════════════════════════
+`);
+
+// 🔥 DEBUG: Mostrar primeros 3 errores
+if (errores.length > 0) {
+  console.log('🚨 Primeros errores:');
+  errores.slice(0, 3).forEach((e, i) => {
+    console.log(`  ${i + 1}. [${e.severidad}] ${e.nivel} - ${e.campo}: ${e.mensaje}`);
+  });
+}}
 
 // PUT /bls/:blNumber/contenedores
 app.put('/bls/:blNumber/contenedores', async (req, res) => {
