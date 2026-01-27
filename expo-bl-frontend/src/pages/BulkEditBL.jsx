@@ -41,7 +41,7 @@ const BulkEditBL = () => {
     const [fieldsToEdit, setFieldsToEdit] = useState({
         shipper: false,
         consignee: false,
-        notify: false,
+        notify_party: false,
         puerto_embarque: false,
         puerto_descarga: false,
         descripcion_carga: false,
@@ -53,7 +53,7 @@ const BulkEditBL = () => {
     const [editValues, setEditValues] = useState({
         shipper: "",
         consignee: "",
-        notify: "",
+        notify_party: "",
         puerto_embarque: "",
         puerto_descarga: "",
         descripcion_carga: "",
@@ -293,15 +293,51 @@ const BulkEditBL = () => {
             setSaving(false);
         }
     };
-    // 👇 VALIDACIONES - AQUÍ ESTÁ LA PARTE QUE FALTABA
+
+    // 👇 VALIDACIONES CON VERIFICACIÓN DE CAMPOS OBLIGATORIOS
+    
+    // Validar que los campos con checkbox activado tengan contenido
+    const validateStep3 = () => {
+        const emptyFields = [];
+        Object.keys(fieldsToEdit).forEach(field => {
+            if (fieldsToEdit[field]) {
+                const value = editValues[field];
+                if (!value || (typeof value === 'string' && value.trim() === '')) {
+                    emptyFields.push(field);
+                }
+            }
+        });
+        return emptyFields;
+    };
+
+    const emptyFieldsInStep3 = validateStep3();
+    const hasEmptyRequiredFields = emptyFieldsInStep3.length > 0;
+
+    // Función para obtener nombre legible del campo
+    const getFieldLabel = (field) => {
+        const labels = {
+            shipper: "Shipper",
+            consignee: "Consignee",
+            notify_party: "Notify Party",
+            puerto_embarque: "Puerto de Embarque",
+            puerto_descarga: "Puerto de Descarga",
+            descripcion_carga: "Descripción de Carga",
+            bultos: "Bultos",
+            peso_bruto: "Peso Bruto",
+            status: "Estado"
+        };
+        return labels[field] || field;
+    };
+
     const canContinue = {
         1: searchMode === "viaje" ? selectedViaje : filteredBLs.length > 0,
         2: selectedBLs.length > 0,
-        3: true,
+        3: !hasEmptyRequiredFields, // Solo puede continuar si no hay campos vacíos
         4: true,
     };
 
-    const hasChangesToSave = Object.values(fieldsToEdit).some(v => v) || editarPuertos || editarPuertosMasivo;    // 👆 FIN DE VALIDACIONES
+    const hasChangesToSave = Object.values(fieldsToEdit).some(v => v) || editarPuertos || editarPuertosMasivo;
+    // 👆 FIN DE VALIDACIONES
 
     // Validaciones para continuar en cada step
     const canProceedStep1 = searchMode === "viaje" ? selectedViaje : filteredBLs.length > 0;
@@ -318,7 +354,7 @@ const BulkEditBL = () => {
 
     return (
         <div className="flex min-h-screen bg-slate-100">
-                    <Sidebar />
+            <Sidebar />
 
             <main className="flex-1 p-6 lg:p-10">
                 <div className="mb-6">
@@ -383,6 +419,27 @@ const BulkEditBL = () => {
                     <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
                         <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
                         <span>{error}</span>
+                    </div>
+                )}
+
+                {/* 🆕 ALERTA DE CAMPOS VACÍOS EN STEP 3 */}
+                {currentStep === 3 && hasEmptyRequiredFields && (
+                    <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                        <div className="flex items-start gap-2">
+                            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                            <div>
+                                <div className="font-semibold mb-1">Campos obligatorios incompletos</div>
+                                <div>Los siguientes campos están activados pero vacíos:</div>
+                                <ul className="list-disc list-inside mt-2 space-y-1">
+                                    {emptyFieldsInStep3.map(field => (
+                                        <li key={field}>{getFieldLabel(field)}</li>
+                                    ))}
+                                </ul>
+                                <div className="mt-2 text-xs">
+                                    Completa todos los campos activados o desactiva los que no necesites editar.
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
 
@@ -588,7 +645,9 @@ const BulkEditBL = () => {
                                             className="mt-1 w-5 h-5 text-[#0F2A44] rounded focus:ring-2 focus:ring-[#0F2A44]"
                                         />
                                         <div className="flex-1">
-                                            <div className="font-medium text-slate-900 mb-2">Shipper</div>
+                                            <div className="font-medium text-slate-900 mb-2">
+                                                Shipper {fieldsToEdit.shipper && <span className="text-red-500">*</span>}
+                                            </div>
                                             {fieldsToEdit.shipper && (
                                                 <input
                                                     type="text"
@@ -611,7 +670,9 @@ const BulkEditBL = () => {
                                             className="mt-1 w-5 h-5 text-[#0F2A44] rounded focus:ring-2 focus:ring-[#0F2A44]"
                                         />
                                         <div className="flex-1">
-                                            <div className="font-medium text-slate-900 mb-2">Consignee</div>
+                                            <div className="font-medium text-slate-900 mb-2">
+                                                Consignee {fieldsToEdit.consignee && <span className="text-red-500">*</span>}
+                                            </div>
                                             {fieldsToEdit.consignee && (
                                                 <input
                                                     type="text"
@@ -634,7 +695,9 @@ const BulkEditBL = () => {
                                             className="mt-1 w-5 h-5 text-[#0F2A44] rounded focus:ring-2 focus:ring-[#0F2A44]"
                                         />
                                         <div className="flex-1">
-                                            <div className="font-medium text-slate-900 mb-2">Notify Party</div>
+                                            <div className="font-medium text-slate-900 mb-2">
+                                                Notify Party {fieldsToEdit.notify_party && <span className="text-red-500">*</span>}
+                                            </div>
                                             {fieldsToEdit.notify_party && (
                                                 <input
                                                     type="text"
@@ -657,7 +720,9 @@ const BulkEditBL = () => {
                                             className="mt-1 w-5 h-5 text-[#0F2A44] rounded focus:ring-2 focus:ring-[#0F2A44]"
                                         />
                                         <div className="flex-1">
-                                            <div className="font-medium text-slate-900 mb-2">Estado</div>
+                                            <div className="font-medium text-slate-900 mb-2">
+                                                Estado {fieldsToEdit.status && <span className="text-red-500">*</span>}
+                                            </div>
                                             {fieldsToEdit.status && (
                                                 <select
                                                     value={editValues.status}
@@ -685,7 +750,9 @@ const BulkEditBL = () => {
                                             className="mt-1 w-5 h-5 text-[#0F2A44] rounded focus:ring-2 focus:ring-[#0F2A44]"
                                         />
                                         <div className="flex-1">
-                                            <div className="font-medium text-slate-900 mb-2">Descripción de Carga</div>
+                                            <div className="font-medium text-slate-900 mb-2">
+                                                Descripción de Carga {fieldsToEdit.descripcion_carga && <span className="text-red-500">*</span>}
+                                            </div>
                                             {fieldsToEdit.descripcion_carga && (
                                                 <textarea
                                                     value={editValues.descripcion_carga}
@@ -1131,7 +1198,7 @@ const BulkEditBL = () => {
                                                             <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
                                                             <div>
                                                                 <span className="font-medium text-slate-900">
-                                                                    {key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}:
+                                                                    {getFieldLabel(key)}:
                                                                 </span>
                                                                 <span className="text-slate-700 ml-2">
                                                                     {editValues[key]}
