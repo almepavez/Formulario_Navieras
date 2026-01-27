@@ -2794,17 +2794,6 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
           });
         }
 
-        if (!isSN(c.carga_cnt)) {
-          pendingContValidations.push({
-            nivel: "CONTENEDOR",
-            sec: itemNo,
-            severidad: "ERROR",
-            campo: "carga_cnt",
-            mensaje: "carga_cnt es obligatorio y debe ser 'S' o 'N'",
-            valorCrudo: c.carga_cnt ?? null
-          });
-        }
-
         if (num(c.peso) == null || num(c.peso) <= 0) {
           pendingContValidations.push({
             nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR",
@@ -4864,12 +4853,6 @@ async function revalidarBLCompleto(conn, blId) {
     if (!c.tipo_cnt) {
       vals.push({ nivel:"CONTENEDOR", ref_id: refId, sec: itemNo, severidad:"ERROR", campo:"tipo_cnt",
         mensaje:"Contenedor sin tipo_cnt", valorCrudo: c.tipo_cnt ?? null
-      });
-    }
-
-    if (!isSN(c.carga_cnt)) {
-      vals.push({ nivel:"CONTENEDOR", ref_id: refId, sec: itemNo, severidad:"ERROR", campo:"carga_cnt",
-        mensaje:"carga_cnt es obligatorio y debe ser 'S' o 'N'", valorCrudo: c.carga_cnt ?? null
       });
     }
 
