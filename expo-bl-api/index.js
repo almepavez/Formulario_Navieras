@@ -818,6 +818,7 @@ app.get("/manifiestos", async (_req, res) => {
 });
 
 // GET - Detalle de un manifiesto específico
+// GET - Detalle de un manifiesto específico
 app.get("/manifiestos/:id", async (req, res) => {
   const { id } = req.params;
 
@@ -866,9 +867,49 @@ app.get("/manifiestos/:id", async (req, res) => {
       [id]
     );
 
+    // 🔥 AGREGAR ESTA QUERY PARA LOS BLs
+    const [bls] = await pool.query(
+      `SELECT 
+          id,
+          bl_number,
+          tipo_servicio_id,
+          shipper,
+          consignee,
+          notify_party,
+          fecha_emision,
+          fecha_presentacion,
+          fecha_embarque,
+          fecha_zarpe,
+          descripcion_carga,
+          peso_bruto,
+          unidad_peso,
+          volumen,
+          unidad_volumen,
+          bultos,
+          total_items,
+          status,
+          valid_status,
+          valid_count_error,
+          valid_count_obs,
+          lugar_emision_cod,
+          puerto_embarque_cod,
+          puerto_descarga_cod,
+          lugar_destino_cod,
+          lugar_entrega_cod,
+          lugar_recepcion_cod,
+          created_at,
+          updated_at
+       FROM bls
+       WHERE manifiesto_id = ?
+       ORDER BY id`,
+      [id]
+    );
+    console.log(`🔍 BLs cargados para manifiesto ${id}:`, bls.length); // 🔥 DEBUG
+
     const response = {
       manifiesto: rows[0],
-      itinerario
+      itinerario,
+      bls  // 🔥 AGREGAR ESTO
     };
 
     res.json(response);
@@ -878,9 +919,6 @@ app.get("/manifiestos/:id", async (req, res) => {
     res.status(500).json({ error: "Error al obtener manifiesto" });
   }
 });
-
-
-
 
 // ============================================
 // CRUD PUERTOS (codigo, nombre)

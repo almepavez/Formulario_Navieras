@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import Sidebar from "../components/Sidebar";
@@ -54,7 +54,8 @@ const ManifiestoDetalle = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [data, setData] = useState(null);
-
+  const [blCount, setBlCount] = useState(0);
+  const fileInputRef = useRef(null); // 🔥 AGREGAR ESTO
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     operadorNave: "",
@@ -73,12 +74,12 @@ const ManifiestoDetalle = () => {
   const [pmsUploading, setPmsUploading] = useState(false);
   const [pmsMsg, setPmsMsg] = useState("");
 
-    // 🔥 AGREGAR ESTE useEffect (CRÍTICO)
+  // 🔥 AGREGAR ESTE useEffect (CRÍTICO)
   useEffect(() => {
     fetchDetalle();
   }, [id]);
 
-    // useEffect para beforeunload
+  // useEffect para beforeunload
   useEffect(() => {
     const handleBeforeUnload = (e) => {
       if (isEditing && hasUnsavedChanges) {
@@ -86,7 +87,7 @@ const ManifiestoDetalle = () => {
         e.returnValue = "";
       }
     };
-        window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isEditing, hasUnsavedChanges]);
 
@@ -98,6 +99,10 @@ const ManifiestoDetalle = () => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       setData(json);
+
+      // 🔥 Contar BLs y mostrar en consola
+      setBlCount(json.bls?.length || 0);
+      console.log("🔍 BLs cargados:", json.bls?.length || 0, json.bls);
 
       const m = json.manifiesto;
       setFormData({
@@ -120,12 +125,14 @@ const ManifiestoDetalle = () => {
 
       setHasUnsavedChanges(false);
     } catch (e) {
+      console.error("❌ Error en fetchDetalle:", e);
       setError(e?.message || "Error cargando manifiesto");
       setData(null);
     } finally {
       setLoading(false);
     }
   };
+
 
 
 
@@ -302,9 +309,8 @@ const ManifiestoDetalle = () => {
       setPmsUploading(true);
 
       const formData = new FormData();
-      formData.append('pms', pmsFile); // ✅ Cambio: usar pmsFile directamente
+      formData.append('pms', pmsFile);
 
-      // ✅ Cambio: usar el nuevo endpoint
       const res = await fetch(`${API_BASE}/manifiestos/${id}/pms/procesar-directo`, {
         method: "POST",
         body: formData,
@@ -313,7 +319,6 @@ const ManifiestoDetalle = () => {
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
 
-        // 🔥 Mostrar BLs con errores si los hay
         if (json.blsConErrores && json.blsConErrores.length > 0) {
           const errorList = json.blsConErrores
             .map(bl => `<li><strong>${bl.bl_number}</strong>: ${bl.errores.join(', ')}</li>`)
@@ -325,6 +330,10 @@ const ManifiestoDetalle = () => {
             icon: "error",
             confirmButtonColor: "#10b981",
           });
+
+          // 🔥 Resetear archivo incluso con error
+          setPmsFile(null);
+          if (fileInputRef.current) fileInputRef.current.value = "";
           return;
         }
 
@@ -341,9 +350,14 @@ const ManifiestoDetalle = () => {
         timer: 3000,
       });
 
+      // 🔥 IMPORTANTE: Resetear archivo y recargar datos
       setPmsFile(null);
-      // ✅ Refrescar la página o navegar a la lista de BLs
-navigate(`/manifiestos/${id}`);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""; // Limpia el input visual
+      }
+
+      // 🔥 Recargar datos para actualizar blCount
+      await fetchDetalle();
 
     } catch (e) {
       setPmsMsg("");
@@ -354,6 +368,10 @@ navigate(`/manifiestos/${id}`);
         icon: "error",
         confirmButtonColor: "#10b981",
       });
+
+      // 🔥 Resetear archivo también en caso de error
+      setPmsFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     } finally {
       setPmsUploading(false);
     }
@@ -504,44 +522,100 @@ navigate(`/manifiestos/${id}`);
               </div>
             </div>
 
-            {/* Carga PMS - SIMPLIFICADO */}
+            {/* Carga PMS + Generar XML */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
               <div className="mb-4">
                 <h2 className="text-sm font-semibold text-slate-700">
-                  Procesar archivo PMS
+                  Gestión de BLs
                 </h2>
                 <p className="text-xs text-slate-500 mt-1">
-                  Selecciona el archivo PMS para crear los BLs automáticamente.
+                  Procesa archivos PMS o genera el XML del manifiesto
                 </p>
               </div>
 
               <div className="flex items-center gap-3">
+                {/* Input de archivo OCULTO */}
                 <input
+                  ref={fileInputRef}
                   type="file"
                   accept=".xml,.txt,.csv,.pms,.dat"
                   onChange={(e) => setPmsFile(e.target.files?.[0] || null)}
-                  className="text-sm flex-1"
+                  className="hidden"
                   disabled={pmsUploading}
+                  id="pms-file-input"
                 />
 
+                {/* Botón personalizado para seleccionar archivo - FLEX-1 para ocupar espacio disponible */}
+                <label
+                  htmlFor="pms-file-input"
+                  className={`flex-1 px-4 py-2 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 text-slate-700 text-sm font-medium hover:bg-slate-100 cursor-pointer transition-colors flex items-center gap-2 ${pmsUploading ? 'opacity-60 cursor-not-allowed' : ''
+                    }`}
+                >
+                  <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <span className="truncate">
+                    {pmsFile ? pmsFile.name : 'Seleccionar archivo PMS'}
+                  </span>
+                  {pmsFile && (
+                    <span className="text-slate-400 text-xs ml-auto flex-shrink-0">
+                      ({(pmsFile.size / 1024).toFixed(1)} KB)
+                    </span>
+                  )}
+                </label>
+
+                {/* Botón Procesar PMS - A LA DERECHA */}
                 <button
                   onClick={handleUploadPMS}
                   disabled={pmsUploading || !pmsFile}
-                  className="px-4 py-2 rounded-lg bg-[#0F2A44] text-white text-sm font-medium disabled:opacity-60 hover:bg-[#1a3f5f] whitespace-nowrap"
+                  className="px-4 py-2 rounded-lg bg-[#0F2A44] text-white text-sm font-medium disabled:opacity-60 hover:bg-[#1a3f5f] whitespace-nowrap flex-shrink-0"
                 >
                   {pmsUploading ? "Procesando..." : "Procesar PMS"}
                 </button>
+
+                {/* Botón Generar XML - A LA DERECHA */}
+                <button
+                  onClick={() => navigate(`/manifiestos/${id}/generar-xml`)}
+                  disabled={blCount === 0}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-emerald-700 whitespace-nowrap flex items-center gap-2 flex-shrink-0"
+                  title={blCount === 0 ? "No hay BLs para generar XML" : `${blCount} BL(s) listos`}
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                  Generar XML
+                  {blCount > 0 && (
+                    <span className="bg-white text-emerald-700 px-2 py-0.5 rounded-full text-xs font-semibold">
+                      {blCount}
+                    </span>
+                  )}
+                </button>
               </div>
 
-              {pmsFile && !pmsUploading && (
-                <div className="mt-3 text-xs text-slate-600 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
-                  Archivo seleccionado: <span className="font-medium">{pmsFile.name}</span>
-                </div>
-              )}
-
+              {/* Mensaje de éxito */}
               {pmsMsg && (
                 <div className="mt-3 text-sm text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg">
                   {pmsMsg}
+                </div>
+              )}
+
+              {/* Estado de BLs */}
+              {blCount > 0 && (
+                <div className="mt-3 text-xs text-slate-700 bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 flex items-center gap-2">
+                  <svg className="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  Este manifiesto tiene <span className="font-semibold">{blCount} BL(s)</span> cargados
                 </div>
               )}
             </div>
