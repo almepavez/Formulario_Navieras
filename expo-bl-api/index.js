@@ -4687,7 +4687,9 @@ async function revalidarBLCompleto(conn, blId) {
   // Ojo: tu tabla tiene tipo_servicio_id, y también tienes tipo_servicio_cod en algunos flujos.
   // Si en BL guardas tipo_servicio_cod (ej ts.codigo), úsalo. Si no, salta esta parte.
   const tipoServicioCod = bl.tipo_servicio_cod || null;
-  const tipoServicioId  = tipoServicioCod ? await getTipoServicioIdByCodigo(conn, tipoServicioCod) : bl.tipo_servicio_id;
+  const tipoServicioId = tipoServicioCod
+  ? await getTipoServicioIdByCodigo(conn, tipoServicioCod)
+  : bl.tipo_servicio_id;
 
   // actualiza FKs si corresponde (opcional, pero recomendado)
   await conn.query(
@@ -4698,7 +4700,7 @@ async function revalidarBLCompleto(conn, blId) {
       lugar_destino_id   = ?,
       lugar_entrega_id   = ?,
       lugar_recepcion_id = ?,
-      tipo_servicio_id   = COALESCE(?, tipo_servicio_id)
+      tipo_servicio_id = ?
      WHERE id = ?`,
     [
       lugarEmisionId || null,
@@ -4746,7 +4748,7 @@ async function revalidarBLCompleto(conn, blId) {
   // BL: LD/LEM/LRM (si no existen, ERROR)
   if (!lugarDestinoId)   vals.push({ nivel:"BL", severidad:"ERROR", campo:"lugar_destino_id",   mensaje:"Lugar destino no existe en mantenedor de puertos (Revisar puerto de descarga)",  valorCrudo: bl.lugar_destino_cod || null });
   if (!lugarEntregaId)   vals.push({ nivel:"BL", severidad:"ERROR", campo:"lugar_entrega_id",   mensaje:"Lugar entrega no existe en mantenedor de puertos (Revisar puerto de descarga)",  valorCrudo: bl.lugar_entrega_cod || null });
-  if (!lugarRecepcionId) vals.push({ nivel:"BL", severidad:"ERROR", campo:"lugar_recepcion_id", mensaje:"Lugar recepción no existe en mantenedor de puertos (Revisar puerto de embarque)", valueCrudo: bl.lugar_recepcion_cod || null });
+  if (!lugarRecepcionId) vals.push({ nivel:"BL", severidad:"ERROR", campo:"lugar_recepcion_id", mensaje:"Lugar recepción no existe en mantenedor de puertos (Revisar puerto de embarque)", valorCrudo: bl.lugar_recepcion_cod || null });
 
   // BL: fechas obligatorias
   if (isBlank(bl.fecha_emision))        vals.push({ nivel:"BL", severidad:"ERROR", campo:"fecha_emision",        mensaje:"Falta fecha_emision (Linea 11)",        valorCrudo: bl.fecha_emision || null });
