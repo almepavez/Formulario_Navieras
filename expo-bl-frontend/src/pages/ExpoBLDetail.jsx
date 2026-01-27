@@ -562,7 +562,7 @@ const ExpoBLDetail = () => {
                                                                     {imo.clase}/{imo.numero}
                                                                 </div>
                                                             ))
-                                                            : <span className="text-amber-600 text-xs font-medium">⚠️ Sin IMO</span>;
+                                                            : <span className="text-amber-600 text-xs font-medium">Sin IMO</span>;
                                                     })()
                                                 ) : (
                                                     <span className="text-slate-400 italic text-xs">—</span>
