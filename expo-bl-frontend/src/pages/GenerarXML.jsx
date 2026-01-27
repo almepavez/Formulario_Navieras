@@ -42,25 +42,34 @@ const GenerarXML = () => {
   }, [id]);
 
   const fetchBLs = async () => {
-    setLoading(true);
-    setError("");
+  setLoading(true);
+  setError("");
 
-    try {
-      const res = await fetch(`http://localhost:4000/api/manifiestos/${id}/bls-para-xml`);
+  try {
+    const res = await fetch(`http://localhost:4000/api/manifiestos/${id}/bls-para-xml`);
 
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-
-      const data = await res.json();
-      setBls(Array.isArray(data) ? data : []);
-    } catch (e) {
-      setError(e?.message || "Error al cargar BLs");
-      setBls([]);
-    } finally {
-      setLoading(false);
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
     }
-  };
+
+    const data = await res.json();
+    
+    console.log('📊 BLs cargados:', data.length);
+    console.log('🔍 Estados de validación:', data.map(bl => ({
+      bl: bl.bl_number,
+      status: bl.valid_status,
+      errores: bl.valid_count_error,
+      obs: bl.valid_count_obs
+    })));
+
+    setBls(Array.isArray(data) ? data : []);
+  } catch (e) {
+    setError(e?.message || "Error al cargar BLs");
+    setBls([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // 🔍 Filtrado y búsqueda
   const filteredAndSortedBLs = useMemo(() => {
