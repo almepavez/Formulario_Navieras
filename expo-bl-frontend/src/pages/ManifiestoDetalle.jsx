@@ -343,7 +343,7 @@ const ManifiestoDetalle = () => {
 
       setPmsFile(null);
       // ✅ Refrescar la página o navegar a la lista de BLs
-      navigate(`/manifiestos/${id}/bls`); // o fetchDetalle() si prefieres quedarte
+navigate(`/manifiestos/${id}`);
 
     } catch (e) {
       setPmsMsg("");
