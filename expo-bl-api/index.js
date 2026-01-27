@@ -3703,12 +3703,21 @@ app.get("/manifiestos/:id/bls", async (req, res) => {
 
         le.nombre AS lugar_emision,
         pe.nombre AS puerto_embarque,
-        pd.nombre AS puerto_descarga
+        pd.nombre AS puerto_descarga,
+        ld.nombre AS lugar_destino,
+        len.nombre AS lugar_entrega,
+        lr.nombre AS lugar_recepcion
+
       FROM bls b
       LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
-      LEFT JOIN puertos le ON b.lugar_emision_id   = le.id
-      LEFT JOIN puertos pe ON b.puerto_embarque_id = pe.id
-      LEFT JOIN puertos pd ON b.puerto_descarga_id = pd.id
+
+      LEFT JOIN puertos le  ON b.lugar_emision_id    = le.id
+      LEFT JOIN puertos pe  ON b.puerto_embarque_id  = pe.id
+      LEFT JOIN puertos pd  ON b.puerto_descarga_id  = pd.id
+      LEFT JOIN puertos ld  ON b.lugar_destino_id    = ld.id
+      LEFT JOIN puertos len ON b.lugar_entrega_id    = len.id
+      LEFT JOIN puertos lr  ON b.lugar_recepcion_id  = lr.id
+
       WHERE b.manifiesto_id = ?
       ORDER BY b.bl_number
     `;
@@ -3717,7 +3726,7 @@ app.get("/manifiestos/:id/bls", async (req, res) => {
     res.json(rows);
   } catch (error) {
     console.error("Error al obtener BLs del manifiesto:", error);
-    res.status(500).json({ error: "Error al obtener BLs del manifiesto", details: error.message });
+    res.status(500).json({ error: "Error al obtener BLs del manifiesto" });
   }
 });
 
