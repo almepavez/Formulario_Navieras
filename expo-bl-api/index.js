@@ -2569,6 +2569,12 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
+    // Ctrl+F: rechazadosPorOtroManifiesto
+    const rechazadosPorOtroManifiesto = [];
+    const reemplazadosEnMismoManifiesto = [];
+    const seenBLsInFile = new Set();
+    let insertedOk = 0;
+
     // 6️⃣ INSERTAR CADA BL (MISMO código que ya tienes funcionando)
     for (const b of bls) {
       const pendingValidations = [];
@@ -2631,10 +2637,47 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         it.tipo_bulto = await getTipoBultoFromTipoCnt(conn, tipoCnt);
       }
 
+      // Ctrl+F: PRECHECK_DUPLICADOS_BL
+      const blNumber = (b.blNumber || "").trim();
+      if (!blNumber) continue;
+
+      if (seenBLsInFile.has(blNumber)) {
+        rechazadosPorOtroManifiesto.push({
+          bl_number: blNumber,
+          motivo: "BL duplicado dentro del mismo PMS (archivo)"
+        });
+        continue;
+      }
+      seenBLsInFile.add(blNumber);
+
+      const [existRows] = await conn.query(
+        `SELECT id, manifiesto_id FROM bls WHERE bl_number = ? LIMIT 1`,
+        [blNumber]
+      );
+
+      if (existRows.length > 0) {
+        const existente = existRows[0];
+
+        // B) existe en otro manifiesto
+        if (Number(existente.manifiesto_id) !== Number(id)) {
+          rechazadosPorOtroManifiesto.push({
+            bl_number: blNumber,
+            manifiesto_existente: existente.manifiesto_id,
+            motivo: "BL ya existe en otro manifiesto"
+          });
+          continue;
+        }
+
+        // A) existe en el mismo manifiesto => reemplazar
+        await conn.query(`DELETE FROM bls WHERE id = ?`, [existente.id]);
+        reemplazadosEnMismoManifiesto.push({ bl_number: blNumber });
+      }
+
+
       // Insertar BL
       const [blIns] = await conn.query(insertBlSql, [
         id,
-        b.blNumber,
+        blNumber,
         tipoServicioId,
 
         b.shipper || null,
@@ -2674,6 +2717,8 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
       ]);
 
       const blId = blIns.insertId;
+      insertedOk++;
+      
       await conn.query("DELETE FROM bl_validaciones WHERE bl_id = ?", [blId]);
 
       // Validaciones nivel BL
@@ -3007,6 +3052,17 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
       await refreshResumenValidacionBL(conn, blId);
     }
 
+    // Ctrl+F: ABORTAR_SI_OTRO_MANIFIESTO
+    if (rechazadosPorOtroManifiesto.length > 0) {
+      await conn.rollback();
+      return res.status(409).json({
+        ok: false,
+        error: "Hay BLs que ya existen en otro manifiesto. Carga rechazada.",
+        rechazadosPorOtroManifiesto,
+        reemplazadosEnMismoManifiesto
+      });
+    }
+
     // 7️⃣ COMMIT y respuesta
     await conn.commit();
 
@@ -3043,23 +3099,52 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
 
     res.json({
       ok: true,
-      inserted: bls.length,
+      inserted: insertedOk,
+      reemplazadosEnMismoManifiesto,
       blsConErrores: blsConErroresFormateados
     });
-
+    
   } catch (err) {
     await conn.rollback();
 
-    // 8️⃣ Si hay error, asegurar que se elimina el archivo temporal
+    // ✅ Limpieza del archivo temporal (por si acaso)
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
-      console.log(`🗑️ Archivo temporal eliminado por error: ${req.file.path}`);
+    }
+
+    // ✅ Duplicados (MySQL)
+    if (err?.code === "ER_DUP_ENTRY") {
+      // puedes mirar err.sqlMessage para saber qué índice explotó
+      const key = err?.sqlMessage?.match(/for key '([^']+)'/)?.[1] || null;
+
+      // caso: BL ya existe en otro manifiesto (unique global)
+      if (key?.includes("uq_bls_bl_number") || key?.includes("bl_number")) {
+        return res.status(409).json({
+          error: "Ya existe un BL de este PMS en otro manifiesto. No se puede cargar duplicado.",
+          key,
+          detail: err.sqlMessage
+        });
+      }
+
+      // caso: BL repetido dentro del mismo manifiesto (unique compuesto)
+      if (key?.includes("uk_bl_manifiesto") || key?.includes("uq_manifiesto_bl")) {
+        return res.status(409).json({
+          error: "Ya existe un BL de este PMS en este manifiesto. No se puede cargar duplicado.",
+          key,
+          detail: err.sqlMessage
+        });
+      }
+
+      return res.status(409).json({
+        error: "Duplicado",
+        message: "Entrada duplicada (restricción UNIQUE).",
+        key,
+        detail: err.sqlMessage
+      });
     }
 
     console.error("❌ Error procesando PMS:", err);
     res.status(500).json({ error: err?.message || "Error procesando PMS" });
-  } finally {
-    conn.release();
   }
 });
 
