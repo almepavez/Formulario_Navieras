@@ -72,8 +72,23 @@ const ManifiestoDetalle = () => {
   const [pmsFile, setPmsFile] = useState(null);
   const [pmsUploading, setPmsUploading] = useState(false);
   const [pmsMsg, setPmsMsg] = useState("");
-  const [pmsInfo, setPmsInfo] = useState(null);
-  const [processingPMS, setProcessingPMS] = useState(false);
+
+    // 🔥 AGREGAR ESTE useEffect (CRÍTICO)
+  useEffect(() => {
+    fetchDetalle();
+  }, [id]);
+
+    // useEffect para beforeunload
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isEditing && hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+        window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isEditing, hasUnsavedChanges]);
 
   const fetchDetalle = async () => {
     setLoading(true);
@@ -112,21 +127,8 @@ const ManifiestoDetalle = () => {
     }
   };
 
-  const fetchPMS = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/manifiestos/${id}/pms`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setPmsInfo(json);
-    } catch {
-      setPmsInfo(null);
-    }
-  };
 
-  useEffect(() => {
-    fetchDetalle();
-    fetchPMS();
-  }, [id]);
+
 
   useEffect(() => {
     const handleBeforeUnload = (e) => {
@@ -283,90 +285,9 @@ const ManifiestoDetalle = () => {
       return;
     }
 
-    const formData = new FormData();
-    formData.append("pms", pmsFile);
-
-    try {
-      setPmsUploading(true);
-
-      const res = await fetch(`${API_BASE}/manifiestos/${id}/pms`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        throw new Error(txt || `HTTP ${res.status}`);
-      }
-
-      await Swal.fire({
-        title: "¡PMS cargado!",
-        text: "El archivo se ha subido correctamente",
-        icon: "success",
-        confirmButtonColor: "#10b981",
-        timer: 2000,
-      });
-
-      setPmsFile(null);
-      await fetchPMS();
-    } catch (e) {
-      setPmsMsg("");
-      setError(e?.message || "Error subiendo PMS");
-    } finally {
-      setPmsUploading(false);
-    }
-  };
-
-  // 📍 INSERTAR AQUÍ (línea ~355, después de handleUploadPMS y ANTES de handleProcessPMS)
-
-  const handleDeletePMS = async () => {
-    const result = await Swal.fire({
-      title: "¿Eliminar PMS?",
-      text: "Se eliminará el archivo PMS cargado. Podrás subir uno nuevo.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#e43a3aff",
-      cancelButtonColor: "#64748b",
-      confirmButtonText: "Sí, eliminar",
-      cancelButtonText: "Cancelar",
-    });
-
-    if (!result.isConfirmed) return;
-
-    try {
-      const res = await fetch(`${API_BASE}/manifiestos/${id}/pms`, {
-        method: "DELETE",
-      });
-
-      if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        throw new Error(txt || `HTTP ${res.status}`);
-      }
-
-      await Swal.fire({
-        title: "¡PMS eliminado!",
-        text: "Ahora puedes subir un nuevo archivo",
-        icon: "success",
-        confirmButtonColor: "#10b981",
-        timer: 2000,
-      });
-
-      setPmsInfo(null);
-      setPmsFile(null);
-    } catch (e) {
-      Swal.fire({
-        title: "Error",
-        text: e?.message || "No se pudo eliminar el PMS",
-        icon: "error",
-        confirmButtonColor: "#10b981",
-      });
-    }
-  };
-
-  const handleProcessPMS = async () => {
     const result = await Swal.fire({
       title: "¿Procesar PMS?",
-      text: "Se crearán los BLs desde el archivo PMS. Los BLs anteriores serán eliminados.",
+      text: "Se crearán los BLs desde el archivo. Los BLs anteriores serán eliminados.",
       icon: "question",
       showCancelButton: true,
       confirmButtonColor: "#10b981",
@@ -378,16 +299,36 @@ const ManifiestoDetalle = () => {
     if (!result.isConfirmed) return;
 
     try {
-      setProcessingPMS(true);
-      setError("");
+      setPmsUploading(true);
 
-      const res = await fetch(`${API_BASE}/manifiestos/${id}/pms/procesar`, {
+      const formData = new FormData();
+      formData.append('pms', pmsFile); // ✅ Cambio: usar pmsFile directamente
+
+      // ✅ Cambio: usar el nuevo endpoint
+      const res = await fetch(`${API_BASE}/manifiestos/${id}/pms/procesar-directo`, {
         method: "POST",
+        body: formData,
       });
 
       if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        throw new Error(txt || `HTTP ${res.status}`);
+        const json = await res.json().catch(() => ({}));
+
+        // 🔥 Mostrar BLs con errores si los hay
+        if (json.blsConErrores && json.blsConErrores.length > 0) {
+          const errorList = json.blsConErrores
+            .map(bl => `<li><strong>${bl.bl_number}</strong>: ${bl.errores.join(', ')}</li>`)
+            .join('');
+
+          await Swal.fire({
+            title: "BLs con errores",
+            html: `<ul style="text-align: left">${errorList}</ul>`,
+            icon: "error",
+            confirmButtonColor: "#10b981",
+          });
+          return;
+        }
+
+        throw new Error(json.error || `HTTP ${res.status}`);
       }
 
       const data = await res.json();
@@ -399,18 +340,29 @@ const ManifiestoDetalle = () => {
         confirmButtonColor: "#10b981",
         timer: 3000,
       });
+
+      setPmsFile(null);
+      // ✅ Refrescar la página o navegar a la lista de BLs
+      navigate(`/manifiestos/${id}/bls`); // o fetchDetalle() si prefieres quedarte
+
     } catch (e) {
-      Swal.fire({
-        title: "Error al procesar PMS",
+      setPmsMsg("");
+      setError(e?.message || "Error procesando PMS");
+      await Swal.fire({
+        title: "Error",
         text: e?.message || "No se pudo procesar el PMS",
         icon: "error",
         confirmButtonColor: "#10b981",
       });
-      setError(e?.message || "Error procesando PMS");
     } finally {
-      setProcessingPMS(false);
+      setPmsUploading(false);
     }
   };
+
+  // 📍 INSERTAR AQUÍ (línea ~355, después de handleUploadPMS y ANTES de handleProcessPMS)
+
+
+
 
   const m = data?.manifiesto;
 
@@ -552,76 +504,45 @@ const ManifiestoDetalle = () => {
               </div>
             </div>
 
-            {/* Carga PMS */}
+            {/* Carga PMS - SIMPLIFICADO */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
-              <div className="flex items-center justify-between gap-4 mb-4">
-                <div>
-                  <h2 className="text-sm font-semibold text-slate-700">
-                    Carga y procesamiento de PMS
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Selecciona el archivo PMS y procésalo para crear los BLs.
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {!pmsInfo ? (
-                    <button
-                      onClick={handleUploadPMS}
-                      disabled={pmsUploading || !pmsFile}
-                      className="px-4 py-2 rounded-lg bg-[#0F2A44] text-white text-sm font-medium disabled:opacity-60 hover:bg-[#1a3f5f]"
-                    >
-                      {pmsUploading ? "Subiendo..." : "Subir archivo"}
-                    </button>
-                  ) : (
-                    <>
-                      <button
-                        onClick={handleProcessPMS}
-                        disabled={processingPMS}
-                        className="px-4 py-2 rounded-lg bg-[#0F2A44] text-white text-sm font-medium disabled:opacity-60 hover:bg-[#1a3f5f]"
-                      >
-                        {processingPMS ? "Procesando..." : "Procesar PMS"}
-                      </button>
-                      <button
-                        onClick={handleDeletePMS}
-                        className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700"
-                      >
-                        Eliminar PMS
-                      </button>
-                    </>
-                  )}
-                </div>
+              <div className="mb-4">
+                <h2 className="text-sm font-semibold text-slate-700">
+                  Procesar archivo PMS
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Selecciona el archivo PMS para crear los BLs automáticamente.
+                </p>
               </div>
 
               <div className="flex items-center gap-3">
                 <input
                   type="file"
-                  accept=".xml,.txt,.csv,.pms"
+                  accept=".xml,.txt,.csv,.pms,.dat"
                   onChange={(e) => setPmsFile(e.target.files?.[0] || null)}
-                  className="text-sm"
+                  className="text-sm flex-1"
+                  disabled={pmsUploading}
                 />
-                {pmsFile && !pmsInfo && (
-                  <span className="text-xs text-slate-600">
-                    Seleccionado: <span className="font-medium">{pmsFile.name}</span>
-                  </span>
-                )}
+
+                <button
+                  onClick={handleUploadPMS}
+                  disabled={pmsUploading || !pmsFile}
+                  className="px-4 py-2 rounded-lg bg-[#0F2A44] text-white text-sm font-medium disabled:opacity-60 hover:bg-[#1a3f5f] whitespace-nowrap"
+                >
+                  {pmsUploading ? "Procesando..." : "Procesar PMS"}
+                </button>
               </div>
 
-              {pmsInfo && (
-                <div className="mt-3 text-xs text-slate-600">
-                  <div className="bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200">
-                    <div className="font-medium text-emerald-700">
-                      Archivo cargado: {pmsInfo.nombreOriginal}
-                    </div>
-                    <div className="text-emerald-600 mt-1">
-                      Fecha: {formatDTCL(pmsInfo.createdAt)}
-                    </div>
-                  </div>
+              {pmsFile && !pmsUploading && (
+                <div className="mt-3 text-xs text-slate-600 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
+                  Archivo seleccionado: <span className="font-medium">{pmsFile.name}</span>
                 </div>
               )}
 
               {pmsMsg && (
-                <div className="mt-3 text-sm text-emerald-700">{pmsMsg}</div>
+                <div className="mt-3 text-sm text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg">
+                  {pmsMsg}
+                </div>
               )}
             </div>
 
