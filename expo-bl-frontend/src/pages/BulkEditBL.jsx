@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Check, Edit3, AlertCircle, Search } from "lucide-react";
+import Sidebar from "../components/Sidebar";
 
 const estadoStyles = {
     "CREADO": "bg-blue-100 text-blue-800 ring-blue-200",
@@ -317,11 +318,7 @@ const BulkEditBL = () => {
 
     return (
         <div className="flex min-h-screen bg-slate-100">
-            <div className="w-20 bg-[#0F2A44] flex flex-col items-center py-6">
-                <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center mb-8">
-                    <Edit3 className="w-6 h-6 text-[#0F2A44]" />
-                </div>
-            </div>
+                    <Sidebar />
 
             <main className="flex-1 p-6 lg:p-10">
                 <div className="mb-6">

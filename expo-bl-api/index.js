@@ -2507,18 +2507,18 @@ async function insertTransbordos(conn, blId, transbordos) {
     const puertoId = await getPuertoIdByCodigo(conn, c); // 👈 AQUÍ
 
     if (!puertoId) {
-        const payload = {
-          blId,
-          nivel: "TRANSBORDO",
-          sec,
-          severidad: "OBS", // NO ERROR
-          campo: "puerto_id",
-          mensaje: "Puerto de transbordo no existe en mantenedor (no afecta XML)",
-          valorCrudo: c
-        };
+      const payload = {
+        blId,
+        nivel: "TRANSBORDO",
+        sec,
+        severidad: "OBS", // NO ERROR
+        campo: "puerto_id",
+        mensaje: "Puerto de transbordo no existe en mantenedor (no afecta XML)",
+        valorCrudo: c
+      };
 
-        await addValidacion(conn, payload);
-        await addValidacionPMS(conn, payload); // solo si esto está en carga PMS
+      await addValidacion(conn, payload);
+      await addValidacionPMS(conn, payload); // solo si esto está en carga PMS
     }
 
     await conn.query(sql, [blId, sec++, c, puertoId]);
@@ -3013,7 +3013,7 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
 
         // 3) Guardas validaciones con ref_id real
         for (const v of pendingItemValidations) {
-          await addValidacion(conn,    { blId, ...v, refId: itemId });
+          await addValidacion(conn, { blId, ...v, refId: itemId });
           await addValidacionPMS(conn, { blId, ...v, refId: itemId });
         }
 
@@ -3163,7 +3163,7 @@ app.post("/manifiestos/:id/pms/procesar", async (req, res) => {
 
         // 3) Guardas validaciones con ref_id real
         for (const v of pendingContValidations) {
-          await addValidacion(conn,    { blId, ...v, refId: contenedorId, sec: itemNo });
+          await addValidacion(conn, { blId, ...v, refId: contenedorId, sec: itemNo });
           await addValidacionPMS(conn, { blId, ...v, refId: contenedorId, sec: itemNo });
         }
 
@@ -3602,8 +3602,103 @@ app.get('/bls/:blNumber/items-contenedores', async (req, res) => {
 });
 
 // ============================================
-// ACTUALIZAR UN BL INDIVIDUAL (para puertos)
+// ACTUALIZACIÓN MASIVA DE BLs
 // ============================================
+app.patch('/bls/bulk-update', async (req, res) => {
+  const connection = await pool.getConnection();
+
+  try {
+    const { blNumbers, updates } = req.body;
+
+    // Validaciones
+    if (!blNumbers || !Array.isArray(blNumbers) || blNumbers.length === 0) {
+      return res.status(400).json({ error: 'Debe proporcionar una lista de BL numbers' });
+    }
+
+    if (!updates || Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'Debe proporcionar campos a actualizar' });
+    }
+
+    await connection.beginTransaction();
+
+    // Campos permitidos según tu esquema de base de datos
+    const validFields = [
+      'shipper',
+      'consignee',
+      'notify_party',
+      'descripcion_carga',
+      'bultos',
+      'peso_bruto',
+      'volumen',
+      'status',
+      // 🆕 AGREGAR CAMPOS DE PUERTO (para edición masiva)
+      'lugar_recepcion_cod',
+      'puerto_embarque_cod',
+      'puerto_descarga_cod',
+      'lugar_entrega_cod',
+      'lugar_destino_cod',
+      'lugar_emision_cod'
+    ];
+
+
+    // Construir SET clauses
+    const setClauses = [];
+    const values = [];
+
+    Object.keys(updates).forEach(field => {
+      if (validFields.includes(field)) {
+        setClauses.push(`${field} = ?`);
+        values.push(updates[field]);
+      }
+    });
+
+    if (setClauses.length === 0) {
+      await connection.rollback();
+      return res.status(400).json({ error: 'No hay campos válidos para actualizar' });
+    }
+
+    // Agregar updated_at
+    setClauses.push('updated_at = NOW()');
+
+    // Agregar BL numbers
+    values.push(...blNumbers);
+
+    // Placeholders para IN clause
+    const placeholders = blNumbers.map(() => '?').join(',');
+
+    // Query final
+    const query = `
+      UPDATE bls 
+      SET ${setClauses.join(', ')}
+      WHERE bl_number IN (${placeholders})
+    `;
+
+    console.log('Query:', query);
+    console.log('Values:', values);
+
+    const [result] = await connection.query(query, values);
+
+    await connection.commit();
+
+    res.json({
+      success: true,
+      message: `${result.affectedRows} BL(s) actualizados correctamente`,
+      affectedRows: result.affectedRows,
+      blNumbers: blNumbers
+    });
+
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error en actualización masiva:', error);
+    res.status(500).json({
+      error: 'Error al actualizar BLs',
+      details: error.message
+    });
+  } finally {
+    connection.release();
+  }
+});
+ 
 // ============================================
 // ACTUALIZAR UN BL INDIVIDUAL (para puertos)
 // ============================================
@@ -3614,13 +3709,10 @@ app.patch('/bls/:blNumber', async (req, res) => {
     const { blNumber } = req.params;
     const updates = req.body;
 
-    // 🔥 AGREGAR ESTAS 3 LÍNEAS
     console.log('═══════════════════════════════════');
     console.log('📥 PATCH recibido para BL:', blNumber);
     console.log('📦 Body completo:', JSON.stringify(updates, null, 2));
-    console.log('📦 Campos recibidos:', Object.keys(updates));
     console.log('═══════════════════════════════════');
-
 
     await connection.beginTransaction();
 
@@ -3640,6 +3732,25 @@ app.patch('/bls/:blNumber', async (req, res) => {
     // 2️⃣ Preparar campos para UPDATE
     const setClauses = [];
     const values = [];
+
+    // 🔥 CAMPOS PERMITIDOS (ACTUALIZADO)
+    const validFields = [
+      'shipper',
+      'consignee',
+      'notify_party',
+      'descripcion_carga',
+      'bultos',
+      'peso_bruto',
+      'volumen',
+      'status',
+      // 🆕 AGREGAR CAMPOS DE PUERTO
+      'lugar_recepcion_cod',
+      'puerto_embarque_cod',
+      'puerto_descarga_cod',
+      'lugar_entrega_cod',
+      'lugar_destino_cod',
+      'lugar_emision_cod'
+    ];
 
     // 🔥 MAPEO DE CÓDIGOS → IDs
     const puertoFields = [
@@ -3681,7 +3792,7 @@ app.patch('/bls/:blNumber', async (req, res) => {
         console.log(`🔄 Puerto ${field}: ${codigo} → ID: ${puertoId}`);
       }
       // 🔥 Otros campos permitidos
-      else if (['shipper', 'consignee', 'notify_party', 'descripcion_carga', 'status'].includes(field)) {
+      else if (validFields.includes(field)) {
         setClauses.push(`${field} = ?`);
         values.push(value);
       }
@@ -4273,7 +4384,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
               'unidad-peso': it.unidad_peso || 'KGM',
               volumen: it.volumen || 0,
               'unidad-volumen': it.unidad_volumen || 'MTQ',
-  
+
 
               Contenedores: contsDelItem.length > 0 ? {
                 contenedor: contsDelItem.map(c => {
@@ -4745,7 +4856,7 @@ app.post("/api/bls/:blNumber/revalidar", async (req, res) => {
 
         await addValidacion(conn, payload);
         await addValidacionPMS(conn, payload);
-        
+
       } else {
         // Puerto ahora existe -> actualizar la FK
         await conn.query(
@@ -5329,95 +5440,6 @@ app.get('/bls/viajes/list', async (req, res) => {
   }
 });
 
-// ============================================
-// ACTUALIZACIÓN MASIVA DE BLs
-// ============================================
-app.patch('/bls/bulk-update', async (req, res) => {
-  const connection = await pool.getConnection();
-
-  try {
-    const { blNumbers, updates } = req.body;
-
-    // Validaciones
-    if (!blNumbers || !Array.isArray(blNumbers) || blNumbers.length === 0) {
-      return res.status(400).json({ error: 'Debe proporcionar una lista de BL numbers' });
-    }
-
-    if (!updates || Object.keys(updates).length === 0) {
-      return res.status(400).json({ error: 'Debe proporcionar campos a actualizar' });
-    }
-
-    await connection.beginTransaction();
-
-    // Campos permitidos según tu esquema de base de datos
-    const validFields = [
-      'shipper',
-      'consignee',
-      'notify_party',
-      'descripcion_carga',
-      'bultos',
-      'peso_bruto',
-      'volumen',
-      'status'
-    ];
-
-    // Construir SET clauses
-    const setClauses = [];
-    const values = [];
-
-    Object.keys(updates).forEach(field => {
-      if (validFields.includes(field)) {
-        setClauses.push(`${field} = ?`);
-        values.push(updates[field]);
-      }
-    });
-
-    if (setClauses.length === 0) {
-      await connection.rollback();
-      return res.status(400).json({ error: 'No hay campos válidos para actualizar' });
-    }
-
-    // Agregar updated_at
-    setClauses.push('updated_at = NOW()');
-
-    // Agregar BL numbers
-    values.push(...blNumbers);
-
-    // Placeholders para IN clause
-    const placeholders = blNumbers.map(() => '?').join(',');
-
-    // Query final
-    const query = `
-      UPDATE bls 
-      SET ${setClauses.join(', ')}
-      WHERE bl_number IN (${placeholders})
-    `;
-
-    console.log('Query:', query);
-    console.log('Values:', values);
-
-    const [result] = await connection.query(query, values);
-
-    await connection.commit();
-
-    res.json({
-      success: true,
-      message: `${result.affectedRows} BL(s) actualizados correctamente`,
-      affectedRows: result.affectedRows,
-      blNumbers: blNumbers
-    });
-
-  } catch (error) {
-    await connection.rollback();
-    console.error('Error en actualización masiva:', error);
-    res.status(500).json({
-      error: 'Error al actualizar BLs',
-      details: error.message
-    });
-  } finally {
-    connection.release();
-  }
-});
 
 /// ============================================
 // ENDPOINT PARA OBTENER PUERTOS
