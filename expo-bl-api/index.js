@@ -2416,10 +2416,11 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
   }
 
   const conn = await pool.getConnection();
+
   try {
     await conn.beginTransaction();
 
-    // 1️⃣ Validar que el manifiesto existe
+    // 1) Validar manifiesto
     const [mRows] = await conn.query("SELECT id FROM manifiestos WHERE id = ?", [id]);
     if (mRows.length === 0) {
       await conn.rollback();
@@ -2427,52 +2428,109 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
       return res.status(404).json({ error: "Manifiesto no existe" });
     }
 
-    // 2️⃣ Leer contenido del archivo temporal
+    // 2) Leer archivo
     const content = fs.readFileSync(req.file.path, "utf-8");
 
-    // 3️⃣ ELIMINAR ARCHIVO INMEDIATAMENTE (no lo necesitamos después de leerlo)
+    // 3) Borrar temporal
     if (fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
-      console.log(`🗑️ Archivo temporal eliminado: ${req.file.path}`);
     }
 
-    // 4️⃣ Parsear BLs
+    // 4) Parsear BLs
     const bls = parsePmsByFile(req.file.originalname, content);
     if (!Array.isArray(bls) || bls.length === 0) {
       await conn.rollback();
       return res.status(400).json({ error: "No se encontraron BLs en el PMS" });
     }
 
-    console.log(`📦 Se parsearon ${bls.length} BLs desde el PMS`);
+    // ============================
+    // PRECHECK_GLOBAL
+    // ============================
 
-    // 5️⃣ SQL de inserción (MISMO código que ya tienes)
+    // 4.1) Normalizar BLs del archivo, ignorar duplicados en archivo (NO aborta)
+    const blsUnicos = [];
+    const seen = new Set();
+    const duplicadosEnArchivo = []; // solo para informar
+
+    for (const b of bls) {
+      const blNumber = (b?.blNumber || "").trim();
+      if (!blNumber) continue;
+
+      if (seen.has(blNumber)) {
+        duplicadosEnArchivo.push(blNumber);
+        continue; // ✅ ignorado
+      }
+      seen.add(blNumber);
+      blsUnicos.push(b);
+    }
+
+    if (blsUnicos.length === 0) {
+      await conn.rollback();
+      return res.status(400).json({ error: "No se encontraron BLs válidos (blNumber vacío)" });
+    }
+
+    const blNumbers = blsUnicos.map(b => (b.blNumber || "").trim());
+
+    // 4.2) Buscar existentes en 1 query
+    const [existRows] = await conn.query(
+      `SELECT id, bl_number, manifiesto_id
+       FROM bls
+       WHERE bl_number IN (?)`,
+      [blNumbers]
+    );
+
+    // 4.3) Si existe en OTRO manifiesto => abortar TODO
+    const conflictosOtroManifiesto = existRows
+      .filter(r => Number(r.manifiesto_id) !== Number(id))
+      .map(r => ({ bl_number: r.bl_number, manifiesto_existente: r.manifiesto_id }));
+
+    if (conflictosOtroManifiesto.length > 0) {
+      await conn.rollback();
+      return res.status(409).json({
+        ok: false,
+        error: "Hay BLs que ya existen en otro manifiesto. Carga rechazada.",
+        conflictos: conflictosOtroManifiesto,
+      });
+    }
+
+    // 4.4) Mapa de existentes en el mismo manifiesto (para reemplazar)
+    const existentesMismoManifiesto = new Map(); // bl_number -> bl_id
+    for (const r of existRows) {
+      if (Number(r.manifiesto_id) === Number(id)) {
+        existentesMismoManifiesto.set(r.bl_number, r.id);
+      }
+    }
+
+    // ============================
+    // SQL INSERTS
+    // ============================
     const insertBlSql = `
       INSERT INTO bls
         (manifiesto_id, bl_number, tipo_servicio_id,
-        shipper, consignee, notify_party,
-        lugar_emision_id, puerto_embarque_id, puerto_descarga_id,
-        lugar_destino_id, lugar_entrega_id, lugar_recepcion_id,
-        lugar_emision_cod, puerto_embarque_cod, puerto_descarga_cod,
-        lugar_destino_cod, lugar_entrega_cod, lugar_recepcion_cod,
-        descripcion_carga,
-        peso_bruto, unidad_peso,
-        volumen, unidad_volumen,
-        bultos, total_items,
-        fecha_emision, fecha_presentacion, fecha_embarque, fecha_zarpe,
-        status)
+         shipper, consignee, notify_party,
+         lugar_emision_id, puerto_embarque_id, puerto_descarga_id,
+         lugar_destino_id, lugar_entrega_id, lugar_recepcion_id,
+         lugar_emision_cod, puerto_embarque_cod, puerto_descarga_cod,
+         lugar_destino_cod, lugar_entrega_cod, lugar_recepcion_cod,
+         descripcion_carga,
+         peso_bruto, unidad_peso,
+         volumen, unidad_volumen,
+         bultos, total_items,
+         fecha_emision, fecha_presentacion, fecha_embarque, fecha_zarpe,
+         status)
       VALUES
         (?, ?, ?,
-        ?, ?, ?,
-        ?, ?, ?,
-        ?, ?, ?,
-        ?, ?, ?,
-        ?, ?, ?,
-        ?,
-        ?, ?,
-        ?, ?,
-        ?, ?,
-        ?, ?, ?, ?,
-        'CREADO')
+         ?, ?, ?,
+         ?, ?, ?,
+         ?, ?, ?,
+         ?, ?, ?,
+         ?, ?, ?,
+         ?,
+         ?, ?,
+         ?, ?,
+         ?, ?,
+         ?, ?, ?, ?,
+         'CREADO')
     `;
 
     const insertItemSql = `
@@ -2489,66 +2547,64 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
-    // Ctrl+F: rechazadosPorOtroManifiesto
-    const rechazadosPorOtroManifiesto = [];
-    const reemplazadosEnMismoManifiesto = [];
-    const seenBLsInFile = new Set();
-    let insertedOk = 0;
+    // ============================
+    // CARGA_REAL
+    // ============================
+    let insertedOk = 0;          // ✅ NUEVOS (no existían en el manifiesto)
+    let reemplazadosCount = 0;   // ✅ REEMPLAZADOS (sí existían en el manifiesto)
 
-    // 6️⃣ INSERTAR CADA BL (MISMO código que ya tienes funcionando)
-    for (const b of bls) {
+    for (const b of blsUnicos) {
       const pendingValidations = [];
+      const blNumber = (b.blNumber || "").trim();
+      if (!blNumber) continue;
 
-      // Resolver IDs de puertos
-      const lugarEmisionId = await getPuertoIdByCodigo(conn, b.lugar_emision_cod);
-      if (!lugarEmisionId) {
-        pendingValidations.push({
-          nivel: "BL",
-          severidad: "ERROR",
-          campo: "lugar_emision_id",
-          mensaje: "Lugar de emisión no existe en mantenedor de puertos (Linea 74)",
-          valorCrudo: b.lugar_emision_cod || null
-        });
+      // A) Si existe en el mismo manifiesto => reemplazar
+      const existenteId = existentesMismoManifiesto.get(blNumber) || null;
+
+      // ✅ FIX CONTEO: marcar si esto será reemplazo
+      const esReemplazo = !!existenteId;
+
+      if (existenteId) {
+        await conn.query("DELETE FROM bls WHERE id = ?", [existenteId]);
+        reemplazadosCount++;
+        // evita re-delete si por alguna razón aparece otra vez (aunque ya filtramos)
+        existentesMismoManifiesto.delete(blNumber);
       }
+
+      // Resolver IDs (igual que tu lógica)
+      const lugarEmisionId = await getPuertoIdByCodigo(conn, b.lugar_emision_cod);
+      if (!lugarEmisionId) pendingValidations.push({
+        nivel: "BL", severidad: "ERROR", campo: "lugar_emision_id",
+        mensaje: "Lugar de emisión no existe en mantenedor de puertos (Linea 74)",
+        valorCrudo: b.lugar_emision_cod || null
+      });
 
       const puertoEmbarqueId = await getPuertoIdByCodigo(conn, b.puerto_embarque_cod);
-      if (!puertoEmbarqueId) {
-        pendingValidations.push({
-          nivel: "BL",
-          severidad: "ERROR",
-          campo: "puerto_embarque_id",
-          mensaje: "Puerto de embarque no existe en mantenedor de puertos (Linea 14 o 13)",
-          valorCrudo: b.puerto_embarque_cod || null
-        });
-      }
+      if (!puertoEmbarqueId) pendingValidations.push({
+        nivel: "BL", severidad: "ERROR", campo: "puerto_embarque_id",
+        mensaje: "Puerto de embarque no existe en mantenedor de puertos (Linea 14 o 13)",
+        valorCrudo: b.puerto_embarque_cod || null
+      });
 
       const puertoDescargaId = await getPuertoIdByCodigo(conn, b.puerto_descarga_cod);
-      if (!puertoDescargaId) {
-        pendingValidations.push({
-          nivel: "BL",
-          severidad: "ERROR",
-          campo: "puerto_descarga_id",
-          mensaje: "Puerto de descarga no existe en mantenedor de puertos (Linea 14 o 13)",
-          valorCrudo: b.puerto_descarga_cod || null
-        });
-      }
+      if (!puertoDescargaId) pendingValidations.push({
+        nivel: "BL", severidad: "ERROR", campo: "puerto_descarga_id",
+        mensaje: "Puerto de descarga no existe en mantenedor de puertos (Linea 14 o 13)",
+        valorCrudo: b.puerto_descarga_cod || null
+      });
 
-      const lugarDestinoId = await getPuertoIdByCodigo(conn, b.lugar_destino_cod);
-      const lugarEntregaId = await getPuertoIdByCodigo(conn, b.lugar_entrega_cod);
+      const lugarDestinoId   = await getPuertoIdByCodigo(conn, b.lugar_destino_cod);
+      const lugarEntregaId   = await getPuertoIdByCodigo(conn, b.lugar_entrega_cod);
       const lugarRecepcionId = await getPuertoIdByCodigo(conn, b.lugar_recepcion_cod);
 
       const tipoServicioId = await getTipoServicioIdByCodigo(conn, b.tipoServicioCod);
-      if (!tipoServicioId) {
-        pendingValidations.push({
-          nivel: "BL",
-          severidad: "ERROR",
-          campo: "tipo_servicio_id",
-          mensaje: "Tipo de servicio no existe en mantenedor",
-          valorCrudo: b.tipoServicioCod || null
-        });
-      }
+      if (!tipoServicioId) pendingValidations.push({
+        nivel: "BL", severidad: "ERROR", campo: "tipo_servicio_id",
+        mensaje: "Tipo de servicio no existe en mantenedor",
+        valorCrudo: b.tipoServicioCod || null
+      });
 
-      // Obtener tipo_bulto para items
+      // Pre-calcular tipo_bulto para items
       for (const it of (b.items || [])) {
         const itemNum = Number(it.numero_item);
         const contsDelItem = (b.contenedores || []).filter(c => Number(c.itemNo) === itemNum);
@@ -2556,79 +2612,33 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         it.tipo_bulto = await getTipoBultoFromTipoCnt(conn, tipoCnt);
       }
 
-      // Ctrl+F: PRECHECK_DUPLICADOS_BL
-      const blNumber = (b.blNumber || "").trim();
-      if (!blNumber) continue;
-
-      if (seenBLsInFile.has(blNumber)) {
-        rechazadosPorOtroManifiesto.push({
-          bl_number: blNumber,
-          motivo: "BL duplicado dentro del mismo PMS (archivo)"
-        });
-        continue;
-      }
-      seenBLsInFile.add(blNumber);
-
-      const [existRows] = await conn.query(
-        `SELECT id, manifiesto_id FROM bls WHERE bl_number = ? LIMIT 1`,
-        [blNumber]
-      );
-
-      if (existRows.length > 0) {
-        const existente = existRows[0];
-
-        // B) existe en otro manifiesto
-        if (Number(existente.manifiesto_id) !== Number(id)) {
-          rechazadosPorOtroManifiesto.push({
-            bl_number: blNumber,
-            manifiesto_existente: existente.manifiesto_id,
-            motivo: "BL ya existe en otro manifiesto"
-          });
-          continue;
-        }
-
-        // A) existe en el mismo manifiesto => reemplazar
-        await conn.query(`DELETE FROM bls WHERE id = ?`, [existente.id]);
-        reemplazadosEnMismoManifiesto.push({ bl_number: blNumber });
-      }
-
-
       // Insertar BL
       const [blIns] = await conn.query(insertBlSql, [
         id,
         blNumber,
         tipoServicioId,
-
         b.shipper || null,
         b.consignee || null,
         b.notify || null,
-
         lugarEmisionId,
         puertoEmbarqueId,
         puertoDescargaId,
-
         lugarDestinoId,
         lugarEntregaId,
         lugarRecepcionId,
-
         b.lugar_emision_cod || null,
         b.puerto_embarque_cod || null,
         b.puerto_descarga_cod || null,
         b.lugar_destino_cod || null,
         b.lugar_entrega_cod || null,
         b.lugar_recepcion_cod || null,
-
-        null,
-
+        null, // descripcion_carga
         b.peso_bruto ?? null,
         b.unidad_peso || null,
-
         b.volumen ?? null,
         b.unidad_volumen || null,
-
         b.bultos ?? null,
         b.total_items ?? null,
-
         cleanMysqlDate(b.fecha_emision),
         cleanMysqlDateTime(b.fecha_presentacion),
         cleanMysqlDateTime(b.fecha_embarque),
@@ -2636,146 +2646,55 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
       ]);
 
       const blId = blIns.insertId;
-      insertedOk++;
-      
+
+      // ✅ FIX CONTEO: solo sumar a inserted si NO es reemplazo
+      if (!esReemplazo) insertedOk++;
+
       await conn.query("DELETE FROM bl_validaciones WHERE bl_id = ?", [blId]);
 
-      // Validaciones nivel BL
-      if (!lugarDestinoId) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_destino_id", mensaje: "Lugar destino no existe en mantenedor de puertos (Revisar puerto de descarga)", valorCrudo: b.lugar_destino_cod || null });
-      if (!lugarEntregaId) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_entrega_id", mensaje: "Lugar entrega no existe en mantenedor de puertos (Revisar puerto de descarga)", valorCrudo: b.lugar_entrega_cod || null });
-      if (!lugarRecepcionId) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_recepcion_id", mensaje: "Lugar recepción no existe en mantenedor de puertos (Revisar puerto de embarque)", valorCrudo: b.lugar_recepcion_cod || null });
+      // Validaciones BL (igual que tu código)
+      if (!lugarDestinoId)   pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"lugar_destino_id",   mensaje:"Lugar destino no existe en mantenedor de puertos (Revisar puerto de descarga)", valorCrudo: b.lugar_destino_cod || null });
+      if (!lugarEntregaId)   pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"lugar_entrega_id",   mensaje:"Lugar entrega no existe en mantenedor de puertos (Revisar puerto de descarga)", valorCrudo: b.lugar_entrega_cod || null });
+      if (!lugarRecepcionId) pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"lugar_recepcion_id", mensaje:"Lugar recepción no existe en mantenedor de puertos (Revisar puerto de embarque)", valorCrudo: b.lugar_recepcion_cod || null });
+      if (isBlank(b.fecha_emision))       pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"fecha_emision",       mensaje:"Falta fecha_emision (Linea 11)", valorCrudo: b.fecha_emision || null });
+      if (isBlank(b.fecha_presentacion))  pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"fecha_presentacion", mensaje:"Falta fecha_presentacion (Linea 00)", valorCrudo: b.fecha_presentacion || null });
+      if (num(b.peso_bruto) <= 0)         pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"peso_bruto",  mensaje:"peso_bruto debe ser > 0", valorCrudo: b.peso_bruto });
+      if (isBlank(b.unidad_peso))         pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"unidad_peso", mensaje:"Falta unidad_peso (Linea 41)", valorCrudo: b.unidad_peso || null });
+      if (num(b.bultos) < 1)             pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"bultos",      mensaje:"bultos debe ser >= 1", valorCrudo: b.bultos });
+      if (num(b.total_items) < 1)        pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"total_items", mensaje:"total_items debe ser >= 1", valorCrudo: b.total_items });
+      if (isBlank(b.shipper))            pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"shipper",      mensaje:"Falta shipper (Linea 16)", valorCrudo: b.shipper || null });
+      if (isBlank(b.consignee))          pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"consignee",    mensaje:"Falta consignee (Linea 21)", valorCrudo: b.consignee || null });
+      if (isBlank(b.notify))             pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"notify_party", mensaje:"Falta notify (Linea 26)", valorCrudo: b.notify || null });
+      if (isBlank(b.fecha_embarque))     pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"fecha_embarque", mensaje:"Falta fecha_embarque (Linea 14)", valorCrudo: b.fecha_embarque || null });
+      if (isBlank(b.fecha_zarpe))        pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"fecha_zarpe",    mensaje:"Falta fecha_zarpe (Linea 14)", valorCrudo: b.fecha_zarpe || null });
+      if (isBlank(b.unidad_volumen))     pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"unidad_volumen", mensaje:"Falta unidad_volumen (Linea 41)", valorCrudo: b.unidad_volumen || null });
+      if (num(b.volumen) == null)        pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"volumen",        mensaje:"Falta Volumen debe ser >= 0 (puede ser 0)", valorCrudo: b.volumen });
 
-      if (isBlank(b.fecha_emision)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_emision", mensaje: "Falta fecha_emision (Linea 11)", valorCrudo: b.fecha_emision || null });
-      if (isBlank(b.fecha_presentacion)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_presentacion", mensaje: "Falta fecha_presentacion (Linea 00)", valorCrudo: b.fecha_presentacion || null });
-
-      if (num(b.peso_bruto) <= 0) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "peso_bruto", mensaje: "peso_bruto debe ser > 0", valorCrudo: b.peso_bruto });
-      if (isBlank(b.unidad_peso)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "unidad_peso", mensaje: "Falta unidad_peso (Linea 41)", valorCrudo: b.unidad_peso || null });
-
-      if (num(b.bultos) < 1) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "bultos", mensaje: "bultos debe ser >= 1", valorCrudo: b.bultos });
-      if (num(b.total_items) < 1) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "total_items", mensaje: "total_items debe ser >= 1", valorCrudo: b.total_items });
-
-      if (isBlank(b.shipper)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "shipper", mensaje: "Falta shipper (Linea 16)", valorCrudo: b.shipper || null });
-      if (isBlank(b.consignee)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "consignee", mensaje: "Falta consignee (Linea 21)", valorCrudo: b.consignee || null });
-      if (isBlank(b.notify)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "notify_party", mensaje: "Falta notify (Linea 26)", valorCrudo: b.notify || null });
-
-      if (isBlank(b.fecha_embarque)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_embarque", mensaje: "Falta fecha_embarque (Linea 14)", valorCrudo: b.fecha_embarque || null });
-      if (isBlank(b.fecha_zarpe)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_zarpe", mensaje: "Falta fecha_zarpe (Linea 14)", valorCrudo: b.fecha_zarpe || null });
-
-      if (isBlank(b.unidad_volumen)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "unidad_volumen", mensaje: "Falta unidad_volumen (Linea 41)", valorCrudo: b.unidad_volumen || null });
-      if (num(b.volumen) == null) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "volumen", mensaje: "Falta Volumen debe ser >= 0 (puede ser 0)", valorCrudo: b.volumen });
-
-      // Guardar validaciones nivel BL
       for (const v of pendingValidations) {
         await addValidacion(conn, { blId, ...v });
         await addValidacionPMS(conn, { blId, ...v });
       }
 
-      // Insertar transbordos
       await insertTransbordos(conn, blId, b.transbordos || []);
 
-      // Insertar items
+      // INSERT ITEMS + CONTENEDORES (igual que tu lógica)
       const itemIdByNumero = new Map();
-      const items = Array.isArray(b.items) ? b.items : [];
+      const itemsArr = Array.isArray(b.items) ? b.items : [];
 
-      for (const it of items) {
+      for (const it of itemsArr) {
         const itemNum = Number(it.numero_item) || null;
         const pendingItemValidations = [];
 
-        if (!itemNum) {
-          pendingItemValidations.push({
-            nivel: "ITEM",
-            sec: null,
-            severidad: "ERROR",
-            campo: "numero_item",
-            mensaje: "Item sin número",
-            valorCrudo: it.numero_item ?? null
-          });
-        }
-
-        if (isBlank(it.descripcion)) {
-          pendingItemValidations.push({
-            nivel: "ITEM",
-            sec: itemNum,
-            severidad: "OBS",
-            campo: "descripcion",
-            mensaje: "Falta Descripción",
-            valorCrudo: it.descripcion ?? null
-          });
-        }
-
-        if (isBlank(it.marcas)) {
-          pendingItemValidations.push({
-            nivel: "ITEM",
-            sec: itemNum,
-            severidad: "OBS",
-            campo: "marcas",
-            mensaje: "Falta Marcas",
-            valorCrudo: it.marcas ?? null
-          });
-        }
-
-        if (!it.tipo_bulto) {
-          pendingItemValidations.push({
-            nivel: "ITEM",
-            sec: itemNum,
-            severidad: "ERROR",
-            campo: "tipo_bulto",
-            mensaje: "No se pudo determinar tipo_bulto para el item",
-            valorCrudo: it.tipo_bulto ?? null
-          });
-        }
-
-        if (!isSN(it.carga_peligrosa)) {
-          pendingItemValidations.push({
-            nivel: "ITEM",
-            sec: itemNum,
-            severidad: "ERROR",
-            campo: "carga_peligrosa",
-            mensaje: "carga_peligrosa debe ser 'S' o 'N'",
-            valorCrudo: it.carga_peligrosa ?? null
-          });
-        }
-
-        if (num(it.cantidad) == null || num(it.cantidad) < 1) {
-          pendingItemValidations.push({
-            nivel: "ITEM",
-            sec: itemNum,
-            severidad: "ERROR",
-            campo: "cantidad",
-            mensaje: "Cantidad de contenedores debe ser >= 1 para un item (Linea 51)",
-            valorCrudo: it.cantidad
-          });
-        }
-
-        if (num(it.peso_bruto) == null || num(it.peso_bruto) <= 0) {
-          pendingItemValidations.push({
-            nivel: "ITEM", sec: itemNum, severidad: "ERROR",
-            campo: "peso_bruto", mensaje: "peso_bruto debe ser > 0 (Linea 41)",
-            valorCrudo: it.peso_bruto
-          });
-        }
-        if (isBlank(it.unidad_peso)) {
-          pendingItemValidations.push({
-            nivel: "ITEM", sec: itemNum, severidad: "ERROR",
-            campo: "unidad_peso", mensaje: "Falta unidad_peso (Linea 41)",
-            valorCrudo: it.unidad_peso ?? null
-          });
-        }
-
-        if (num(it.volumen) == null || num(it.volumen) < 0) {
-          pendingItemValidations.push({
-            nivel: "ITEM", sec: itemNum, severidad: "ERROR",
-            campo: "volumen", mensaje: "Falta Volumen debe ser >= 0 (Linea 41)",
-            valorCrudo: it.volumen
-          });
-        }
-        if (isBlank(it.unidad_volumen)) {
-          pendingItemValidations.push({
-            nivel: "ITEM", sec: itemNum, severidad: "ERROR",
-            campo: "unidad_volumen", mensaje: "Falta unidad_volumen (Linea 41)",
-            valorCrudo: it.unidad_volumen ?? null
-          });
-        }
+        if (!itemNum) pendingItemValidations.push({ nivel:"ITEM", sec:null, severidad:"ERROR", campo:"numero_item", mensaje:"Item sin número", valorCrudo: it.numero_item ?? null });
+        if (isBlank(it.descripcion)) pendingItemValidations.push({ nivel:"ITEM", sec:itemNum, severidad:"OBS", campo:"descripcion", mensaje:"Falta Descripción", valorCrudo: it.descripcion ?? null });
+        if (isBlank(it.marcas)) pendingItemValidations.push({ nivel:"ITEM", sec:itemNum, severidad:"OBS", campo:"marcas", mensaje:"Falta Marcas", valorCrudo: it.marcas ?? null });
+        if (!it.tipo_bulto) pendingItemValidations.push({ nivel:"ITEM", sec:itemNum, severidad:"ERROR", campo:"tipo_bulto", mensaje:"No se pudo determinar tipo_bulto para el item", valorCrudo: it.tipo_bulto ?? null });
+        if (!isSN(it.carga_peligrosa)) pendingItemValidations.push({ nivel:"ITEM", sec:itemNum, severidad:"ERROR", campo:"carga_peligrosa", mensaje:"carga_peligrosa debe ser 'S' o 'N'", valorCrudo: it.carga_peligrosa ?? null });
+        if (num(it.cantidad) == null || num(it.cantidad) < 1) pendingItemValidations.push({ nivel:"ITEM", sec:itemNum, severidad:"ERROR", campo:"cantidad", mensaje:"Cantidad de contenedores debe ser >= 1 para un item (Linea 51)", valorCrudo: it.cantidad });
+        if (num(it.peso_bruto) == null || num(it.peso_bruto) <= 0) pendingItemValidations.push({ nivel:"ITEM", sec:itemNum, severidad:"ERROR", campo:"peso_bruto", mensaje:"peso_bruto debe ser > 0 (Linea 41)", valorCrudo: it.peso_bruto });
+        if (isBlank(it.unidad_peso)) pendingItemValidations.push({ nivel:"ITEM", sec:itemNum, severidad:"ERROR", campo:"unidad_peso", mensaje:"Falta unidad_peso (Linea 41)", valorCrudo: it.unidad_peso ?? null });
+        if (num(it.volumen) == null || num(it.volumen) < 0) pendingItemValidations.push({ nivel:"ITEM", sec:itemNum, severidad:"ERROR", campo:"volumen", mensaje:"Falta Volumen debe ser >= 0 (Linea 41)", valorCrudo: it.volumen });
+        if (isBlank(it.unidad_volumen)) pendingItemValidations.push({ nivel:"ITEM", sec:itemNum, severidad:"ERROR", campo:"unidad_volumen", mensaje:"Falta unidad_volumen (Linea 41)", valorCrudo: it.unidad_volumen ?? null });
 
         const [itIns] = await conn.query(insertItemSql, [
           blId,
@@ -2790,7 +2709,6 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
           it.volumen ?? null,
           it.unidad_volumen || null,
         ]);
-        itemIdByNumero.set(Number(it.numero_item), itIns.insertId);
 
         const itemId = itIns.insertId;
         if (itemNum) itemIdByNumero.set(itemNum, itemId);
@@ -2801,9 +2719,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         }
       }
 
-      // Insertar contenedores
       const conts = Array.isArray(b.contenedores) ? b.contenedores : [];
-
       for (const c of conts) {
         const itemId = Number.isFinite(Number(c?.itemNo))
           ? (itemIdByNumero.get(Number(c.itemNo)) || null)
@@ -2815,97 +2731,26 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         if (c.codigo) {
           const iso = splitISO11(c.codigo);
           if (!iso) {
-            pendingContValidations.push({
-              nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR",
-              campo: "codigo",
-              mensaje: "Código contenedor inválido (no ISO11: AAAA1234567)",
-              valorCrudo: c.codigo
-            });
+            pendingContValidations.push({ nivel:"CONTENEDOR", sec:itemNo, severidad:"ERROR", campo:"codigo", mensaje:"Código contenedor inválido (no ISO11: AAAA1234567)", valorCrudo: c.codigo });
           } else {
             if ((c.sigla && c.sigla !== iso.sigla) ||
-              (c.numero && c.numero !== iso.numero) ||
-              (c.digito && String(c.digito) !== iso.digito)) {
-              pendingContValidations.push({
-                nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR",
-                campo: "sigla/numero/digito",
-                mensaje: "codigo no coincide con sigla/numero/digito",
-                valorCrudo: `${c.codigo} vs ${c.sigla || ""}${c.numero || ""}${c.digito || ""}`
-              });
+                (c.numero && c.numero !== iso.numero) ||
+                (c.digito && String(c.digito) !== iso.digito)) {
+              pendingContValidations.push({ nivel:"CONTENEDOR", sec:itemNo, severidad:"ERROR", campo:"sigla/numero/digito", mensaje:"codigo no coincide con sigla/numero/digito", valorCrudo: `${c.codigo} vs ${c.sigla || ""}${c.numero || ""}${c.digito || ""}` });
             }
           }
+        } else {
+          pendingContValidations.push({ nivel:"CONTENEDOR", sec:itemNo, severidad:"ERROR", campo:"codigo", mensaje:"Contenedor sin código", valorCrudo: c.codigo ?? null });
         }
 
-        if (!c.codigo) {
-          pendingContValidations.push({
-            nivel: "CONTENEDOR",
-            sec: itemNo,
-            severidad: "ERROR",
-            campo: "codigo",
-            mensaje: "Contenedor sin código",
-            valorCrudo: c.codigo ?? null
-          });
-        }
+        if (!itemNo) pendingContValidations.push({ nivel:"CONTENEDOR", sec:null, severidad:"ERROR", campo:"itemNo", mensaje:"Contenedor sin itemNo (no se puede asociar a item)", valorCrudo: c.itemNo ?? null });
+        else if (!itemId) pendingContValidations.push({ nivel:"CONTENEDOR", sec:itemNo, severidad:"ERROR", campo:"item_id", mensaje:"Contenedor no se pudo asociar a item (itemNo no existe en bl_items insertados)", valorCrudo: String(itemNo) });
 
-        if (!itemNo) {
-          pendingContValidations.push({
-            nivel: "CONTENEDOR",
-            sec: null,
-            severidad: "ERROR",
-            campo: "itemNo",
-            mensaje: "Contenedor sin itemNo (no se puede asociar a item)",
-            valorCrudo: c.itemNo ?? null
-          });
-        } else if (!itemId) {
-          pendingContValidations.push({
-            nivel: "CONTENEDOR",
-            sec: itemNo,
-            severidad: "ERROR",
-            campo: "item_id",
-            mensaje: "Contenedor no se pudo asociar a item (itemNo no existe en bl_items insertados)",
-            valorCrudo: String(itemNo)
-          });
-        }
-
-        if (!c.tipo_cnt) {
-          pendingContValidations.push({
-            nivel: "CONTENEDOR",
-            sec: itemNo,
-            severidad: "ERROR",
-            campo: "tipo_cnt",
-            mensaje: "Contenedor sin tipo_cnt",
-            valorCrudo: c.tipo_cnt ?? null
-          });
-        }
-
-        if (num(c.peso) == null || num(c.peso) <= 0) {
-          pendingContValidations.push({
-            nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR",
-            campo: "peso", mensaje: "peso debe ser > 0",
-            valorCrudo: c.peso
-          });
-        }
-        if (isBlank(c.unidad_peso)) {
-          pendingContValidations.push({
-            nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR",
-            campo: "unidad_peso", mensaje: "Falta unidad_peso",
-            valorCrudo: c.unidad_peso ?? null
-          });
-        }
-
-        if (num(c.volumen) == null || num(c.volumen) < 0) {
-          pendingContValidations.push({
-            nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR",
-            campo: "volumen", mensaje: "Volumen debe ser >= 0 (puede ser 0)",
-            valorCrudo: c.volumen
-          });
-        }
-        if (isBlank(c.unidad_volumen)) {
-          pendingContValidations.push({
-            nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR",
-            campo: "unidad_volumen", mensaje: "Falta unidad_volumen",
-            valorCrudo: c.unidad_volumen ?? null
-          });
-        }
+        if (!c.tipo_cnt) pendingContValidations.push({ nivel:"CONTENEDOR", sec:itemNo, severidad:"ERROR", campo:"tipo_cnt", mensaje:"Contenedor sin tipo_cnt", valorCrudo: c.tipo_cnt ?? null });
+        if (num(c.peso) == null || num(c.peso) <= 0) pendingContValidations.push({ nivel:"CONTENEDOR", sec:itemNo, severidad:"ERROR", campo:"peso", mensaje:"peso debe ser > 0", valorCrudo: c.peso });
+        if (isBlank(c.unidad_peso)) pendingContValidations.push({ nivel:"CONTENEDOR", sec:itemNo, severidad:"ERROR", campo:"unidad_peso", mensaje:"Falta unidad_peso", valorCrudo: c.unidad_peso ?? null });
+        if (num(c.volumen) == null || num(c.volumen) < 0) pendingContValidations.push({ nivel:"CONTENEDOR", sec:itemNo, severidad:"ERROR", campo:"volumen", mensaje:"Volumen debe ser >= 0 (puede ser 0)", valorCrudo: c.volumen });
+        if (isBlank(c.unidad_volumen)) pendingContValidations.push({ nivel:"CONTENEDOR", sec:itemNo, severidad:"ERROR", campo:"unidad_volumen", mensaje:"Falta unidad_volumen", valorCrudo: c.unidad_volumen ?? null });
 
         const [cIns] = await conn.query(insertContSql, [
           blId,
@@ -2929,11 +2774,10 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
           await addValidacionPMS(conn, { blId, ...v, refId: contenedorId, sec: itemNo });
         }
 
-        const itemObj = itemNo ? items.find(it => Number(it.numero_item) === itemNo) : null;
+        const itemObj = itemNo ? itemsArr.find(it => Number(it.numero_item) === itemNo) : null;
         const itemPeligroso = itemObj && String(itemObj.carga_peligrosa || "").toUpperCase() === "S";
 
         const insertedImo = await insertImo(conn, blId, contenedorId, itemNo, c.imo || [], c.codigo || null);
-
         if (itemPeligroso && insertedImo < 1) {
           const payload = {
             blId,
@@ -2945,13 +2789,11 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
             mensaje: "Item marcado como carga_peligrosa='S' - este contenedor debe tener datos IMO (clase_imo y numero_imo) Linea 56",
             valorCrudo: JSON.stringify({ codigo: c.codigo || null })
           };
-
           await addValidacion(conn, payload);
           await addValidacionPMS(conn, payload);
         }
 
         await insertSellos(conn, contenedorId, c.sellos || []);
-
         if (!Array.isArray(c.sellos) || c.sellos.length === 0) {
           const payload = {
             blId,
@@ -2963,36 +2805,26 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
             mensaje: "Contenedor sin sellos en PMS (no siempre aplica)",
             valorCrudo: c.codigo || null
           };
-
           await addValidacion(conn, payload);
           await addValidacionPMS(conn, payload);
         }
       }
+
       await refreshResumenValidacionBL(conn, blId);
     }
 
-    // Ctrl+F: ABORTAR_SI_OTRO_MANIFIESTO
-    if (rechazadosPorOtroManifiesto.length > 0) {
-      await conn.rollback();
-      return res.status(409).json({
-        ok: false,
-        error: "Hay BLs que ya existen en otro manifiesto. Carga rechazada.",
-        rechazadosPorOtroManifiesto,
-        reemplazadosEnMismoManifiesto
-      });
-    }
-
-    // 7️⃣ COMMIT y respuesta
+    // COMMIT
     await conn.commit();
 
+    // Resumen de errores
     const [blsConErrores] = await conn.query(`
-      SELECT 
+      SELECT
         b.bl_number,
         b.valid_count_error,
         b.valid_count_obs,
         GROUP_CONCAT(
           CONCAT(
-            CASE 
+            CASE
               WHEN v.nivel = 'BL' THEN '📄 '
               WHEN v.nivel = 'ITEM' THEN '📦 Item '
               WHEN v.nivel = 'CONTENEDOR' THEN '📦 Contenedor '
@@ -3001,7 +2833,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
             END,
             CASE WHEN v.sec IS NOT NULL THEN CONCAT(v.sec, ': ') ELSE '' END,
             v.mensaje
-          ) 
+          )
           SEPARATOR '|'
         ) AS errores
       FROM bls b
@@ -3013,59 +2845,37 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
     const blsConErroresFormateados = blsConErrores.map(bl => ({
       bl_number: bl.bl_number,
       total_errores: bl.valid_count_error,
-      errores: bl.errores ? bl.errores.split('|') : []
+      errores: bl.errores ? bl.errores.split("|") : []
     }));
 
-    res.json({
+    return res.json({
       ok: true,
-      inserted: insertedOk,
-      reemplazadosEnMismoManifiesto,
+      inserted: insertedOk, // ✅ solo NUEVOS
+      reemplazados: reemplazadosCount,
+      procesados_total: insertedOk + reemplazadosCount, // ✅ opcional
+      ignorados_duplicados_archivo: [...new Set(duplicadosEnArchivo)].length,
       blsConErrores: blsConErroresFormateados
     });
-    
+
   } catch (err) {
     await conn.rollback();
 
-    // ✅ Limpieza del archivo temporal (por si acaso)
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
 
-    // ✅ Duplicados (MySQL)
+    // Si algún UNIQUE explota igual (por seguridad)
     if (err?.code === "ER_DUP_ENTRY") {
-      // puedes mirar err.sqlMessage para saber qué índice explotó
-      const key = err?.sqlMessage?.match(/for key '([^']+)'/)?.[1] || null;
-
-      // caso: BL ya existe en otro manifiesto (unique global)
-      if (key?.includes("uq_bls_bl_number") || key?.includes("bl_number")) {
-        return res.status(409).json({
-          error: "Ya existe un BL de este PMS en otro manifiesto. No se puede cargar duplicado.",
-          key,
-          detail: err.sqlMessage
-        });
-      }
-
-      // caso: BL repetido dentro del mismo manifiesto (unique compuesto)
-      if (key?.includes("uk_bl_manifiesto") || key?.includes("uq_manifiesto_bl")) {
-        return res.status(409).json({
-          error: "Ya existe un BL de este PMS en este manifiesto. No se puede cargar duplicado.",
-          key,
-          detail: err.sqlMessage
-        });
-      }
-
-      return res.status(409).json({
-        error: "Duplicado",
-        message: "Entrada duplicada (restricción UNIQUE).",
-        key,
-        detail: err.sqlMessage
-      });
+      return res.status(409).json({ ok: false, error: "Duplicado (UNIQUE)", detail: err.sqlMessage });
     }
 
     console.error("❌ Error procesando PMS:", err);
-    res.status(500).json({ error: err?.message || "Error procesando PMS" });
+    return res.status(500).json({ ok: false, error: err?.message || "Error procesando PMS" });
+  } finally {
+    conn.release();
   }
 });
+
 
 async function getPuertoIdByCodigo(conn, codigo) {
   const c = normalizeStr(codigo).toUpperCase();
