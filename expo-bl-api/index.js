@@ -950,28 +950,71 @@ app.get("/api/mantenedores/puertos/:id", async (req, res) => {
   }
 });
 
+// ✅ DESPUÉS:
 app.post("/api/mantenedores/puertos", async (req, res) => {
+  const conn = await pool.getConnection();
   try {
+    await conn.beginTransaction();
+
     const { codigo, nombre } = req.body;
 
     if (!codigo || !nombre) {
       return res.status(400).json({ error: "codigo y nombre son obligatorios" });
     }
 
-    const [result] = await pool.query(
+    const codigoUpper = codigo.trim().toUpperCase();
+
+    // 1️⃣ Insertar el puerto
+    const [result] = await conn.query(
       "INSERT INTO puertos (codigo, nombre) VALUES (?, ?)",
-      [codigo.trim(), nombre.trim()]
+      [codigoUpper, nombre.trim()]
     );
 
-    res.status(201).json({ id: result.insertId, codigo: codigo.trim(), nombre: nombre.trim() });
+    const puertoId = result.insertId;
+
+    // 2️⃣ Buscar BLs que tienen este código en sus campos _cod
+    const [blsAfectados] = await conn.query(`
+      SELECT DISTINCT id 
+      FROM bls 
+      WHERE lugar_emision_cod = ?
+         OR puerto_embarque_cod = ?
+         OR puerto_descarga_cod = ?
+         OR lugar_destino_cod = ?
+         OR lugar_entrega_cod = ?
+         OR lugar_recepcion_cod = ?
+    `, [codigoUpper, codigoUpper, codigoUpper, codigoUpper, codigoUpper, codigoUpper]);
+
+    console.log(`🔄 Puerto '${codigoUpper}' creado. Afecta a ${blsAfectados.length} BL(s)`);
+
+    // 3️⃣ Re-validar cada BL afectado
+    for (const bl of blsAfectados) {
+      await revalidarBLCompleto(conn, bl.id);
+      console.log(`✅ BL ID ${bl.id} re-validado`);
+    }
+
+    await conn.commit();
+
+    res.status(201).json({
+      id: puertoId,
+      codigo: codigoUpper,
+      nombre: nombre.trim(),
+      bls_revalidados: blsAfectados.length
+    });
   } catch (error) {
+    await conn.rollback();
     console.error("Error al crear puerto:", error);
     res.status(500).json({ error: "Error al crear puerto" });
+  } finally {
+    conn.release();
   }
 });
 
+// ✅ DESPUÉS:
 app.put("/api/mantenedores/puertos/:id", async (req, res) => {
+  const conn = await pool.getConnection();
   try {
+    await conn.beginTransaction();
+
     const { codigo, nombre } = req.body;
     const { id } = req.params;
 
@@ -979,19 +1022,56 @@ app.put("/api/mantenedores/puertos/:id", async (req, res) => {
       return res.status(400).json({ error: "codigo y nombre son obligatorios" });
     }
 
-    const [result] = await pool.query(
+    const codigoUpper = codigo.trim().toUpperCase();
+
+    // 1️⃣ Actualizar el puerto
+    const [result] = await conn.query(
       "UPDATE puertos SET codigo = ?, nombre = ? WHERE id = ?",
-      [codigo.trim(), nombre.trim(), id]
+      [codigoUpper, nombre.trim(), id]
     );
 
-    if (result.affectedRows === 0) return res.status(404).json({ error: "Puerto no encontrado" });
+    if (result.affectedRows === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: "Puerto no encontrado" });
+    }
 
-    res.json({ id: Number(id), codigo: codigo.trim(), nombre: nombre.trim() });
+    // 2️⃣ Buscar BLs afectados
+    const [blsAfectados] = await conn.query(`
+      SELECT DISTINCT id 
+      FROM bls 
+      WHERE lugar_emision_cod = ?
+         OR puerto_embarque_cod = ?
+         OR puerto_descarga_cod = ?
+         OR lugar_destino_cod = ?
+         OR lugar_entrega_cod = ?
+         OR lugar_recepcion_cod = ?
+    `, [codigoUpper, codigoUpper, codigoUpper, codigoUpper, codigoUpper, codigoUpper]);
+
+    console.log(`🔄 Puerto '${codigoUpper}' actualizado. Afecta a ${blsAfectados.length} BL(s)`);
+
+    // 3️⃣ Re-validar BLs afectados
+    for (const bl of blsAfectados) {
+      await revalidarBLCompleto(conn, bl.id);
+      console.log(`✅ BL ID ${bl.id} re-validado`);
+    }
+
+    await conn.commit();
+
+    res.json({
+      id: Number(id),
+      codigo: codigoUpper,
+      nombre: nombre.trim(),
+      bls_revalidados: blsAfectados.length
+    });
   } catch (error) {
+    await conn.rollback();
     console.error("Error al actualizar puerto:", error);
     res.status(500).json({ error: "Error al actualizar puerto" });
+  } finally {
+    conn.release();
   }
 });
+
 
 app.delete("/api/mantenedores/puertos/:id", async (req, res) => {
   try {
@@ -3904,7 +3984,7 @@ function formatDateCL(isoDate) {
   return `${dd}-${mm}-${yyyy}`;
 }
 
-// 🔥 REEMPLAZA ESTE ENDPOINT COMPLETO (línea ~3850)
+// 🔥 REEMPLAZA ESTE ENDPOINT COMPLETO
 app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
   const conn = await pool.getConnection();
   try {
@@ -3915,6 +3995,13 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
       'SELECT id FROM bls WHERE manifiesto_id = ?',
       [id]
     );
+
+    console.log(`🔄 Re-validando ${bls.length} BLs del manifiesto ${id}...`);
+
+    // 2️⃣ RE-VALIDAR CADA BL (esto resuelve los puertos que se agregaron)
+    for (const bl of bls) {
+      await revalidarBLCompleto(conn, bl.id);
+    }
 
     // 3️⃣ Ahora sí, obtener los datos actualizados con las validaciones frescas
     const query = `
@@ -4175,7 +4262,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
                     numero: c.numero || '',
                     digito: c.digito || '',
                     'tipo-cnt': c.tipo_cnt || '',
-                    'cnt-so': '',                    peso: c.peso || 0,
+                    'cnt-so': '', peso: c.peso || 0,
                     status: bl.tipo_servicio_nombre || 'FCL/FCL',
 
                     CntIMO: imoList.length > 0 ? {
@@ -4667,10 +4754,14 @@ async function revalidarBLCompleto(conn, blId) {
       valorCrudo: bl.puerto_embarque_cod || null
     });
   }
+  // ✅ REEMPLAZA POR:
+  // ✅ REEMPLAZA POR:
   if (!puertoDescargaId) {
-    vals.push({
-      nivel: "BL", severidad: "ERROR", campo: "puerto_descarga_id",
-      mensaje: "Puerto de descarga no existe en mantenedor de puertos (Linea 14 o 13)",
+    vals.push({  // ✅ BIEN
+      nivel: "BL",
+      severidad: "ERROR",
+      campo: "puerto_descarga_id",
+      mensaje: `Puerto de descarga '${bl.puerto_descarga_cod || 'NO ESPECIFICADO'}' no existe en mantenedor de puertos (Linea 14 o 13)`,
       valorCrudo: bl.puerto_descarga_cod || null
     });
   }
@@ -4678,15 +4769,15 @@ async function revalidarBLCompleto(conn, blId) {
     vals.push({
       nivel: "BL", severidad: "ERROR", campo: "tipo_servicio_id",
       mensaje: "Tipo de servicio no existe en mantenedor",
-      valorCrudo: tipoServicioCod || null
+      valorCrudo: bl.tipoServicioCod || null
     });
   }
 
   // BL: LD/LEM/LRM (si no existen, ERROR)
-  if (!lugarDestinoId) vals.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_destino_id", mensaje: "Lugar destino no existe en mantenedor de puertos (Revisar puerto de descarga)", valorCrudo: bl.lugar_destino_cod || null });
-  if (!lugarEntregaId) vals.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_entrega_id", mensaje: "Lugar entrega no existe en mantenedor de puertos (Revisar puerto de descarga)", valorCrudo: bl.lugar_entrega_cod || null });
-  if (!lugarRecepcionId) vals.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_recepcion_id", mensaje: "Lugar recepción no existe en mantenedor de puertos (Revisar puerto de embarque)", valorCrudo: bl.lugar_recepcion_cod || null });
-
+  // BL: LD/LEM/LRM (si no existen, ERROR)
+  if (!lugarDestinoId) vals.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_destino_id", mensaje: `Lugar destino '${bl.lugar_destino_cod || 'NO ESPECIFICADO'}' no existe en mantenedor de puertos`, valorCrudo: bl.lugar_destino_cod || null });
+  if (!lugarEntregaId) vals.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_entrega_id", mensaje: `Lugar entrega '${bl.lugar_entrega_cod || 'NO ESPECIFICADO'}' no existe en mantenedor de puertos`, valorCrudo: bl.lugar_entrega_cod || null });
+  if (!lugarRecepcionId) vals.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_recepcion_id", mensaje: `Lugar recepción '${bl.lugar_recepcion_cod || 'NO ESPECIFICADO'}' no existe en mantenedor de puertos`, valorCrudo: bl.lugar_recepcion_cod || null });
   // BL: fechas obligatorias
   if (isBlank(bl.fecha_emision)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_emision", mensaje: "Falta fecha_emision (Linea 11)", valorCrudo: bl.fecha_emision || null });
   if (isBlank(bl.fecha_presentacion)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_presentacion", mensaje: "Falta fecha_presentacion (Linea 00)", valorCrudo: bl.fecha_presentacion || null });
