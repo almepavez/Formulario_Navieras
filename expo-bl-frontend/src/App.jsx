@@ -14,6 +14,8 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import GenerarXML from "./pages/GenerarXML";
 import BulkEditBL from "./pages/BulkEditBL";
+import CargaSueltaNuevo from "./pages/CargaSueltaNuevo";
+import CargaSueltaEdit from "./pages/CargaSueltaEdit";
 
 function App() {
   return (
@@ -68,6 +70,16 @@ function App() {
           }
         />
 
+        {/* 🔥🔥 RUTA PARA CREAR NUEVA CARGA SUELTA */}
+        <Route
+          path="/manifiestos/:id/carga-suelta/nuevo"
+          element={
+            <ProtectedRoute>
+              <CargaSueltaNuevo />
+            </ProtectedRoute>
+          }
+        />
+
         {/* ============================================
             RUTAS PROTEGIDAS - EXPO BL
            ============================================ */}
@@ -79,6 +91,7 @@ function App() {
             </ProtectedRoute>
           }
         />
+        
 
         {/* 🔥 RUTA DE EDICIÓN MASIVA - Debe ir ANTES de /expo/:blNumber */}
         <Route
@@ -86,6 +99,16 @@ function App() {
           element={
             <ProtectedRoute>
               <BulkEditBL />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 🔥 RUTA DE EDICIÓN DE CARGA SUELTA - Debe ir ANTES de /expo/:blNumber */}
+        <Route
+          path="/expo/:blNumber/carga-suelta/edit"
+          element={
+            <ProtectedRoute>
+              <CargaSueltaEdit />
             </ProtectedRoute>
           }
         />

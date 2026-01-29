@@ -2580,37 +2580,37 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
       const pendingValidations = [];
 
       // Resolver IDs de puertos
-      const lugarEmisionId = await getPuertoIdByCodigo(conn, b.lugar_emision_cod);
+      const lugarEmisionId = await getPuertoIdByCodigo(conn, bl.lugar_emision_cod);
       if (!lugarEmisionId) {
-        vals.push({  // ✅ Cambiar a vals.push
+        pendingValidations.push({  // ✅ CORRECTO
           nivel: "BL",
           severidad: "ERROR",
           campo: "lugar_emision_id",
-          mensaje: `Lugar de emisión '${bl.lugar_emision_cod || 'NO ESPECIFICADO'}' no existe en mantenedor de puertos (Linea 74)`,
-          valorCrudo: bl.lugar_emision_cod || null
+          mensaje: `Lugar de emisión '${b.lugar_emision_cod || 'NO ESPECIFICADO'}' no existe en mantenedor de puertos (Linea 74)`,
+          valorCrudo: b.lugar_emision_cod || null
         });
       }
 
-      const puertoEmbarqueId = await getPuertoIdByCodigo(conn, b.puerto_embarque_cod);
+      const puertoEmbarqueId = await getPuertoIdByCodigo(conn, bl.puerto_embarque_cod);
       // ✅ REEMPLAZA POR:
       if (!puertoEmbarqueId) {
-        vals.push({  // ✅ Cambiar a vals.push
+        pendingValidations.push({  // ✅ CORRECTO
           nivel: "BL",
           severidad: "ERROR",
           campo: "puerto_embarque_id",
-          mensaje: `Puerto de embarque '${bl.puerto_embarque_cod || 'NO ESPECIFICADO'}' no existe en mantenedor de puertos (Linea 14 o 13)`,
-          valorCrudo: bl.puerto_embarque_cod || null
+          mensaje: `Puerto de embarque '${b.puerto_embarque_cod || 'NO ESPECIFICADO'}' no existe en mantenedor de puertos (Linea 14 o 13)`,
+          valorCrudo: b.puerto_embarque_cod || null
         });
       }
 
       const puertoDescargaId = await getPuertoIdByCodigo(conn, b.puerto_descarga_cod);
       if (!puertoDescargaId) {
-        vals.push({  // ✅ Cambiar a vals.push
+        pendingValidations.push({  // ✅ CORRECTO
           nivel: "BL",
           severidad: "ERROR",
           campo: "puerto_descarga_id",
-          mensaje: `Puerto de descarga '${bl.puerto_descarga_cod || 'NO ESPECIFICADO'}' no existe en mantenedor de puertos (Linea 14 o 13)`,
-          valorCrudo: bl.puerto_descarga_cod || null
+          mensaje: `Puerto de descarga '${b.puerto_descarga_cod || 'NO ESPECIFICADO'}' no existe en mantenedor de puertos (Linea 14 o 13)`,
+          valorCrudo: b.puerto_descarga_cod || null
         });
       }
 
@@ -2620,12 +2620,12 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
 
       const tipoServicioId = await getTipoServicioIdByCodigo(conn, b.tipoServicioCod);
       if (!tipoServicioId) {
-        vals.push({  // ✅ Cambiar a vals.push
+        pendingValidations.push({  // ✅ CORRECTO
           nivel: "BL",
           severidad: "ERROR",
           campo: "tipo_servicio_id",
           mensaje: "Tipo de servicio no existe en mantenedor",
-          valorCrudo: bl.tipoServicioCod || null
+          valorCrudo: b.tipoServicioCod || null
         });
       }
 
@@ -2718,7 +2718,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
 
       const blId = blIns.insertId;
       insertedOk++;
-      
+
       await conn.query("DELETE FROM bl_validaciones WHERE bl_id = ?", [blId]);
 
       // Validaciones nivel BL
@@ -3103,7 +3103,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
       reemplazadosEnMismoManifiesto,
       blsConErrores: blsConErroresFormateados
     });
-    
+
   } catch (err) {
     await conn.rollback();
 
@@ -3924,13 +3924,224 @@ app.get("/manifiestos/:id/bls", async (req, res) => {
 });
 
 
+app.put("/bls/:blNumber/carga-suelta", async (req, res) => {
+  const { blNumber } = req.params;
+  const formData = req.body;
 
+  const connection = await pool.getConnection();
 
+  try {
+    await connection.beginTransaction();
+
+    console.log('📝 Actualizando BL carga suelta:', blNumber);
+
+    // 1. Verificar que el BL existe
+    const [blCheck] = await connection.query(
+      `SELECT b.id, b.tipo_servicio_id, ts.codigo 
+       FROM bls b
+       LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
+       WHERE b.bl_number = ?`,
+      [blNumber]
+    );
+
+    if (blCheck.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({
+        success: false,
+        error: 'BL no encontrado'
+      });
+    }
+
+    const blId = blCheck[0].id;
+    const tipoServicioCodigo = blCheck[0].codigo;
+
+    // ✅ FIX: Si tipo_servicio_id es NULL, buscar el ID de 'BB'
+    let tipoServicioId = blCheck[0].tipo_servicio_id;
+
+    if (!tipoServicioId || tipoServicioCodigo !== 'BB') {
+      console.log('⚠️ tipo_servicio_id es NULL o no es BB, buscando ID de BB...');
+      const [tsBB] = await connection.query(
+        'SELECT id FROM tipos_servicio WHERE codigo = ?',
+        ['BB']
+      );
+
+      if (tsBB.length === 0) {
+        await connection.rollback();
+        return res.status(400).json({
+          success: false,
+          error: 'Tipo de servicio BB no existe en la base de datos'
+        });
+      }
+
+      tipoServicioId = tsBB[0].id;
+      console.log('✅ Tipo servicio BB encontrado, ID:', tipoServicioId);
+    }
+
+    console.log('✅ BL encontrado, ID:', blId);
+
+    // 2. Obtener IDs de puertos
+    const getPuertoId = async (codigo) => {
+      if (!codigo) return null;
+      const [r] = await connection.query('SELECT id FROM puertos WHERE codigo = ?', [codigo]);
+      return r[0]?.id || null;
+    };
+
+    const puertoEmbarqueId = await getPuertoId(formData.puerto_embarque);
+    const puertoDescargaId = await getPuertoId(formData.puerto_descarga);
+    const lugarDestinoId = await getPuertoId(formData.lugar_destino);
+    const lugarEntregaId = await getPuertoId(formData.lugar_entrega);
+
+    console.log('🌍 IDs de puertos obtenidos');
+
+    // 3. Actualizar datos básicos del BL
+    await connection.query(`
+      UPDATE bls SET
+        tipo_servicio_id = ?,
+        forma_pago_flete = ?,
+        cond_transporte = ?,
+        fecha_emision = ?,
+        fecha_presentacion = ?,
+        fecha_embarque = ?,
+        fecha_zarpe = ?,
+        puerto_embarque_cod = ?,
+        puerto_embarque_id = ?,
+        puerto_descarga_cod = ?,
+        puerto_descarga_id = ?,
+        lugar_destino_cod = ?,
+        lugar_destino_id = ?,
+        lugar_entrega_cod = ?,
+        lugar_entrega_id = ?,
+        shipper = ?,
+        consignee = ?,
+        notify_party = ?,
+        observaciones = ?,
+        updated_at = NOW()
+      WHERE id = ?
+    `, [
+      tipoServicioId,
+      formData.forma_pago_flete,
+      formData.cond_transporte,
+      formData.fecha_emision,
+      formData.fecha_presentacion,
+      formData.fecha_embarque,
+      formData.fecha_zarpe,
+      formData.puerto_embarque,
+      puertoEmbarqueId,
+      formData.puerto_descarga,
+      puertoDescargaId,
+      formData.lugar_destino,
+      lugarDestinoId,
+      formData.lugar_entrega,
+      lugarEntregaId,
+      formData.shipper,
+      formData.consignee,
+      formData.notify_party,
+      formData.observaciones || null,
+      blId
+    ]);
+
+    console.log('✅ Datos básicos actualizados');
+
+    // 4. Eliminar items existentes
+    await connection.query('DELETE FROM bl_items WHERE bl_id = ?', [blId]);
+    console.log('🗑️ Items antiguos eliminados');
+
+    // 5. Insertar items actualizados
+    let totalPeso = 0;
+    let totalVolumen = 0;
+    let totalBultos = 0;
+
+    for (const item of formData.items) {
+      await connection.query(`
+        INSERT INTO bl_items (
+          bl_id, 
+          numero_item, 
+          marcas, 
+          tipo_bulto, 
+          descripcion,
+          cantidad, 
+          peso_bruto, 
+          unidad_peso, 
+          volumen, 
+          unidad_volumen,
+          carga_peligrosa
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        blId,
+        item.numero_item,
+        item.marcas || 'N/M',
+        item.tipo_bulto,
+        item.descripcion,
+        parseInt(item.cantidad),
+        parseFloat(item.peso_bruto),
+        item.unidad_peso,
+        parseFloat(item.volumen),
+        item.unidad_volumen,
+        'N'
+      ]);
+
+      totalPeso += parseFloat(item.peso_bruto || 0);
+      totalVolumen += parseFloat(item.volumen || 0);
+      totalBultos += parseInt(item.cantidad || 0);
+    }
+
+    console.log('✅ Items nuevos insertados:', formData.items.length);
+
+    // 6. Actualizar totales en el BL
+    await connection.query(`
+      UPDATE bls SET
+        peso_bruto = ?,
+        volumen = ?,
+        bultos = ?,
+        total_items = ?,
+        unidad_peso = ?,
+        unidad_volumen = ?
+      WHERE id = ?
+    `, [
+      totalPeso,
+      totalVolumen,
+      totalBultos,
+      formData.items.length,
+      formData.items[0]?.unidad_peso || 'KGM',
+      formData.items[0]?.unidad_volumen || 'MTQ',
+      blId
+    ]);
+
+    console.log('✅ Totales actualizados');
+
+    await connection.commit();
+
+    console.log('🎉 BL actualizado exitosamente');
+
+    // ✅ RESPUESTA EXITOSA (status 200)
+    return res.status(200).json({
+      success: true,
+      bl_number: blNumber,
+      total_items: formData.items.length,
+      bultos: totalBultos,
+      peso_bruto: totalPeso,
+      volumen: totalVolumen
+    });
+
+  } catch (error) {
+    await connection.rollback();
+    console.error('❌ Error actualizando carga suelta:', error);
+    console.error('Stack:', error.stack);
+
+    // ✅ RESPUESTA DE ERROR (status 500 pero con success: false)
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+      details: error.stack
+    });
+  } finally {
+    connection.release();
+  }
+});
 // ============================================
 // ENDPOINTS PARA EDICIÓN DE BLs
 // ============================================
 
-// PUT - Actualizar un BL completo
 // PUT - Actualizar un BL completo
 app.put("/bls/:blNumber", async (req, res) => {
   const { blNumber } = req.params;
@@ -5304,6 +5515,421 @@ app.get('/mantenedores/puertos', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener puertos' });
   }
 });
+
+
+
+// ============================================
+// ENDPOINT: POST /manifiestos/:id/carga-suelta
+// Crear BL de Carga Suelta (Break Bulk)
+// BASADO EN XML REAL DE CARGA SUELTA
+// ============================================
+
+app.post("/manifiestos/:id/carga-suelta", async (req, res) => {
+  const { id: manifiestoId } = req.params;
+  const {
+    // Datos BL (Step 1)
+    bl_number,
+    tipo_servicio, // Debe ser 'BB'
+    forma_pago_flete, // 'PREPAID' o 'COLLECT'
+    cond_transporte, // 'HH', 'CY', etc.
+    fecha_emision,
+    fecha_presentacion, // 👈 AGREGADO
+    fecha_embarque,
+    fecha_zarpe,
+
+    // Locaciones
+    puerto_embarque, // Código (ej: CNSGH)
+    puerto_descarga, // Código (ej: CLSAI)
+    lugar_destino,   // Código
+    lugar_emision,   // 👈 AGREGADO (LEM en XML)
+    lugar_entrega,   // Código
+    lugar_recepcion,
+
+    // Participaciones (Step 2)
+    shipper,
+    consignee,
+    notify_party,
+
+    // Items (Step 3)
+    items, // Array de items
+
+    // Observaciones
+    observaciones
+  } = req.body;
+
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    // ============================================
+    // VALIDACIONES PREVIAS
+    // ============================================
+
+    // 1. Validar que el tipo de servicio sea BB
+    if (tipo_servicio !== 'BB') {
+      throw new Error('El tipo de servicio debe ser BB (Break Bulk) para carga suelta');
+    }
+
+    // 2. Validar que el manifiesto existe
+    const [manifiestos] = await connection.query(
+      'SELECT id, viaje FROM manifiestos WHERE id = ?',
+      [manifiestoId]
+    );
+    if (manifiestos.length === 0) {
+      throw new Error('Manifiesto no encontrado');
+    }
+
+    // 3. Validar que el BL no exista (bl_number único)
+    const [blsExistentes] = await connection.query(
+      'SELECT id FROM bls WHERE bl_number = ?',
+      [bl_number]
+    );
+    if (blsExistentes.length > 0) {
+      throw new Error(`El BL ${bl_number} ya existe en el sistema`);
+    }
+
+    // 4. Validar campos obligatorios del BL
+    const camposObligatorios = [
+      { campo: bl_number, nombre: 'N° de BL' },
+      { campo: shipper, nombre: 'Shipper' },
+      { campo: consignee, nombre: 'Consignee' },
+      { campo: puerto_embarque, nombre: 'Puerto de Embarque' },
+      { campo: puerto_descarga, nombre: 'Puerto de Descarga' },
+      { campo: lugar_destino, nombre: 'Lugar de Destino' },
+      { campo: lugar_emision, nombre: 'Lugar de Emisión' }, // 👈 AGREGADO
+      { campo: lugar_entrega, nombre: 'Lugar de Entrega' },
+      { campo: lugar_recepcion, nombre: 'Lugar de Recepción' },  // ✅ AGREGAR
+      { campo: fecha_presentacion, nombre: 'Fecha de Presentación' } // 👈 AGREGADO
+    ];
+
+    for (const { campo, nombre } of camposObligatorios) {
+      if (!campo || campo.trim() === '') {
+        throw new Error(`El campo ${nombre} es obligatorio`);
+      }
+    }
+
+    // 5. Validar que haya al menos 1 item
+    if (!items || items.length === 0) {
+      throw new Error('Debe haber al menos 1 item de carga');
+    }
+
+    // 6. Validar cada item
+    for (const item of items) {
+      // Descripción obligatoria
+      if (!item.descripcion || item.descripcion.trim() === '') {
+        throw new Error(`El item #${item.numero_item} debe tener descripción`);
+      }
+
+      // Tipo de bulto obligatorio
+      if (!item.tipo_bulto || item.tipo_bulto.trim() === '') {
+        throw new Error(`El item #${item.numero_item} debe tener tipo de bulto`);
+      }
+
+      // Peso mayor a 0
+      if (!item.peso_bruto || parseFloat(item.peso_bruto) <= 0) {
+        throw new Error(`El item #${item.numero_item} debe tener peso bruto mayor a 0`);
+      }
+
+      // Cantidad mayor a 0
+      if (!item.cantidad || parseInt(item.cantidad) <= 0) {
+        throw new Error(`El item #${item.numero_item} debe tener cantidad mayor a 0`);
+      }
+    }
+
+    // ============================================
+    // OBTENER IDs DE PUERTOS Y TIPO DE SERVICIO
+    // ============================================
+
+    // Obtener tipo_servicio_id para BB
+    const [tiposServicio] = await connection.query(
+      'SELECT id FROM tipos_servicio WHERE codigo = ?',
+      ['BB']
+    );
+    if (tiposServicio.length === 0) {
+      throw new Error('Tipo de servicio BB no encontrado. Ejecuta primero el script de migración.');
+    }
+    const tipo_servicio_id = tiposServicio[0].id;
+
+    // Función auxiliar para obtener o crear puerto
+    const obtenerPuerto = async (codigo, nombreCampo) => {
+      if (!codigo || codigo.trim() === '') {
+        throw new Error(`El campo ${nombreCampo} es obligatorio`);
+      }
+
+      const codigoUpper = codigo.toUpperCase().trim();
+
+      const [rows] = await connection.query(
+        'SELECT id, codigo FROM puertos WHERE codigo = ?',
+        [codigoUpper]
+      );
+
+      if (rows.length === 0) {
+        throw new Error(`El puerto '${codigoUpper}' (${nombreCampo}) no existe en el mantenedor`);
+      }
+
+      return rows[0]; // 👈 devuelve ID + CODIGO
+    };
+
+
+    // Obtener IDs de puertos (TODOS SON OBLIGATORIOS)
+    const puertoEmbarque = await obtenerPuerto(puerto_embarque, 'Puerto de Embarque');
+    const puertoDescarga = await obtenerPuerto(puerto_descarga, 'Puerto de Descarga');
+const lugarDestino =
+  !lugar_destino || lugar_destino === 'VALPARAISO' || lugar_destino === 'NO ESPECIFICADO'
+    ? null
+    : await obtenerPuerto(lugar_destino, 'Lugar de Destino');
+    const lugarEmision = await obtenerPuerto(lugar_emision, 'Lugar de Emisión');
+    const lugarEntrega = await obtenerPuerto(lugar_entrega, 'Lugar de Entrega');
+    const lugarRecepcion = await obtenerPuerto(lugar_recepcion, 'Lugar de Recepción');
+
+
+    // ============================================
+    // CALCULAR TOTALES (según XML: total-bultos, total-peso, total-volumen)
+    // ============================================
+
+    const peso_bruto_total = items.reduce((sum, item) =>
+      sum + parseFloat(item.peso_bruto || 0), 0
+    );
+
+    const volumen_total = items.reduce((sum, item) =>
+      sum + parseFloat(item.volumen || 0), 0
+    );
+
+    const bultos_total = items.reduce((sum, item) =>
+      sum + parseInt(item.cantidad || 0), 0
+    );
+
+// ============================================
+// INSERTAR BL
+// ============================================
+
+const [blResult] = await connection.query(
+  `INSERT INTO bls (
+    manifiesto_id,
+    bl_number,
+    tipo_servicio_id,
+    forma_pago_flete,
+    cond_transporte,
+    shipper,
+    consignee,
+    notify_party,
+    fecha_emision,
+    fecha_presentacion,
+    fecha_embarque,
+    fecha_zarpe,
+    puerto_embarque_id,
+    puerto_embarque_cod,
+    puerto_descarga_id,
+    puerto_descarga_cod,
+    lugar_destino_id,
+    lugar_destino_cod,
+    lugar_emision_id,
+    lugar_emision_cod,
+    lugar_entrega_id,
+    lugar_entrega_cod,
+    lugar_recepcion_id,
+    lugar_recepcion_cod,
+    peso_bruto,
+    unidad_peso,
+    volumen,
+    unidad_volumen,
+    bultos,
+    total_items,
+    observaciones,
+    status,
+    valid_status
+  ) VALUES (
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+    ?, ?, ?, ?, ?, ?, ?, ?, ?
+  )`,
+  [
+    manifiestoId,
+    bl_number,
+    tipo_servicio_id,
+    forma_pago_flete || 'PREPAID',
+    cond_transporte || 'HH',
+    shipper,
+    consignee,
+    notify_party || null,
+    fecha_emision || null,
+    fecha_presentacion || null,
+    fecha_embarque || null,
+    fecha_zarpe || null,
+
+    puertoEmbarque.id,
+    puertoEmbarque.codigo,
+
+    puertoDescarga.id,
+    puertoDescarga.codigo,
+
+    lugarDestino.id,
+    lugarDestino.codigo,
+
+    lugarEmision.id,
+    lugarEmision.codigo,
+
+    lugarEntrega.id,
+    lugarEntrega.codigo,
+
+    lugarRecepcion.id,
+    lugarRecepcion.codigo,
+
+    peso_bruto_total,
+    'KGM',
+    volumen_total,
+    'MTQ',
+    bultos_total,
+    items.length,
+    observaciones || null,
+    'CREADO',
+    'OK'
+  ]
+);
+
+const bl_id = blResult.insertId;
+
+
+    // ============================================
+    // INSERTAR ITEMS
+    // ============================================
+
+    for (const item of items) {
+      await connection.query(
+        `INSERT INTO bl_items (
+          bl_id,
+          numero_item,
+          descripcion,
+          marcas,
+          carga_peligrosa,
+          tipo_bulto,
+          cantidad,
+          peso_bruto,
+          unidad_peso,
+          volumen,
+          unidad_volumen,
+          created_at,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        [
+          bl_id,
+          item.numero_item,
+          item.descripcion,
+          item.marcas || 'N/M',
+          item.carga_peligrosa || 'N',
+          item.tipo_bulto,
+          item.cantidad,
+          item.peso_bruto,
+          item.unidad_peso || 'KGM',
+          item.volumen || 0,
+          item.unidad_volumen || 'MTQ'
+          // 👆 SIN carga_cnt - quedará NULL en la BD
+        ]
+      );
+    }
+
+    await connection.commit();
+
+    // ============================================
+    // RESPUESTA EXITOSA
+    // ============================================
+
+    res.status(201).json({
+      success: true,
+      message: 'Carga suelta creada exitosamente',
+      bl_id,
+      bl_number,
+      tipo_servicio: 'BB',
+      manifiesto: manifiestos[0].viaje,
+      total_items: items.length,
+      peso_bruto: peso_bruto_total,
+      volumen: volumen_total,
+      bultos: bultos_total
+    });
+
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error al crear carga suelta:', error);
+
+    res.status(400).json({
+      success: false,
+      error: error.message || 'Error al crear la carga suelta'
+    });
+  } finally {
+    connection.release();
+  }
+});
+
+// ============================================
+// ENDPOINT: GET /bls/:id/validar-tipo
+// Validar que un BL sea del tipo correcto
+// ============================================
+
+app.get("/bls/:id/validar-tipo", async (req, res) => {
+  const { id: bl_id } = req.params;
+
+  try {
+    const connection = await pool.getConnection();
+
+    const [bls] = await connection.query(
+      `SELECT 
+        b.id,
+        b.bl_number,
+        ts.codigo as tipo_servicio,
+        ts.nombre as tipo_servicio_nombre,
+        COUNT(c.id) as total_contenedores,
+        b.total_items,
+        b.peso_bruto,
+        b.bultos
+      FROM bls b
+      JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
+      LEFT JOIN bl_contenedores c ON b.id = c.bl_id
+      WHERE b.id = ?
+      GROUP BY b.id`,
+      [bl_id]
+    );
+
+    connection.release();
+
+    if (bls.length === 0) {
+      return res.status(404).json({ error: 'BL no encontrado' });
+    }
+
+    const bl = bls[0];
+    const errores = [];
+
+    // Validar según tipo de servicio
+    if (bl.tipo_servicio === 'BB') {
+      // Carga suelta NO debe tener contenedores
+      if (bl.total_contenedores > 0) {
+        errores.push(`Un BL de carga suelta (BB) no puede tener contenedores (encontrados: ${bl.total_contenedores})`);
+      }
+
+      // Debe tener items
+      if (bl.total_items === 0) {
+        errores.push('Un BL de carga suelta debe tener al menos 1 item');
+      }
+    } else if (bl.tipo_servicio === 'FF' || bl.tipo_servicio === 'MM') {
+      // Contenedor DEBE tener contenedores
+      if (bl.total_contenedores === 0) {
+        errores.push(`Un BL de tipo ${bl.tipo_servicio} debe tener al menos 1 contenedor`);
+      }
+    }
+
+    res.json({
+      success: errores.length === 0,
+      bl,
+      errores,
+      es_carga_suelta: bl.tipo_servicio === 'BB'
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
 
 
 const port = Number(process.env.PORT || 4000);

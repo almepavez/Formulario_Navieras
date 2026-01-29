@@ -430,7 +430,18 @@ const ManifiestoDetalle = () => {
                     Guardar cambios
                   </button>
                 </>
+
+                
               )}
+              <button
+  onClick={() => navigate(`/manifiestos/${id}/carga-suelta/nuevo`)}
+  className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 whitespace-nowrap flex items-center gap-2 flex-shrink-0"
+>
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+  </svg>
+  Nueva Carga Suelta
+</button>
             </div>
           </div>
         </div>

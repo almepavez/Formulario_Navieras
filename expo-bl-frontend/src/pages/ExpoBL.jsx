@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
-import { Pencil, Edit3 } from "lucide-react"; // ← Agregado Edit3
+import { Pencil, Edit3 } from "lucide-react";
 
 const estadoStyles = {
     "CREADO": "bg-blue-100 text-blue-800 ring-blue-200",
@@ -41,6 +41,7 @@ const ExpoBL = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [statusFilter, setStatusFilter] = useState("TODOS");
     const [viajeFilter, setViajeFilter] = useState("TODOS");
+    const [tipoCargaFilter, setTipoCargaFilter] = useState("TODOS"); // Filtro tipo carga
 
     // Paginación
     const [currentPage, setCurrentPage] = useState(1);
@@ -79,8 +80,19 @@ const ExpoBL = () => {
 
         const matchesStatus = statusFilter === "TODOS" || bl.status === statusFilter;
         const matchesViaje = viajeFilter === "TODOS" || bl.viaje === viajeFilter;
+        
+        // Filtro tipo de carga: BB = Carga Suelta, Otros = Contenedor
+        let matchesTipoCarga = true;
+        if (tipoCargaFilter === "SUELTA") {
+            // Carga suelta es cuando tipo_servicio es "BB"
+            matchesTipoCarga = (bl.tipo_servicio || "").toUpperCase() === "BB";
+        } else if (tipoCargaFilter === "CONTENEDOR") {
+            // Contenedor es cuando tipo_servicio NO es "BB"
+            const tipoServicio = (bl.tipo_servicio || "").toUpperCase();
+            matchesTipoCarga = tipoServicio && tipoServicio !== "BB";
+        }
 
-        return matchesSearch && matchesStatus && matchesViaje;
+        return matchesSearch && matchesStatus && matchesViaje && matchesTipoCarga;
     });
 
     // Calcular paginación
@@ -92,7 +104,7 @@ const ExpoBL = () => {
     // Resetear página cuando cambien los filtros
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchTerm, statusFilter, viajeFilter, itemsPerPage]);
+    }, [searchTerm, statusFilter, viajeFilter, tipoCargaFilter, itemsPerPage]);
 
     // Generar números de página con ellipsis
     const getPageNumbers = () => {
@@ -168,7 +180,7 @@ const ExpoBL = () => {
 
                     {/* Barra de filtros */}
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             {/* Búsqueda */}
                             <div className="md:col-span-1">
                                 <input
@@ -191,6 +203,19 @@ const ExpoBL = () => {
                                     {viajes.map(viaje => (
                                         <option key={viaje} value={viaje}>{viaje}</option>
                                     ))}
+                                </select>
+                            </div>
+
+                            {/* Filtro Tipo de Carga */}
+                            <div>
+                                <select
+                                    value={tipoCargaFilter}
+                                    onChange={(e) => setTipoCargaFilter(e.target.value)}
+                                    className="w-full px-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
+                                >
+                                    <option value="TODOS">Todos los tipos</option>
+                                    <option value="CONTENEDOR">Contenedor</option>
+                                    <option value="SUELTA">Carga Suelta (BB)</option>
                                 </select>
                             </div>
 
@@ -321,7 +346,7 @@ const ExpoBL = () => {
                                 {!loading && filteredBLs.length === 0 && (
                                     <tr>
                                         <td className="px-6 py-10 text-center text-slate-500" colSpan={9}>
-                                            {searchTerm || statusFilter !== "TODOS" || viajeFilter !== "TODOS"
+                                            {searchTerm || statusFilter !== "TODOS" || viajeFilter !== "TODOS" || tipoCargaFilter !== "TODOS"
                                                 ? "No se encontraron BLs con los filtros aplicados"
                                                 : "No hay BLs registrados aún"}
                                         </td>
