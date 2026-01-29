@@ -291,7 +291,7 @@ const GenerarXML = () => {
     if (blsConErrores.length > 0) {
       const erroresHTML = blsConErrores.map(bl =>
         `<div style="text-align: left; margin-bottom: 12px; padding: 12px; background: #FEE2E2; border-radius: 8px; border: 1px solid #FCA5A5;">
-      <strong style="color: #DC2626; font-size: 14px;">📋 ${bl.bl_number}</strong><br/>
+      <strong style="color: #DC2626; font-size: 14px;">${bl.bl_number}</strong><br/>
       <p style="margin: 8px 0; font-size: 13px; color: #991B1B;">
         ${bl.valid_count_error} error(es) crítico(s)
       </p>
@@ -315,7 +315,7 @@ const GenerarXML = () => {
       </div>
       <div style="background: #FEF3C7; padding: 12px; border-radius: 8px; margin-top: 16px; border: 1px solid #FCD34D;">
         <p style="color: #92400E; font-size: 13px; margin: 0;">
-          <strong>💡 Solución:</strong> Edita los BLs con errores para completar los campos faltantes.
+          <strong>Solución:</strong> Edita los BLs con errores para completar los campos faltantes.
         </p>
       </div>
     `,

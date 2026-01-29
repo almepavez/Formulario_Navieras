@@ -2655,21 +2655,21 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
       const lugarEmisionId = await getPuertoIdByCodigo(conn, b.lugar_emision_cod);
       if (!lugarEmisionId) pendingValidations.push({
         nivel: "BL", severidad: "ERROR", campo: "lugar_emision_id",
-        mensaje: "Lugar de emisión no existe en mantenedor de puertos (Linea 74)",
+        mensaje: `Lugar de emisión '${b.lugar_emision_cod || 'No encontrado'}' no existe en mantenedor de puertos (Linea 74)`,
         valorCrudo: b.lugar_emision_cod || null
       });
 
       const puertoEmbarqueId = await getPuertoIdByCodigo(conn, b.puerto_embarque_cod);
       if (!puertoEmbarqueId) pendingValidations.push({
         nivel: "BL", severidad: "ERROR", campo: "puerto_embarque_id",
-        mensaje: "Puerto de embarque no existe en mantenedor de puertos (Linea 14 o 13)",
+        mensaje: `Puerto de embarque '${b.puerto_embarque_cod || 'No encontrado'}' no existe en mantenedor de puertos (Linea 14 o 13)`,
         valorCrudo: b.puerto_embarque_cod || null
       });
 
       const puertoDescargaId = await getPuertoIdByCodigo(conn, b.puerto_descarga_cod);
       if (!puertoDescargaId) pendingValidations.push({
         nivel: "BL", severidad: "ERROR", campo: "puerto_descarga_id",
-        mensaje: "Puerto de descarga no existe en mantenedor de puertos (Linea 14 o 13)",
+        mensaje: `Puerto de descarga '${b.puerto_descarga_cod || 'No encontrado'}' no existe en mantenedor de puertos (Linea 14 o 13)`,
         valorCrudo: b.puerto_descarga_cod || null
       });
 
@@ -4743,14 +4743,14 @@ async function revalidarBLCompleto(conn, blId) {
   if (!lugarEmisionId) {
     vals.push({
       nivel: "BL", severidad: "ERROR", campo: "lugar_emision_id",
-      mensaje: "Lugar de emisión no existe en mantenedor de puertos (Linea 74)",
+      mensaje: `Lugar de emisión '${bl.lugar_emision_cod || 'No encontrado'}' no existe en mantenedor de puertos (Linea 74)`,
       valorCrudo: bl.lugar_emision_cod || null
     });
   }
   if (!puertoEmbarqueId) {
     vals.push({
       nivel: "BL", severidad: "ERROR", campo: "puerto_embarque_id",
-      mensaje: "Puerto de embarque no existe en mantenedor de puertos (Linea 14 o 13)",
+      mensaje: `Puerto de embarque '${bl.puerto_embarque_cod || 'No encontrado'}' no existe en mantenedor de puertos (Linea 14 o 13)`,
       valorCrudo: bl.puerto_embarque_cod || null
     });
   }
@@ -4761,7 +4761,7 @@ async function revalidarBLCompleto(conn, blId) {
       nivel: "BL",
       severidad: "ERROR",
       campo: "puerto_descarga_id",
-      mensaje: `Puerto de descarga '${bl.puerto_descarga_cod || 'NO ESPECIFICADO'}' no existe en mantenedor de puertos (Linea 14 o 13)`,
+      mensaje: `Puerto de descarga '${bl.puerto_descarga_cod || 'No encontrado'}' no existe en mantenedor de puertos (Linea 14 o 13)`,
       valorCrudo: bl.puerto_descarga_cod || null
     });
   }
@@ -4775,9 +4775,9 @@ async function revalidarBLCompleto(conn, blId) {
 
   // BL: LD/LEM/LRM (si no existen, ERROR)
   // BL: LD/LEM/LRM (si no existen, ERROR)
-  if (!lugarDestinoId) vals.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_destino_id", mensaje: `Lugar destino '${bl.lugar_destino_cod || 'NO ESPECIFICADO'}' no existe en mantenedor de puertos`, valorCrudo: bl.lugar_destino_cod || null });
-  if (!lugarEntregaId) vals.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_entrega_id", mensaje: `Lugar entrega '${bl.lugar_entrega_cod || 'NO ESPECIFICADO'}' no existe en mantenedor de puertos`, valorCrudo: bl.lugar_entrega_cod || null });
-  if (!lugarRecepcionId) vals.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_recepcion_id", mensaje: `Lugar recepción '${bl.lugar_recepcion_cod || 'NO ESPECIFICADO'}' no existe en mantenedor de puertos`, valorCrudo: bl.lugar_recepcion_cod || null });
+  if (!lugarDestinoId) vals.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_destino_id", mensaje: `Lugar destino no existe en mantenedor de puertos (Revisar puerto de descarga)`, valorCrudo: bl.lugar_destino_cod || null });
+  if (!lugarEntregaId) vals.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_entrega_id", mensaje: `Lugar entrega no existe en mantenedor de puertos (Revisar puerto de descarga)`, valorCrudo: bl.lugar_entrega_cod || null });
+  if (!lugarRecepcionId) vals.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_recepcion_id", mensaje: `Lugar recepción no existe en mantenedor de puertos (Revisar puerto de embarque)`, valorCrudo: bl.lugar_recepcion_cod || null });
   // BL: fechas obligatorias
   if (isBlank(bl.fecha_emision)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_emision", mensaje: "Falta fecha_emision (Linea 11)", valorCrudo: bl.fecha_emision || null });
   if (isBlank(bl.fecha_presentacion)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_presentacion", mensaje: "Falta fecha_presentacion (Linea 00)", valorCrudo: bl.fecha_presentacion || null });
