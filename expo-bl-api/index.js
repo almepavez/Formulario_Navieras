@@ -2234,6 +2234,13 @@ function extractItemsFrom41_44_47(bLines) {
     const n = parseInt(m[1], 10);
     const it = getItem(n);
 
+    // ✅ NUEVO: cantidad esperada desde 41 (ej: "Y000003")
+    const my = String(l).match(/Y(\d{6})/);
+    if (my) {
+      const exp = parseInt(my[1], 10);
+      if (Number.isFinite(exp)) it.cantidad = exp; // ✅ cantidad = esperada (línea 41)
+    }
+
     // peso/volumen desde tu extractor existente
     if (typeof extractWeightVolumeFrom41 === "function") {
       const { peso, volumen } = extractWeightVolumeFrom41(l);
@@ -2426,7 +2433,7 @@ function parsePmsTxt(content) {
 
         const contsDelItem = (contenedores || []).filter(c => Number(c.itemNo) === itemNum);
 
-        it.cantidad = contsDelItem.length || null;
+        it.cantidad_real = contsDelItem.length;
 
         const tieneLinea56 = contsDelItem.some(c => c._hasLinea56 === true);
         it.carga_peligrosa = tieneLinea56 ? "S" : "N";
@@ -2761,6 +2768,16 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
       const itemIdByNumero = new Map();
       const itemsArr = Array.isArray(b.items) ? b.items : [];
 
+      // Contar contenedores por itemNo según lo que viene en el PMS
+      const contCountByItemNo = new Map();
+      const conts = Array.isArray(b.contenedores) ? b.contenedores : [];
+
+      for (const c of conts) {
+        const itemNo = Number(c?.itemNo);
+        if (!itemNo) continue;
+        contCountByItemNo.set(itemNo, (contCountByItemNo.get(itemNo) || 0) + 1);
+      }
+
       for (const it of itemsArr) {
         const itemNum = Number(it.numero_item) || null;
         const pendingItemValidations = [];
@@ -2793,13 +2810,31 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         const itemId = itIns.insertId;
         if (itemNum) itemIdByNumero.set(itemNum, itemId);
 
+        const esperados = num(it.cantidad); // cantidad declarada en el item
+        const enArchivo = itemNum ? (contCountByItemNo.get(itemNum) || 0) : 0;
+
+        if (itemNum && esperados != null && esperados > 0 && enArchivo < esperados) {
+          const faltan = esperados - enArchivo;
+
+          const v = {
+            nivel: "ITEM",
+            sec: itemNum,
+            severidad: "ERROR",
+            campo: "contenedores",
+            mensaje: `Faltan contenedores para el item: se esperaban ${esperados} (cantidad) y el PMS trae ${enArchivo}. Faltan ${faltan}.`,
+            valorCrudo: JSON.stringify({ esperados, enArchivo, faltan })
+          };
+
+          await addValidacion(conn, { blId, ...v, refId: itemId });
+          await addValidacionPMS(conn, { blId, ...v, refId: itemId });
+        }
+
         for (const v of pendingItemValidations) {
           await addValidacion(conn, { blId, ...v, refId: itemId });
           await addValidacionPMS(conn, { blId, ...v, refId: itemId });
         }
       }
 
-      const conts = Array.isArray(b.contenedores) ? b.contenedores : [];
       for (const c of conts) {
         const itemId = Number.isFinite(Number(c?.itemNo))
           ? (itemIdByNumero.get(Number(c.itemNo)) || null)
@@ -4799,6 +4834,17 @@ async function revalidarBLCompleto(conn, blId) {
   if (isBlank(bl.consignee)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "consignee", mensaje: "Falta consignee (Linea 21)", valorCrudo: bl.consignee || null });
   if (isBlank(bl.notify_party)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "notify_party", mensaje: "Falta notify (Linea 26)", valorCrudo: bl.notify_party || null });
 
+
+  // ✅ NUEVO: contar contenedores reales por item_id (lo que realmente quedó en BD)
+  const contCountByItemId = new Map(); // item_id -> count
+
+  for (const c of contenedores) {
+    const itemId = c.item_id ? Number(c.item_id) : null;
+    if (!itemId) continue;
+    contCountByItemId.set(itemId, (contCountByItemId.get(itemId) || 0) + 1);
+  }
+
+
   // ---- ITEMS (misma lógica)
   for (const it of items) {
     const itemNum = Number(it.numero_item) || null;
@@ -4825,6 +4871,24 @@ async function revalidarBLCompleto(conn, blId) {
 
     if (num(it.cantidad) == null || num(it.cantidad) < 1) {
       vals.push({ nivel: "ITEM", ref_id: refId, sec: itemNum, severidad: "ERROR", campo: "cantidad", mensaje: "Cantidad de contenedores debe ser >= 1 para un item (Linea 51)", valorCrudo: it.cantidad });
+    }
+
+    // ✅ NUEVO: mismatch entre "esperados" (it.cantidad) vs "reales" (contenedores en BD)
+    const esperados = num(it.cantidad); // cantidad esperada (línea 41 en tu flujo)
+    const reales = contCountByItemId.get(refId) || 0;
+
+    if (itemNum && esperados != null && esperados > 0 && reales < esperados) {
+      const faltan = esperados - reales;
+
+      vals.push({
+        nivel: "ITEM",
+        ref_id: refId,
+        sec: itemNum,
+        severidad: "ERROR",
+        campo: "contenedores",
+        mensaje: `Faltan contenedores para el item: se esperaban ${esperados} (cantidad) y hay ${reales} en BD. Faltan ${faltan}.`,
+        valorCrudo: JSON.stringify({ esperados, reales, faltan })
+      });
     }
 
     if (num(it.peso_bruto) == null || num(it.peso_bruto) <= 0) {
