@@ -342,13 +342,41 @@ const ManifiestoDetalle = () => {
 
       const data = await res.json();
 
+      const inserted = Number(data.inserted || 0);
+      const reemplazados = Number(data.reemplazados || 0);
+      const ignorados = Number(data.ignorados_duplicados_archivo || 0);
+      const procesadosTotal = Number(data.procesados_total ?? (inserted + reemplazados));
+
+      const blsConErrores = Array.isArray(data.blsConErrores) ? data.blsConErrores : [];
+
+      const erroresHtml = blsConErrores.length
+        ? `
+          <div style="text-align:left; margin-top:10px;">
+            <strong>BLs con errores:</strong>
+            <ul style="margin:6px 0 0 18px;">
+              ${blsConErrores
+                .map(bl => `<li>${bl.bl_number} (${bl.total_errores} errores)</li>`)
+                .join("")}
+            </ul>
+          </div>
+        `
+        : "";
+
       await Swal.fire({
         title: "¡PMS procesado!",
-        html: `Se crearon <strong>${data.inserted}</strong> BL(s) correctamente`,
         icon: "success",
+        html: `
+          <div style="text-align:left">
+            <div><strong>BLs procesados:</strong> ${procesadosTotal}</div>
+            <div><strong>BLs nuevos:</strong> ${inserted}</div>
+            <div><strong>BLs reemplazados:</strong> ${reemplazados}</div>
+            <div><strong>Duplicados ignorados (archivo):</strong> ${ignorados}</div>
+            ${erroresHtml}
+          </div>
+        `,
         confirmButtonColor: "#10b981",
-        timer: 3000,
       });
+
 
       // 🔥 IMPORTANTE: Resetear archivo y recargar datos
       setPmsFile(null);
