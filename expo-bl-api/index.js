@@ -2234,21 +2234,19 @@ function extractItemsFrom41_44_47(bLines) {
     const n = parseInt(m[1], 10);
     const it = getItem(n);
 
-    // ✅ NUEVO: cantidad esperada desde 41 (ej: "Y000003")
+    // cantidad esperada desde 41 (ej: "Y000003")
     const my = String(l).match(/Y(\d{6})/);
     if (my) {
       const exp = parseInt(my[1], 10);
-      if (Number.isFinite(exp)) it.cantidad = exp; // ✅ cantidad = esperada (línea 41)
+      if (Number.isFinite(exp)) it.cantidad = exp;
     }
 
-    // peso/volumen desde tu extractor existente
     if (typeof extractWeightVolumeFrom41 === "function") {
       const { peso, volumen } = extractWeightVolumeFrom41(l);
       if (typeof peso === "number") it.peso_bruto = peso;
       if (typeof volumen === "number") it.volumen = volumen;
     }
 
-    // unidades desde tu extractor existente
     if (typeof extractUnitsFrom41 === "function") {
       const u = extractUnitsFrom41(l);
       if (u?.unidadPeso) it.unidad_peso = u.unidadPeso;
@@ -2278,8 +2276,32 @@ function extractItemsFrom41_44_47(bLines) {
     it.descripcion = it.descripcion ? `${it.descripcion} ${txt}` : txt;
   }
 
-  return [...byItem.values()].sort((a, b) => a.numero_item - b.numero_item);
+  const arr = [...byItem.values()].sort((a, b) => a.numero_item - b.numero_item);
+
+  // ✅ NUEVO: negocio Sidemar (todo en item 1; el resto ".")
+  if (arr.length > 1) {
+    const first = arr[0];
+
+    // juntar todo lo que exista en cualquier item dentro del primero
+    const allDesc = arr.map(x => (x.descripcion || "").trim()).filter(Boolean).join(" ");
+    const allMarcas = arr.map(x => (x.marcas || "").trim()).filter(Boolean).join(" ");
+
+    first.descripcion = (allDesc || first.descripcion || ".").trim();
+    first.marcas = (allMarcas || first.marcas || ".").trim();
+
+    for (let i = 1; i < arr.length; i++) {
+      arr[i].descripcion = ".";
+      arr[i].marcas = ".";
+    }
+  } else if (arr.length === 1) {
+    // si solo hay 1 item y viene vacío, igual lo protegemos
+    arr[0].descripcion = (arr[0].descripcion || ".").trim();
+    arr[0].marcas = (arr[0].marcas || ".").trim();
+  }
+
+  return arr;
 }
+
 
 async function insertSellos(conn, contenedorId, sellos) {
   if (!contenedorId) return;
