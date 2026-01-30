@@ -4979,6 +4979,22 @@ async function revalidarBLCompleto(conn, blId) {
     ? await getTipoServicioIdByCodigo(conn, tipoServicioCod)
     : bl.tipo_servicio_id;
 
+  // resolver codigo final (por si tipo_servicio_cod viene null)
+  let tipoServicioCodFinal = (bl.tipo_servicio_cod || "").trim();
+  if (!tipoServicioCodFinal && tipoServicioId) {
+    const [[ts]] = await conn.query(
+      "SELECT codigo FROM tipos_servicio WHERE id = ? LIMIT 1",
+      [tipoServicioId]
+    );
+    tipoServicioCodFinal = (ts?.codigo || "").trim();
+  }
+
+  // ✅ BB (carga suelta) se mantiene por reglas de formulario, no PMS
+  if (tipoServicioCodFinal.toUpperCase() === "BB") {
+    await refreshResumenValidacionBL(conn, blId);
+    return;
+  }
+
   // actualiza FKs si corresponde (opcional, pero recomendado)
   await conn.query(
     `UPDATE bls SET
