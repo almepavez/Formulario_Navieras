@@ -25,8 +25,14 @@ const ExpoBLEdit = () => {
     const [contenedores, setContenedores] = useState([]);
     const [transbordos, setTransbordos] = useState([]);
     const [tiposBulto, setTiposBulto] = useState([]); // 🆕 NUEVO
+    const [tiposContenedor, setTiposContenedor] = useState([]);
 
-
+    useEffect(() => {
+        fetch('http://localhost:4000/tipos-contenedor')  // ✅ CORRECTO
+            .then(res => res.json())
+            .then(data => setTiposContenedor(data))
+            .catch(err => console.error('Error:', err));
+    }, []);
 
     // Estado del formulario
     // REEMPLAZAR POR:
@@ -79,7 +85,13 @@ const ExpoBLEdit = () => {
                     const dataTiposBulto = await resTiposBulto.json();
                     setTiposBulto(dataTiposBulto);
                 }
-
+                // AGREGAR INMEDIATAMENTE DESPUÉS:
+                // 🆕 Cargar tipos de contenedor
+                const resTiposContenedor = await fetch(`http://localhost:4000/tipos-contenedor`);
+                if (resTiposContenedor.ok) {
+                    const dataTiposContenedor = await resTiposContenedor.json();
+                    setTiposContenedor(dataTiposContenedor);
+                }
                 // Función para convertir fecha MySQL a formato input[type="date"]
                 const formatDate = (mysqlDate) => {
                     if (!mysqlDate) return "";
@@ -163,6 +175,107 @@ const ExpoBLEdit = () => {
                 item.id === itemId ? { ...item, [field]: value } : item
             )
         );
+    };
+
+    // 🆕 FUNCIÓN PARA AGREGAR CONTENEDOR A UN ITEM
+const addContenedorToItem = async (itemId, itemNumero) => {
+    const { value: formValues } = await Swal.fire({
+        title: `Agregar Contenedor al Item ${itemNumero}`,
+        html: `
+            <div class="space-y-4">
+                <div class="text-left">
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Código Contenedor</label>
+                    <input id="codigo_contenedor" class="swal2-input w-full" placeholder="Ej: MSCU1234567" maxlength="11" style="margin: 0;">
+                    <p class="text-xs text-slate-500 mt-1">11 caracteres: 4 letras + 7 números</p>
+                </div>
+                <div class="text-left">
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Tipo Contenedor</label>
+                    <select id="tipo_contenedor" class="swal2-input w-full" style="margin: 0;">
+                        <option value="">Seleccionar tipo...</option>
+                        ${tiposContenedor.map(tipo => `<option value="${tipo.tipo_cnt}">${tipo.tipo_cnt}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Agregar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#10b981',
+        width: '500px',
+        preConfirm: () => {
+            const codigo = document.getElementById('codigo_contenedor').value.trim().toUpperCase();
+            const tipo = document.getElementById('tipo_contenedor').value;
+
+            if (!codigo) {
+                Swal.showValidationMessage('Debes ingresar el código del contenedor');
+                return null;
+            }
+            if (codigo.length !== 11) {
+                Swal.showValidationMessage('El código debe tener exactamente 11 caracteres');
+                return null;
+            }
+            if (!tipo) {
+                Swal.showValidationMessage('Debes seleccionar un tipo de contenedor');
+                return null;
+            }
+
+            // Verificar si el contenedor ya existe
+            const existe = contenedores.some(c => c.codigo === codigo);
+            if (existe) {
+                Swal.showValidationMessage('Este contenedor ya existe en el BL');
+                return null;
+            }
+
+            return { codigo, tipo };
+        }
+    });
+
+    if (formValues) {
+        // Crear nuevo contenedor
+        const nuevoContenedor = {
+            id: `new_${Date.now()}`,
+            item_id: itemId,  // 🔥 AGREGAR ESTA LÍNEA
+            codigo: formValues.codigo,
+            tipo_cnt: formValues.tipo,
+            sellos: [],
+            imos: [],
+            _isNew: true
+        };
+
+        // Agregar contenedor a la lista
+        setContenedores(prev => [...prev, nuevoContenedor]);
+
+        // Asociar contenedor al item
+        setItems(prevItems =>
+            prevItems.map(item => {
+                if (item.id === itemId) {
+                    const contenedoresActuales = item.contenedores || [];
+                    return {
+                        ...item,
+                        contenedores: [...contenedoresActuales, { codigo: formValues.codigo }]
+                    };
+                }
+                return item;
+            })
+        );
+
+        Swal.fire({
+            icon: 'success',
+            title: 'Contenedor agregado',
+            text: `El contenedor ${formValues.codigo} se agregó al Item ${itemNumero}`,
+            timer: 2000,
+            showConfirmButton: false
+        });
+    }
+};
+    // AGREGAR DESPUÉS DE addContenedorToItem:
+    // 🆕 FUNCIÓN PARA OBTENER ITEMS ASOCIADOS A UN CONTENEDOR
+    const getItemsAsociados = (codigoContenedor) => {
+        return items
+            .filter(item =>
+                item.contenedores?.some(cont => cont.codigo === codigoContenedor)
+            )
+            .map(item => item.numero_item);
     };
     // 🆕 FUNCIONES PARA CONTENEDORES
     const updateContenedor = (contenedorId, field, value) => {
@@ -1409,12 +1522,20 @@ const ExpoBLEdit = () => {
                                                 </span>
                                             </div>
 
-                                            {/* Contenedores asociados (read-only) */}
                                             {item.contenedores && item.contenedores.length > 0 && (
                                                 <div className="mb-4">
-                                                    <label className="block text-xs font-medium text-slate-600 mb-2">
-                                                        Contenedores asociados:
-                                                    </label>
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <label className="block text-xs font-medium text-slate-600">
+                                                            Contenedores asociados:
+                                                        </label>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => addContenedorToItem(item.id, item.numero_item)}
+                                                            className="text-xs bg-green-600 text-white px-3 py-1 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                                                        >
+                                                            + Agregar Contenedor
+                                                        </button>
+                                                    </div>
                                                     <div className="flex flex-wrap gap-2">
                                                         {item.contenedores.map((cont, i) => (
                                                             <span
@@ -1427,7 +1548,6 @@ const ExpoBLEdit = () => {
                                                     </div>
                                                 </div>
                                             )}
-
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 {/* Descripción */}
                                                 <div className="md:col-span-2">
@@ -1621,6 +1741,7 @@ const ExpoBLEdit = () => {
                                 <div className="space-y-6">
                                     {contenedores.map((cont, idx) => {
                                         const esCargaPeligrosa = esContenedorCargaPeligrosa(cont.codigo);
+                                        const itemsAsociados = getItemsAsociados(cont.codigo);
 
                                         return (
                                             <div
@@ -1637,15 +1758,38 @@ const ExpoBLEdit = () => {
                                                         </h3>
                                                         {esCargaPeligrosa && (
                                                             <span className="px-3 py-1 bg-red-600 text-white rounded-full text-xs font-bold animate-pulse">
-                                                                ⚠️ CARGA PELIGROSA
+                                                                 CARGA PELIGROSA
+                                                            </span>
+                                                        )}
+                                                        {cont._isNew && (
+                                                            <span className="px-3 py-1 bg-green-600 text-white rounded-full text-xs font-bold">
+                                                                 NUEVO
                                                             </span>
                                                         )}
                                                     </div>
+
                                                     <span className="text-xs bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
                                                         {cont.tipo_cnt || 'N/A'}
                                                     </span>
                                                 </div>
-
+                                                {/* 🆕 AQUÍ VA EL BLOQUE DE ITEMS ASOCIADOS */}
+                                                {itemsAsociados.length > 0 && (
+                                                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                                        <p className="text-xs font-medium text-blue-900 mb-1">
+                                                            Items asociados:
+                                                        </p>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {itemsAsociados.map((numItem, i) => (
+                                                                <span
+                                                                    key={i}
+                                                                    className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-semibold"
+                                                                >
+                                                                    Item {numItem}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                     {/* Código Contenedor */}
                                                     <div>
@@ -1661,17 +1805,11 @@ const ExpoBLEdit = () => {
                                                         />
                                                     </div>
 
-                                                    {/* Tipo Contenedor (solo lectura) */}
                                                     <div>
                                                         <label className="block text-sm font-medium text-slate-700 mb-2">
-                                                            Tipo Contenedor
+                                                            Tipo Contenedor <span className="text-red-500">*</span>
                                                         </label>
-                                                        <input
-                                                            type="text"
-                                                            value={cont.tipo_cnt || ""}
-                                                            disabled
-                                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 bg-slate-100 text-slate-500"
-                                                        />
+
                                                     </div>
 
                                                     {/* Sellos */}
@@ -1705,201 +1843,211 @@ const ExpoBLEdit = () => {
                                                                         >
                                                                             ×
                                                                         </button>
+
+                                                                    </div>
+                                                                ))
+                                                            )}
+                                                        </div>
+                                                      
+
+                                                        {esCargaPeligrosa && (cont.sellos || []).length < 2 && (cont.sellos || []).length > 0 && (
+                                                            <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-sm text-amber-700">
+                                                                💡 Se recomienda más de un sello para carga peligrosa
+                                                            </div>
+                                                        )}
+                                                        {/* 🆕 HASTA AQUÍ 👆 */}
+
+                                                </div>
+
+                                                {/* 🔥 SECCIÓN IMO - CONDICIONAL */}
+                                                {esCargaPeligrosa && (
+                                                    <div className="md:col-span-2 border-t-2 border-red-300 pt-4">
+                                                        <div className="flex items-center justify-between mb-3">
+                                                            <label className="block text-sm font-medium text-red-800 flex items-center gap-2">
+                                                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                                </svg>
+                                                                Datos IMO (Obligatorio) - {(cont.imos || []).length} registrado(s)
+                                                            </label>
+                                                            {/* DENTRO DEL STEP 6, en la sección de IMO */}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => addImoToContenedor(cont.id, cont.codigo)} // 🔥 Pasar código
+                                                                className="text-sm bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors font-medium"
+                                                            >
+                                                                + Agregar IMO
+                                                            </button>
+                                                        </div>
+
+                                                        {/* Alert si no hay IMOs */}
+                                                        {(cont.imos || []).length === 0 && (
+                                                            <div className="mb-3 p-3 bg-red-100 border border-red-300 rounded-lg">
+                                                                <p className="text-sm text-red-800 font-medium">
+                                                                    ⚠️ Este contenedor tiene carga peligrosa y debe tener al menos un dato IMO
+                                                                </p>
+                                                            </div>
+                                                        )}
+
+                                                        <div className="space-y-2">
+                                                            {(cont.imos || []).length === 0 ? (
+                                                                <p className="text-sm text-orange-700 italic bg-orange-100 p-3 rounded">
+                                                                    Sin datos IMO registrados
+                                                                </p>
+                                                            ) : (
+                                                                (cont.imos || []).map((imo, i) => (
+                                                                    <div
+                                                                        key={i}
+                                                                        className="flex items-center gap-3 p-4 bg-white border-2 border-orange-300 rounded-lg shadow-sm"
+                                                                    >
+                                                                        <div className="flex-1 grid grid-cols-2 gap-4">
+                                                                            <div>
+                                                                                <span className="text-xs text-slate-600">Clase IMO</span>
+                                                                                <p className="text-sm font-bold text-slate-900">{imo.clase}</p>
+                                                                            </div>
+                                                                            <div>
+                                                                                <span className="text-xs text-slate-600">Número IMO</span>
+                                                                                <p className="text-sm font-bold text-slate-900">{imo.numero}</p>
+                                                                            </div>
+                                                                        </div>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => removeImoFromContenedor(cont.id, i, cont.codigo)} // 🔥 Pasar código
+                                                                            className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                                                                            title="Eliminar IMO"
+                                                                        >
+                                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                            </svg>
+                                                                        </button>
                                                                     </div>
                                                                 ))
                                                             )}
                                                         </div>
                                                     </div>
-
-                                                    {/* 🔥 SECCIÓN IMO - CONDICIONAL */}
-                                                    {esCargaPeligrosa && (
-                                                        <div className="md:col-span-2 border-t-2 border-red-300 pt-4">
-                                                            <div className="flex items-center justify-between mb-3">
-                                                                <label className="block text-sm font-medium text-red-800 flex items-center gap-2">
-                                                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                                                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                                                    </svg>
-                                                                    Datos IMO (Obligatorio) - {(cont.imos || []).length} registrado(s)
-                                                                </label>
-                                                                {/* DENTRO DEL STEP 6, en la sección de IMO */}
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => addImoToContenedor(cont.id, cont.codigo)} // 🔥 Pasar código
-                                                                    className="text-sm bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors font-medium"
-                                                                >
-                                                                    + Agregar IMO
-                                                                </button>
-                                                            </div>
-
-                                                            {/* Alert si no hay IMOs */}
-                                                            {(cont.imos || []).length === 0 && (
-                                                                <div className="mb-3 p-3 bg-red-100 border border-red-300 rounded-lg">
-                                                                    <p className="text-sm text-red-800 font-medium">
-                                                                        ⚠️ Este contenedor tiene carga peligrosa y debe tener al menos un dato IMO
-                                                                    </p>
-                                                                </div>
-                                                            )}
-
-                                                            <div className="space-y-2">
-                                                                {(cont.imos || []).length === 0 ? (
-                                                                    <p className="text-sm text-orange-700 italic bg-orange-100 p-3 rounded">
-                                                                        Sin datos IMO registrados
-                                                                    </p>
-                                                                ) : (
-                                                                    (cont.imos || []).map((imo, i) => (
-                                                                        <div
-                                                                            key={i}
-                                                                            className="flex items-center gap-3 p-4 bg-white border-2 border-orange-300 rounded-lg shadow-sm"
-                                                                        >
-                                                                            <div className="flex-1 grid grid-cols-2 gap-4">
-                                                                                <div>
-                                                                                    <span className="text-xs text-slate-600">Clase IMO</span>
-                                                                                    <p className="text-sm font-bold text-slate-900">{imo.clase}</p>
-                                                                                </div>
-                                                                                <div>
-                                                                                    <span className="text-xs text-slate-600">Número IMO</span>
-                                                                                    <p className="text-sm font-bold text-slate-900">{imo.numero}</p>
-                                                                                </div>
-                                                                            </div>
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => removeImoFromContenedor(cont.id, i, cont.codigo)} // 🔥 Pasar código
-                                                                                className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
-                                                                                title="Eliminar IMO"
-                                                                            >
-                                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                                                </svg>
-                                                                            </button>
-                                                                        </div>
-                                                                    ))
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                )}
                                             </div>
-                                        );
+                                            </div>
+                            );
                                     })}
-                                </div>
-                            )}
-
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-                                <strong>Nota:</strong> Los contenedores con carga peligrosa DEBEN tener datos IMO. Los datos de peso, volumen y tipo de contenedor no son editables.
-                            </div>
                         </div>
                     )}
-                    {/* STEP 7: REVISIÓN */}
-                    {currentStep === 7 && (
-                        <div className="space-y-6">
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                                <h3 className="font-semibold text-blue-900 mb-4 text-lg">
-                                    Resumen de cambios
-                                </h3>
-                                <div className="grid grid-cols-2 gap-4 text-sm">
-                                    <div>
-                                        <p className="text-blue-700 font-medium">BL Number:</p>
-                                        <p className="text-blue-900">{formData.bl_number}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-blue-700 font-medium">Viaje:</p>
-                                        <p className="text-blue-900">{formData.viaje}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-blue-700 font-medium">Tipo Servicio:</p>
-                                        <p className="text-blue-900">{formData.tipo_servicio}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-blue-700 font-medium">Fecha Emisión:</p>
-                                        <p className="text-blue-900">{formData.fecha_emision || "—"}</p>
-                                    </div>
-                                    {/* ← AGREGAR AQUÍ */}
-                                    <div>
-                                        <p className="text-blue-700 font-medium">Fecha Presentación:</p>
-                                        <p className="text-blue-900">{formData.fecha_presentacion ?
-                                            new Date(formData.fecha_presentacion).toLocaleString('es-CL') : "—"}
-                                        </p>
-                                    </div>
-                                    {/* 🆕 PUERTOS EN RESUMEN */}
-                                    <div>
-                                        <p className="text-blue-700 font-medium">Puerto Embarque:</p>
-                                        <p className="text-blue-900">{formData.puerto_embarque || "—"}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-blue-700 font-medium">Puerto Descarga:</p>
-                                        <p className="text-blue-900">{formData.puerto_descarga || "—"}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-blue-700 font-medium">Peso Bruto:</p>
-                                        <p className="text-blue-900">{formData.peso_bruto} {formData.unidad_peso}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-blue-700 font-medium">Volumen:</p>
-                                        <p className="text-blue-900">{formData.volumen} {formData.unidad_volumen}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-blue-700 font-medium">Bultos:</p>
-                                        <p className="text-blue-900">{formData.bultos}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-blue-700 font-medium">Total Contenedores:</p>
-                                        <p className="text-blue-900">{contenedores.length}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-blue-700 font-medium">Total Items:</p>
-                                        <p className="text-blue-900">{items.length}</p>
-                                    </div>
-                                </div>
-                            </div>
 
-                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
-                                <strong>Atención:</strong> Al confirmar, los cambios se aplicarán inmediatamente en el sistema.
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Botones de navegación */}
-                <div className="flex items-center justify-between mt-6">
-                    <button
-                        onClick={prevStep}
-                        disabled={currentStep === 1}
-                        className="px-6 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                        ← Anterior
-                    </button>
-
-                    <div className="text-sm text-slate-600">
-                        Paso {currentStep} de {steps.length}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+                        <strong>Nota:</strong> Los contenedores con carga peligrosa DEBEN tener datos IMO. Los datos de peso, volumen y tipo de contenedor no son editables.
                     </div>
-
-                    {currentStep < steps.length ? (
-                        <button
-                            onClick={nextStep}
-                            className="px-6 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition-colors"
-                        >
-                            Siguiente →
-                        </button>
-                    ) : (
-                        <button
-                            onClick={handleSave}
-                            disabled={saving}
-                            className="px-8 py-3 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold"
-                        >
-                            {saving ? (
-                                <span className="flex items-center gap-2">
-                                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                    </svg>
-                                    Guardando...
-                                </span>
-                            ) : (
-                                "Guardar Cambios"
-                            )}
-                        </button>
-                    )}
                 </div>
+                    )}
+                {/* STEP 7: REVISIÓN */}
+                {currentStep === 7 && (
+                    <div className="space-y-6">
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                            <h3 className="font-semibold text-blue-900 mb-4 text-lg">
+                                Resumen de cambios
+                            </h3>
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <p className="text-blue-700 font-medium">BL Number:</p>
+                                    <p className="text-blue-900">{formData.bl_number}</p>
+                                </div>
+                                <div>
+                                    <p className="text-blue-700 font-medium">Viaje:</p>
+                                    <p className="text-blue-900">{formData.viaje}</p>
+                                </div>
+                                <div>
+                                    <p className="text-blue-700 font-medium">Tipo Servicio:</p>
+                                    <p className="text-blue-900">{formData.tipo_servicio}</p>
+                                </div>
+                                <div>
+                                    <p className="text-blue-700 font-medium">Fecha Emisión:</p>
+                                    <p className="text-blue-900">{formData.fecha_emision || "—"}</p>
+                                </div>
+                                {/* ← AGREGAR AQUÍ */}
+                                <div>
+                                    <p className="text-blue-700 font-medium">Fecha Presentación:</p>
+                                    <p className="text-blue-900">{formData.fecha_presentacion ?
+                                        new Date(formData.fecha_presentacion).toLocaleString('es-CL') : "—"}
+                                    </p>
+                                </div>
+                                {/* 🆕 PUERTOS EN RESUMEN */}
+                                <div>
+                                    <p className="text-blue-700 font-medium">Puerto Embarque:</p>
+                                    <p className="text-blue-900">{formData.puerto_embarque || "—"}</p>
+                                </div>
+                                <div>
+                                    <p className="text-blue-700 font-medium">Puerto Descarga:</p>
+                                    <p className="text-blue-900">{formData.puerto_descarga || "—"}</p>
+                                </div>
+                                <div>
+                                    <p className="text-blue-700 font-medium">Peso Bruto:</p>
+                                    <p className="text-blue-900">{formData.peso_bruto} {formData.unidad_peso}</p>
+                                </div>
+                                <div>
+                                    <p className="text-blue-700 font-medium">Volumen:</p>
+                                    <p className="text-blue-900">{formData.volumen} {formData.unidad_volumen}</p>
+                                </div>
+                                <div>
+                                    <p className="text-blue-700 font-medium">Bultos:</p>
+                                    <p className="text-blue-900">{formData.bultos}</p>
+                                </div>
+                                <div>
+                                    <p className="text-blue-700 font-medium">Total Contenedores:</p>
+                                    <p className="text-blue-900">{contenedores.length}</p>
+                                </div>
+                                <div>
+                                    <p className="text-blue-700 font-medium">Total Items:</p>
+                                    <p className="text-blue-900">{items.length}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
+                            <strong>Atención:</strong> Al confirmar, los cambios se aplicarán inmediatamente en el sistema.
+                        </div>
+                    </div>
+                )}
+        </div>
+
+                {/* Botones de navegación */ }
+    <div className="flex items-center justify-between mt-6">
+        <button
+            onClick={prevStep}
+            disabled={currentStep === 1}
+            className="px-6 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+            ← Anterior
+        </button>
+
+        <div className="text-sm text-slate-600">
+            Paso {currentStep} de {steps.length}
+        </div>
+
+        {currentStep < steps.length ? (
+            <button
+                onClick={nextStep}
+                className="px-6 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition-colors"
+            >
+                Siguiente →
+            </button>
+        ) : (
+            <button
+                onClick={handleSave}
+                disabled={saving}
+                className="px-8 py-3 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold"
+            >
+                {saving ? (
+                    <span className="flex items-center gap-2">
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Guardando...
+                    </span>
+                ) : (
+                    "Guardar Cambios"
+                )}
+            </button>
+        )}
+    </div>
             </main >
         </div >
     );
