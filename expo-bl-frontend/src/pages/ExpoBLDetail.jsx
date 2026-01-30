@@ -183,7 +183,7 @@ const ExpoBLDetail = () => {
                                 onClick={() => {
                                     // Si es carga suelta (BB), va a edición de carga suelta
                                     if (bl.tipo_servicio_codigo === 'BB' || bl.tipo_servicio === 'BB') {
-                                        navigate(`/carga-suelta/${bl.bl_number}/edit`);
+                                        navigate(`/expo/${bl.bl_number}/carga-suelta/edit`);
                                     } else {
                                         // Si es con contenedores, va a edición normal
                                         navigate(`/expo/${bl.bl_number}/edit`);

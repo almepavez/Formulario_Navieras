@@ -2680,8 +2680,8 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         valorCrudo: b.puerto_descarga_cod || null
       });
 
-      const lugarDestinoId   = await getPuertoIdByCodigo(conn, b.lugar_destino_cod);
-      const lugarEntregaId   = await getPuertoIdByCodigo(conn, b.lugar_entrega_cod);
+      const lugarDestinoId = await getPuertoIdByCodigo(conn, b.lugar_destino_cod);
+      const lugarEntregaId = await getPuertoIdByCodigo(conn, b.lugar_entrega_cod);
       const lugarRecepcionId = await getPuertoIdByCodigo(conn, b.lugar_recepcion_cod);
 
       const tipoServicioId = await getTipoServicioIdByCodigo(conn, b.tipoServicioCod);
@@ -2740,22 +2740,22 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
       await conn.query("DELETE FROM bl_validaciones WHERE bl_id = ?", [blId]);
 
       // Validaciones BL (igual que tu código)
-      if (!lugarDestinoId)   pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"lugar_destino_id",   mensaje:"Lugar destino no existe en mantenedor de puertos (Revisar puerto de descarga)", valorCrudo: b.lugar_destino_cod || null });
-      if (!lugarEntregaId)   pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"lugar_entrega_id",   mensaje:"Lugar entrega no existe en mantenedor de puertos (Revisar puerto de descarga)", valorCrudo: b.lugar_entrega_cod || null });
-      if (!lugarRecepcionId) pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"lugar_recepcion_id", mensaje:"Lugar recepción no existe en mantenedor de puertos (Revisar puerto de embarque)", valorCrudo: b.lugar_recepcion_cod || null });
-      if (isBlank(b.fecha_emision))       pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"fecha_emision",       mensaje:"Falta fecha_emision (Linea 11)", valorCrudo: b.fecha_emision || null });
-      if (isBlank(b.fecha_presentacion))  pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"fecha_presentacion", mensaje:"Falta fecha_presentacion (Linea 00)", valorCrudo: b.fecha_presentacion || null });
-      if (num(b.peso_bruto) <= 0)         pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"peso_bruto",  mensaje:"peso_bruto debe ser > 0", valorCrudo: b.peso_bruto });
-      if (isBlank(b.unidad_peso))         pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"unidad_peso", mensaje:"Falta unidad_peso (Linea 41)", valorCrudo: b.unidad_peso || null });
-      if (num(b.bultos) < 1)             pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"bultos",      mensaje:"bultos debe ser >= 1", valorCrudo: b.bultos });
-      if (num(b.total_items) < 1)        pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"total_items", mensaje:"total_items debe ser >= 1", valorCrudo: b.total_items });
-      if (isBlank(b.shipper))            pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"shipper",      mensaje:"Falta shipper (Linea 16)", valorCrudo: b.shipper || null });
-      if (isBlank(b.consignee))          pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"consignee",    mensaje:"Falta consignee (Linea 21)", valorCrudo: b.consignee || null });
-      if (isBlank(b.notify))             pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"notify_party", mensaje:"Falta notify (Linea 26)", valorCrudo: b.notify || null });
-      if (isBlank(b.fecha_embarque))     pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"fecha_embarque", mensaje:"Falta fecha_embarque (Linea 14)", valorCrudo: b.fecha_embarque || null });
-      if (isBlank(b.fecha_zarpe))        pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"fecha_zarpe",    mensaje:"Falta fecha_zarpe (Linea 14)", valorCrudo: b.fecha_zarpe || null });
-      if (isBlank(b.unidad_volumen))     pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"unidad_volumen", mensaje:"Falta unidad_volumen (Linea 41)", valorCrudo: b.unidad_volumen || null });
-      if (num(b.volumen) == null)        pendingValidations.push({ nivel:"BL", severidad:"ERROR", campo:"volumen",        mensaje:"Falta Volumen debe ser >= 0 (puede ser 0)", valorCrudo: b.volumen });
+      if (!lugarDestinoId) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_destino_id", mensaje: "Lugar destino no existe en mantenedor de puertos (Revisar puerto de descarga)", valorCrudo: b.lugar_destino_cod || null });
+      if (!lugarEntregaId) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_entrega_id", mensaje: "Lugar entrega no existe en mantenedor de puertos (Revisar puerto de descarga)", valorCrudo: b.lugar_entrega_cod || null });
+      if (!lugarRecepcionId) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_recepcion_id", mensaje: "Lugar recepción no existe en mantenedor de puertos (Revisar puerto de embarque)", valorCrudo: b.lugar_recepcion_cod || null });
+      if (isBlank(b.fecha_emision)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_emision", mensaje: "Falta fecha_emision (Linea 11)", valorCrudo: b.fecha_emision || null });
+      if (isBlank(b.fecha_presentacion)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_presentacion", mensaje: "Falta fecha_presentacion (Linea 00)", valorCrudo: b.fecha_presentacion || null });
+      if (num(b.peso_bruto) <= 0) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "peso_bruto", mensaje: "peso_bruto debe ser > 0", valorCrudo: b.peso_bruto });
+      if (isBlank(b.unidad_peso)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "unidad_peso", mensaje: "Falta unidad_peso (Linea 41)", valorCrudo: b.unidad_peso || null });
+      if (num(b.bultos) < 1) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "bultos", mensaje: "bultos debe ser >= 1", valorCrudo: b.bultos });
+      if (num(b.total_items) < 1) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "total_items", mensaje: "total_items debe ser >= 1", valorCrudo: b.total_items });
+      if (isBlank(b.shipper)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "shipper", mensaje: "Falta shipper (Linea 16)", valorCrudo: b.shipper || null });
+      if (isBlank(b.consignee)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "consignee", mensaje: "Falta consignee (Linea 21)", valorCrudo: b.consignee || null });
+      if (isBlank(b.notify)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "notify_party", mensaje: "Falta notify (Linea 26)", valorCrudo: b.notify || null });
+      if (isBlank(b.fecha_embarque)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_embarque", mensaje: "Falta fecha_embarque (Linea 14)", valorCrudo: b.fecha_embarque || null });
+      if (isBlank(b.fecha_zarpe)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_zarpe", mensaje: "Falta fecha_zarpe (Linea 14)", valorCrudo: b.fecha_zarpe || null });
+      if (isBlank(b.unidad_volumen)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "unidad_volumen", mensaje: "Falta unidad_volumen (Linea 41)", valorCrudo: b.unidad_volumen || null });
+      if (num(b.volumen) == null) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "volumen", mensaje: "Falta Volumen debe ser >= 0 (puede ser 0)", valorCrudo: b.volumen });
 
       for (const v of pendingValidations) {
         await addValidacion(conn, { blId, ...v });
@@ -2782,16 +2782,16 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         const itemNum = Number(it.numero_item) || null;
         const pendingItemValidations = [];
 
-        if (!itemNum) pendingItemValidations.push({ nivel:"ITEM", sec:null, severidad:"ERROR", campo:"numero_item", mensaje:"Item sin número", valorCrudo: it.numero_item ?? null });
-        if (isBlank(it.descripcion)) pendingItemValidations.push({ nivel:"ITEM", sec:itemNum, severidad:"OBS", campo:"descripcion", mensaje:"Falta Descripción", valorCrudo: it.descripcion ?? null });
-        if (isBlank(it.marcas)) pendingItemValidations.push({ nivel:"ITEM", sec:itemNum, severidad:"OBS", campo:"marcas", mensaje:"Falta Marcas", valorCrudo: it.marcas ?? null });
-        if (!it.tipo_bulto) pendingItemValidations.push({ nivel:"ITEM", sec:itemNum, severidad:"ERROR", campo:"tipo_bulto", mensaje:"No se pudo determinar tipo_bulto para el item", valorCrudo: it.tipo_bulto ?? null });
-        if (!isSN(it.carga_peligrosa)) pendingItemValidations.push({ nivel:"ITEM", sec:itemNum, severidad:"ERROR", campo:"carga_peligrosa", mensaje:"carga_peligrosa debe ser 'S' o 'N'", valorCrudo: it.carga_peligrosa ?? null });
-        if (num(it.cantidad) == null || num(it.cantidad) < 1) pendingItemValidations.push({ nivel:"ITEM", sec:itemNum, severidad:"ERROR", campo:"cantidad", mensaje:"Cantidad de contenedores debe ser >= 1 para un item (Linea 51)", valorCrudo: it.cantidad });
-        if (num(it.peso_bruto) == null || num(it.peso_bruto) <= 0) pendingItemValidations.push({ nivel:"ITEM", sec:itemNum, severidad:"ERROR", campo:"peso_bruto", mensaje:"peso_bruto debe ser > 0 (Linea 41)", valorCrudo: it.peso_bruto });
-        if (isBlank(it.unidad_peso)) pendingItemValidations.push({ nivel:"ITEM", sec:itemNum, severidad:"ERROR", campo:"unidad_peso", mensaje:"Falta unidad_peso (Linea 41)", valorCrudo: it.unidad_peso ?? null });
-        if (num(it.volumen) == null || num(it.volumen) < 0) pendingItemValidations.push({ nivel:"ITEM", sec:itemNum, severidad:"ERROR", campo:"volumen", mensaje:"Falta Volumen debe ser >= 0 (Linea 41)", valorCrudo: it.volumen });
-        if (isBlank(it.unidad_volumen)) pendingItemValidations.push({ nivel:"ITEM", sec:itemNum, severidad:"ERROR", campo:"unidad_volumen", mensaje:"Falta unidad_volumen (Linea 41)", valorCrudo: it.unidad_volumen ?? null });
+        if (!itemNum) pendingItemValidations.push({ nivel: "ITEM", sec: null, severidad: "ERROR", campo: "numero_item", mensaje: "Item sin número", valorCrudo: it.numero_item ?? null });
+        if (isBlank(it.descripcion)) pendingItemValidations.push({ nivel: "ITEM", sec: itemNum, severidad: "OBS", campo: "descripcion", mensaje: "Falta Descripción", valorCrudo: it.descripcion ?? null });
+        if (isBlank(it.marcas)) pendingItemValidations.push({ nivel: "ITEM", sec: itemNum, severidad: "OBS", campo: "marcas", mensaje: "Falta Marcas", valorCrudo: it.marcas ?? null });
+        if (!it.tipo_bulto) pendingItemValidations.push({ nivel: "ITEM", sec: itemNum, severidad: "ERROR", campo: "tipo_bulto", mensaje: "No se pudo determinar tipo_bulto para el item", valorCrudo: it.tipo_bulto ?? null });
+        if (!isSN(it.carga_peligrosa)) pendingItemValidations.push({ nivel: "ITEM", sec: itemNum, severidad: "ERROR", campo: "carga_peligrosa", mensaje: "carga_peligrosa debe ser 'S' o 'N'", valorCrudo: it.carga_peligrosa ?? null });
+        if (num(it.cantidad) == null || num(it.cantidad) < 1) pendingItemValidations.push({ nivel: "ITEM", sec: itemNum, severidad: "ERROR", campo: "cantidad", mensaje: "Cantidad de contenedores debe ser >= 1 para un item (Linea 51)", valorCrudo: it.cantidad });
+        if (num(it.peso_bruto) == null || num(it.peso_bruto) <= 0) pendingItemValidations.push({ nivel: "ITEM", sec: itemNum, severidad: "ERROR", campo: "peso_bruto", mensaje: "peso_bruto debe ser > 0 (Linea 41)", valorCrudo: it.peso_bruto });
+        if (isBlank(it.unidad_peso)) pendingItemValidations.push({ nivel: "ITEM", sec: itemNum, severidad: "ERROR", campo: "unidad_peso", mensaje: "Falta unidad_peso (Linea 41)", valorCrudo: it.unidad_peso ?? null });
+        if (num(it.volumen) == null || num(it.volumen) < 0) pendingItemValidations.push({ nivel: "ITEM", sec: itemNum, severidad: "ERROR", campo: "volumen", mensaje: "Falta Volumen debe ser >= 0 (Linea 41)", valorCrudo: it.volumen });
+        if (isBlank(it.unidad_volumen)) pendingItemValidations.push({ nivel: "ITEM", sec: itemNum, severidad: "ERROR", campo: "unidad_volumen", mensaje: "Falta unidad_volumen (Linea 41)", valorCrudo: it.unidad_volumen ?? null });
 
         const [itIns] = await conn.query(insertItemSql, [
           blId,
@@ -2846,26 +2846,26 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         if (c.codigo) {
           const iso = splitISO11(c.codigo);
           if (!iso) {
-            pendingContValidations.push({ nivel:"CONTENEDOR", sec:itemNo, severidad:"ERROR", campo:"codigo", mensaje:"Código contenedor inválido (no ISO11: AAAA1234567)", valorCrudo: c.codigo });
+            pendingContValidations.push({ nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR", campo: "codigo", mensaje: "Código contenedor inválido (no ISO11: AAAA1234567)", valorCrudo: c.codigo });
           } else {
             if ((c.sigla && c.sigla !== iso.sigla) ||
-                (c.numero && c.numero !== iso.numero) ||
-                (c.digito && String(c.digito) !== iso.digito)) {
-              pendingContValidations.push({ nivel:"CONTENEDOR", sec:itemNo, severidad:"ERROR", campo:"sigla/numero/digito", mensaje:"codigo no coincide con sigla/numero/digito", valorCrudo: `${c.codigo} vs ${c.sigla || ""}${c.numero || ""}${c.digito || ""}` });
+              (c.numero && c.numero !== iso.numero) ||
+              (c.digito && String(c.digito) !== iso.digito)) {
+              pendingContValidations.push({ nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR", campo: "sigla/numero/digito", mensaje: "codigo no coincide con sigla/numero/digito", valorCrudo: `${c.codigo} vs ${c.sigla || ""}${c.numero || ""}${c.digito || ""}` });
             }
           }
         } else {
-          pendingContValidations.push({ nivel:"CONTENEDOR", sec:itemNo, severidad:"ERROR", campo:"codigo", mensaje:"Contenedor sin código", valorCrudo: c.codigo ?? null });
+          pendingContValidations.push({ nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR", campo: "codigo", mensaje: "Contenedor sin código", valorCrudo: c.codigo ?? null });
         }
 
-        if (!itemNo) pendingContValidations.push({ nivel:"CONTENEDOR", sec:null, severidad:"ERROR", campo:"itemNo", mensaje:"Contenedor sin itemNo (no se puede asociar a item)", valorCrudo: c.itemNo ?? null });
-        else if (!itemId) pendingContValidations.push({ nivel:"CONTENEDOR", sec:itemNo, severidad:"ERROR", campo:"item_id", mensaje:"Contenedor no se pudo asociar a item (itemNo no existe en bl_items insertados)", valorCrudo: String(itemNo) });
+        if (!itemNo) pendingContValidations.push({ nivel: "CONTENEDOR", sec: null, severidad: "ERROR", campo: "itemNo", mensaje: "Contenedor sin itemNo (no se puede asociar a item)", valorCrudo: c.itemNo ?? null });
+        else if (!itemId) pendingContValidations.push({ nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR", campo: "item_id", mensaje: "Contenedor no se pudo asociar a item (itemNo no existe en bl_items insertados)", valorCrudo: String(itemNo) });
 
-        if (!c.tipo_cnt) pendingContValidations.push({ nivel:"CONTENEDOR", sec:itemNo, severidad:"ERROR", campo:"tipo_cnt", mensaje:"Contenedor sin tipo_cnt", valorCrudo: c.tipo_cnt ?? null });
-        if (num(c.peso) == null || num(c.peso) <= 0) pendingContValidations.push({ nivel:"CONTENEDOR", sec:itemNo, severidad:"ERROR", campo:"peso", mensaje:"peso debe ser > 0", valorCrudo: c.peso });
-        if (isBlank(c.unidad_peso)) pendingContValidations.push({ nivel:"CONTENEDOR", sec:itemNo, severidad:"ERROR", campo:"unidad_peso", mensaje:"Falta unidad_peso", valorCrudo: c.unidad_peso ?? null });
-        if (num(c.volumen) == null || num(c.volumen) < 0) pendingContValidations.push({ nivel:"CONTENEDOR", sec:itemNo, severidad:"ERROR", campo:"volumen", mensaje:"Volumen debe ser >= 0 (puede ser 0)", valorCrudo: c.volumen });
-        if (isBlank(c.unidad_volumen)) pendingContValidations.push({ nivel:"CONTENEDOR", sec:itemNo, severidad:"ERROR", campo:"unidad_volumen", mensaje:"Falta unidad_volumen", valorCrudo: c.unidad_volumen ?? null });
+        if (!c.tipo_cnt) pendingContValidations.push({ nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR", campo: "tipo_cnt", mensaje: "Contenedor sin tipo_cnt", valorCrudo: c.tipo_cnt ?? null });
+        if (num(c.peso) == null || num(c.peso) <= 0) pendingContValidations.push({ nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR", campo: "peso", mensaje: "peso debe ser > 0", valorCrudo: c.peso });
+        if (isBlank(c.unidad_peso)) pendingContValidations.push({ nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR", campo: "unidad_peso", mensaje: "Falta unidad_peso", valorCrudo: c.unidad_peso ?? null });
+        if (num(c.volumen) == null || num(c.volumen) < 0) pendingContValidations.push({ nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR", campo: "volumen", mensaje: "Volumen debe ser >= 0 (puede ser 0)", valorCrudo: c.volumen });
+        if (isBlank(c.unidad_volumen)) pendingContValidations.push({ nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR", campo: "unidad_volumen", mensaje: "Falta unidad_volumen", valorCrudo: c.unidad_volumen ?? null });
 
         const [cIns] = await conn.query(insertContSql, [
           blId,
@@ -5291,53 +5291,86 @@ app.post("/api/bls/:blNumber/revalidar", async (req, res) => {
   }
 });
 
-
 // PUT /bls/:blNumber/contenedores
 app.put('/bls/:blNumber/contenedores', async (req, res) => {
-  const { blNumber } = req.params;
-  const { contenedores } = req.body;
+  const conn = await pool.getConnection();
 
   try {
+    const { blNumber } = req.params;
+    const { contenedores } = req.body;
+     // 🔥 AGREGAR ESTE DEBUG
+    console.log('=== DEBUG CONTENEDORES ===');
+    console.log('BL Number:', blNumber);
+    console.log('Contenedores recibidos:', JSON.stringify(contenedores, null, 2));
+    console.log('Total contenedores:', contenedores.length);
+
+
+    await conn.beginTransaction();
+
     // 1. Obtener bl_id desde el bl_number
-    const [blRows] = await pool.query('SELECT id FROM bls WHERE bl_number = ?', [blNumber]);
-    if (blRows.length === 0) return res.status(404).json({ error: 'BL no encontrado' });
+    const [blRows] = await conn.query('SELECT id FROM bls WHERE bl_number = ?', [blNumber]);
+    if (blRows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'BL no encontrado' });
+    }
     const bl_id = blRows[0].id;
 
-    // 2. Para cada contenedor, actualizar datos
+    // 2. Para cada contenedor
     for (const cont of contenedores) {
-      // Actualizar contenedor básico (si hay cambios en código, tipo_cnt, etc.)
-      await pool.query(
-        'UPDATE bl_contenedores SET codigo = ?, tipo_cnt = ? WHERE id = ?',
-        [cont.codigo, cont.tipo_cnt, cont.id]
-      );
+      let contenedorId = cont.id;
+
+    // 🆕 Si es un contenedor nuevo, insertarlo primero
+if (cont._isNew && typeof cont.id === 'string' && cont.id.startsWith('new_')) {
+    console.log('🆕 Insertando contenedor nuevo:', cont.codigo, 'Item ID:', cont.item_id); // 🔥 DEBUG
+    
+    const [result] = await conn.query(
+        `INSERT INTO bl_contenedores (bl_id, item_id, codigo, tipo_cnt) VALUES (?, ?, ?, ?)`,
+        [bl_id, cont.item_id, cont.codigo, cont.tipo_cnt]  // 🔥 IMPORTANTE: cont.item_id
+    );
+    contenedorId = result.insertId;
+    
+    console.log('✅ Contenedor insertado con ID:', contenedorId); // 🔥 DEBUG
+
+      } else {
+        // Contenedor existente: actualizar datos básicos
+        await conn.query(
+          'UPDATE bl_contenedores SET codigo = ?, tipo_cnt = ? WHERE id = ?',
+          [cont.codigo, cont.tipo_cnt, contenedorId]
+        );
+      }
 
       // 3. Eliminar sellos actuales y reinsertar
-      await pool.query('DELETE FROM bl_contenedor_sellos WHERE contenedor_id = ?', [cont.id]);
+      await conn.query('DELETE FROM bl_contenedor_sellos WHERE contenedor_id = ?', [contenedorId]);
       if (cont.sellos && cont.sellos.length > 0) {
         for (const sello of cont.sellos) {
-          await pool.query(
+          await conn.query(
             'INSERT INTO bl_contenedor_sellos (contenedor_id, sello) VALUES (?, ?)',
-            [cont.id, sello]
+            [contenedorId, sello]
           );
         }
       }
 
       // 4. Eliminar IMOs actuales y reinsertar
-      await pool.query('DELETE FROM bl_contenedor_imo WHERE contenedor_id = ?', [cont.id]);
+      await conn.query('DELETE FROM bl_contenedor_imo WHERE contenedor_id = ?', [contenedorId]);
       if (cont.imos && cont.imos.length > 0) {
         for (const imo of cont.imos) {
-          await pool.query(
+          await conn.query(
             'INSERT INTO bl_contenedor_imo (contenedor_id, clase_imo, numero_imo) VALUES (?, ?, ?)',
-            [cont.id, imo.clase, imo.numero]
+            [contenedorId, imo.clase, imo.numero]
           );
         }
       }
     }
 
-    res.json({ success: true });
+    await conn.commit();
+    res.json({ success: true, message: 'Contenedores actualizados correctamente' });
+
   } catch (error) {
+    await conn.rollback();
     console.error('Error al actualizar contenedores:', error);
     res.status(500).json({ error: 'Error al actualizar contenedores' });
+  } finally {
+    conn.release();
   }
 });
 
@@ -5548,10 +5581,10 @@ app.post("/manifiestos/:id/carga-suelta", async (req, res) => {
     // Obtener IDs de puertos (TODOS SON OBLIGATORIOS)
     const puertoEmbarque = await obtenerPuerto(puerto_embarque, 'Puerto de Embarque');
     const puertoDescarga = await obtenerPuerto(puerto_descarga, 'Puerto de Descarga');
-const lugarDestino =
-  !lugar_destino || lugar_destino === 'VALPARAISO' || lugar_destino === 'NO ESPECIFICADO'
-    ? null
-    : await obtenerPuerto(lugar_destino, 'Lugar de Destino');
+    const lugarDestino =
+      !lugar_destino || lugar_destino === 'VALPARAISO' || lugar_destino === 'NO ESPECIFICADO'
+        ? null
+        : await obtenerPuerto(lugar_destino, 'Lugar de Destino');
     const lugarEmision = await obtenerPuerto(lugar_emision, 'Lugar de Emisión');
     const lugarEntrega = await obtenerPuerto(lugar_entrega, 'Lugar de Entrega');
     const lugarRecepcion = await obtenerPuerto(lugar_recepcion, 'Lugar de Recepción');
@@ -5573,12 +5606,12 @@ const lugarDestino =
       sum + parseInt(item.cantidad || 0), 0
     );
 
-// ============================================
-// INSERTAR BL
-// ============================================
+    // ============================================
+    // INSERTAR BL
+    // ============================================
 
-const [blResult] = await connection.query(
-  `INSERT INTO bls (
+    const [blResult] = await connection.query(
+      `INSERT INTO bls (
     manifiesto_id,
     bl_number,
     tipo_servicio_id,
@@ -5617,51 +5650,51 @@ const [blResult] = await connection.query(
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?
   )`,
-  [
-    manifiestoId,
-    bl_number,
-    tipo_servicio_id,
-    forma_pago_flete || 'PREPAID',
-    cond_transporte || 'HH',
-    shipper,
-    consignee,
-    notify_party || null,
-    fecha_emision || null,
-    fecha_presentacion || null,
-    fecha_embarque || null,
-    fecha_zarpe || null,
+      [
+        manifiestoId,
+        bl_number,
+        tipo_servicio_id,
+        forma_pago_flete || 'PREPAID',
+        cond_transporte || 'HH',
+        shipper,
+        consignee,
+        notify_party || null,
+        fecha_emision || null,
+        fecha_presentacion || null,
+        fecha_embarque || null,
+        fecha_zarpe || null,
 
-    puertoEmbarque.id,
-    puertoEmbarque.codigo,
+        puertoEmbarque.id,
+        puertoEmbarque.codigo,
 
-    puertoDescarga.id,
-    puertoDescarga.codigo,
+        puertoDescarga.id,
+        puertoDescarga.codigo,
 
-    lugarDestino.id,
-    lugarDestino.codigo,
+        lugarDestino.id,
+        lugarDestino.codigo,
 
-    lugarEmision.id,
-    lugarEmision.codigo,
+        lugarEmision.id,
+        lugarEmision.codigo,
 
-    lugarEntrega.id,
-    lugarEntrega.codigo,
+        lugarEntrega.id,
+        lugarEntrega.codigo,
 
-    lugarRecepcion.id,
-    lugarRecepcion.codigo,
+        lugarRecepcion.id,
+        lugarRecepcion.codigo,
 
-    peso_bruto_total,
-    'KGM',
-    volumen_total,
-    'MTQ',
-    bultos_total,
-    items.length,
-    observaciones || null,
-    'CREADO',
-    'OK'
-  ]
-);
+        peso_bruto_total,
+        'KGM',
+        volumen_total,
+        'MTQ',
+        bultos_total,
+        items.length,
+        observaciones || null,
+        'CREADO',
+        'OK'
+      ]
+    );
 
-const bl_id = blResult.insertId;
+    const bl_id = blResult.insertId;
 
 
     // ============================================
@@ -5802,7 +5835,22 @@ app.get("/bls/:id/validar-tipo", async (req, res) => {
   }
 });
 
-
+// GET /tipos-contenedor
+app.get('/tipos-contenedor', async (req, res) => {
+  try {
+    const query = `
+            SELECT DISTINCT tipo_cnt 
+            FROM bl_contenedores 
+            WHERE tipo_cnt IS NOT NULL 
+            ORDER BY tipo_cnt
+        `;
+    const [rows] = await pool.query(query);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error al obtener tipos de contenedor:', error);
+    res.status(500).json({ error: 'Error al obtener tipos de contenedor' });
+  }
+});
 
 
 const port = Number(process.env.PORT || 4000);
