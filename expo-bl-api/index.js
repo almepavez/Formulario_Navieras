@@ -2849,6 +2849,20 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
 
           await addValidacion(conn, { blId, ...v, refId: itemId });
           await addValidacionPMS(conn, { blId, ...v, refId: itemId });
+        } else if (itemNum && esperados != null && esperados > 0 && enArchivo > esperados) {
+          const sobran = enArchivo - esperados;
+
+          const v = {
+            nivel: "ITEM",
+            sec: itemNum,
+            severidad: "OBS",              // ✅ OBS
+            campo: "contenedores",
+            mensaje: `Sobran contenedores para el item: se esperaban ${esperados} (cantidad) y el PMS trae ${enArchivo}. Sobran ${sobran}.`,
+            valorCrudo: JSON.stringify({ esperados, enArchivo, sobran })
+          };
+
+          await addValidacion(conn, { blId, ...v, refId: itemId });
+          await addValidacionPMS(conn, { blId, ...v, refId: itemId });
         }
 
         for (const v of pendingItemValidations) {
@@ -5137,6 +5151,18 @@ async function revalidarBLCompleto(conn, blId) {
         campo: "contenedores",
         mensaje: `Faltan contenedores para el item: se esperaban ${esperados} (cantidad) y hay ${reales} en BD. Faltan ${faltan}.`,
         valorCrudo: JSON.stringify({ esperados, reales, faltan })
+      });
+    } else if (itemNum && esperados != null && esperados > 0 && reales > esperados) {
+      const sobran = reales - esperados;
+
+      vals.push({
+        nivel: "ITEM",
+        ref_id: refId,
+        sec: itemNum,
+        severidad: "OBS",             // ✅ OBS
+        campo: "contenedores",
+        mensaje: `Sobran contenedores para el item: se esperaban ${esperados} (cantidad) y hay ${reales} en BD. Sobran ${sobran}.`,
+        valorCrudo: JSON.stringify({ esperados, reales, sobran })
       });
     }
 
