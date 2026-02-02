@@ -610,9 +610,9 @@ app.post("/manifiestos", async (req, res) => {
   const validStatuses = ["Activo", "Inactivo", "Enviado"];
   const statusFinal = status && validStatuses.includes(status) ? status : "Activo";
 
-  const allowedOps = new Set(["EX", "IM", "CROSS"]);
+  const allowedOps = new Set(["I", "S", "TR", "TRB"]);
   if (!allowedOps.has(String(tipoOperacion).toUpperCase())) {
-    return res.status(400).json({ error: "tipoOperacion inválido." });
+    return res.status(400).json({ error: "tipoOperacion inválido. Valores permitidos: I, S, TR, TRB" });
   }
 
   const toMysqlDT = (v) => (v ? String(v).replace("T", " ") + ":00" : null);
@@ -3214,6 +3214,14 @@ app.put("/manifiestos/:id", async (req, res) => {
       error: `Status inválido. Debe ser: ${validStatuses.join(", ")}`
     });
   }
+
+  // 🆕 VALIDAR TIPO OPERACION (NO PERMITIR EDICIÓN)
+  if (req.body.tipoOperacion) {
+    return res.status(400).json({
+      error: "No se puede modificar el tipo de operación"
+    });
+  }
+
   // Validación mínima
   if (!operadorNave || !emisorDocumento || !representante || !fechaManifiestoAduana || !numeroManifiestoAduana) {
     return res.status(400).json({ error: "Faltan campos obligatorios" });
@@ -3424,6 +3432,30 @@ app.put("/bls/:blNumber/items", async (req, res) => {
     // 2) Actualizar cada item
     for (const item of items) {
       if (!item.id) continue;
+      // 🔥 VALIDAR AQUÍ (NUEVO CÓDIGO)
+      const cantidad = parseInt(item.cantidad);
+      if (isNaN(cantidad) || cantidad < 1) {
+        await conn.rollback();
+        return res.status(400).json({
+          error: `Item ${item.numero_item}: Cantidad debe ser al menos 1`
+        });
+      }
+
+      const peso = parseFloat(item.peso_bruto);
+      if (isNaN(peso) || peso <= 0) {
+        await conn.rollback();
+        return res.status(400).json({
+          error: `Item ${item.numero_item}: Peso debe ser mayor a 0`
+        });
+      }
+
+      const volumen = parseFloat(item.volumen);
+      if (isNaN(volumen) || volumen < 0) {
+        await conn.rollback();
+        return res.status(400).json({
+          error: `Item ${item.numero_item}: Volumen no puede ser negativo`
+        });
+      }
 
       await conn.query(
         `UPDATE bl_items 
@@ -4337,8 +4369,6 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
 });
 
 // POST /api/bls/:blNumber/generar-xml
-// Genera el XML completo de un BL específico
-// POST /api/bls/:blNumber/generar-xml
 // Genera el XML completo de un BL específico CON VALIDACIÓN IMO
 app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
   try {
@@ -4472,7 +4502,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
 
         OpTransporte: {
           optransporte: {
-            'sentido-operacion': bl.tipo_operacion === 'EX' ? 'S' : bl.tipo_operacion === 'IM' ? 'I' : bl.tipo_operacion === 'CROSS' ? 'TR' : 'S',
+            'sentido-operacion': bl.tipo_operacion || 'S',
             'nombre-nave': bl.nave_nombre || ''
           }
         },
@@ -5357,12 +5387,10 @@ app.put('/bls/:blNumber/contenedores', async (req, res) => {
   try {
     const { blNumber } = req.params;
     const { contenedores } = req.body;
-     // 🔥 AGREGAR ESTE DEBUG
+
     console.log('=== DEBUG CONTENEDORES ===');
     console.log('BL Number:', blNumber);
-    console.log('Contenedores recibidos:', JSON.stringify(contenedores, null, 2));
     console.log('Total contenedores:', contenedores.length);
-
 
     await conn.beginTransaction();
 
@@ -5378,56 +5406,90 @@ app.put('/bls/:blNumber/contenedores', async (req, res) => {
     for (const cont of contenedores) {
       let contenedorId = cont.id;
 
-    // 🆕 Si es un contenedor nuevo, insertarlo primero
-if (cont._isNew && typeof cont.id === 'string' && cont.id.startsWith('new_')) {
-    console.log('🆕 Insertando contenedor nuevo:', cont.codigo, 'Item ID:', cont.item_id); // 🔥 DEBUG
-    
-    const [result] = await conn.query(
-        `INSERT INTO bl_contenedores (bl_id, item_id, codigo, tipo_cnt) VALUES (?, ?, ?, ?)`,
-        [bl_id, cont.item_id, cont.codigo, cont.tipo_cnt]  // 🔥 IMPORTANTE: cont.item_id
-    );
-    contenedorId = result.insertId;
-    
-    console.log('✅ Contenedor insertado con ID:', contenedorId); // 🔥 DEBUG
+      // 🆕 Si es un contenedor nuevo, insertarlo primero
+      if (cont._isNew && typeof cont.id === 'string' && cont.id.startsWith('new_')) {
+        console.log('🆕 Insertando contenedor nuevo:', cont.codigo, 'Item ID:', cont.item_id);
+
+        // 🔥 VALIDAR DATOS ANTES DE INSERTAR
+        if (!cont.codigo || cont.codigo.length !== 11) {
+          await conn.rollback();
+          return res.status(400).json({ error: `Código de contenedor inválido: ${cont.codigo}` });
+        }
+
+        if (!cont.tipo_cnt) {
+          await conn.rollback();
+          return res.status(400).json({ error: `Tipo de contenedor requerido para ${cont.codigo}` });
+        }
+
+        if (!cont.item_id) {
+          await conn.rollback();
+          return res.status(400).json({ error: `Item ID requerido para contenedor ${cont.codigo}` });
+        }
+
+        const [result] = await conn.query(
+          `INSERT INTO bl_contenedores (bl_id, item_id, codigo, tipo_cnt) VALUES (?, ?, ?, ?)`,
+          [bl_id, cont.item_id, cont.codigo, cont.tipo_cnt]
+        );
+        contenedorId = result.insertId;
+
+        console.log('✅ Contenedor insertado con ID:', contenedorId);
 
       } else {
-        // Contenedor existente: actualizar datos básicos
+        // 🔥 ACTUALIZAR CONTENEDOR EXISTENTE - SOLO CAMPOS EDITABLES
+        console.log('📝 Actualizando contenedor existente:', cont.codigo, 'ID:', contenedorId);
+
+        // 🔥 VALIDAR CÓDIGO
+        if (!cont.codigo || cont.codigo.length !== 11) {
+          await conn.rollback();
+          return res.status(400).json({ error: `Código de contenedor inválido: ${cont.codigo}` });
+        }
+
+        // 🔥 SOLO ACTUALIZAR CÓDIGO Y TIPO (campos editables)
         await conn.query(
           'UPDATE bl_contenedores SET codigo = ?, tipo_cnt = ? WHERE id = ?',
           [cont.codigo, cont.tipo_cnt, contenedorId]
         );
+
+        // 🔥 NO TOCAR peso, volumen, unidades - esos campos NO son editables en contenedores
       }
 
       // 3. Eliminar sellos actuales y reinsertar
       await conn.query('DELETE FROM bl_contenedor_sellos WHERE contenedor_id = ?', [contenedorId]);
       if (cont.sellos && cont.sellos.length > 0) {
+        console.log(`📌 Insertando ${cont.sellos.length} sellos para contenedor ${contenedorId}`);
         for (const sello of cont.sellos) {
-          await conn.query(
-            'INSERT INTO bl_contenedor_sellos (contenedor_id, sello) VALUES (?, ?)',
-            [contenedorId, sello]
-          );
+          if (sello && sello.trim().length > 0) {
+            await conn.query(
+              'INSERT INTO bl_contenedor_sellos (contenedor_id, sello) VALUES (?, ?)',
+              [contenedorId, sello.trim()]
+            );
+          }
         }
       }
 
       // 4. Eliminar IMOs actuales y reinsertar
       await conn.query('DELETE FROM bl_contenedor_imo WHERE contenedor_id = ?', [contenedorId]);
       if (cont.imos && cont.imos.length > 0) {
+        console.log(`⚠️ Insertando ${cont.imos.length} IMOs para contenedor ${contenedorId}`);
         for (const imo of cont.imos) {
-          await conn.query(
-            'INSERT INTO bl_contenedor_imo (contenedor_id, clase_imo, numero_imo) VALUES (?, ?, ?)',
-            [contenedorId, imo.clase, imo.numero]
-          );
+          if (imo.clase && imo.numero) {
+            await conn.query(
+              'INSERT INTO bl_contenedor_imo (contenedor_id, clase_imo, numero_imo) VALUES (?, ?, ?)',
+              [contenedorId, imo.clase.trim(), imo.numero.trim()]
+            );
+          }
         }
       }
     }
 
     await conn.commit();
+    console.log('✅ Todos los contenedores actualizados correctamente');
     res.json({ success: true, message: 'Contenedores actualizados correctamente' });
 
   } catch (error) {
     await conn.rollback();
-    console.error('Error al actualizar contenedores:', error);
-    res.status(500).json({ error: 'Error al actualizar contenedores' });
+    console.error('❌ Error al actualizar contenedores:', error);
+    res.status(500).json({ error: 'Error al actualizar contenedores: ' + error.message });
   } finally {
     conn.release();
   }

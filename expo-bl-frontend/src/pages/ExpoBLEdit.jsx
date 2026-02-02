@@ -178,10 +178,10 @@ const ExpoBLEdit = () => {
     };
 
     // 🆕 FUNCIÓN PARA AGREGAR CONTENEDOR A UN ITEM
-const addContenedorToItem = async (itemId, itemNumero) => {
-    const { value: formValues } = await Swal.fire({
-        title: `Agregar Contenedor al Item ${itemNumero}`,
-        html: `
+    const addContenedorToItem = async (itemId, itemNumero) => {
+        const { value: formValues } = await Swal.fire({
+            title: `Agregar Contenedor al Item ${itemNumero}`,
+            html: `
             <div class="space-y-4">
                 <div class="text-left">
                     <label class="block text-sm font-medium text-slate-700 mb-2">Código Contenedor</label>
@@ -197,77 +197,78 @@ const addContenedorToItem = async (itemId, itemNumero) => {
                 </div>
             </div>
         `,
-        showCancelButton: true,
-        confirmButtonText: 'Agregar',
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#10b981',
-        width: '500px',
-        preConfirm: () => {
-            const codigo = document.getElementById('codigo_contenedor').value.trim().toUpperCase();
-            const tipo = document.getElementById('tipo_contenedor').value;
+            showCancelButton: true,
+            confirmButtonText: 'Agregar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#10b981',
+            width: '500px',
+            preConfirm: () => {
+                const codigo = document.getElementById('codigo_contenedor').value.trim().toUpperCase();
+                const tipo = document.getElementById('tipo_contenedor').value;
 
-            if (!codigo) {
-                Swal.showValidationMessage('Debes ingresar el código del contenedor');
-                return null;
-            }
-            if (codigo.length !== 11) {
-                Swal.showValidationMessage('El código debe tener exactamente 11 caracteres');
-                return null;
-            }
-            if (!tipo) {
-                Swal.showValidationMessage('Debes seleccionar un tipo de contenedor');
-                return null;
-            }
-
-            // Verificar si el contenedor ya existe
-            const existe = contenedores.some(c => c.codigo === codigo);
-            if (existe) {
-                Swal.showValidationMessage('Este contenedor ya existe en el BL');
-                return null;
-            }
-
-            return { codigo, tipo };
-        }
-    });
-
-    if (formValues) {
-        // Crear nuevo contenedor
-        const nuevoContenedor = {
-            id: `new_${Date.now()}`,
-            item_id: itemId,  // 🔥 AGREGAR ESTA LÍNEA
-            codigo: formValues.codigo,
-            tipo_cnt: formValues.tipo,
-            sellos: [],
-            imos: [],
-            _isNew: true
-        };
-
-        // Agregar contenedor a la lista
-        setContenedores(prev => [...prev, nuevoContenedor]);
-
-        // Asociar contenedor al item
-        setItems(prevItems =>
-            prevItems.map(item => {
-                if (item.id === itemId) {
-                    const contenedoresActuales = item.contenedores || [];
-                    return {
-                        ...item,
-                        contenedores: [...contenedoresActuales, { codigo: formValues.codigo }]
-                    };
+                if (!codigo) {
+                    Swal.showValidationMessage('Debes ingresar el código del contenedor');
+                    return null;
                 }
-                return item;
-            })
-        );
+                if (codigo.length !== 11) {
+                    Swal.showValidationMessage('El código debe tener exactamente 11 caracteres');
+                    return null;
+                }
+                if (!tipo) {
+                    Swal.showValidationMessage('Debes seleccionar un tipo de contenedor');
+                    return null;
+                }
 
-        Swal.fire({
-            icon: 'success',
-            title: 'Contenedor agregado',
-            text: `El contenedor ${formValues.codigo} se agregó al Item ${itemNumero}`,
-            timer: 2000,
-            showConfirmButton: false
+                // Verificar si el contenedor ya existe
+                const existe = contenedores.some(c => c.codigo === codigo);
+                if (existe) {
+                    Swal.showValidationMessage('Este contenedor ya existe en el BL');
+                    return null;
+                }
+
+                return { codigo, tipo };
+            }
         });
-    }
-};
+
+        if (formValues) {
+            // Crear nuevo contenedor
+            const nuevoContenedor = {
+                id: `new_${Date.now()}`,
+                item_id: itemId,  // 🔥 AGREGAR ESTA LÍNEA
+                codigo: formValues.codigo,
+                tipo_cnt: formValues.tipo,
+                sellos: [],
+                imos: [],
+                _isNew: true
+            };
+
+            // Agregar contenedor a la lista
+            setContenedores(prev => [...prev, nuevoContenedor]);
+
+            // Asociar contenedor al item
+            setItems(prevItems =>
+                prevItems.map(item => {
+                    if (item.id === itemId) {
+                        const contenedoresActuales = item.contenedores || [];
+                        return {
+                            ...item,
+                            contenedores: [...contenedoresActuales, { codigo: formValues.codigo }]
+                        };
+                    }
+                    return item;
+                })
+            );
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Contenedor agregado',
+                text: `El contenedor ${formValues.codigo} se agregó al Item ${itemNumero}`,
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }
+    };
+
     // AGREGAR DESPUÉS DE addContenedorToItem:
     // 🆕 FUNCIÓN PARA OBTENER ITEMS ASOCIADOS A UN CONTENEDOR
     const getItemsAsociados = (codigoContenedor) => {
@@ -618,6 +619,7 @@ const addContenedorToItem = async (itemId, itemNumero) => {
                     });
                     return false;
                 }
+
                 // 🆕 Unidad peso obligatoria
                 if (!formData.unidad_peso || formData.unidad_peso.trim() === '') {
                     Swal.fire({
@@ -628,7 +630,8 @@ const addContenedorToItem = async (itemId, itemNumero) => {
                     });
                     return false;
                 }
-                // 🆕 Volumen obligatorio (puede ser 0)
+
+                // 🆕 Volumen obligatorio (puede ser 0, pero no negativo)
                 if (formData.volumen === null || formData.volumen === undefined || formData.volumen === '') {
                     Swal.fire({
                         icon: "warning",
@@ -638,6 +641,18 @@ const addContenedorToItem = async (itemId, itemNumero) => {
                     });
                     return false;
                 }
+
+                // 🔥 NUEVA: Validar que volumen no sea negativo
+                if (parseFloat(formData.volumen) < 0) {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "Valor inválido",
+                        text: "El volumen no puede ser negativo",
+                        confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
+                }
+
                 // 🆕 Unidad volumen obligatoria
                 if (!formData.unidad_volumen || formData.unidad_volumen.trim() === '') {
                     Swal.fire({
@@ -648,6 +663,7 @@ const addContenedorToItem = async (itemId, itemNumero) => {
                     });
                     return false;
                 }
+
                 if (!formData.bultos || parseInt(formData.bultos) <= 0) {
                     Swal.fire({
                         icon: "warning",
@@ -657,7 +673,8 @@ const addContenedorToItem = async (itemId, itemNumero) => {
                     });
                     return false;
                 }
-                // ✅ descripcion_carga NO es obligatoria (comentada)
+
+                // ✅ descripcion_carga NO es obligatoria
                 break;
 
             case 5: // Items
@@ -700,6 +717,17 @@ const addContenedorToItem = async (itemId, itemNumero) => {
                             icon: "warning",
                             title: "Campo requerido",
                             text: `El Item ${item.numero_item} debe tener un volumen (puede ser 0)`,
+                            confirmButtonColor: "#0F2A44"
+                        });
+                        return false;
+                    }
+
+                    // 🔥 NUEVA: Validar que volumen no sea negativo
+                    if (parseFloat(item.volumen) < 0) {
+                        Swal.fire({
+                            icon: "warning",
+                            title: "Valor inválido",
+                            text: `El Item ${item.numero_item} no puede tener volumen negativo`,
                             confirmButtonColor: "#0F2A44"
                         });
                         return false;
@@ -864,13 +892,27 @@ const addContenedorToItem = async (itemId, itemNumero) => {
                 }
             }
             // 🆕 GUARDAR CONTENEDORES
+            // 🆕 GUARDAR CONTENEDORES
             if (contenedores.length > 0) {
                 console.log('🚀 ENVIANDO CONTENEDORES AL BACKEND:', JSON.stringify(contenedores, null, 2));
 
                 const resContenedores = await fetch(`http://localhost:4000/bls/${blNumber}/contenedores`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ contenedores })
+                    // 🔥 ASEGURAR QUE ENVIAMOS SOLO LOS CAMPOS EDITABLES
+                    body: JSON.stringify({
+                        contenedores: contenedores.map(cont => ({
+                            id: cont.id,
+                            item_id: cont.item_id,
+                            codigo: cont.codigo,
+                            tipo_cnt: cont.tipo_cnt,
+                            sellos: cont.sellos || [],
+                            imos: cont.imos || [],
+                            _isNew: cont._isNew || false
+                            // 🔥 NO enviamos peso_bruto, unidad_peso, volumen, unidad_volumen
+                            // porque no son editables en contenedores
+                        }))
+                    })
                 });
 
                 if (!resContenedores.ok) {
@@ -923,14 +965,83 @@ const addContenedorToItem = async (itemId, itemNumero) => {
         }
     };
 
+    // 🔥 PRIMERO AGREGA ESTA FUNCIÓN (antes de nextStep)
+    const validarCantidadContenedores = () => {
+        const inconsistencias = items.map(item => {
+            const cantEsperada = parseInt(item.cantidad) || 0;
+            const cantReal = (item.contenedores || []).length;
+
+            if (cantEsperada !== cantReal) {
+                return {
+                    itemId: item.id,
+                    numeroItem: item.numero_item,
+                    esperada: cantEsperada,
+                    actual: cantReal,
+                    diferencia: cantEsperada - cantReal,
+                    faltanContenedores: cantEsperada > cantReal,
+                    sobranContenedores: cantEsperada < cantReal
+                };
+            }
+            return null;
+        }).filter(Boolean);
+
+        return inconsistencias;
+    };
+
+    // 🔥 LUEGO REEMPLAZA TU nextStep ACTUAL CON ESTA:
     const nextStep = () => {
+        // Validar el paso actual primero
         if (!validateStep(currentStep)) {
             return;
         }
 
-        if (currentStep < steps.length) {
-            setCurrentStep(currentStep + 1);
+        // 🔥 SI ESTAMOS EN EL STEP 5, VALIDAR CANTIDAD VS CONTENEDORES
+        if (currentStep === 5) {
+            const inconsistencias = validarCantidadContenedores();
+
+            if (inconsistencias.length > 0) {
+                const mensajeHTML = inconsistencias.map(inc => {
+                    const icon = inc.faltanContenedores ? '❌' : '⚠️';
+                    const accion = inc.faltanContenedores
+                        ? `<span class="text-red-600 font-bold">Faltan ${inc.diferencia} contenedor(es)</span>`
+                        : `<span class="text-orange-600 font-bold">Sobran ${Math.abs(inc.diferencia)} contenedor(es)</span>`;
+
+                    return `
+                    <div class="text-left mb-2 p-2 bg-gray-50 rounded">
+                        <strong>Item ${inc.numeroItem}:</strong><br>
+                        Esperados: ${inc.esperada} | Actuales: ${inc.actual}<br>
+                        ${accion}
+                    </div>
+                `;
+                }).join('');
+
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Cantidad inconsistente',
+                    html: `
+                    <div class="text-sm">
+                        ${mensajeHTML}
+                        <div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-800">
+                            <strong>Acción requerida:</strong><br>
+                            ${inconsistencias.some(i => i.faltanContenedores)
+                            ? '• Usa el botón "+ Agregar Contenedor" para añadir los faltantes<br>'
+                            : ''}
+                            ${inconsistencias.some(i => i.sobranContenedores)
+                            ? '• Reduce la cantidad o elimina contenedores sobrantes en el Step 6'
+                            : ''}
+                        </div>
+                    </div>
+                `,
+                    confirmButtonText: 'Entendido',
+                    confirmButtonColor: '#ef4444',
+                    width: '600px'
+                });
+                return; // 🔥 BLOQUEAR avance al siguiente step
+            }
         }
+
+        // Si pasó todas las validaciones, avanzar
+        setCurrentStep(prev => prev + 1);
     };
 
     const prevStep = () => {
@@ -1020,7 +1131,55 @@ const addContenedorToItem = async (itemId, itemNumero) => {
                             <div key={step.id} className="flex items-center flex-1">
                                 <div className="flex flex-col items-center">
                                     <button
-                                        onClick={() => setCurrentStep(step.id)}
+                                        onClick={() => {
+                                            // 🔥 SI ESTAMOS EN EL STEP 5 Y QUEREMOS IR A OTRO STEP, VALIDAR PRIMERO
+                                            if (currentStep === 5 && step.id !== 5) {
+                                                const inconsistencias = validarCantidadContenedores();
+
+                                                if (inconsistencias.length > 0) {
+                                                    const mensajeHTML = inconsistencias.map(inc => {
+                                                        const icon = inc.faltanContenedores ? '❌' : '⚠️';
+                                                        const accion = inc.faltanContenedores
+                                                            ? `<span class="text-red-600 font-bold">Faltan ${inc.diferencia} contenedor(es)</span>`
+                                                            : `<span class="text-orange-600 font-bold">Sobran ${Math.abs(inc.diferencia)} contenedor(es)</span>`;
+
+                                                        return `
+                        <div class="text-left mb-2 p-2 bg-gray-50 rounded">
+                            ${icon} <strong>Item ${inc.numeroItem}:</strong><br>
+                            Esperados: ${inc.esperada} | Actuales: ${inc.actual}<br>
+                            ${accion}
+                        </div>
+                    `;
+                                                    }).join('');
+
+                                                    Swal.fire({
+                                                        icon: 'error',
+                                                        title: '⚠️ Cantidad inconsistente',
+                                                        html: `
+                        <div class="text-sm">
+                            ${mensajeHTML}
+                            <div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-800">
+                                <strong>💡 Acción requerida:</strong><br>
+                                ${inconsistencias.some(i => i.faltanContenedores)
+                                                                ? '• Usa el botón "+ Agregar Contenedor" para añadir los faltantes<br>'
+                                                                : ''}
+                                ${inconsistencias.some(i => i.sobranContenedores)
+                                                                ? '• Reduce la cantidad o elimina contenedores sobrantes en el Step 6'
+                                                                : ''}
+                            </div>
+                        </div>
+                    `,
+                                                        confirmButtonText: 'Entendido',
+                                                        confirmButtonColor: '#ef4444',
+                                                        width: '600px'
+                                                    });
+                                                    return; // 🔥 BLOQUEAR el cambio de step
+                                                }
+                                            }
+
+                                            // Si pasó la validación (o no estaba en step 5), cambiar de step
+                                            setCurrentStep(step.id);
+                                        }}
                                         className={[
                                             "w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-all",
                                             currentStep === step.id
@@ -1410,6 +1569,7 @@ const addContenedorToItem = async (itemId, itemNumero) => {
                     {currentStep === 4 && (
                         <div className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
                                 {/* Peso Bruto */}
                                 <div className="md:col-span-2">
                                     <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -1418,26 +1578,21 @@ const addContenedorToItem = async (itemId, itemNumero) => {
                                     <input
                                         type="number"
                                         step="0.001"
+                                        min="0.001"  // 🔥 AGREGAR
                                         value={formData.peso_bruto}
-                                        onChange={(e) => updateField("peso_bruto", e.target.value)}
+                                        onChange={(e) => {
+                                            const value = parseFloat(e.target.value);
+                                            if (value > 0 || e.target.value === '') {  // 🔥 VALIDAR
+                                                updateField("peso_bruto", e.target.value);
+                                            }
+                                        }}
+                                        onBlur={(e) => {  // 🔥 AGREGAR - valida al salir del campo
+                                            if (e.target.value === '' || parseFloat(e.target.value) <= 0) {
+                                                updateField("peso_bruto", "0.001");
+                                            }
+                                        }}
                                         className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
                                     />
-                                </div>
-
-                                {/* Unidad Peso */}
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                                        Unidad Peso <span className="text-red-500">*</span>
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={formData.unidad_peso}
-                                        onChange={(e) => updateField("unidad_peso", e.target.value.toUpperCase())}
-                                        placeholder="Ej: KGM, LBR, TNE"
-                                        maxLength="3"
-                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 uppercase"
-                                    />
-                                    <p className="text-xs text-slate-500 mt-1">Sugerido: KGM, LBR, TNE</p>
                                 </div>
 
                                 {/* Volumen */}
@@ -1448,26 +1603,21 @@ const addContenedorToItem = async (itemId, itemNumero) => {
                                     <input
                                         type="number"
                                         step="0.001"
-                                        value={formData.volumen}
-                                        onChange={(e) => updateField("volumen", e.target.value)}
+                                        min="0"  // 🔥 AGREGAR
+                                        value={formData.volumen ?? ""}  // ✅ Usa ?? para manejar null/undefined
+                                        onChange={(e) => {
+                                            const value = parseFloat(e.target.value);
+                                            if (value >= 0 || e.target.value === '') {  // 🔥 VALIDAR (puede ser 0)
+                                                updateField("volumen", e.target.value);
+                                            }
+                                        }}
+                                        onBlur={(e) => {  // 🔥 AGREGAR
+                                            if (e.target.value === '' || parseFloat(e.target.value) < 0) {
+                                                updateField("volumen", "0");
+                                            }
+                                        }}
                                         className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
                                     />
-                                </div>
-
-                                {/* Unidad Volumen */}
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                                        Unidad Volumen <span className="text-red-500">*</span>
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={formData.unidad_volumen}
-                                        onChange={(e) => updateField("unidad_volumen", e.target.value.toUpperCase())}
-                                        placeholder="Ej: MTQ, FTQ, LTR"
-                                        maxLength="3"
-                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 uppercase"
-                                    />
-                                    <p className="text-xs text-slate-500 mt-1">Sugerido: MTQ, FTQ, LTR</p>
                                 </div>
 
                                 {/* Bultos */}
@@ -1477,28 +1627,26 @@ const addContenedorToItem = async (itemId, itemNumero) => {
                                     </label>
                                     <input
                                         type="number"
+                                        min="1"  // 🔥 AGREGAR
                                         value={formData.bultos}
-                                        onChange={(e) => updateField("bultos", e.target.value)}
+                                        onChange={(e) => {
+                                            const value = parseInt(e.target.value);
+                                            if (value > 0 || e.target.value === '') {  // 🔥 VALIDAR
+                                                updateField("bultos", e.target.value);
+                                            }
+                                        }}
+                                        onBlur={(e) => {  // 🔥 AGREGAR
+                                            if (e.target.value === '' || parseInt(e.target.value) < 1) {
+                                                updateField("bultos", "1");
+                                            }
+                                        }}
                                         className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
                                     />
                                 </div>
-                            </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">
-                                    Descripción de Mercancía
-                                </label>
-                                <textarea
-                                    rows={8}
-                                    value={formData.descripcion_carga}
-                                    onChange={(e) => updateField("descripcion_carga", e.target.value)}
-                                    placeholder="Descripción detallada de la carga..."
-                                    className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 font-mono text-sm"
-                                />
                             </div>
                         </div>
                     )}
-
 
 
                     {/* STEP 5: ITEMS Y CONTENEDORES */}
@@ -1758,12 +1906,12 @@ const addContenedorToItem = async (itemId, itemNumero) => {
                                                         </h3>
                                                         {esCargaPeligrosa && (
                                                             <span className="px-3 py-1 bg-red-600 text-white rounded-full text-xs font-bold animate-pulse">
-                                                                 CARGA PELIGROSA
+                                                                CARGA PELIGROSA
                                                             </span>
                                                         )}
                                                         {cont._isNew && (
                                                             <span className="px-3 py-1 bg-green-600 text-white rounded-full text-xs font-bold">
-                                                                 NUEVO
+                                                                NUEVO
                                                             </span>
                                                         )}
                                                     </div>
@@ -1848,7 +1996,7 @@ const addContenedorToItem = async (itemId, itemNumero) => {
                                                                 ))
                                                             )}
                                                         </div>
-                                                      
+
 
                                                         {esCargaPeligrosa && (cont.sellos || []).length < 2 && (cont.sellos || []).length > 0 && (
                                                             <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-sm text-amber-700">
@@ -1857,197 +2005,197 @@ const addContenedorToItem = async (itemId, itemNumero) => {
                                                         )}
                                                         {/* 🆕 HASTA AQUÍ 👆 */}
 
-                                                </div>
-
-                                                {/* 🔥 SECCIÓN IMO - CONDICIONAL */}
-                                                {esCargaPeligrosa && (
-                                                    <div className="md:col-span-2 border-t-2 border-red-300 pt-4">
-                                                        <div className="flex items-center justify-between mb-3">
-                                                            <label className="block text-sm font-medium text-red-800 flex items-center gap-2">
-                                                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                                                </svg>
-                                                                Datos IMO (Obligatorio) - {(cont.imos || []).length} registrado(s)
-                                                            </label>
-                                                            {/* DENTRO DEL STEP 6, en la sección de IMO */}
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => addImoToContenedor(cont.id, cont.codigo)} // 🔥 Pasar código
-                                                                className="text-sm bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors font-medium"
-                                                            >
-                                                                + Agregar IMO
-                                                            </button>
-                                                        </div>
-
-                                                        {/* Alert si no hay IMOs */}
-                                                        {(cont.imos || []).length === 0 && (
-                                                            <div className="mb-3 p-3 bg-red-100 border border-red-300 rounded-lg">
-                                                                <p className="text-sm text-red-800 font-medium">
-                                                                    ⚠️ Este contenedor tiene carga peligrosa y debe tener al menos un dato IMO
-                                                                </p>
-                                                            </div>
-                                                        )}
-
-                                                        <div className="space-y-2">
-                                                            {(cont.imos || []).length === 0 ? (
-                                                                <p className="text-sm text-orange-700 italic bg-orange-100 p-3 rounded">
-                                                                    Sin datos IMO registrados
-                                                                </p>
-                                                            ) : (
-                                                                (cont.imos || []).map((imo, i) => (
-                                                                    <div
-                                                                        key={i}
-                                                                        className="flex items-center gap-3 p-4 bg-white border-2 border-orange-300 rounded-lg shadow-sm"
-                                                                    >
-                                                                        <div className="flex-1 grid grid-cols-2 gap-4">
-                                                                            <div>
-                                                                                <span className="text-xs text-slate-600">Clase IMO</span>
-                                                                                <p className="text-sm font-bold text-slate-900">{imo.clase}</p>
-                                                                            </div>
-                                                                            <div>
-                                                                                <span className="text-xs text-slate-600">Número IMO</span>
-                                                                                <p className="text-sm font-bold text-slate-900">{imo.numero}</p>
-                                                                            </div>
-                                                                        </div>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => removeImoFromContenedor(cont.id, i, cont.codigo)} // 🔥 Pasar código
-                                                                            className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
-                                                                            title="Eliminar IMO"
-                                                                        >
-                                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                                            </svg>
-                                                                        </button>
-                                                                    </div>
-                                                                ))
-                                                            )}
-                                                        </div>
                                                     </div>
-                                                )}
-                                            </div>
-                                            </div>
-                            );
-                                    })}
-                        </div>
-                    )}
 
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-                        <strong>Nota:</strong> Los contenedores con carga peligrosa DEBEN tener datos IMO. Los datos de peso, volumen y tipo de contenedor no son editables.
-                    </div>
-                </div>
-                    )}
-                {/* STEP 7: REVISIÓN */}
-                {currentStep === 7 && (
-                    <div className="space-y-6">
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                            <h3 className="font-semibold text-blue-900 mb-4 text-lg">
-                                Resumen de cambios
-                            </h3>
-                            <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div>
-                                    <p className="text-blue-700 font-medium">BL Number:</p>
-                                    <p className="text-blue-900">{formData.bl_number}</p>
+                                                    {/* 🔥 SECCIÓN IMO - CONDICIONAL */}
+                                                    {esCargaPeligrosa && (
+                                                        <div className="md:col-span-2 border-t-2 border-red-300 pt-4">
+                                                            <div className="flex items-center justify-between mb-3">
+                                                                <label className="block text-sm font-medium text-red-800 flex items-center gap-2">
+                                                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                                                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                                    </svg>
+                                                                    Datos IMO (Obligatorio) - {(cont.imos || []).length} registrado(s)
+                                                                </label>
+                                                                {/* DENTRO DEL STEP 6, en la sección de IMO */}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => addImoToContenedor(cont.id, cont.codigo)} // 🔥 Pasar código
+                                                                    className="text-sm bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors font-medium"
+                                                                >
+                                                                    + Agregar IMO
+                                                                </button>
+                                                            </div>
+
+                                                            {/* Alert si no hay IMOs */}
+                                                            {(cont.imos || []).length === 0 && (
+                                                                <div className="mb-3 p-3 bg-red-100 border border-red-300 rounded-lg">
+                                                                    <p className="text-sm text-red-800 font-medium">
+                                                                        ⚠️ Este contenedor tiene carga peligrosa y debe tener al menos un dato IMO
+                                                                    </p>
+                                                                </div>
+                                                            )}
+
+                                                            <div className="space-y-2">
+                                                                {(cont.imos || []).length === 0 ? (
+                                                                    <p className="text-sm text-orange-700 italic bg-orange-100 p-3 rounded">
+                                                                        Sin datos IMO registrados
+                                                                    </p>
+                                                                ) : (
+                                                                    (cont.imos || []).map((imo, i) => (
+                                                                        <div
+                                                                            key={i}
+                                                                            className="flex items-center gap-3 p-4 bg-white border-2 border-orange-300 rounded-lg shadow-sm"
+                                                                        >
+                                                                            <div className="flex-1 grid grid-cols-2 gap-4">
+                                                                                <div>
+                                                                                    <span className="text-xs text-slate-600">Clase IMO</span>
+                                                                                    <p className="text-sm font-bold text-slate-900">{imo.clase}</p>
+                                                                                </div>
+                                                                                <div>
+                                                                                    <span className="text-xs text-slate-600">Número IMO</span>
+                                                                                    <p className="text-sm font-bold text-slate-900">{imo.numero}</p>
+                                                                                </div>
+                                                                            </div>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => removeImoFromContenedor(cont.id, i, cont.codigo)} // 🔥 Pasar código
+                                                                                className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                                                                                title="Eliminar IMO"
+                                                                            >
+                                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                                </svg>
+                                                                            </button>
+                                                                        </div>
+                                                                    ))
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
-                                <div>
-                                    <p className="text-blue-700 font-medium">Viaje:</p>
-                                    <p className="text-blue-900">{formData.viaje}</p>
-                                </div>
-                                <div>
-                                    <p className="text-blue-700 font-medium">Tipo Servicio:</p>
-                                    <p className="text-blue-900">{formData.tipo_servicio}</p>
-                                </div>
-                                <div>
-                                    <p className="text-blue-700 font-medium">Fecha Emisión:</p>
-                                    <p className="text-blue-900">{formData.fecha_emision || "—"}</p>
-                                </div>
-                                {/* ← AGREGAR AQUÍ */}
-                                <div>
-                                    <p className="text-blue-700 font-medium">Fecha Presentación:</p>
-                                    <p className="text-blue-900">{formData.fecha_presentacion ?
-                                        new Date(formData.fecha_presentacion).toLocaleString('es-CL') : "—"}
-                                    </p>
-                                </div>
-                                {/* 🆕 PUERTOS EN RESUMEN */}
-                                <div>
-                                    <p className="text-blue-700 font-medium">Puerto Embarque:</p>
-                                    <p className="text-blue-900">{formData.puerto_embarque || "—"}</p>
-                                </div>
-                                <div>
-                                    <p className="text-blue-700 font-medium">Puerto Descarga:</p>
-                                    <p className="text-blue-900">{formData.puerto_descarga || "—"}</p>
-                                </div>
-                                <div>
-                                    <p className="text-blue-700 font-medium">Peso Bruto:</p>
-                                    <p className="text-blue-900">{formData.peso_bruto} {formData.unidad_peso}</p>
-                                </div>
-                                <div>
-                                    <p className="text-blue-700 font-medium">Volumen:</p>
-                                    <p className="text-blue-900">{formData.volumen} {formData.unidad_volumen}</p>
-                                </div>
-                                <div>
-                                    <p className="text-blue-700 font-medium">Bultos:</p>
-                                    <p className="text-blue-900">{formData.bultos}</p>
-                                </div>
-                                <div>
-                                    <p className="text-blue-700 font-medium">Total Contenedores:</p>
-                                    <p className="text-blue-900">{contenedores.length}</p>
-                                </div>
-                                <div>
-                                    <p className="text-blue-700 font-medium">Total Items:</p>
-                                    <p className="text-blue-900">{items.length}</p>
-                                </div>
+                            )}
+
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+                                <strong>Nota:</strong> Los contenedores con carga peligrosa DEBEN tener datos IMO. Los datos de peso, volumen y tipo de contenedor no son editables.
                             </div>
                         </div>
+                    )}
+                    {/* STEP 7: REVISIÓN */}
+                    {currentStep === 7 && (
+                        <div className="space-y-6">
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                                <h3 className="font-semibold text-blue-900 mb-4 text-lg">
+                                    Resumen de cambios
+                                </h3>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <p className="text-blue-700 font-medium">BL Number:</p>
+                                        <p className="text-blue-900">{formData.bl_number}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-blue-700 font-medium">Viaje:</p>
+                                        <p className="text-blue-900">{formData.viaje}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-blue-700 font-medium">Tipo Servicio:</p>
+                                        <p className="text-blue-900">{formData.tipo_servicio}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-blue-700 font-medium">Fecha Emisión:</p>
+                                        <p className="text-blue-900">{formData.fecha_emision || "—"}</p>
+                                    </div>
+                                    {/* ← AGREGAR AQUÍ */}
+                                    <div>
+                                        <p className="text-blue-700 font-medium">Fecha Presentación:</p>
+                                        <p className="text-blue-900">{formData.fecha_presentacion ?
+                                            new Date(formData.fecha_presentacion).toLocaleString('es-CL') : "—"}
+                                        </p>
+                                    </div>
+                                    {/* 🆕 PUERTOS EN RESUMEN */}
+                                    <div>
+                                        <p className="text-blue-700 font-medium">Puerto Embarque:</p>
+                                        <p className="text-blue-900">{formData.puerto_embarque || "—"}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-blue-700 font-medium">Puerto Descarga:</p>
+                                        <p className="text-blue-900">{formData.puerto_descarga || "—"}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-blue-700 font-medium">Peso Bruto:</p>
+                                        <p className="text-blue-900">{formData.peso_bruto} {formData.unidad_peso}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-blue-700 font-medium">Volumen:</p>
+                                        <p className="text-blue-900">{formData.volumen} {formData.unidad_volumen}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-blue-700 font-medium">Bultos:</p>
+                                        <p className="text-blue-900">{formData.bultos}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-blue-700 font-medium">Total Contenedores:</p>
+                                        <p className="text-blue-900">{contenedores.length}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-blue-700 font-medium">Total Items:</p>
+                                        <p className="text-blue-900">{items.length}</p>
+                                    </div>
+                                </div>
+                            </div>
 
-                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
-                            <strong>Atención:</strong> Al confirmar, los cambios se aplicarán inmediatamente en el sistema.
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
+                                <strong>Atención:</strong> Al confirmar, los cambios se aplicarán inmediatamente en el sistema.
+                            </div>
                         </div>
+                    )}
+                </div>
+
+                {/* Botones de navegación */}
+                <div className="flex items-center justify-between mt-6">
+                    <button
+                        onClick={prevStep}
+                        disabled={currentStep === 1}
+                        className="px-6 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                        ← Anterior
+                    </button>
+
+                    <div className="text-sm text-slate-600">
+                        Paso {currentStep} de {steps.length}
                     </div>
-                )}
-        </div>
 
-                {/* Botones de navegación */ }
-    <div className="flex items-center justify-between mt-6">
-        <button
-            onClick={prevStep}
-            disabled={currentStep === 1}
-            className="px-6 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-            ← Anterior
-        </button>
-
-        <div className="text-sm text-slate-600">
-            Paso {currentStep} de {steps.length}
-        </div>
-
-        {currentStep < steps.length ? (
-            <button
-                onClick={nextStep}
-                className="px-6 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition-colors"
-            >
-                Siguiente →
-            </button>
-        ) : (
-            <button
-                onClick={handleSave}
-                disabled={saving}
-                className="px-8 py-3 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold"
-            >
-                {saving ? (
-                    <span className="flex items-center gap-2">
-                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                        Guardando...
-                    </span>
-                ) : (
-                    "Guardar Cambios"
-                )}
-            </button>
-        )}
-    </div>
+                    {currentStep < steps.length ? (
+                        <button
+                            onClick={nextStep}
+                            className="px-6 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition-colors"
+                        >
+                            Siguiente →
+                        </button>
+                    ) : (
+                        <button
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="px-8 py-3 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold"
+                        >
+                            {saving ? (
+                                <span className="flex items-center gap-2">
+                                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                    </svg>
+                                    Guardando...
+                                </span>
+                            ) : (
+                                "Guardar Cambios"
+                            )}
+                        </button>
+                    )}
+                </div>
             </main >
         </div >
     );

@@ -22,7 +22,7 @@ const NuevoManifiesto = () => {
     nave: "",
     viaje: "",
     puertoCentral: "",
-    tipoOperacion: "EX",
+    tipoOperacion: "S",
     operadorNave: "",
     status: "En edición",
     remark: "",
@@ -378,18 +378,18 @@ const NuevoManifiesto = () => {
               <Hint text="Tip: escribe el código (WSACL) y te sugiere el nombre." />
             </Field>
 
-            <Field label="Operación (EX/IM/CROSS) *">
+            <Field label="Operación *">
               <select
                 value={form.tipoOperacion}
                 onChange={onChange("tipoOperacion")}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
               >
-                <option value="EX">EX</option>
-                <option value="IM">IM</option>
-                <option value="CROSS">CROSS</option>
+                <option value="S">S (Salida/Exportación)</option>
+                <option value="I">I (Ingreso/Importación)</option>
+                <option value="TR">TR (Tránsito)</option>
+                <option value="TRB">TRB (Transbordo)</option>
               </select>
             </Field>
-
             <Field label="Nave *">
               <input
                 list="navesList"
