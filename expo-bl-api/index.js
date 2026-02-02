@@ -904,7 +904,7 @@ app.get("/manifiestos/:id", async (req, res) => {
        ORDER BY id`,
       [id]
     );
-    console.log(`🔍 BLs cargados para manifiesto ${id}:`, bls.length); // 🔥 DEBUG
+
 
     const response = {
       manifiesto: rows[0],
@@ -3664,9 +3664,6 @@ app.get('/bls/:blNumber/items-contenedores', async (req, res) => {
       item.contenedores = itemContenedores.map(c => ({ codigo: c.codigo }));
     }
 
-    console.log('✅ Contenedores cargados:', contenedores.length);
-    console.log('📦 Ejemplo contenedor:', contenedores[0] || 'Sin contenedores');
-
     res.json({ items, contenedores });
   } catch (error) {
     console.error('❌ Error al obtener items y contenedores:', error);
@@ -4431,7 +4428,6 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
       [id]
     );
 
-    console.log(`🔄 Re-validando ${bls.length} BLs del manifiesto ${id}...`);
 
     // 2️⃣ RE-VALIDAR CADA BL (esto resuelve los puertos que se agregaron)
     for (const bl of bls) {
@@ -4484,7 +4480,6 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
 
     const [rows] = await conn.query(query, [id]);
 
-    console.log(`✅ ${rows.length} BLs revalidados y devueltos`);
     res.json(rows);
   } catch (error) {
     console.error("❌ Error al obtener BLs para XML:", error);
@@ -6104,31 +6099,25 @@ const port = Number(process.env.PORT || 4000);
 
 (async () => {
   try {
-    console.log('🔄 Iniciando servidor...');
+    console.log('Iniciando servidor...');
 
     // Verificar conexión a base de datos
-    console.log('🔄 Verificando conexión a base de datos...');
+    console.log('Verificando conexión a base de datos...');
     const conn = await pool.getConnection();
     await conn.ping();
     conn.release();
-    console.log('✅ Conexión a base de datos exitosa');
+    console.log('Conexión a base de datos exitosa');
 
     // Cargar tokens PMS
-    console.log('🔄 Cargando tokens PMS51...');
     await loadPms51Tokens();
-    console.log(`✅ ${PMS51_TOKENS.length} tokens PMS51 cargados`);
+
 
     // Iniciar servidor
     app.listen(port, () => {
-      console.log(`✅ API running on http://localhost:${port}`);
-      console.log(`📡 Endpoints disponibles:`);
-      console.log(`   - GET  /health`);
-      console.log(`   - GET  /manifiestos`);
-      console.log(`   - POST /manifiestos`);
-      console.log(`   - GET  /bls`);
+      console.log(`API running on http://localhost:${port}`);
     });
   } catch (error) {
-    console.error('❌ Error iniciando servidor:', error);
+    console.error('Error iniciando servidor:', error);
     console.error('Stack:', error.stack);
     process.exit(1);
   }
@@ -6136,11 +6125,11 @@ const port = Number(process.env.PORT || 4000);
 
 // Manejo de errores globales
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Rejection at:', promise);
-  console.error('❌ Reason:', reason);
+  console.error('Unhandled Rejection at:', promise);
+  console.error('Reason:', reason);
 });
 
 process.on('uncaughtException', (error) => {
-  console.error('❌ Uncaught Exception:', error);
+  console.error('Uncaught Exception:', error);
   process.exit(1);
 });
