@@ -578,6 +578,7 @@ CREATE TABLE `tipo_cnt_tipo_bulto` (
   `activo` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `descripcion` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_tipo_cnt` (`tipo_cnt`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -589,7 +590,7 @@ CREATE TABLE `tipo_cnt_tipo_bulto` (
 
 LOCK TABLES `tipo_cnt_tipo_bulto` WRITE;
 /*!40000 ALTER TABLE `tipo_cnt_tipo_bulto` DISABLE KEYS */;
-INSERT INTO `tipo_cnt_tipo_bulto` VALUES (1,'45R1','76',1,'2026-01-15 15:12:46','2026-01-16 16:11:42'),(2,'22G1','73',1,'2026-01-15 15:12:46','2026-01-15 15:12:46'),(3,'45G1','78',1,'2026-01-16 16:15:13','2026-01-16 16:15:13');
+INSERT INTO `tipo_cnt_tipo_bulto` VALUES (1,'45R1','76',1,'2026-01-15 15:12:46','2026-02-02 13:20:20','	CONTENEDOR REFRIGERADO 40 PIES'),(2,'22G1','73',1,'2026-01-15 15:12:46','2026-02-02 13:20:20','CONTENEDOR DE 20 PIES DRY'),(3,'45G1','78',1,'2026-01-16 16:15:13','2026-02-02 13:20:20','	CONTENEDOR NO ESPECIFICADO (Open Top, Tank, Flat Rack, otros)');
 /*!40000 ALTER TABLE `tipo_cnt_tipo_bulto` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -665,4 +666,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-02-02 10:12:31
+-- Dump completed on 2026-02-02 10:20:47
