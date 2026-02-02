@@ -3288,7 +3288,128 @@ app.put("/manifiestos/:id", async (req, res) => {
     conn.release();
   }
 });
-// Agregar esta ruta en tu archivo de rutas (index.js o routes/bls.js)
+
+// DELETE /manifiestos/eliminar-multiples - Eliminar varios manifiestos
+app.delete("/manifiestos/eliminar-multiples", async (req, res) => {
+  const { ids } = req.body;
+
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: "Debe seleccionar al menos un manifiesto" });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const resultados = {
+      eliminados: [],
+      conBLs: [],
+      noEncontrados: []
+    };
+
+    for (const id of ids) {
+      // Verificar existencia
+      const [mRows] = await conn.query(
+        "SELECT id FROM manifiestos WHERE id = ?",
+        [id]
+      );
+
+      if (mRows.length === 0) {
+        resultados.noEncontrados.push(id);
+        continue;
+      }
+
+      // Verificar BLs
+      const [blRows] = await conn.query(
+        "SELECT COUNT(*) as total FROM bls WHERE manifiesto_id = ?",
+        [id]
+      );
+
+      if (blRows[0].total > 0) {
+        resultados.conBLs.push({ id, totalBLs: blRows[0].total });
+        continue;
+      }
+
+      // Eliminar itinerario y manifiesto
+      await conn.query("DELETE FROM itinerarios WHERE manifiesto_id = ?", [id]);
+      await conn.query("DELETE FROM manifiestos WHERE id = ?", [id]);
+      resultados.eliminados.push(id);
+    }
+
+    await conn.commit();
+
+    res.json({
+      success: true,
+      resultados,
+      mensaje: `${resultados.eliminados.length} manifiesto(s) eliminado(s)`
+    });
+
+  } catch (err) {
+    await conn.rollback();
+    console.error("Error al eliminar manifiestos:", err);
+    res.status(500).json({ 
+      error: "Error al eliminar manifiestos",
+      details: err?.message 
+    });
+  } finally {
+    conn.release();
+  }
+});
+
+// DELETE /manifiestos/:id - Eliminar manifiesto (solo si no tiene BLs)
+app.delete("/manifiestos/:id", async (req, res) => {
+  const { id } = req.params;
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // 1️⃣ Verificar que el manifiesto existe
+    const [mRows] = await conn.query(
+      "SELECT id FROM manifiestos WHERE id = ?",
+      [id]
+    );
+
+    if (mRows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: "Manifiesto no encontrado" });
+    }
+
+    // 2️⃣ Verificar que NO tenga BLs asociados
+    const [blRows] = await conn.query(
+      "SELECT COUNT(*) as total FROM bls WHERE manifiesto_id = ?",
+      [id]
+    );
+
+    if (blRows[0].total > 0) {
+      await conn.rollback();
+      return res.status(400).json({
+        error: "No se puede eliminar",
+        message: `Este manifiesto tiene ${blRows[0].total} BL(s) asociado(s). Elimina primero los BLs.`
+      });
+    }
+
+    // 3️⃣ Eliminar itinerario (FK constraint)
+    await conn.query("DELETE FROM itinerarios WHERE manifiesto_id = ?", [id]);
+
+    // 4️⃣ Eliminar manifiesto
+    await conn.query("DELETE FROM manifiestos WHERE id = ?", [id]);
+
+    await conn.commit();
+    res.json({ success: true, message: "Manifiesto eliminado correctamente" });
+
+  } catch (err) {
+    await conn.rollback();
+    console.error("Error al eliminar manifiesto:", err);
+    res.status(500).json({
+      error: "Error al eliminar manifiesto",
+      details: err?.message
+    });
+  } finally {
+    conn.release();
+  }
+});
+
 
 // GET todos los BLs con información completa
 app.get("/bls", async (req, res) => {

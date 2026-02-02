@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Swal from "sweetalert2";
 import Sidebar from "../components/Sidebar";
-import { FileText } from "lucide-react";
+import { FileText, Trash2 } from "lucide-react";
 
 const estadoStyles = {
   "Activo": "bg-emerald-100 text-emerald-800 ring-emerald-200",
@@ -9,7 +10,6 @@ const estadoStyles = {
   "Enviado": "bg-orange-100 text-orange-800 ring-orange-200",
 };
 
-// Para fechas que vienen como "2025-11-25T03:00:00.000Z"
 const formatDateCL = (iso) => {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -24,6 +24,7 @@ const Manifiestos = () => {
   const [manifiestos, setManifiestos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selected, setSelected] = useState(new Set());
 
   const fetchManifiestos = async () => {
     setLoading(true);
@@ -33,6 +34,7 @@ const Manifiestos = () => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setManifiestos(Array.isArray(data) ? data : []);
+      setSelected(new Set()); // Limpiar selección al recargar
     } catch (e) {
       setError(e?.message || "Error desconocido");
       setManifiestos([]);
@@ -44,6 +46,105 @@ const Manifiestos = () => {
   useEffect(() => {
     fetchManifiestos();
   }, []);
+
+  const toggleSelect = (id) => {
+    setSelected((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selected.size === manifiestos.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(manifiestos.map((m) => m.id)));
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selected.size === 0) {
+      await Swal.fire({
+        title: "Sin selección",
+        text: "Debes seleccionar al menos un manifiesto para eliminar",
+        icon: "warning",
+        confirmButtonColor: "#0F2A44",
+      });
+      return;
+    }
+
+    const result = await Swal.fire({
+      title: "¿Eliminar manifiestos?",
+      html: `
+        <p>Estás a punto de eliminar <strong>${selected.size} manifiesto(s)</strong>.</p>
+        <p class="text-sm text-slate-500 mt-2">Solo se eliminarán los que no tengan BLs asociados.</p>
+      `,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#64748b",
+      confirmButtonText: "Sí, eliminar",
+      cancelButtonText: "Cancelar",
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      const res = await fetch("http://localhost:4000/manifiestos/eliminar-multiples", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selected) }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Error al eliminar");
+      }
+
+      const { resultados } = data;
+
+      // Construir mensaje detallado
+      let mensaje = "";
+      if (resultados.eliminados.length > 0) {
+        mensaje += `✅ <strong>${resultados.eliminados.length} eliminado(s)</strong><br>`;
+      }
+      if (resultados.conBLs.length > 0) {
+        mensaje += `⚠️ <strong>${resultados.conBLs.length} no se pudieron eliminar</strong> (tienen BLs asociados)<br>`;
+        mensaje += `<ul class="text-left text-sm mt-2 ml-4">`;
+        resultados.conBLs.forEach(({ id, totalBLs }) => {
+          mensaje += `<li>Manifiesto #${id}: ${totalBLs} BL(s)</li>`;
+        });
+        mensaje += `</ul>`;
+      }
+      if (resultados.noEncontrados.length > 0) {
+        mensaje += `❌ <strong>${resultados.noEncontrados.length} no encontrado(s)</strong><br>`;
+      }
+
+      await Swal.fire({
+        title: resultados.eliminados.length > 0 ? "Operación completada" : "No se eliminó nada",
+        html: mensaje,
+        icon: resultados.eliminados.length > 0 ? "success" : "info",
+        confirmButtonColor: "#0F2A44",
+      });
+
+      // Recargar lista
+      await fetchManifiestos();
+
+    } catch (err) {
+      await Swal.fire({
+        title: "Error",
+        text: err?.message || "No se pudieron eliminar los manifiestos",
+        icon: "error",
+        confirmButtonColor: "#0F2A44",
+      });
+    }
+  };
 
   return (
     <div className="flex min-h-screen bg-slate-100">
@@ -62,6 +163,16 @@ const Manifiestos = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={handleDeleteSelected}
+              disabled={selected.size === 0}
+              className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+              title={selected.size === 0 ? "Selecciona manifiestos para eliminar" : `Eliminar ${selected.size} manifiesto(s)`}
+            >
+              <Trash2 className="w-4 h-4" />
+              Eliminar {selected.size > 0 && `(${selected.size})`}
+            </button>
+
             <button
               onClick={fetchManifiestos}
               className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
@@ -95,6 +206,14 @@ const Manifiestos = () => {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-slate-600">
               <tr>
+                <th className="px-6 py-3">
+                  <input
+                    type="checkbox"
+                    checked={manifiestos.length > 0 && selected.size === manifiestos.length}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-slate-300 text-[#0F2A44] focus:ring-2 focus:ring-[#0F2A44]"
+                  />
+                </th>
                 <th className="text-left px-6 py-3 font-semibold">Servicio</th>
                 <th className="text-left px-6 py-3 font-semibold">Nave</th>
                 <th className="text-left px-6 py-3 font-semibold">Viaje</th>
@@ -112,45 +231,55 @@ const Manifiestos = () => {
                 manifiestos.map((m) => (
                   <tr
                     key={m.id}
-                    className="border-t hover:bg-slate-50"
+                    className={`border-t hover:bg-slate-50 ${selected.has(m.id) ? "bg-blue-50" : ""
+                      }`}
                   >
-                    <td 
+                    <td className="px-6 py-4">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(m.id)}
+                        onChange={() => toggleSelect(m.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-4 h-4 rounded border-slate-300 text-[#0F2A44] focus:ring-2 focus:ring-[#0F2A44]"
+                      />
+                    </td>
+                    <td
                       className="px-6 py-4 cursor-pointer"
                       onClick={() => navigate(`/manifiestos/${m.id}`)}
                     >
                       {m.servicio}
                     </td>
-                    <td 
+                    <td
                       className="px-6 py-4 cursor-pointer"
                       onClick={() => navigate(`/manifiestos/${m.id}`)}
                     >
                       {m.nave}
                     </td>
-                    <td 
+                    <td
                       className="px-6 py-4 font-medium cursor-pointer"
                       onClick={() => navigate(`/manifiestos/${m.id}`)}
                     >
                       {m.viaje}
                     </td>
-                    <td 
+                    <td
                       className="px-6 py-4 cursor-pointer"
                       onClick={() => navigate(`/manifiestos/${m.id}`)}
                     >
                       {m.puertoCentral}
                     </td>
-                    <td 
+                    <td
                       className="px-6 py-4 cursor-pointer"
                       onClick={() => navigate(`/manifiestos/${m.id}`)}
                     >
                       {m.tipoOperacion}
                     </td>
-                    <td 
+                    <td
                       className="px-6 py-4 cursor-pointer"
                       onClick={() => navigate(`/manifiestos/${m.id}`)}
                     >
                       {formatDateCL(m.fechaManifiestoAduana)}
                     </td>
-                    <td 
+                    <td
                       className="px-6 py-4 cursor-pointer"
                       onClick={() => navigate(`/manifiestos/${m.id}`)}
                     >
@@ -162,7 +291,7 @@ const Manifiestos = () => {
                         <span className="text-slate-400">—</span>
                       )}
                     </td>
-                    <td 
+                    <td
                       className="px-6 py-4 cursor-pointer"
                       onClick={() => navigate(`/manifiestos/${m.id}`)}
                     >
@@ -170,7 +299,7 @@ const Manifiestos = () => {
                         className={[
                           "inline-flex items-center px-3 py-1 rounded-full text-xs ring-1",
                           estadoStyles[m.status] ??
-                            "bg-slate-100 text-slate-700 ring-slate-200",
+                          "bg-slate-100 text-slate-700 ring-slate-200",
                         ].join(" ")}
                       >
                         {m.status}
@@ -193,7 +322,7 @@ const Manifiestos = () => {
 
               {!loading && manifiestos.length === 0 && (
                 <tr>
-                  <td className="px-6 py-10 text-slate-500" colSpan={9}>
+                  <td className="px-6 py-10 text-slate-500" colSpan={10}>
                     No hay manifiestos aún. Crea uno para comenzar.
                   </td>
                 </tr>
