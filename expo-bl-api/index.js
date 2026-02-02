@@ -1925,8 +1925,8 @@ function parseLine51(raw) {
   const numero = codigo.slice(4, 10);
   const digito = codigo.slice(10, 11);
 
-  // tipo_cnt: N45G1F / N45R1F / N22G1F ...
-  const mTipo = line.match(/N(\d{2}[A-Z]\d)F/);
+  // tipo_cnt: N22G1E / N22G1F  => guardamos "22G1"
+  const mTipo = line.match(/N(\d{2}[A-Z]\d)[EF]/);
   const tipo_cnt = mTipo ? mTipo[1] : null;
 
   const unidad_peso = line.includes("KGM") ? "KGM" : null;
@@ -2358,6 +2358,28 @@ function extractTransbordos(legs) {
   return legs.slice(0, -1).map(l => l.to); // intermedios
 }
 
+function extractLugarEmisionFrom00(l00) {
+  const s = String(l00 || "").toUpperCase();
+
+  // 12 dígitos (YYYYMMDDHHMM) + espacios + tomar los siguientes 5 chars (aunque vengan pegados a más texto)
+  const m = s.match(/\b\d{12}\s+([A-Z0-9]{5})/);
+  if (!m) return "";
+
+  const code = m[1];
+
+  // Validación simple de UNLOCODE: 2 letras + 3 alfanum
+  if (!/^[A-Z]{2}[A-Z0-9]{3}$/.test(code)) return "";
+
+  return code;
+}
+
+function pickLugarEmisionCod(lines, header00) {
+  const le00 = extractLugarEmisionFrom00(header00); // UNLOCODE 5
+  if (le00) return le00;
+
+  const le74 = extractLugarEmisionFrom74(lines); // puede traer cosas raras
+  return (le74 && le74.length === 5) ? le74 : "";
+}
 
 // ===============================
 // parsePmsTxt CORREGIDA
@@ -2374,7 +2396,8 @@ function parsePmsTxt(content) {
   const fechaEmisionGlobal = extractFEMFrom11(header11);        // FEM (date)
 
   // LE global desde 74
-  const lugarEmisionCodGlobal = extractLugarEmisionFrom74(lines);
+
+  const lugarEmisionCodGlobal = pickLugarEmisionCod(lines, header00);
 
   return blocks
     .map((bLines) => {
@@ -2682,6 +2705,8 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
       const blNumber = (b.blNumber || "").trim();
       if (!blNumber) continue;
 
+      const esEmpty = String(b.tipoServicioCod || "").trim().toUpperCase() === "MM";
+
       // A) Si existe en el mismo manifiesto => reemplazar
       const existenteId = existentesMismoManifiesto.get(blNumber) || null;
 
@@ -2733,6 +2758,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         const itemNum = Number(it.numero_item);
         const contsDelItem = (b.contenedores || []).filter(c => Number(c.itemNo) === itemNum);
         const tipoCnt = contsDelItem.find(c => c.tipo_cnt)?.tipo_cnt || null;
+        it._tipo_cnt_detectado = tipoCnt; // 👈 DEBUG
         it.tipo_bulto = await getTipoBultoFromTipoCnt(conn, tipoCnt);
       }
 
@@ -2782,7 +2808,15 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
       if (!lugarRecepcionId) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_recepcion_id", mensaje: "Lugar recepción no existe en mantenedor de puertos (Revisar puerto de embarque)", valorCrudo: b.lugar_recepcion_cod || null });
       if (isBlank(b.fecha_emision)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_emision", mensaje: "Falta fecha_emision (Linea 11)", valorCrudo: b.fecha_emision || null });
       if (isBlank(b.fecha_presentacion)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_presentacion", mensaje: "Falta fecha_presentacion (Linea 00)", valorCrudo: b.fecha_presentacion || null });
-      if (num(b.peso_bruto) <= 0) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "peso_bruto", mensaje: "peso_bruto debe ser > 0", valorCrudo: b.peso_bruto });
+      
+      if (!esEmpty && num(b.peso_bruto) <= 0) {
+        pendingValidations.push({
+          nivel: "BL", severidad: "ERROR", campo: "peso_bruto",
+          mensaje: "peso_bruto debe ser > 0",
+          valorCrudo: b.peso_bruto
+        });
+      }
+
       if (isBlank(b.unidad_peso)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "unidad_peso", mensaje: "Falta unidad_peso (Linea 41)", valorCrudo: b.unidad_peso || null });
       if (num(b.bultos) < 1) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "bultos", mensaje: "bultos debe ser >= 1", valorCrudo: b.bultos });
       if (num(b.total_items) < 1) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "total_items", mensaje: "total_items debe ser >= 1", valorCrudo: b.total_items });
@@ -2822,10 +2856,27 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         if (!itemNum) pendingItemValidations.push({ nivel: "ITEM", sec: null, severidad: "ERROR", campo: "numero_item", mensaje: "Item sin número", valorCrudo: it.numero_item ?? null });
         if (isBlank(it.descripcion)) pendingItemValidations.push({ nivel: "ITEM", sec: itemNum, severidad: "OBS", campo: "descripcion", mensaje: "Falta Descripción", valorCrudo: it.descripcion ?? null });
         if (isBlank(it.marcas)) pendingItemValidations.push({ nivel: "ITEM", sec: itemNum, severidad: "OBS", campo: "marcas", mensaje: "Falta Marcas", valorCrudo: it.marcas ?? null });
-        if (!it.tipo_bulto) pendingItemValidations.push({ nivel: "ITEM", sec: itemNum, severidad: "ERROR", campo: "tipo_bulto", mensaje: "No se pudo determinar tipo_bulto para el item", valorCrudo: it.tipo_bulto ?? null });
+
+        if (!it.tipo_bulto) pendingItemValidations.push({
+          nivel: "ITEM",
+          sec: itemNum,
+          severidad: "ERROR",
+          campo: "tipo_bulto",
+          mensaje: `No se pudo determinar tipo_bulto para el item (tipo_cnt detectado: ${it._tipo_cnt_detectado || 'NULL'})`,
+          valorCrudo: it._tipo_cnt_detectado || null
+        });
+
         if (!isSN(it.carga_peligrosa)) pendingItemValidations.push({ nivel: "ITEM", sec: itemNum, severidad: "ERROR", campo: "carga_peligrosa", mensaje: "carga_peligrosa debe ser 'S' o 'N'", valorCrudo: it.carga_peligrosa ?? null });
         if (num(it.cantidad) == null || num(it.cantidad) < 1) pendingItemValidations.push({ nivel: "ITEM", sec: itemNum, severidad: "ERROR", campo: "cantidad", mensaje: "Cantidad de contenedores debe ser >= 1 para un item (Linea 51)", valorCrudo: it.cantidad });
-        if (num(it.peso_bruto) == null || num(it.peso_bruto) <= 0) pendingItemValidations.push({ nivel: "ITEM", sec: itemNum, severidad: "ERROR", campo: "peso_bruto", mensaje: "peso_bruto debe ser > 0 (Linea 41)", valorCrudo: it.peso_bruto });
+
+        if (!esEmpty && (num(it.peso_bruto) == null || num(it.peso_bruto) <= 0)) {
+          pendingItemValidations.push({
+            nivel: "ITEM", sec: itemNum, severidad: "ERROR", campo: "peso_bruto",
+            mensaje: "peso_bruto debe ser > 0 (Linea 41)",
+            valorCrudo: it.peso_bruto
+          });
+        }
+
         if (isBlank(it.unidad_peso)) pendingItemValidations.push({ nivel: "ITEM", sec: itemNum, severidad: "ERROR", campo: "unidad_peso", mensaje: "Falta unidad_peso (Linea 41)", valorCrudo: it.unidad_peso ?? null });
         if (num(it.volumen) == null || num(it.volumen) < 0) pendingItemValidations.push({ nivel: "ITEM", sec: itemNum, severidad: "ERROR", campo: "volumen", mensaje: "Falta Volumen debe ser >= 0 (Linea 41)", valorCrudo: it.volumen });
         if (isBlank(it.unidad_volumen)) pendingItemValidations.push({ nivel: "ITEM", sec: itemNum, severidad: "ERROR", campo: "unidad_volumen", mensaje: "Falta unidad_volumen (Linea 41)", valorCrudo: it.unidad_volumen ?? null });
@@ -2913,9 +2964,29 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         else if (!itemId) pendingContValidations.push({ nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR", campo: "item_id", mensaje: "Contenedor no se pudo asociar a item (itemNo no existe en bl_items insertados)", valorCrudo: String(itemNo) });
 
         if (!c.tipo_cnt) pendingContValidations.push({ nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR", campo: "tipo_cnt", mensaje: "Contenedor sin tipo_cnt", valorCrudo: c.tipo_cnt ?? null });
-        if (num(c.peso) == null || num(c.peso) <= 0) pendingContValidations.push({ nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR", campo: "peso", mensaje: "peso debe ser > 0", valorCrudo: c.peso });
+        
+        if (!esEmpty && (num(c.peso) == null || num(c.peso) <= 0)) {
+          pendingContValidations.push({
+            nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR", campo: "peso",
+            mensaje: "peso debe ser > 0",
+            valorCrudo: c.peso
+          });
+        }
+
         if (isBlank(c.unidad_peso)) pendingContValidations.push({ nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR", campo: "unidad_peso", mensaje: "Falta unidad_peso", valorCrudo: c.unidad_peso ?? null });
-        if (num(c.volumen) == null || num(c.volumen) < 0) pendingContValidations.push({ nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR", campo: "volumen", mensaje: "Volumen debe ser >= 0 (puede ser 0)", valorCrudo: c.volumen });
+
+        const vol = num(c.volumen);
+        if (!esEmpty && (vol == null || vol < 0)) {
+          pendingContValidations.push({
+            nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR", campo: "volumen",
+            mensaje: "Volumen debe ser >= 0 (puede ser 0)",
+            valorCrudo: c.volumen
+          });
+        }
+
+        // ✅ si es EMPTY y viene null, lo normalizamos para insert
+        if (esEmpty && vol == null) c.volumen = 0;
+
         if (isBlank(c.unidad_volumen)) pendingContValidations.push({ nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR", campo: "unidad_volumen", mensaje: "Falta unidad_volumen", valorCrudo: c.unidad_volumen ?? null });
 
         const [cIns] = await conn.query(insertContSql, [
@@ -2968,7 +3039,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
             sec: itemNo,
             severidad: "OBS",
             campo: "sellos",
-            mensaje: "Contenedor sin sellos en PMS (no siempre aplica)",
+            mensaje: `Contenedor ${c.codigo || '(SIN CODIGO)'} sin sellos en PMS (no siempre aplica)`,
             valorCrudo: c.codigo || null
           };
           await addValidacion(conn, payload);
@@ -5310,6 +5381,7 @@ async function revalidarBLCompleto(conn, blId) {
 
   // resolver codigo final (por si tipo_servicio_cod viene null)
   let tipoServicioCodFinal = (bl.tipo_servicio_cod || "").trim();
+
   if (!tipoServicioCodFinal && tipoServicioId) {
     const [[ts]] = await conn.query(
       "SELECT codigo FROM tipos_servicio WHERE id = ? LIMIT 1",
@@ -5317,6 +5389,9 @@ async function revalidarBLCompleto(conn, blId) {
     );
     tipoServicioCodFinal = (ts?.codigo || "").trim();
   }
+
+  tipoServicioCodFinal = String(tipoServicioCodFinal || "").trim().toUpperCase();
+  const esEmpty = tipoServicioCodFinal === "MM";
 
   // ✅ BB (carga suelta) se mantiene por reglas de formulario, no PMS
   if (tipoServicioCodFinal.toUpperCase() === "BB") {
@@ -5398,7 +5473,12 @@ async function revalidarBLCompleto(conn, blId) {
   if (isBlank(bl.fecha_zarpe)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_zarpe", mensaje: "Falta fecha_zarpe (Linea 14)", valorCrudo: bl.fecha_zarpe || null });
 
   // BL: pesos/volumen/unidades/bultos/items
-  if (num(bl.peso_bruto) <= 0) vals.push({ nivel: "BL", severidad: "ERROR", campo: "peso_bruto", mensaje: "peso_bruto debe ser > 0", valorCrudo: bl.peso_bruto });
+
+  if (!esEmpty && num(bl.peso_bruto) <= 0) {
+    vals.push({ nivel:"BL", severidad:"ERROR", campo:"peso_bruto", mensaje:"peso_bruto debe ser > 0", valorCrudo: bl.peso_bruto });
+  }
+
+
   if (isBlank(bl.unidad_peso)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "unidad_peso", mensaje: "Falta unidad_peso (Linea 41)", valorCrudo: bl.unidad_peso || null });
 
   if (num(bl.bultos) < 1) vals.push({ nivel: "BL", severidad: "ERROR", campo: "bultos", mensaje: "bultos debe ser >= 1", valorCrudo: bl.bultos });
@@ -5439,8 +5519,37 @@ async function revalidarBLCompleto(conn, blId) {
       vals.push({ nivel: "ITEM", ref_id: refId, sec: itemNum, severidad: "OBS", campo: "marcas", mensaje: "Falta Marcas", valorCrudo: it.marcas ?? null });
     }
 
-    if (!it.tipo_bulto) {
-      vals.push({ nivel: "ITEM", ref_id: refId, sec: itemNum, severidad: "ERROR", campo: "tipo_bulto", mensaje: "No se pudo determinar tipo_bulto para el item", valorCrudo: it.tipo_bulto ?? null });
+    // Detectar tipo_cnt real desde contenedores en BD para este item
+    const contsDelItem = contenedores.filter(c => Number(c.item_id) === Number(refId));
+    let tipoCntDetectado = contsDelItem.find(c => c.tipo_cnt)?.tipo_cnt || null;
+
+    // Si viene con sufijo (ej 22G1E) y tu mantenedor espera 22G1
+    if (tipoCntDetectado && tipoCntDetectado.length === 5) {
+      tipoCntDetectado = tipoCntDetectado.slice(0, 4);
+    }
+
+    // Si no hay tipo_bulto guardado, intenta resolverlo con el tipo_cnt detectado
+    let tipoBultoRecalc = it.tipo_bulto || null;
+    if (!tipoBultoRecalc && tipoCntDetectado) {
+      tipoBultoRecalc = await getTipoBultoFromTipoCnt(conn, tipoCntDetectado);
+    }
+
+    if (!it.tipo_bulto && tipoBultoRecalc) {
+      await conn.query("UPDATE bl_items SET tipo_bulto = ? WHERE id = ?", [tipoBultoRecalc, refId]);
+      it.tipo_bulto = tipoBultoRecalc;
+    }
+
+
+    if (!it.tipo_bulto && !tipoBultoRecalc) {
+      vals.push({
+        nivel: "ITEM",
+        ref_id: refId,
+        sec: itemNum,
+        severidad: "ERROR",
+        campo: "tipo_bulto",
+        mensaje: `No se pudo determinar tipo_bulto para el item (tipo_cnt detectado: ${tipoCntDetectado || "NULL"})`,
+        valorCrudo: tipoCntDetectado || null
+      });
     }
 
     if (!isSN(it.carga_peligrosa)) {
@@ -5481,9 +5590,11 @@ async function revalidarBLCompleto(conn, blId) {
       });
     }
 
-    if (num(it.peso_bruto) == null || num(it.peso_bruto) <= 0) {
-      vals.push({ nivel: "ITEM", ref_id: refId, sec: itemNum, severidad: "ERROR", campo: "peso_bruto", mensaje: "peso_bruto debe ser > 0 (Linea 41)", valorCrudo: it.peso_bruto });
+    if (!esEmpty && (num(it.peso_bruto) == null || num(it.peso_bruto) <= 0)) {
+      vals.push({ nivel:"ITEM", ref_id: refId, sec:itemNum, severidad:"ERROR", campo:"peso_bruto",
+        mensaje:"peso_bruto debe ser > 0 (Linea 41)", valorCrudo: it.peso_bruto });
     }
+
     if (isBlank(it.unidad_peso)) {
       vals.push({ nivel: "ITEM", ref_id: refId, sec: itemNum, severidad: "ERROR", campo: "unidad_peso", mensaje: "Falta unidad_peso (Linea 41)", valorCrudo: it.unidad_peso ?? null });
     }
@@ -5545,25 +5656,42 @@ async function revalidarBLCompleto(conn, blId) {
       });
     }
 
-    if (num(c.peso) == null || num(c.peso) <= 0) {
-      vals.push({
-        nivel: "CONTENEDOR", ref_id: refId, sec: itemNo, severidad: "ERROR", campo: "peso",
-        mensaje: "peso debe ser > 0", valorCrudo: c.peso
-      });
+    if (!esEmpty && (num(c.peso) == null || num(c.peso) <= 0)) {
+      vals.push({ nivel:"CONTENEDOR", ref_id: refId, sec:itemNo, severidad:"ERROR", campo:"peso",
+        mensaje:"peso debe ser > 0", valorCrudo: c.peso });
     }
+
     if (isBlank(c.unidad_peso)) {
       vals.push({
         nivel: "CONTENEDOR", ref_id: refId, sec: itemNo, severidad: "ERROR", campo: "unidad_peso",
         mensaje: "Falta unidad_peso", valorCrudo: c.unidad_peso ?? null
       });
     }
+    
+    // ✅ volumen normalizado (MM permite null => lo tratamos como 0)
+    let vol = num(c.volumen);
 
-    if (num(c.volumen) == null || num(c.volumen) < 0) {
+    // si es EMPTY (MM) y viene null, lo tratamos como 0 (y opcional lo persistimos)
+    if (esEmpty && vol == null) {
+      vol = 0;
+
+      // opcional recomendado: guardar el 0 en BD para que quede limpio
+      await conn.query("UPDATE bl_contenedores SET volumen = 0 WHERE id = ?", [c.id]);
+    }
+
+    // Validación volumen solo para NO-MM
+    if (!esEmpty && (vol == null || vol < 0)) {
       vals.push({
-        nivel: "CONTENEDOR", ref_id: refId, sec: itemNo, severidad: "ERROR", campo: "volumen",
-        mensaje: "Volumen debe ser >= 0 (puede ser 0)", valorCrudo: c.volumen
+        nivel: "CONTENEDOR",
+        ref_id: refId,
+        sec: itemNo,
+        severidad: "ERROR",
+        campo: "volumen",
+        mensaje: "Volumen debe ser >= 0 (puede ser 0)",
+        valorCrudo: c.volumen
       });
     }
+
     if (isBlank(c.unidad_volumen)) {
       vals.push({
         nivel: "CONTENEDOR", ref_id: refId, sec: itemNo, severidad: "ERROR", campo: "unidad_volumen",
@@ -5594,8 +5722,13 @@ async function revalidarBLCompleto(conn, blId) {
     );
     if ((sellosCount?.cnt ?? 0) < 1) {
       vals.push({
-        nivel: "CONTENEDOR", ref_id: refId, sec: itemNo, severidad: "OBS", campo: "sellos",
-        mensaje: "Contenedor sin sellos en PMS (no siempre aplica)", valorCrudo: c.codigo || null
+        nivel: "CONTENEDOR",
+        ref_id: refId,
+        sec: itemNo,
+        severidad: "OBS",
+        campo: "sellos",
+        mensaje: `Contenedor ${c.codigo || '(SIN CODIGO)'} sin sellos en PMS (no siempre aplica)`,
+        valorCrudo: c.codigo || null
       });
     }
   }
