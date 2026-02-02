@@ -22,18 +22,6 @@ const TIPOS_BULTO = [
     { value: "75", label: "75 - Envases/Packages" }
 ];
 
-const UNIDADES_PESO = [
-    { value: "KGM", label: "KGM - Kilogramos" },
-    { value: "TNE", label: "TNE - Toneladas" },
-    { value: "LBR", label: "LBR - Libras" }
-];
-
-const UNIDADES_VOLUMEN = [
-    { value: "MTQ", label: "MTQ - Metros cúbicos" },
-    { value: "FTQ", label: "FTQ - Pies cúbicos" },
-    { value: "LTR", label: "LTR - Litros" }
-];
-
 const CargaSueltaEdit = () => {
     const { blNumber } = useParams();
     const navigate = useNavigate();
@@ -1000,12 +988,13 @@ const Step3Items = ({ formData, setFormData, addItem, removeItem, tiposBulto }) 
                                 placeholder="Ej: 1500.500"
                             />
 
-                            <SelectField
+                            <InputField
                                 label="Unidad de Peso"
                                 value={item.unidad_peso}
-                                onChange={(v) => updateItem(idx, 'unidad_peso', v)}
-                                options={UNIDADES_PESO}
+                                onChange={(v) => updateItem(idx, 'unidad_peso', v.toUpperCase())}
                                 required
+                                placeholder="Ej: KGM, TNE, LBR"
+                                maxLength={3}
                             />
                         </div>
 
@@ -1021,12 +1010,13 @@ const Step3Items = ({ formData, setFormData, addItem, removeItem, tiposBulto }) 
                                 required
                             />
 
-                            <SelectField
+                            <InputField
                                 label="Unidad de Volumen"
                                 value={item.unidad_volumen}
-                                onChange={(v) => updateItem(idx, 'unidad_volumen', v)}
-                                options={UNIDADES_VOLUMEN}
+                                onChange={(v) => updateItem(idx, 'unidad_volumen', v.toUpperCase())}
                                 required
+                                placeholder="Ej: MTQ, FTQ, LTR"
+                                maxLength={3}
                             />
                         </div>
                     </div>
