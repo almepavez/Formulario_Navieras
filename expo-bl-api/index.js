@@ -3860,24 +3860,27 @@ app.patch('/bls/bulk-update', async (req, res) => {
 
     await connection.beginTransaction();
 
-    // Campos permitidos según tu esquema de base de datos
-    const validFields = [
-      'shipper',
-      'consignee',
-      'notify_party',
-      'descripcion_carga',
-      'bultos',
-      'peso_bruto',
-      'volumen',
-      'status',
-      // 🆕 AGREGAR CAMPOS DE PUERTO (para edición masiva)
-      'lugar_recepcion_cod',
-      'puerto_embarque_cod',
-      'puerto_descarga_cod',
-      'lugar_entrega_cod',
-      'lugar_destino_cod',
-      'lugar_emision_cod'
-    ];
+// Campos permitidos según tu esquema de base de datos
+const validFields = [
+  'shipper',
+  'consignee',
+  'notify_party',
+  'descripcion_carga',
+  'bultos',
+  'peso_bruto',
+  'volumen',
+  'status',
+  // Campos de puerto (para edición masiva)
+  'lugar_recepcion_cod',
+  'puerto_embarque_cod',
+  'puerto_descarga_cod',
+  'lugar_entrega_cod',
+  'lugar_destino_cod',
+  'lugar_emision_cod',
+  // 🔥🔥🔥 NUEVOS CAMPOS PARA CARGA SUELTA 🔥🔥🔥
+  'forma_pago_flete',    // 👈 AGREGAR ESTE
+  'cond_transporte'      // 👈 AGREGAR ESTE
+];
 
 
     // Construir SET clauses
