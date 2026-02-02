@@ -1110,6 +1110,21 @@ app.get("/tipos-bulto", async (_req, res) => {
   }
 });
 
+// GET endpoint para obtener el mapeo tipo_cnt <-> tipo_bulto
+app.get("/tipo-cnt-tipo-bulto", async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT * FROM tipo_cnt_tipo_bulto WHERE activo = 1'
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('Error al obtener mapeo tipo_cnt-tipo_bulto:', error);
+    res.status(500).json({
+      error: 'Error al obtener datos',
+      details: error.message
+    });
+  }
+});
 // ============================================
 // CRUD SERVICIOS (codigo, nombre, descripcion)
 // ============================================
@@ -3347,9 +3362,9 @@ app.delete("/manifiestos/eliminar-multiples", async (req, res) => {
   } catch (err) {
     await conn.rollback();
     console.error("Error al eliminar manifiestos:", err);
-    res.status(500).json({ 
+    res.status(500).json({
       error: "Error al eliminar manifiestos",
-      details: err?.message 
+      details: err?.message
     });
   } finally {
     conn.release();
@@ -3610,6 +3625,160 @@ app.put("/bls/:blNumber/items", async (req, res) => {
     await conn.rollback();
     console.error("Error al actualizar items:", error);
     res.status(500).json({ error: "Error al actualizar items" });
+  } finally {
+    conn.release();
+  }
+});
+
+// PUT - Actualizar contenedores de un BL
+app.put("/bls/:blNumber/contenedores", async (req, res) => {
+  const { blNumber } = req.params;
+  const { contenedores } = req.body;
+
+  console.log('🚀 RECIBIENDO contenedores para BL:', blNumber);
+  console.log('📦 Total contenedores:', contenedores?.length);
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // 1️⃣ Obtener bl_id
+    const [blRows] = await conn.query(
+      "SELECT id FROM bls WHERE bl_number = ?",
+      [blNumber]
+    );
+
+    if (blRows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: "BL no encontrado" });
+    }
+
+    const blId = blRows[0].id;
+
+    // 2️⃣ Función auxiliar para parsear código de contenedor
+    function parseCodigoContenedor(codigo) {
+      if (!codigo || codigo.length !== 11) {
+        return { sigla: null, numero: null, digito: null };
+      }
+
+      return {
+        sigla: codigo.substring(0, 4).toUpperCase(),
+        numero: parseInt(codigo.substring(4, 10)),
+        digito: parseInt(codigo.substring(10, 11))
+      };
+    }
+
+    // 3️⃣ Procesar cada contenedor
+    for (const cont of contenedores) {
+      // 🔥 PARSEAR CÓDIGO
+      const { sigla, numero, digito } = parseCodigoContenedor(cont.codigo);
+
+      console.log(`📦 Procesando contenedor ${cont.codigo}:`, {
+        sigla, numero, digito,
+        peso: cont.peso,
+        volumen: cont.volumen
+      });
+
+      if (cont._isNew) {
+        // ✅ INSERTAR NUEVO CONTENEDOR (CON PESO Y VOLUMEN)
+        const [insertResult] = await conn.query(
+          `INSERT INTO bl_contenedores 
+          (bl_id, item_id, codigo, sigla, numero, digito, tipo_cnt, carga_cnt,
+           peso, unidad_peso, volumen, unidad_volumen) 
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            blId,
+            cont.item_id,
+            cont.codigo,
+            sigla,
+            numero,
+            digito,
+            cont.tipo_cnt,
+            cont.carga_cnt || 'S',
+            cont.peso || null,              // 🆕
+            cont.unidad_peso || 'KGM',      // 🆕
+            cont.volumen ?? null, 
+            cont.unidad_volumen || 'MTQ'    // 🆕
+          ]
+        );
+
+        const newContId = insertResult.insertId;
+        console.log(`✅ Contenedor insertado con ID: ${newContId}`);
+
+        // Insertar sellos
+        if (cont.sellos && cont.sellos.length > 0) {
+          for (const sello of cont.sellos) {
+            await conn.query(
+              "INSERT INTO bl_contenedor_sellos (contenedor_id, sello) VALUES (?, ?)",
+              [newContId, sello]
+            );
+          }
+        }
+
+        // Insertar IMOs
+        if (cont.imos && cont.imos.length > 0) {
+          for (const imo of cont.imos) {
+            await conn.query(
+              "INSERT INTO bl_contenedor_imo (contenedor_id, clase_imo, numero_imo) VALUES (?, ?, ?)",
+              [newContId, imo.clase, imo.numero]
+            );
+          }
+        }
+
+      } else {
+        // ✅ ACTUALIZAR CONTENEDOR EXISTENTE (CON PESO Y VOLUMEN)
+        await conn.query(
+          `UPDATE bl_contenedores 
+          SET codigo = ?, sigla = ?, numero = ?, digito = ?, tipo_cnt = ?,
+              peso = ?, unidad_peso = ?, volumen = ?, unidad_volumen = ?
+          WHERE id = ?`,
+          [
+            cont.codigo,
+            sigla,
+            numero,
+            digito,
+            cont.tipo_cnt,
+            cont.peso || null,              // 🆕
+            cont.unidad_peso || 'KGM',      // 🆕
+            cont.volumen || null,           // 🆕
+            cont.unidad_volumen || 'MTQ',   // 🆕
+            cont.id
+          ]
+        );
+
+        console.log(`✅ Contenedor ${cont.id} actualizado`);
+
+        // Actualizar sellos
+        await conn.query("DELETE FROM bl_contenedor_sellos WHERE contenedor_id = ?", [cont.id]);
+        if (cont.sellos && cont.sellos.length > 0) {
+          for (const sello of cont.sellos) {
+            await conn.query(
+              "INSERT INTO bl_contenedor_sellos (contenedor_id, sello) VALUES (?, ?)",
+              [cont.id, sello]
+            );
+          }
+        }
+
+        // Actualizar IMOs
+        await conn.query("DELETE FROM bl_contenedor_imo WHERE contenedor_id = ?", [cont.id]);
+        if (cont.imos && cont.imos.length > 0) {
+          for (const imo of cont.imos) {
+            await conn.query(
+              "INSERT INTO bl_contenedor_imo (contenedor_id, clase_imo, numero_imo) VALUES (?, ?, ?)",
+              [cont.id, imo.clase, imo.numero]
+            );
+          }
+        }
+      }
+    }
+
+    await conn.commit();
+    res.json({ success: true, message: "Contenedores actualizados correctamente" });
+
+  } catch (error) {
+    await conn.rollback();
+    console.error("❌ Error al actualizar contenedores:", error);
+    res.status(500).json({ error: "Error al actualizar contenedores", details: error.message });
   } finally {
     conn.release();
   }

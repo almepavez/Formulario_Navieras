@@ -26,6 +26,7 @@ const ExpoBLEdit = () => {
     const [transbordos, setTransbordos] = useState([]);
     const [tiposBulto, setTiposBulto] = useState([]); // 🆕 NUEVO
     const [tiposContenedor, setTiposContenedor] = useState([]);
+    const [tipoCntTipoBulto, setTipoCntTipoBulto] = useState([]); // 🆕 NUEVO
 
     useEffect(() => {
         fetch('http://localhost:4000/tipos-contenedor')  // ✅ CORRECTO
@@ -91,6 +92,12 @@ const ExpoBLEdit = () => {
                 if (resTiposContenedor.ok) {
                     const dataTiposContenedor = await resTiposContenedor.json();
                     setTiposContenedor(dataTiposContenedor);
+                }
+                // 🆕 Cargar mapeo tipo_cnt <-> tipo_bulto
+                const resMapeo = await fetch(`http://localhost:4000/tipo-cnt-tipo-bulto`);
+                if (resMapeo.ok) {
+                    const dataMapeo = await resMapeo.json();
+                    setTipoCntTipoBulto(dataMapeo);
                 }
                 // Función para convertir fecha MySQL a formato input[type="date"]
                 const formatDate = (mysqlDate) => {
@@ -178,22 +185,116 @@ const ExpoBLEdit = () => {
     };
 
     // 🆕 FUNCIÓN PARA AGREGAR CONTENEDOR A UN ITEM
+    // 🆕 FUNCIÓN PARA AGREGAR CONTENEDOR A UN ITEM
     const addContenedorToItem = async (itemId, itemNumero) => {
+        // 🔥 Obtener el tipo_bulto del item
+        const item = items.find(i => i.id === itemId);
+        if (!item || !item.tipo_bulto) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'El ítem no tiene tipo_bulto definido',
+                confirmButtonColor: '#ef4444'
+            });
+            return;
+        }
+
+        // 🔥 Buscar el tipo_cnt correspondiente
+        const mapeo = tipoCntTipoBulto.find(m => m.tipo_bulto === item.tipo_bulto);
+        if (!mapeo) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error de configuración',
+                text: `No se encontró tipo_cnt para el tipo_bulto "${item.tipo_bulto}"`,
+                confirmButtonColor: '#ef4444'
+            });
+            return;
+        }
+
+        const tipoCntAsignado = mapeo.tipo_cnt;
+
         const { value: formValues } = await Swal.fire({
             title: `Agregar Contenedor al Item ${itemNumero}`,
             html: `
-            <div class="space-y-4">
-                <div class="text-left">
-                    <label class="block text-sm font-medium text-slate-700 mb-2">Código Contenedor</label>
-                    <input id="codigo_contenedor" class="swal2-input w-full" placeholder="Ej: MSCU1234567" maxlength="11" style="margin: 0;">
+            <div class="space-y-4 text-left">
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                    <p class="text-sm text-blue-800">
+                        <strong>Tipo contenedor:</strong> ${tipoCntAsignado}
+                        <span class="text-xs block mt-1">(asignado automáticamente según tipo_bulto: ${item.tipo_bulto})</span>
+                    </p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">
+                        Código Contenedor <span class="text-red-500">*</span>
+                    </label>
+                    <input 
+                        id="codigo_contenedor" 
+                        class="swal2-input w-full" 
+                        placeholder="Ej: FFAU5291030" 
+                        maxlength="11" 
+                        style="margin: 0; text-transform: uppercase;"
+                    >
                     <p class="text-xs text-slate-500 mt-1">11 caracteres: 4 letras + 7 números</p>
                 </div>
-                <div class="text-left">
-                    <label class="block text-sm font-medium text-slate-700 mb-2">Tipo Contenedor</label>
-                    <select id="tipo_contenedor" class="swal2-input w-full" style="margin: 0;">
-                        <option value="">Seleccionar tipo...</option>
-                        ${tiposContenedor.map(tipo => `<option value="${tipo.tipo_cnt}">${tipo.tipo_cnt}</option>`).join('')}
-                    </select>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">
+                            Peso Bruto <span class="text-red-500">*</span>
+                        </label>
+                        <input 
+                            id="peso_bruto" 
+                            type="number" 
+                            step="0.001"
+                            class="swal2-input w-full" 
+                            placeholder="0.000"
+                            style="margin: 0;"
+                        >
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">
+                            Unidad Peso <span class="text-red-500">*</span>
+                        </label>
+                        <input 
+                            id="unidad_peso" 
+                            type="text" 
+                            class="swal2-input w-full" 
+                            placeholder="KGM"
+                            maxlength="3"
+                            style="margin: 0; text-transform: uppercase;"
+                        >
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">
+                            Volumen <span class="text-red-500">*</span>
+                        </label>
+                        <input 
+                            id="volumen" 
+                            type="number" 
+                            step="0.001"
+                            min="0"
+                            class="swal2-input w-full" 
+                            placeholder="0.000"
+                            style="margin: 0;"
+                        >
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">
+                            Unidad Volumen <span class="text-red-500">*</span>
+                        </label>
+                        <input 
+                            id="unidad_volumen" 
+                            type="text" 
+                            class="swal2-input w-full" 
+                            placeholder="MTQ"
+                            maxlength="3"
+                            style="margin: 0; text-transform: uppercase;"
+                        >
+                    </div>
                 </div>
             </div>
         `,
@@ -201,51 +302,107 @@ const ExpoBLEdit = () => {
             confirmButtonText: 'Agregar',
             cancelButtonText: 'Cancelar',
             confirmButtonColor: '#10b981',
-            width: '500px',
+            width: '600px',
             preConfirm: () => {
                 const codigo = document.getElementById('codigo_contenedor').value.trim().toUpperCase();
-                const tipo = document.getElementById('tipo_contenedor').value;
+                const pesoBruto = document.getElementById('peso_bruto').value;
+                const unidadPeso = document.getElementById('unidad_peso').value.trim().toUpperCase();
+                const volumen = document.getElementById('volumen').value;
+                const unidadVolumen = document.getElementById('unidad_volumen').value.trim().toUpperCase();
 
+                // 🔥 Validaciones
                 if (!codigo) {
                     Swal.showValidationMessage('Debes ingresar el código del contenedor');
                     return null;
                 }
+
                 if (codigo.length !== 11) {
                     Swal.showValidationMessage('El código debe tener exactamente 11 caracteres');
                     return null;
                 }
-                if (!tipo) {
-                    Swal.showValidationMessage('Debes seleccionar un tipo de contenedor');
+
+                // 🔥 Validar formato: 4 letras + 7 números
+                const regex = /^[A-Z]{4}\d{7}$/;
+                if (!regex.test(codigo)) {
+                    Swal.showValidationMessage('Formato inválido. Debe ser 4 LETRAS + 7 NÚMEROS (ej: FFAU5291030)');
                     return null;
                 }
 
-                // Verificar si el contenedor ya existe
+                if (!pesoBruto || parseFloat(pesoBruto) <= 0) {
+                    Swal.showValidationMessage('Debes ingresar un peso bruto válido');
+                    return null;
+                }
+
+                if (!unidadPeso) {
+                    Swal.showValidationMessage('Debes ingresar la unidad de peso');
+                    return null;
+                }
+
+                // 🔥 CORRECCIÓN AQUÍ - Validar que volumen no esté vacío Y que no sea negativo
+                if (volumen === '' || volumen === null || volumen === undefined) {
+                    Swal.showValidationMessage('Debes ingresar un volumen (puede ser 0)');
+                    return null;
+                }
+
+                const volumenNum = parseFloat(volumen);
+                if (isNaN(volumenNum) || volumenNum < 0) {
+                    Swal.showValidationMessage('El volumen no puede ser negativo');
+                    return null;
+                }
+
+                if (!unidadVolumen) {
+                    Swal.showValidationMessage('Debes ingresar la unidad de volumen');
+                    return null;
+                }
+
+                // 🔥 Verificar si el contenedor ya existe
                 const existe = contenedores.some(c => c.codigo === codigo);
                 if (existe) {
                     Swal.showValidationMessage('Este contenedor ya existe en el BL');
                     return null;
                 }
 
-                return { codigo, tipo };
+                // 🔥 IMPORTANTE: Asegurarse de parsear correctamente el volumen
+                return {
+                    codigo,
+                    pesoBruto: parseFloat(pesoBruto),
+                    unidadPeso,
+                    volumen: volumenNum,  // ← Usar la variable ya parseada
+                    unidadVolumen
+                };
             }
         });
 
         if (formValues) {
-            // Crear nuevo contenedor
+            // 🔥 Parsear el código del contenedor
+            const sigla = formValues.codigo.substring(0, 4);  // Primeras 4 letras (FFAU)
+            const todosLosNumeros = formValues.codigo.substring(4); // Todos los números (5291030)
+            const numero = todosLosNumeros.substring(0, todosLosNumeros.length - 1); // Todos menos el último (529103)
+            const digito = todosLosNumeros.substring(todosLosNumeros.length - 1); // Último dígito (0)
+
+            // 🔥 Crear nuevo contenedor
             const nuevoContenedor = {
                 id: `new_${Date.now()}`,
-                item_id: itemId,  // 🔥 AGREGAR ESTA LÍNEA
+                bl_id: null, // Se asignará al guardar
+                item_id: itemId,
                 codigo: formValues.codigo,
-                tipo_cnt: formValues.tipo,
+                sigla: sigla,
+                numero: numero,
+                digito: digito,
+                tipo_cnt: tipoCntAsignado, // 🔥 Asignado automáticamente
+                peso: formValues.pesoBruto,
+                unidad_peso: formValues.unidadPeso,
+                volumen: formValues.volumen,
+                unidad_volumen: formValues.unidadVolumen,
                 sellos: [],
                 imos: [],
                 _isNew: true
             };
 
-            // Agregar contenedor a la lista
+            // 🔥 Agregar contenedor a la lista
             setContenedores(prev => [...prev, nuevoContenedor]);
 
-            // Asociar contenedor al item
+            // 🔥 Asociar contenedor al item
             setItems(prevItems =>
                 prevItems.map(item => {
                     if (item.id === itemId) {
@@ -262,8 +419,16 @@ const ExpoBLEdit = () => {
             Swal.fire({
                 icon: 'success',
                 title: 'Contenedor agregado',
-                text: `El contenedor ${formValues.codigo} se agregó al Item ${itemNumero}`,
-                timer: 2000,
+                html: `
+                <div class="text-left">
+                    <p class="mb-2"><strong>Contenedor:</strong> ${formValues.codigo}</p>
+                    <p class="mb-2"><strong>Tipo:</strong> ${tipoCntAsignado}</p>
+                    <p class="text-sm text-slate-600">
+                        Sigla: ${sigla} | Número: ${numero} | Dígito: ${digito}
+                    </p>
+                </div>
+            `,
+                timer: 3000,
                 showConfirmButton: false
             });
         }
@@ -893,24 +1058,27 @@ const ExpoBLEdit = () => {
             }
             // 🆕 GUARDAR CONTENEDORES
             // 🆕 GUARDAR CONTENEDORES
+            // 🆕 GUARDAR CONTENEDORES
             if (contenedores.length > 0) {
                 console.log('🚀 ENVIANDO CONTENEDORES AL BACKEND:', JSON.stringify(contenedores, null, 2));
 
                 const resContenedores = await fetch(`http://localhost:4000/bls/${blNumber}/contenedores`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
-                    // 🔥 ASEGURAR QUE ENVIAMOS SOLO LOS CAMPOS EDITABLES
                     body: JSON.stringify({
                         contenedores: contenedores.map(cont => ({
                             id: cont.id,
                             item_id: cont.item_id,
                             codigo: cont.codigo,
                             tipo_cnt: cont.tipo_cnt,
+                            carga_cnt: cont.carga_cnt || 'S',       // 🆕
+                            peso: cont.peso || null,                // 🆕 AGREGAR
+                            unidad_peso: cont.unidad_peso || 'KGM', // 🆕 AGREGAR
+                            volumen: cont.volumen ?? null,
+                            unidad_volumen: cont.unidad_volumen || 'MTQ', // 🆕 AGREGAR
                             sellos: cont.sellos || [],
                             imos: cont.imos || [],
                             _isNew: cont._isNew || false
-                            // 🔥 NO enviamos peso_bruto, unidad_peso, volumen, unidad_volumen
-                            // porque no son editables en contenedores
                         }))
                     })
                 });
@@ -1578,19 +1746,33 @@ const ExpoBLEdit = () => {
                                     <input
                                         type="number"
                                         step="0.001"
-                                        min="0.001"  // 🔥 AGREGAR
+                                        min="0.001"
                                         value={formData.peso_bruto}
                                         onChange={(e) => {
                                             const value = parseFloat(e.target.value);
-                                            if (value > 0 || e.target.value === '') {  // 🔥 VALIDAR
+                                            if (value > 0 || e.target.value === '') {
                                                 updateField("peso_bruto", e.target.value);
                                             }
                                         }}
-                                        onBlur={(e) => {  // 🔥 AGREGAR - valida al salir del campo
+                                        onBlur={(e) => {
                                             if (e.target.value === '' || parseFloat(e.target.value) <= 0) {
                                                 updateField("peso_bruto", "0.001");
                                             }
                                         }}
+                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
+                                    />
+                                </div>
+
+                                {/* Unidad de Peso */}
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                                        Unidad <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.unidad_peso}
+                                        onChange={(e) => updateField("unidad_peso", e.target.value.toUpperCase())}
+                                        placeholder="KGM, LBT, TON..."
                                         className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
                                     />
                                 </div>
@@ -1603,19 +1785,33 @@ const ExpoBLEdit = () => {
                                     <input
                                         type="number"
                                         step="0.001"
-                                        min="0"  // 🔥 AGREGAR
-                                        value={formData.volumen ?? ""}  // ✅ Usa ?? para manejar null/undefined
+                                        min="0"
+                                        value={formData.volumen ?? ""}
                                         onChange={(e) => {
                                             const value = parseFloat(e.target.value);
-                                            if (value >= 0 || e.target.value === '') {  // 🔥 VALIDAR (puede ser 0)
+                                            if (value >= 0 || e.target.value === '') {
                                                 updateField("volumen", e.target.value);
                                             }
                                         }}
-                                        onBlur={(e) => {  // 🔥 AGREGAR
+                                        onBlur={(e) => {
                                             if (e.target.value === '' || parseFloat(e.target.value) < 0) {
                                                 updateField("volumen", "0");
                                             }
                                         }}
+                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
+                                    />
+                                </div>
+
+                                {/* Unidad de Volumen */}
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                                        Unidad <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.unidad_volumen}
+                                        onChange={(e) => updateField("unidad_volumen", e.target.value.toUpperCase())}
+                                        placeholder="MTQ, LTR..."
                                         className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
                                     />
                                 </div>
@@ -1627,15 +1823,15 @@ const ExpoBLEdit = () => {
                                     </label>
                                     <input
                                         type="number"
-                                        min="1"  // 🔥 AGREGAR
+                                        min="1"
                                         value={formData.bultos}
                                         onChange={(e) => {
                                             const value = parseInt(e.target.value);
-                                            if (value > 0 || e.target.value === '') {  // 🔥 VALIDAR
+                                            if (value > 0 || e.target.value === '') {
                                                 updateField("bultos", e.target.value);
                                             }
                                         }}
-                                        onBlur={(e) => {  // 🔥 AGREGAR
+                                        onBlur={(e) => {
                                             if (e.target.value === '' || parseInt(e.target.value) < 1) {
                                                 updateField("bultos", "1");
                                             }
@@ -1647,8 +1843,6 @@ const ExpoBLEdit = () => {
                             </div>
                         </div>
                     )}
-
-
                     {/* STEP 5: ITEMS Y CONTENEDORES */}
                     {currentStep === 5 && (
                         <div className="space-y-6">
@@ -1957,9 +2151,17 @@ const ExpoBLEdit = () => {
                                                         <label className="block text-sm font-medium text-slate-700 mb-2">
                                                             Tipo Contenedor <span className="text-red-500">*</span>
                                                         </label>
-
+                                                        <input
+                                                            type="text"
+                                                            value={cont.tipo_cnt || "N/A"}
+                                                            disabled
+                                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 bg-slate-100 text-slate-600 font-mono cursor-not-allowed"
+                                                            title="Campo no editable - asignado automáticamente según tipo de bulto"
+                                                        />
+                                                        <p className="text-xs text-slate-500 mt-1">
+                                                            No editable (asignado automáticamente)
+                                                        </p>
                                                     </div>
-
                                                     {/* Sellos */}
                                                     <div className="md:col-span-2">
                                                         <div className="flex items-center justify-between mb-2">
