@@ -775,14 +775,41 @@ const ExpoBLEdit = () => {
                 break;
 
             case 4: // Mercancía
-                if (!formData.peso_bruto || parseFloat(formData.peso_bruto) <= 0) {
+                // 🔥 Validar peso_bruto según tipo_servicio
+                if (formData.peso_bruto === '' || formData.peso_bruto === null || formData.peso_bruto === undefined) {
                     Swal.fire({
                         icon: "warning",
                         title: "Campo requerido",
-                        text: "El peso bruto debe ser mayor a 0",
+                        text: "El peso bruto es obligatorio",
                         confirmButtonColor: "#0F2A44"
                     });
                     return false;
+                }
+
+                const pesoBruto = parseFloat(formData.peso_bruto);
+
+                // Si es EMPTY (MM), puede ser 0 pero no negativo
+                if (formData.tipo_servicio === 'MM') {
+                    if (pesoBruto < 0) {
+                        Swal.fire({
+                            icon: "warning",
+                            title: "Valor inválido",
+                            text: "El peso bruto no puede ser negativo",
+                            confirmButtonColor: "#0F2A44"
+                        });
+                        return false;
+                    }
+                } else {
+                    // Para otros servicios, debe ser mayor a 0
+                    if (pesoBruto <= 0) {
+                        Swal.fire({
+                            icon: "warning",
+                            title: "Campo requerido",
+                            text: "El peso bruto debe ser mayor a 0",
+                            confirmButtonColor: "#0F2A44"
+                        });
+                        return false;
+                    }
                 }
 
                 // 🆕 Unidad peso obligatoria
@@ -854,15 +881,41 @@ const ExpoBLEdit = () => {
                 }
 
                 for (const item of items) {
-                    // Validar peso bruto
-                    if (!item.peso_bruto || parseFloat(item.peso_bruto) <= 0) {
+                    // 🔥 Validar peso bruto según tipo_servicio
+                    if (item.peso_bruto === '' || item.peso_bruto === null || item.peso_bruto === undefined) {
                         Swal.fire({
                             icon: "warning",
                             title: "Campo requerido",
-                            text: `El Item ${item.numero_item} debe tener un peso bruto mayor a 0`,
+                            text: `El Item ${item.numero_item} debe tener un peso bruto`,
                             confirmButtonColor: "#0F2A44"
                         });
                         return false;
+                    }
+
+                    const pesoBrutoItem = parseFloat(item.peso_bruto);
+
+                    // Si es EMPTY (MM), puede ser 0 pero no negativo
+                    if (formData.tipo_servicio === 'MM') {
+                        if (pesoBrutoItem < 0) {
+                            Swal.fire({
+                                icon: "warning",
+                                title: "Valor inválido",
+                                text: `El Item ${item.numero_item} no puede tener peso bruto negativo`,
+                                confirmButtonColor: "#0F2A44"
+                            });
+                            return false;
+                        }
+                    } else {
+                        // Para otros servicios, debe ser mayor a 0
+                        if (pesoBrutoItem <= 0) {
+                            Swal.fire({
+                                icon: "warning",
+                                title: "Campo requerido",
+                                text: `El Item ${item.numero_item} debe tener un peso bruto mayor a 0`,
+                                confirmButtonColor: "#0F2A44"
+                            });
+                            return false;
+                        }
                     }
 
                     // 🆕 Validar unidad_peso
@@ -1746,17 +1799,23 @@ const ExpoBLEdit = () => {
                                     <input
                                         type="number"
                                         step="0.001"
-                                        min="0.001"
+                                        min={formData.tipo_servicio === 'MM' ? "0" : "0.001"}  // 🔥 CAMBIO AQUÍ
                                         value={formData.peso_bruto}
                                         onChange={(e) => {
+                                            // 🔥 Permitir 0 si es MM, mayor a 0 si no
                                             const value = parseFloat(e.target.value);
-                                            if (value > 0 || e.target.value === '') {
+                                            const minValue = formData.tipo_servicio === 'MM' ? 0 : 0.001;
+
+                                            if (value >= minValue || e.target.value === '') {
                                                 updateField("peso_bruto", e.target.value);
                                             }
                                         }}
                                         onBlur={(e) => {
-                                            if (e.target.value === '' || parseFloat(e.target.value) <= 0) {
-                                                updateField("peso_bruto", "0.001");
+                                            // 🔥 Valor mínimo según tipo de servicio
+                                            const minValue = formData.tipo_servicio === 'MM' ? 0 : 0.001;
+
+                                            if (e.target.value === '' || parseFloat(e.target.value) < minValue) {
+                                                updateField("peso_bruto", minValue.toString());
                                             }
                                         }}
                                         className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
@@ -1957,8 +2016,21 @@ const ExpoBLEdit = () => {
                                                     <input
                                                         type="number"
                                                         step="0.001"
-                                                        value={item.peso_bruto || ""}
-                                                        onChange={(e) => updateItem(item.id, "peso_bruto", e.target.value)}
+                                                        min={formData.tipo_servicio === 'MM' ? "0" : "0.001"}
+                                                        value={item.peso_bruto ?? ""}
+                                                        onChange={(e) => {
+                                                            const value = parseFloat(e.target.value);
+                                                            const minValue = formData.tipo_servicio === 'MM' ? 0 : 0.001;
+                                                            if (value >= minValue || e.target.value === '') {
+                                                                updateItem(item.id, "peso_bruto", e.target.value);
+                                                            }
+                                                        }}
+                                                        onBlur={(e) => {
+                                                            const minValue = formData.tipo_servicio === 'MM' ? 0 : 0.001;
+                                                            if (e.target.value === '' || parseFloat(e.target.value) < minValue) {
+                                                                updateItem(item.id, "peso_bruto", minValue.toString());
+                                                            }
+                                                        }}
                                                         className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm"
                                                     />
                                                 </div>
