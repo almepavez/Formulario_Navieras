@@ -477,6 +477,11 @@ const ManifiestoDetalle = () => {
     return referencias.find(r => r.match_code === formData.representante);
   }, [referencias, formData.representante]);
 
+  // Obtener operador nave seleccionado
+const operadorNaveSeleccionado = useMemo(() => {
+  return referencias.find(r => r.customer_id === formData.operadorNave);
+}, [referencias, formData.operadorNave]);
+
   const m = data?.manifiesto;
 
   return (
@@ -568,9 +573,30 @@ const ManifiestoDetalle = () => {
                 {!isEditing ? (
                   <>
                     <InfoReadOnly label="Status" value={m.status} />
-                    <InfoReadOnly label="Operador nave" value={m.operadorNave} />
-                    <InfoReadOnly label="Emisor doc" value={m.emisorDocumento} />
-                    <InfoReadOnly label="Representante" value={m.representante} />
+                    <InfoReadOnly
+                      label="Operador nave"
+                      value={
+                        operadorNaveSeleccionado
+                          ? `${m.operadorNave} — ${operadorNaveSeleccionado.nombre_emisor}`
+                          : m.operadorNave
+                      }
+                    />
+                    <InfoReadOnly
+                      label="Emisor doc"
+                      value={
+                        emisorSeleccionado
+                          ? emisorSeleccionado.nombre_emisor
+                          : m.emisorDocumento
+                      }
+                    />
+                    <InfoReadOnly
+                      label="Representante"
+                      value={
+                        representanteSeleccionado
+                          ? `${m.representante} — ${representanteSeleccionado.nombre_emisor}`
+                          : m.representante
+                      }
+                    />
                     <InfoReadOnly
                       label="Fecha Mfto Aduana CL"
                       value={formatDateCL(m.fechaManifiestoAduana)}
@@ -594,48 +620,41 @@ const ManifiestoDetalle = () => {
                       ]}
                     />
 
-                    {/* 🆕 Operador Nave con datalist */}
+                    {/* 🆕 Operador Nave */}
                     <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
                       <div className="text-xs font-medium text-slate-700">Operador nave</div>
-                      <input
-                        list="operadorNaveList"
+                      <select
                         value={formData.operadorNave}
                         onChange={(e) => handleInputChange("operadorNave", e.target.value)}
-                        className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Selecciona o escribe"
-                      />
-                      <datalist id="operadorNaveList">
+                        className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      >
+                        <option value="">-- Selecciona --</option>
                         {referencias.map((ref) => (
                           <option key={ref.id} value={ref.customer_id}>
                             {ref.customer_id} — {ref.nombre_emisor}
                           </option>
                         ))}
-                      </datalist>
-                      {referencias.find(r => r.customer_id === formData.operadorNave) && (
-                        <p className="mt-1 text-[10px] text-slate-500">
-                          {referencias.find(r => r.customer_id === formData.operadorNave).nombre_emisor}
-                        </p>
-                      )}
+                      </select>
                     </div>
 
-                    {/* 🆕 Emisor Doc - solo muestra número */}
+                    {/* 🆕 Emisor Doc - NOMBRE EN SELECT, CUSTOMER ID ABAJO */}
                     <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
                       <div className="text-xs font-medium text-slate-700">Emisor doc</div>
                       <select
                         value={formData.emisorDocumento}
                         onChange={(e) => handleInputChange("emisorDocumento", e.target.value)}
-                        className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                       >
                         <option value="">-- Selecciona --</option>
                         {referencias.map((ref) => (
                           <option key={ref.id} value={ref.customer_id}>
-                            {ref.customer_id}
+                            {ref.nombre_emisor}
                           </option>
                         ))}
                       </select>
                       {emisorSeleccionado && (
                         <p className="mt-1 text-[10px] text-slate-500">
-                          {emisorSeleccionado.nombre_emisor} | {emisorSeleccionado.match_code} | {emisorSeleccionado.rut}
+                          Customer ID: {emisorSeleccionado.customer_id} | RUT: {emisorSeleccionado.rut}
                         </p>
                       )}
                     </div>
@@ -646,12 +665,12 @@ const ManifiestoDetalle = () => {
                       <select
                         value={formData.representante}
                         onChange={(e) => handleInputChange("representante", e.target.value)}
-                        className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                       >
                         <option value="">-- Selecciona --</option>
                         {referencias.map((ref) => (
                           <option key={ref.id} value={ref.match_code}>
-                            {ref.match_code} - {ref.nombre_emisor}
+                            {ref.match_code} — {ref.nombre_emisor}
                           </option>
                         ))}
                       </select>

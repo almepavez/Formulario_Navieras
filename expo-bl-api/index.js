@@ -1188,8 +1188,6 @@ app.get("/api/mantenedores/referencias", async (req, res) => {
   }
 });
 
-
-
 // ============================================
 // CRUD SERVICIOS (codigo, nombre, descripcion)
 // ============================================
@@ -5002,10 +5000,12 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
         'service': 'LINER',
         'tipo-servicio': esCargaSuelta ? 'BB' : (bl.tipo_servicio_nombre || 'FCL/FCL'),
 
-        // 🔥 CARGA SUELTA: agregar forma-pago-flete y cond-transporte
+        // 🔥 cond-transporte: SIEMPRE (todos los tipos)
+        'cond-transporte': bl.cond_transporte || 'HH',
+
+        // 🔥 forma-pago-flete: SOLO carga suelta
         ...(esCargaSuelta && {
-          'forma-pago-flete': bl.forma_pago_flete || 'PREPAID',
-          'cond-transporte': bl.cond_transporte || 'HH'
+          'forma-pago-flete': bl.forma_pago_flete || 'PREPAID'
         }),
 
         'total-bultos': bl.bultos || 0,
@@ -5299,7 +5299,10 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
           'numero-referencia': bl.bl_number,
           'service': 'LINER',
           'tipo-servicio': bl.tipo_servicio_nombre || 'FCL/FCL',
-          'cond-transporte': 'HH',
+
+          // 🔥 cond-transporte: SIEMPRE (todos los tipos)
+          'cond-transporte': bl.cond_transporte || 'HH',
+
           'total-bultos': bl.bultos || 0,
           'total-peso': bl.peso_bruto || 0,
           'unidad-peso': bl.unidad_peso || 'KGM',
