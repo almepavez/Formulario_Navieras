@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import Sidebar from "../components/Sidebar";
@@ -55,7 +55,7 @@ const ManifiestoDetalle = () => {
   const [error, setError] = useState("");
   const [data, setData] = useState(null);
   const [blCount, setBlCount] = useState(0);
-  const fileInputRef = useRef(null); // 🔥 AGREGAR ESTO
+  const fileInputRef = useRef(null);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     operadorNave: "",
@@ -65,6 +65,9 @@ const ManifiestoDetalle = () => {
     representante: "",
     fechaManifiestoAduana: "",
     numeroManifiestoAduana: "",
+    referenciaId: "",
+    numeroReferencia: "",
+    fechaReferencia: "",
   });
 
   const [itinerario, setItinerario] = useState([]);
@@ -74,7 +77,25 @@ const ManifiestoDetalle = () => {
   const [pmsUploading, setPmsUploading] = useState(false);
   const [pmsMsg, setPmsMsg] = useState("");
 
-  // 🔥 AGREGAR ESTE useEffect (CRÍTICO)
+  // Estado para referencias
+  const [referencias, setReferencias] = useState([]);
+
+  // Cargar catálogo de referencias
+  useEffect(() => {
+    const loadReferencias = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/mantenedores/referencias`);
+        if (!res.ok) throw new Error(`Error referencias HTTP ${res.status}`);
+        const data = await res.json();
+        setReferencias(Array.isArray(data) ? data : []);
+      } catch (e) {
+        console.error("Error cargando referencias:", e);
+      }
+    };
+
+    loadReferencias();
+  }, []);
+
   useEffect(() => {
     fetchDetalle();
   }, [id]);
@@ -91,6 +112,16 @@ const ManifiestoDetalle = () => {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isEditing, hasUnsavedChanges]);
 
+  // Sincronizar número de referencia con número de manifiesto de aduana
+  useEffect(() => {
+    if (formData.numeroManifiestoAduana.trim()) {
+      setFormData(prev => ({
+        ...prev,
+        numeroReferencia: prev.numeroManifiestoAduana
+      }));
+    }
+  }, [formData.numeroManifiestoAduana]);
+
   const fetchDetalle = async () => {
     setLoading(true);
     setError("");
@@ -100,7 +131,6 @@ const ManifiestoDetalle = () => {
       const json = await res.json();
       setData(json);
 
-      // 🔥 Contar BLs y mostrar en consola
       setBlCount(json.bls?.length || 0);
       console.log("🔍 BLs cargados:", json.bls?.length || 0, json.bls);
 
@@ -113,6 +143,9 @@ const ManifiestoDetalle = () => {
         representante: m.representante || "",
         fechaManifiestoAduana: toInputDate(m.fechaManifiestoAduana),
         numeroManifiestoAduana: m.numeroManifiestoAduana || "",
+        referenciaId: m.referenciaId || "",
+        numeroReferencia: m.numeroReferencia || "",
+        fechaReferencia: toInputDate(m.fechaReferencia),
       });
 
       setItinerario(
@@ -133,10 +166,6 @@ const ManifiestoDetalle = () => {
     }
   };
 
-
-
-
-
   useEffect(() => {
     const handleBeforeUnload = (e) => {
       if (isEditing && hasUnsavedChanges) {
@@ -150,6 +179,34 @@ const ManifiestoDetalle = () => {
   }, [isEditing, hasUnsavedChanges]);
 
   const handleInputChange = (field, value) => {
+    // Si se cambia Representante, autocompletar Emisor Doc
+    if (field === "representante" && value) {
+      const refSeleccionada = referencias.find(r => r.match_code === value);
+      if (refSeleccionada) {
+        setFormData((prev) => ({
+          ...prev,
+          [field]: value,
+          emisorDocumento: refSeleccionada.customer_id
+        }));
+        setHasUnsavedChanges(true);
+        return;
+      }
+    }
+
+    // Si se cambia Emisor Doc, autocompletar Representante
+    if (field === "emisorDocumento" && value) {
+      const refSeleccionada = referencias.find(r => r.customer_id === value);
+      if (refSeleccionada) {
+        setFormData((prev) => ({
+          ...prev,
+          [field]: value,
+          representante: refSeleccionada.match_code
+        }));
+        setHasUnsavedChanges(true);
+        return;
+      }
+    }
+
     setFormData((prev) => ({ ...prev, [field]: value }));
     setHasUnsavedChanges(true);
   };
@@ -222,6 +279,9 @@ const ManifiestoDetalle = () => {
         representante: formData.representante,
         fechaManifiestoAduana: formData.fechaManifiestoAduana,
         numeroManifiestoAduana: formData.numeroManifiestoAduana,
+        referenciaId: formData.referenciaId || null,
+        numeroReferencia: formData.numeroReferencia || null,
+        fechaReferencia: formData.fechaReferencia || null,
         itinerario: itinerario.map((it) => ({
           id: it.id,
           port: it.port,
@@ -331,7 +391,6 @@ const ManifiestoDetalle = () => {
             confirmButtonColor: "#10b981",
           });
 
-          // 🔥 Resetear archivo incluso con error
           setPmsFile(null);
           if (fileInputRef.current) fileInputRef.current.value = "";
           return;
@@ -355,8 +414,8 @@ const ManifiestoDetalle = () => {
             <strong>BLs con errores:</strong>
             <ul style="margin:6px 0 0 18px;">
               ${blsConErrores
-                .map(bl => `<li>${bl.bl_number} (${bl.total_errores} errores)</li>`)
-                .join("")}
+          .map(bl => `<li>${bl.bl_number} (${bl.total_errores} errores)</li>`)
+          .join("")}
             </ul>
           </div>
         `
@@ -377,14 +436,11 @@ const ManifiestoDetalle = () => {
         confirmButtonColor: "#10b981",
       });
 
-
-      // 🔥 IMPORTANTE: Resetear archivo y recargar datos
       setPmsFile(null);
       if (fileInputRef.current) {
-        fileInputRef.current.value = ""; // Limpia el input visual
+        fileInputRef.current.value = "";
       }
 
-      // 🔥 Recargar datos para actualizar blCount
       await fetchDetalle();
 
     } catch (e) {
@@ -397,7 +453,6 @@ const ManifiestoDetalle = () => {
         confirmButtonColor: "#10b981",
       });
 
-      // 🔥 Resetear archivo también en caso de error
       setPmsFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
     } finally {
@@ -405,10 +460,22 @@ const ManifiestoDetalle = () => {
     }
   };
 
-  // 📍 INSERTAR AQUÍ (línea ~355, después de handleUploadPMS y ANTES de handleProcessPMS)
+  // Obtener datos de la referencia asociada al manifiesto
+  const referenciaManifiesto = useMemo(() => {
+    const refId = data?.manifiesto?.referenciaId || data?.manifiesto?.referencia_id;
+    if (!refId) return null;
+    return referencias.find(r => r.id === parseInt(refId));
+  }, [referencias, data]);
 
+  // Obtener emisor seleccionado
+  const emisorSeleccionado = useMemo(() => {
+    return referencias.find(r => r.customer_id === formData.emisorDocumento);
+  }, [referencias, formData.emisorDocumento]);
 
-
+  // Obtener representante seleccionado
+  const representanteSeleccionado = useMemo(() => {
+    return referencias.find(r => r.match_code === formData.representante);
+  }, [referencias, formData.representante]);
 
   const m = data?.manifiesto;
 
@@ -459,17 +526,17 @@ const ManifiestoDetalle = () => {
                   </button>
                 </>
 
-                
+
               )}
               <button
-  onClick={() => navigate(`/manifiestos/${id}/carga-suelta/nuevo`)}
-  className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 whitespace-nowrap flex items-center gap-2 flex-shrink-0"
->
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-  </svg>
-  Nueva Carga Suelta
-</button>
+                onClick={() => navigate(`/manifiestos/${id}/carga-suelta/nuevo`)}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 whitespace-nowrap flex items-center gap-2 flex-shrink-0"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Nueva Carga Suelta
+              </button>
             </div>
           </div>
         </div>
@@ -526,21 +593,75 @@ const ManifiestoDetalle = () => {
                         { value: "Enviado", label: "Enviado" }
                       ]}
                     />
-                    <InfoEditable
-                      label="Operador nave"
-                      value={formData.operadorNave}
-                      onChange={(v) => handleInputChange("operadorNave", v)}
-                    />
-                    <InfoEditable
-                      label="Emisor doc"
-                      value={formData.emisorDocumento}
-                      onChange={(v) => handleInputChange("emisorDocumento", v)}
-                    />
-                    <InfoEditable
-                      label="Representante"
-                      value={formData.representante}
-                      onChange={(v) => handleInputChange("representante", v)}
-                    />
+
+                    {/* 🆕 Operador Nave con datalist */}
+                    <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
+                      <div className="text-xs font-medium text-slate-700">Operador nave</div>
+                      <input
+                        list="operadorNaveList"
+                        value={formData.operadorNave}
+                        onChange={(e) => handleInputChange("operadorNave", e.target.value)}
+                        className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Selecciona o escribe"
+                      />
+                      <datalist id="operadorNaveList">
+                        {referencias.map((ref) => (
+                          <option key={ref.id} value={ref.customer_id}>
+                            {ref.customer_id} — {ref.nombre_emisor}
+                          </option>
+                        ))}
+                      </datalist>
+                      {referencias.find(r => r.customer_id === formData.operadorNave) && (
+                        <p className="mt-1 text-[10px] text-slate-500">
+                          {referencias.find(r => r.customer_id === formData.operadorNave).nombre_emisor}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* 🆕 Emisor Doc - solo muestra número */}
+                    <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
+                      <div className="text-xs font-medium text-slate-700">Emisor doc</div>
+                      <select
+                        value={formData.emisorDocumento}
+                        onChange={(e) => handleInputChange("emisorDocumento", e.target.value)}
+                        className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">-- Selecciona --</option>
+                        {referencias.map((ref) => (
+                          <option key={ref.id} value={ref.customer_id}>
+                            {ref.customer_id}
+                          </option>
+                        ))}
+                      </select>
+                      {emisorSeleccionado && (
+                        <p className="mt-1 text-[10px] text-slate-500">
+                          {emisorSeleccionado.nombre_emisor} | {emisorSeleccionado.match_code} | {emisorSeleccionado.rut}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* 🆕 Representante */}
+                    <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
+                      <div className="text-xs font-medium text-slate-700">Representante</div>
+                      <select
+                        value={formData.representante}
+                        onChange={(e) => handleInputChange("representante", e.target.value)}
+                        className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">-- Selecciona --</option>
+                        {referencias.map((ref) => (
+                          <option key={ref.id} value={ref.match_code}>
+                            {ref.match_code} - {ref.nombre_emisor}
+                          </option>
+                        ))}
+                      </select>
+                      {representanteSeleccionado && (
+                        <p className="mt-1 text-[10px] text-slate-500">
+                          Customer ID: {representanteSeleccionado.customer_id} | RUT: {representanteSeleccionado.rut}
+                        </p>
+                      )}
+                    </div>
+
                     <InfoEditableDate
                       label="Fecha Mfto Aduana CL"
                       value={formData.fechaManifiestoAduana}
@@ -584,7 +705,7 @@ const ManifiestoDetalle = () => {
                   id="pms-file-input"
                 />
 
-                {/* Botón personalizado para seleccionar archivo - FLEX-1 para ocupar espacio disponible */}
+                {/* Botón personalizado para seleccionar archivo */}
                 <label
                   htmlFor="pms-file-input"
                   className={`flex-1 px-4 py-2 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 text-slate-700 text-sm font-medium hover:bg-slate-100 cursor-pointer transition-colors flex items-center gap-2 ${pmsUploading ? 'opacity-60 cursor-not-allowed' : ''
@@ -603,7 +724,7 @@ const ManifiestoDetalle = () => {
                   )}
                 </label>
 
-                {/* Botón Procesar PMS - A LA DERECHA */}
+                {/* Botón Procesar PMS */}
                 <button
                   onClick={handleUploadPMS}
                   disabled={pmsUploading || !pmsFile}
@@ -612,7 +733,7 @@ const ManifiestoDetalle = () => {
                   {pmsUploading ? "Procesando..." : "Procesar PMS"}
                 </button>
 
-                {/* Botón Generar XML - A LA DERECHA */}
+                {/* Botón Generar XML */}
                 <button
                   onClick={() => navigate(`/manifiestos/${id}/generar-xml`)}
                   disabled={blCount === 0}
@@ -728,6 +849,137 @@ const ManifiestoDetalle = () => {
                 </table>
               </div>
             </div>
+
+            {/* Sección de Referencia - DESPUÉS DEL ITINERARIO */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mt-6">
+              <div className="mb-4">
+                <h2 className="text-sm font-semibold text-slate-700">
+                  Referencia del Manifiesto
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Información de la referencia asociada a este manifiesto
+                </p>
+              </div>
+
+              {!isEditing ? (
+                // ✅ MODO LECTURA
+                referenciaManifiesto ? (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-4">
+                      <InfoReadOnly
+                        label="Número de Referencia"
+                        value={m.numeroReferencia || "—"}
+                      />
+                      <InfoReadOnly
+                        label="Emisor / Agencia"
+                        value={`${referenciaManifiesto.match_code} - ${referenciaManifiesto.nombre_emisor}`}
+                      />
+                      <InfoReadOnly
+                        label="Fecha de Referencia"
+                        value={formatDateCL(m.fechaReferencia)}
+                      />
+                    </div>
+
+                    <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                      <p className="text-xs font-medium text-slate-700 mb-2">
+                        Información completa de la referencia:
+                      </p>
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-slate-600">
+                        <div><span className="font-medium">Tipo Referencia:</span> REF</div>
+                        <div><span className="font-medium">Tipo Documento:</span> MFTO</div>
+                        <div><span className="font-medium">RUT Emisor:</span> {referenciaManifiesto.rut}</div>
+                        <div><span className="font-medium">Tipo ID:</span> {referenciaManifiesto.tipo_id_emisor}</div>
+                        <div><span className="font-medium">País:</span> {referenciaManifiesto.pais}</div>
+                        <div><span className="font-medium">Nacionalidad:</span> {referenciaManifiesto.nacion_id}</div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-sm text-slate-500 italic">
+                    No hay referencia asociada a este manifiesto
+                  </div>
+                )
+              ) : (
+                // 🆕 MODO EDICIÓN
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-4">
+                    {/* 🆕 Selector de Referencia */}
+                    <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
+                      <div className="text-xs font-medium text-slate-700">Referencia</div>
+                      <select
+                        value={formData.referenciaId || ""}
+                        onChange={(e) => {
+                          const refId = e.target.value;
+                          handleInputChange("referenciaId", refId);
+
+                          // Si selecciona una referencia, auto-completar número
+                          if (refId) {
+                            const ref = referencias.find(r => r.id === parseInt(refId));
+                            if (ref) {
+                              handleInputChange("numeroReferencia", ref.match_code);
+                            }
+                          } else {
+                            handleInputChange("numeroReferencia", "");
+                            handleInputChange("fechaReferencia", "");
+                          }
+                        }}
+                        className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Sin referencia</option>
+                        {referencias.map(r => (
+                          <option key={r.id} value={r.id}>
+                            {r.match_code} - {r.nombre_emisor}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* 🆕 Número de Referencia - SINCRONIZADO */}
+                    <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
+                      <div className="text-xs font-medium text-slate-700">N° Referencia</div>
+                      <input
+                        type="text"
+                        value={formData.numeroReferencia}
+                        disabled
+                        className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm bg-slate-100 text-slate-500 cursor-not-allowed"
+                        placeholder="Se sincroniza con N° Mfto Aduana CL"
+                      />
+                      <p className="mt-1 text-[10px] text-slate-500">
+                        ✓ Sincronizado automáticamente con N° Mfto Aduana CL
+                      </p>
+                    </div>
+
+                    {/* 🆕 Fecha de Referencia */}
+                    <InfoEditableDate
+                      label="Fecha Referencia"
+                      value={formData.fechaReferencia}
+                      onChange={(v) => handleInputChange("fechaReferencia", v)}
+                    />
+                  </div>
+
+                  {/* Vista previa de la referencia seleccionada */}
+                  {formData.referenciaId && (
+                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <p className="text-xs font-medium text-blue-800 mb-2">
+                        Vista previa de la referencia seleccionada:
+                      </p>
+                      {(() => {
+                        const refSeleccionada = referencias.find(r => r.id === parseInt(formData.referenciaId));
+                        return refSeleccionada ? (
+                          <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-blue-700">
+                            <div><span className="font-medium">RUT Emisor:</span> {refSeleccionada.rut}</div>
+                            <div><span className="font-medium">Tipo ID:</span> {refSeleccionada.tipo_id_emisor}</div>
+                            <div><span className="font-medium">País:</span> {refSeleccionada.pais}</div>
+                            <div><span className="font-medium">Nacionalidad:</span> {refSeleccionada.nacion_id}</div>
+                          </div>
+                        ) : null;
+                      })()}
+                    </div>
+                  )}
+                </>
+              )}
+
+            </div>
           </>
         )}
       </main>
@@ -765,6 +1017,7 @@ const InfoEditableDate = ({ label, value, onChange }) => (
     />
   </div>
 );
+
 const InfoEditableSelect = ({ label, value, onChange, options }) => (
   <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
     <div className="text-xs font-medium text-slate-700">{label}</div>
@@ -781,4 +1034,5 @@ const InfoEditableSelect = ({ label, value, onChange, options }) => (
     </select>
   </div>
 );
+
 export default ManifiestoDetalle;

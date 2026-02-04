@@ -582,19 +582,23 @@ app.post("/api/auth/verify-code", async (req, res) => {
 
 app.post("/manifiestos", async (req, res) => {
   const {
-    servicio,        // EJ: "WSACL" (codigo)
-    nave,            // EJ: "EVLOY" (codigo)
-    puertoCentral,   // EJ: "CLVAP" (codigo)
+    servicio,
+    nave,
+    puertoCentral,
     viaje,
-    tipoOperacion,   // EX | IM | CROSS
+    tipoOperacion,
     operadorNave,
     status,
     remark,
     emisorDocumento,
     representante,
-    fechaManifiestoAduana,     // "YYYY-MM-DD"
+    fechaManifiestoAduana,
     numeroManifiestoAduana,
-    itinerario = [],           // [{ port:"CNHKG", portType:"LOAD", eta:"YYYY-MM-DDTHH:mm", ets:"..." }]
+    itinerario = [],
+    // 🆕 NUEVOS CAMPOS PARA REFERENCIA
+    referenciaId,
+    numeroReferencia,
+    fechaReferencia
   } = req.body || {};
 
   // Validación mínima
@@ -606,7 +610,6 @@ app.post("/manifiestos", async (req, res) => {
     return res.status(400).json({ error: "Faltan campos obligatorios del manifiesto." });
   }
 
-  // 🆕 VALIDAR STATUS
   const validStatuses = ["Activo", "Inactivo", "Enviado"];
   const statusFinal = status && validStatuses.includes(status) ? status : "Activo";
 
@@ -640,14 +643,15 @@ app.post("/manifiestos", async (req, res) => {
     );
     if (!pcRow) throw new Error(`Puerto central no existe: ${puertoCentral}`);
 
-    // 2) Insert manifiesto (con FKs)
+    // 2) Insert manifiesto (🆕 CON CAMPOS DE REFERENCIA)
     const [result] = await conn.query(
       `INSERT INTO manifiestos
         (servicio_id, nave_id, puerto_central_id,
          viaje, tipo_operacion, operador_nave,
          status, remark, emisor_documento, representante,
-         fecha_manifiesto_aduana, numero_manifiesto_aduana)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         fecha_manifiesto_aduana, numero_manifiesto_aduana,
+         referencia_id, numero_referencia, fecha_referencia)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         servRow.id,
         naveRow.id,
@@ -661,15 +665,16 @@ app.post("/manifiestos", async (req, res) => {
         String(representante).trim(),
         fechaManifiestoAduana,
         String(numeroManifiestoAduana).trim(),
+        referenciaId || null,           // 🆕
+        numeroReferencia || null,        // 🆕
+        fechaReferencia || null          // 🆕
       ]
     );
 
     const manifiestoId = result.insertId;
 
-    // 3) Insert itinerario (resuelve puerto_id por codigo)
+    // 3) Insert itinerario
     if (Array.isArray(itinerario) && itinerario.length > 0) {
-      const toMysqlDT = (v) => (v ? String(v).replace("T", " ") + ":00" : null);
-
       for (let i = 0; i < itinerario.length; i++) {
         const row = itinerario[i];
         if (!row?.port || !row?.portType) continue;
@@ -725,7 +730,11 @@ app.put("/manifiestos/:id", async (req, res) => {
     representante,
     fechaManifiestoAduana,
     numeroManifiestoAduana,
-    itinerario
+    itinerario,
+    // 🆕 NUEVOS CAMPOS
+    referenciaId,
+    numeroReferencia,
+    fechaReferencia
   } = req.body;
 
   const connection = await pool.getConnection();
@@ -733,7 +742,7 @@ app.put("/manifiestos/:id", async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    // 1️⃣ ACTUALIZAR EL MANIFIESTO
+    // 1️⃣ ACTUALIZAR EL MANIFIESTO (🆕 CON CAMPOS DE REFERENCIA)
     await connection.query(
       `UPDATE manifiestos 
        SET operador_nave = ?, 
@@ -743,10 +752,24 @@ app.put("/manifiestos/:id", async (req, res) => {
            representante = ?,
            fecha_manifiesto_aduana = ?,
            numero_manifiesto_aduana = ?,
+           referencia_id = ?,
+           numero_referencia = ?,
+           fecha_referencia = ?,
            updated_at = NOW()
        WHERE id = ?`,
-      [operadorNave, status, remark, emisorDocumento, representante,
-        fechaManifiestoAduana, numeroManifiestoAduana, id]
+      [
+        operadorNave,
+        status,
+        remark,
+        emisorDocumento,
+        representante,
+        fechaManifiestoAduana,
+        numeroManifiestoAduana,
+        referenciaId || null,      // 🆕
+        numeroReferencia || null,  // 🆕
+        fechaReferencia || null,   // 🆕
+        id
+      ]
     );
 
     // 2️⃣ ACTUALIZAR ITINERARIO
@@ -761,14 +784,8 @@ app.put("/manifiestos/:id", async (req, res) => {
       }
     }
 
-    // 3️⃣ OBTENER TODOS LOS BLS DE ESTE MANIFIESTO
-    const [bls] = await connection.query(
-      'SELECT id FROM bls WHERE manifiesto_id = ?',
-      [id]
-    );
-
     await connection.commit();
-    res.json({ success: true, message: 'Manifiesto actualizado y re-validado' });
+    res.json({ success: true, message: 'Manifiesto actualizado correctamente' });
 
   } catch (error) {
     await connection.rollback();
@@ -778,7 +795,6 @@ app.put("/manifiestos/:id", async (req, res) => {
     connection.release();
   }
 });
-
 // ============================================
 // CRUD MANIFIESTOS
 // ============================================
@@ -817,8 +833,7 @@ app.get("/manifiestos", async (_req, res) => {
   }
 });
 
-// GET - Detalle de un manifiesto específico
-// GET - Detalle de un manifiesto específico
+// 🔥 REEMPLAZA ESTO (línea ~1061)
 app.get("/manifiestos/:id", async (req, res) => {
   const { id } = req.params;
 
@@ -839,7 +854,13 @@ app.get("/manifiestos/:id", async (req, res) => {
           m.fecha_manifiesto_aduana AS fechaManifiestoAduana,
           m.numero_manifiesto_aduana AS numeroManifiestoAduana,
           m.created_at AS createdAt,
-          m.updated_at AS updatedAt
+          m.updated_at AS updatedAt,
+          
+          -- 🆕 AGREGAR ESTOS 3 CAMPOS
+          m.referencia_id AS referenciaId,
+          m.numero_referencia AS numeroReferencia,
+          m.fecha_referencia AS fechaReferencia
+          
        FROM manifiestos m
        JOIN servicios s ON s.id = m.servicio_id
        JOIN naves n ON n.id = m.nave_id
@@ -867,7 +888,6 @@ app.get("/manifiestos/:id", async (req, res) => {
       [id]
     );
 
-    // 🔥 AGREGAR ESTA QUERY PARA LOS BLs
     const [bls] = await pool.query(
       `SELECT 
           id,
@@ -905,11 +925,10 @@ app.get("/manifiestos/:id", async (req, res) => {
       [id]
     );
 
-
     const response = {
       manifiesto: rows[0],
       itinerario,
-      bls  // 🔥 AGREGAR ESTO
+      bls
     };
 
     res.json(response);
@@ -920,6 +939,30 @@ app.get("/manifiestos/:id", async (req, res) => {
   }
 });
 
+// ══════════════════════════════════════════════════════════════════
+// ENDPOINT: GET /api/manifiestos/siguiente-numero-referencia
+// Obtener el siguiente número de referencia disponible
+// ══════════════════════════════════════════════════════════════════
+app.get("/api/manifiestos/siguiente-numero-referencia", async (req, res) => {
+  try {
+    // Obtener el número más alto actual
+    const [rows] = await pool.query(
+      `SELECT COALESCE(MAX(CAST(numero_manifiesto_aduana AS UNSIGNED)), 0) as max_numero 
+       FROM manifiestos 
+       WHERE numero_manifiesto_aduana REGEXP '^[0-9]+$'`
+    );
+
+    const siguienteNumero = (rows[0].max_numero + 1).toString().padStart(6, '0');
+
+    res.json({ numero: siguienteNumero });
+  } catch (error) {
+    console.error("Error obteniendo siguiente número:", error);
+    res.status(500).json({
+      error: "Error obteniendo siguiente número",
+      details: error.message
+    });
+  }
+});
 // ============================================
 // CRUD PUERTOS (codigo, nombre)
 // ============================================
@@ -1125,6 +1168,28 @@ app.get("/tipo-cnt-tipo-bulto", async (req, res) => {
     });
   }
 });
+
+// ══════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
+app.get("/api/mantenedores/referencias", async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, customer_id, external_id, rut, match_code, nombre_emisor, pais, tipo_id_emisor, nacion_id 
+       FROM referencias 
+       ORDER BY nombre_emisor`
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error("Error obteniendo referencias:", error);
+    res.status(500).json({
+      error: "Error obteniendo referencias",
+      details: error.message
+    });
+  }
+});
+
+
+
 // ============================================
 // CRUD SERVICIOS (codigo, nombre, descripcion)
 // ============================================
@@ -3602,6 +3667,8 @@ app.get("/bls/:blNumber", async (req, res) => {
 
     const blId = rows[0].id;
 
+
+
     // Recargar datos actualizados
     const [updatedRows] = await conn.query(query, [blNumber]);
 
@@ -4076,7 +4143,8 @@ app.patch('/bls/:blNumber', async (req, res) => {
       'puerto_descarga_cod',
       'lugar_entrega_cod',
       'lugar_destino_cod',
-      'lugar_emision_cod'
+      'lugar_emision_cod',
+      'observaciones'
     ];
 
     // 🔥 MAPEO DE CÓDIGOS → IDs
@@ -4117,6 +4185,16 @@ app.patch('/bls/:blNumber', async (req, res) => {
         values.push(codigo, puertoId);
 
         console.log(`🔄 Puerto ${field}: ${codigo} → ID: ${puertoId}`);
+      }
+      // 🔥 PROCESAMIENTO ESPECIAL PARA OBSERVACIONES
+      else if (field === 'observaciones') {
+        if (Array.isArray(value)) {
+          setClauses.push(`${field} = ?`);
+          values.push(JSON.stringify(value));
+        } else {
+          setClauses.push(`${field} = ?`);
+          values.push(value);
+        }
       }
       // 🔥 Otros campos permitidos
       else if (validFields.includes(field)) {
@@ -4323,7 +4401,9 @@ app.put("/bls/:blNumber/carga-suelta", async (req, res) => {
       formData.shipper,
       formData.consignee,
       formData.notify_party,
-      formData.observaciones || null,
+      formData.observaciones && formData.observaciones.length > 0
+        ? JSON.stringify(formData.observaciones)
+        : null,
       blId
     ]);
 
@@ -4672,7 +4752,36 @@ function formatDateCL(isoDate) {
   const yyyy = d.getFullYear();
   return `${dd}-${mm}-${yyyy}`;
 }
+// Función para formatear fecha en formato DD-MM-YYYY
+function formatDateDDMMYYYY(fecha) {
+  if (!fecha) return '';
+  const date = new Date(fecha);
+  const dia = String(date.getDate()).padStart(2, '0');
+  const mes = String(date.getMonth() + 1).padStart(2, '0');
+  const anio = date.getFullYear();
+  return `${dia}-${mes}-${anio}`;
+}
 
+// Función para generar la sección Referencias
+function generarReferencias(manifiesto) {
+  // Si no hay datos de referencia, no generar la sección
+  if (!manifiesto.numero_referencia || !manifiesto.fecha_referencia) {
+    return undefined;
+  }
+
+  return {
+    referencia: {
+      'tipo-referencia': 'REF',
+      'tipo-documento': 'MFTO',
+      'numero': String(manifiesto.numero_referencia),
+      'fecha': formatDateDDMMYYYY(manifiesto.fecha_referencia),
+      'tipo-id-emisor': 'RUT',
+      'nac-id-emisor': 'CL',
+      'valor-id-emisor': '96566940-K',
+      'emisor': manifiesto.representante || 'AGENCIAS UNIVERSALES S.A.'
+    }
+  };
+}
 // 🔥 REEMPLAZA ESTE ENDPOINT COMPLETO
 app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
   const conn = await pool.getConnection();
@@ -4746,8 +4855,7 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
   }
 });
 
-// POST /api/bls/:blNumber/generar-xml
-// Genera el XML completo de un BL específico CON VALIDACIÓN IMO
+// 🔥 REEMPLAZA el endpoint POST /api/bls/:blNumber/generar-xml (línea ~2824)
 app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
   try {
     const { blNumber } = req.params;
@@ -4758,6 +4866,9 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
         b.*,
         m.viaje,
         m.tipo_operacion,
+        m.numero_referencia,      
+        m.fecha_referencia,    
+        m.representante,         
         n.nombre AS nave_nombre,
         ts.codigo AS tipo_servicio_codigo,
         le.codigo AS lugar_emision_codigo,
@@ -4791,6 +4902,20 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
     }
 
     const bl = blRows[0];
+    // 🔥 PARSEAR OBSERVACIONES (SI VIENEN COMO STRING JSON)
+    // 👇 PEGA ESTO AQUÍ 👇
+    if (bl.observaciones && typeof bl.observaciones === 'string') {
+      try {
+        bl.observaciones = JSON.parse(bl.observaciones);
+      } catch (e) {
+        console.error('Error parseando observaciones:', e);
+        bl.observaciones = null;
+      }
+    }
+    // 👆 HASTA AQUÍ 👆
+
+    // 🔥 DETECTAR SI ES CARGA SUELTA
+    const esCargaSuelta = bl.tipo_servicio_codigo === 'BB';
 
     // 🛡️ VALIDAR BL ANTES DE GENERAR XML
     const validation = validateBLForXML(bl);
@@ -4809,56 +4934,62 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
       ORDER BY numero_item
     `, [bl.id]);
 
-    // 3️⃣ Obtener contenedores con sellos E IMO (MEJORADO - obtiene TODOS los IMOs)
-    const [contenedores] = await pool.query(`
-      SELECT
-        c.id,
-        c.item_id,
-        c.codigo,
-        c.sigla,
-        c.numero,
-        c.digito,
-        c.tipo_cnt,
-        c.carga_cnt,
-        c.peso,
-        c.unidad_peso,
-        c.volumen,
-        c.unidad_volumen,
-        GROUP_CONCAT(DISTINCT s.sello ORDER BY s.sello SEPARATOR '|') as sellos,
-        GROUP_CONCAT(DISTINCT CONCAT(i.clase_imo, ':', i.numero_imo) SEPARATOR '|') as imo_data
-      FROM bl_contenedores c
-      LEFT JOIN bl_contenedor_sellos s ON s.contenedor_id = c.id
-      LEFT JOIN bl_contenedor_imo i ON i.contenedor_id = c.id
-      WHERE c.bl_id = ?
-      GROUP BY c.id, c.item_id, c.codigo, c.sigla, c.numero, c.digito, 
-               c.tipo_cnt, c.carga_cnt, c.peso, c.unidad_peso, c.volumen, c.unidad_volumen
-      ORDER BY c.codigo
-    `, [bl.id]);
+    // 3️⃣ Obtener contenedores con sellos E IMO (SOLO SI NO ES CARGA SUELTA)
+    let contenedores = [];
 
-    // 🆕 VALIDACIÓN IMO ANTES DE GENERAR XML
-    const erroresIMO = [];
-    for (const item of items) {
-      if (String(item.carga_peligrosa || "").toUpperCase() === "S") {
-        const contsDelItem = contenedores.filter(c => c.item_id === item.id);
+    if (!esCargaSuelta) {
+      const [contRows] = await pool.query(`
+        SELECT
+          c.id,
+          c.item_id,
+          c.codigo,
+          c.sigla,
+          c.numero,
+          c.digito,
+          c.tipo_cnt,
+          c.carga_cnt,
+          c.peso,
+          c.unidad_peso,
+          c.volumen,
+          c.unidad_volumen,
+          GROUP_CONCAT(DISTINCT s.sello ORDER BY s.sello SEPARATOR '|') as sellos,
+          GROUP_CONCAT(DISTINCT CONCAT(i.clase_imo, ':', i.numero_imo) SEPARATOR '|') as imo_data
+        FROM bl_contenedores c
+        LEFT JOIN bl_contenedor_sellos s ON s.contenedor_id = c.id
+        LEFT JOIN bl_contenedor_imo i ON i.contenedor_id = c.id
+        WHERE c.bl_id = ?
+        GROUP BY c.id, c.item_id, c.codigo, c.sigla, c.numero, c.digito, 
+                 c.tipo_cnt, c.carga_cnt, c.peso, c.unidad_peso, c.volumen, c.unidad_volumen
+        ORDER BY c.codigo
+      `, [bl.id]);
 
-        for (const cont of contsDelItem) {
-          if (!cont.imo_data) {
-            erroresIMO.push({
-              item: item.numero_item,
-              contenedor: cont.codigo,
-              mensaje: "Contenedor sin datos IMO (carga peligrosa requiere clase_imo y numero_imo)"
-            });
+      contenedores = contRows;
+
+      // 🆕 VALIDACIÓN IMO ANTES DE GENERAR XML (solo para contenedores)
+      const erroresIMO = [];
+      for (const item of items) {
+        if (String(item.carga_peligrosa || "").toUpperCase() === "S") {
+          const contsDelItem = contenedores.filter(c => c.item_id === item.id);
+
+          for (const cont of contsDelItem) {
+            if (!cont.imo_data) {
+              erroresIMO.push({
+                item: item.numero_item,
+                contenedor: cont.codigo,
+                mensaje: "Contenedor sin datos IMO (carga peligrosa requiere clase_imo y numero_imo)"
+              });
+            }
           }
         }
       }
-    }
 
-    if (erroresIMO.length > 0) {
-      return res.status(400).json({
-        error: "Contenedores de carga peligrosa sin datos IMO",
-        details: erroresIMO,
-        bl_number: blNumber
-      });
+      if (erroresIMO.length > 0) {
+        return res.status(400).json({
+          error: "Contenedores de carga peligrosa sin datos IMO",
+          details: erroresIMO,
+          bl_number: blNumber
+        });
+      }
     }
 
     // 4️⃣ Construir XML
@@ -4869,8 +5000,14 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
         'tipo-accion': 'M',
         'numero-referencia': bl.bl_number,
         'service': 'LINER',
-        'tipo-servicio': bl.tipo_servicio_nombre || 'FCL/FCL',
-        'cond-transporte': 'HH',
+        'tipo-servicio': esCargaSuelta ? 'BB' : (bl.tipo_servicio_nombre || 'FCL/FCL'),
+
+        // 🔥 CARGA SUELTA: agregar forma-pago-flete y cond-transporte
+        ...(esCargaSuelta && {
+          'forma-pago-flete': bl.forma_pago_flete || 'PREPAID',
+          'cond-transporte': bl.cond_transporte || 'HH'
+        }),
+
         'total-bultos': bl.bultos || 0,
         'total-peso': bl.peso_bruto || 0,
         'unidad-peso': bl.unidad_peso || 'KGM',
@@ -4917,6 +5054,24 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
           item: items.map(it => {
             const contsDelItem = contenedores.filter(c => c.item_id === it.id);
 
+            // 🔥 CARGA SUELTA: estructura diferente (sin contenedores)
+            if (esCargaSuelta) {
+              return {
+                'numero-item': it.numero_item,
+                marcas: it.marcas || 'N/M',
+                'carga-peligrosa': it.carga_peligrosa || 'N',
+                'tipo-bulto': it.tipo_bulto || '',
+                descripcion: it.descripcion || '',
+                cantidad: it.cantidad || 0,
+                'peso-bruto': it.peso_bruto || 0,
+                'unidad-peso': it.unidad_peso || 'KGM',
+                volumen: it.volumen || 0,
+                'unidad-volumen': it.unidad_volumen || 'MTQ',
+                'carga-cnt': 'N'  // 🔥 SIEMPRE 'N' EN CARGA SUELTA
+              };
+            }
+
+            // CONTENEDORES: estructura normal
             return {
               'numero-item': it.numero_item,
               marcas: it.marcas || '',
@@ -4931,7 +5086,6 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
               'carga-cnt': {},
               Contenedores: contsDelItem.length > 0 ? {
                 contenedor: contsDelItem.map(c => {
-                  // Parsear datos IMO
                   let imoList = [];
                   if (c.imo_data) {
                     imoList = c.imo_data.split('|')
@@ -4947,7 +5101,8 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
                     numero: c.numero || '',
                     digito: c.digito || '',
                     'tipo-cnt': c.tipo_cnt || '',
-                    'cnt-so': '', peso: c.peso || 0,
+                    'cnt-so': '',
+                    peso: c.peso || 0,
                     status: bl.tipo_servicio_nombre || 'FCL/FCL',
 
                     CntIMO: imoList.length > 0 ? {
@@ -4964,7 +5119,35 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
               } : undefined
             };
           })
-        }
+        },
+
+        // 🆕 REFERENCIAS (solo si existen datos)
+        Referencias: generarReferencias(bl),
+
+        // 🆕 OBSERVACIONES (solo para carga suelta con observaciones)
+        // ... dentro del xmlObj ...
+
+        // 🆕 OBSERVACIONES (solo para carga suelta con observaciones)
+        // 🆕 OBSERVACIONES (solo para carga suelta con observaciones)
+        ...(esCargaSuelta && bl.observaciones && {
+          Observaciones: {
+            observacion: Array.isArray(bl.observaciones)
+              ? bl.observaciones.map(obs => ({
+                nombre: obs.nombre || 'GRAL',
+                contenido: obs.contenido || ''
+              }))
+              : [
+                {
+                  nombre: 'GRAL',
+                  contenido: bl.observaciones
+                },
+                {
+                  nombre: 'MOT',
+                  contenido: 'LISTA DE ENCARGO'
+                }
+              ]
+          }
+        })
       }
     };
 
@@ -6253,7 +6436,10 @@ app.post("/manifiestos/:id/carga-suelta", async (req, res) => {
         'MTQ',
         bultos_total,
         items.length,
-        observaciones || null,
+        // ✅ DESPUÉS (correcto):
+        observaciones && observaciones.length > 0
+          ? JSON.stringify(observaciones)
+          : null,
         'CREADO',
         'OK'
       ]

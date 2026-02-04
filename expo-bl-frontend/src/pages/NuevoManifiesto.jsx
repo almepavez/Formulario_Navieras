@@ -14,9 +14,10 @@ const NuevoManifiesto = () => {
   const [servicios, setServicios] = useState([]);
   const [naves, setNaves] = useState([]);
   const [puertos, setPuertos] = useState([]);
+  const [referencias, setReferencias] = useState([]);
   const [loadingCatalogs, setLoadingCatalogs] = useState(true);
 
-  // FORM manifiesto (guardamos CÓDIGOS)
+  // FORM manifiesto
   const [form, setForm] = useState({
     servicio: "",
     nave: "",
@@ -27,7 +28,7 @@ const NuevoManifiesto = () => {
     status: "En edición",
     remark: "",
     emisorDocumento: "",
-    representante: "AJBROOM",
+    representante: "",
     fechaManifiestoAduana: "",
     numeroManifiestoAduana: "",
   });
@@ -41,10 +42,25 @@ const NuevoManifiesto = () => {
     return `${yyyy}-${mm}-${dd}T00:00`;
   };
 
-  // ITINERARIO (filas dinámicas)
+  const todayDateOnly = () => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  // ITINERARIO
   const [itinerario, setItinerario] = useState([
     { port: "", portType: "LOAD", eta: todayAtMidnightLocal(), ets: todayAtMidnightLocal() },
   ]);
+
+  // REFERENCIA (simplificada - solo se selecciona el emisor)
+  const [referencia, setReferencia] = useState({
+    referenciaId: "", // ← ID de la referencia seleccionada
+    numeroReferencia: "", // ← Número sincronizado con numeroManifiestoAduana
+    fecha: todayDateOnly(),
+  });
 
   // Cargar catálogos
   useEffect(() => {
@@ -52,25 +68,29 @@ const NuevoManifiesto = () => {
       setLoadingCatalogs(true);
       setError("");
       try {
-        const [sRes, nRes, pRes] = await Promise.all([
+        const [sRes, nRes, pRes, rRes] = await Promise.all([
           fetch(`${API_BASE_URL}/api/mantenedores/servicios`),
           fetch(`${API_BASE_URL}/api/mantenedores/naves`),
           fetch(`${API_BASE_URL}/api/mantenedores/puertos`),
+          fetch(`${API_BASE_URL}/api/mantenedores/referencias`),
         ]);
 
         if (!sRes.ok) throw new Error(`Error servicios HTTP ${sRes.status}`);
         if (!nRes.ok) throw new Error(`Error naves HTTP ${nRes.status}`);
         if (!pRes.ok) throw new Error(`Error puertos HTTP ${pRes.status}`);
+        if (!rRes.ok) throw new Error(`Error referencias HTTP ${rRes.status}`);
 
-        const [sData, nData, pData] = await Promise.all([
+        const [sData, nData, pData, rData] = await Promise.all([
           sRes.json(),
           nRes.json(),
           pRes.json(),
+          rRes.json(),
         ]);
 
         setServicios(Array.isArray(sData) ? sData : []);
         setNaves(Array.isArray(nData) ? nData : []);
         setPuertos(Array.isArray(pData) ? pData : []);
+        setReferencias(Array.isArray(rData) ? rData : []);
 
         const hasCLVAP = Array.isArray(pData) && pData.some((x) => x.codigo === "CLVAP");
         setForm((prev) => ({
@@ -87,23 +107,81 @@ const NuevoManifiesto = () => {
     loadCatalogs();
   }, []);
 
+  // Sincronizar número de referencia con número de manifiesto de aduana
+  useEffect(() => {
+    if (form.numeroManifiestoAduana.trim()) {
+      setReferencia(prev => ({ 
+        ...prev, 
+        numeroReferencia: form.numeroManifiestoAduana 
+      }));
+    }
+  }, [form.numeroManifiestoAduana]);
+
   const onChange = (key) => (e) => {
-    setForm((prev) => ({ ...prev, [key]: e.target.value }));
+    const value = e.target.value;
+    
+    // Si se selecciona Representante, autocompletar Emisor Doc
+    if (key === "representante" && value) {
+      const refSeleccionada = referencias.find(r => r.match_code === value);
+      if (refSeleccionada) {
+        setForm((prev) => ({ 
+          ...prev, 
+          [key]: value,
+          emisorDocumento: refSeleccionada.customer_id 
+        }));
+        return;
+      }
+    }
+    
+    // Si se selecciona Emisor Doc, autocompletar Representante
+    if (key === "emisorDocumento" && value) {
+      const refSeleccionada = referencias.find(r => r.customer_id === value);
+      if (refSeleccionada) {
+        setForm((prev) => ({ 
+          ...prev, 
+          [key]: value,
+          representante: refSeleccionada.match_code 
+        }));
+        return;
+      }
+    }
+    
+    setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const addRow = () =>
+  // Itinerario helpers
+  const addItinerarioRow = () =>
     setItinerario((prev) => [
       ...prev,
       { port: "", portType: "LOAD", eta: todayAtMidnightLocal(), ets: todayAtMidnightLocal() },
     ]);
 
-  const removeRow = (idx) =>
+  const removeItinerarioRow = (idx) =>
     setItinerario((prev) => prev.filter((_, i) => i !== idx));
 
-  const updateRow = (idx, key, value) =>
+  const updateItinerarioRow = (idx, key, value) =>
     setItinerario((prev) => prev.map((r, i) => (i === idx ? { ...r, [key]: value } : r)));
 
-  // 🆕 Función para validar campos obligatorios y obtener lista de faltantes
+  // Referencia helper
+  const updateReferencia = (key, value) =>
+    setReferencia((prev) => ({ ...prev, [key]: value }));
+
+  // Obtener datos de la referencia seleccionada
+  const referenciaSeleccionada = useMemo(() => {
+    return referencias.find(r => r.id === parseInt(referencia.referenciaId));
+  }, [referencias, referencia.referenciaId]);
+
+  // Obtener datos del emisor seleccionado
+  const emisorSeleccionado = useMemo(() => {
+    return referencias.find(r => r.customer_id === form.emisorDocumento);
+  }, [referencias, form.emisorDocumento]);
+
+  // Obtener datos del representante seleccionado
+  const representanteSeleccionado = useMemo(() => {
+    return referencias.find(r => r.match_code === form.representante);
+  }, [referencias, form.representante]);
+
+  // Validaciones
   const getMissingFields = () => {
     const missing = [];
 
@@ -118,6 +196,9 @@ const NuevoManifiesto = () => {
     if (!form.fechaManifiestoAduana) missing.push("Fecha Mfto Aduana CL");
     if (!form.numeroManifiestoAduana.trim()) missing.push("Nro Mfto Aduana CL");
 
+    // Referencia es obligatoria
+    if (!referencia.referenciaId) missing.push("Referencia: Emisor");
+
     return missing;
   };
 
@@ -126,7 +207,7 @@ const NuevoManifiesto = () => {
     [itinerario]
   );
 
-  // 🆕 Construir resumen del manifiesto para mostrar en confirmación
+  // Resumen para confirmación
   const buildSummary = () => {
     const servicioObj = servicios.find((s) => s.codigo === form.servicio);
     const naveObj = naves.find((n) => n.codigo === form.nave);
@@ -140,6 +221,24 @@ const NuevoManifiesto = () => {
       })
       .join("<br>");
 
+    const referenciaHtml = referenciaSeleccionada 
+      ? `<span style="display:block; padding: 4px 0; border-bottom: 1px solid #e2e8f0;">
+          <strong>REF / MFTO</strong> &nbsp;
+          N°: ${referencia.numeroReferencia} &nbsp;
+          Fecha: ${referencia.fecha} &nbsp;
+          Emisor: ${referenciaSeleccionada.nombre_emisor} &nbsp;
+          RUT: ${referenciaSeleccionada.rut}
+        </span>`
+      : '<span style="color: #ef4444;">No seleccionada</span>';
+
+    const emisorHtml = emisorSeleccionado
+      ? `${form.emisorDocumento} (${emisorSeleccionado.nombre_emisor})`
+      : form.emisorDocumento;
+
+    const representanteHtml = representanteSeleccionado
+      ? `${form.representante} (${representanteSeleccionado.nombre_emisor})`
+      : form.representante;
+
     return `
       <div style="text-align: left; font-size: 14px;">
         <p><strong>Servicio:</strong> ${form.servicio}${servicioObj ? ` - ${servicioObj.nombre}` : ""}</p>
@@ -148,20 +247,25 @@ const NuevoManifiesto = () => {
         <p><strong>Puerto Central:</strong> ${form.puertoCentral}${puertoCentralObj ? ` - ${puertoCentralObj.nombre}` : ""}</p>
         <p><strong>Operación:</strong> ${form.tipoOperacion}</p>
         <p><strong>Operador Nave:</strong> ${form.operadorNave}</p>
+        <p><strong>Emisor Documento:</strong> ${emisorHtml}</p>
+        <p><strong>Representante:</strong> ${representanteHtml}</p>
         <p><strong>Fecha Mfto Aduana:</strong> ${form.fechaManifiestoAduana}</p>
         <p><strong>N° Mfto Aduana:</strong> ${form.numeroManifiestoAduana}</p>
         <hr style="margin: 12px 0; border: none; border-top: 1px solid #e2e8f0;">
         <p><strong>Puertos en itinerario:</strong></p>
         <div style="padding-left: 12px; font-size: 13px;">${puertosItinerario || "Ninguno"}</div>
+        <hr style="margin: 12px 0; border: none; border-top: 1px solid #e2e8f0;">
+        <p><strong>Referencia:</strong></p>
+        <div style="padding-left: 12px; font-size: 13px;">${referenciaHtml}</div>
       </div>
     `;
   };
 
+  // Submit
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
-    // 🆕 PASO 1: Validar campos obligatorios
     const missingFields = getMissingFields();
     if (missingFields.length > 0) {
       await Swal.fire({
@@ -179,7 +283,6 @@ const NuevoManifiesto = () => {
       return;
     }
 
-    // 🆕 PASO 2: Validar que haya al menos un puerto en itinerario
     if (!hasAtLeastOnePort) {
       await Swal.fire({
         title: "Itinerario vacío",
@@ -191,7 +294,6 @@ const NuevoManifiesto = () => {
       return;
     }
 
-    // 🆕 PASO 3: Mostrar confirmación con resumen
     const result = await Swal.fire({
       title: "Revisar información del manifiesto",
       html: `
@@ -216,7 +318,6 @@ const NuevoManifiesto = () => {
 
     if (!result.isConfirmed) return;
 
-    // 🆕 PASO 4: Proceder con la creación
     try {
       setSaving(true);
 
@@ -225,6 +326,9 @@ const NuevoManifiesto = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          referenciaId: parseInt(referencia.referenciaId),
+          numeroReferencia: referencia.numeroReferencia,
+          fechaReferencia: referencia.fecha,
           itinerario: itinerario
             .filter((r) => r.port.trim())
             .map((r, i) => ({
@@ -244,7 +348,6 @@ const NuevoManifiesto = () => {
 
       const data = await res.json();
 
-      // 🆕 Mostrar éxito con opción de ir al manifiesto creado
       const successResult = await Swal.fire({
         title: "¡Manifiesto creado!",
         html: `
@@ -260,7 +363,6 @@ const NuevoManifiesto = () => {
         cancelButtonText: "Volver a lista",
       });
 
-      // Navegar según la opción elegida
       if (successResult.isConfirmed) {
         navigate(`/manifiestos/${data.id}`);
       } else {
@@ -279,7 +381,6 @@ const NuevoManifiesto = () => {
     }
   };
 
-  // 🆕 Protección al salir sin guardar (opcional)
   useEffect(() => {
     const hasData =
       form.servicio ||
@@ -333,7 +434,7 @@ const NuevoManifiesto = () => {
 
         {loadingCatalogs && (
           <div className="mb-4 text-sm text-slate-600">
-            Cargando servicios, naves y puertos...
+            Cargando servicios, naves, puertos y referencias...
           </div>
         )}
 
@@ -366,6 +467,7 @@ const NuevoManifiesto = () => {
             ))}
           </datalist>
 
+          {/* ── CAMPOS PRINCIPALES ── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Field label="Servicio *">
               <input
@@ -390,6 +492,7 @@ const NuevoManifiesto = () => {
                 <option value="TRB">TRB (Transbordo)</option>
               </select>
             </Field>
+
             <Field label="Nave *">
               <input
                 list="navesList"
@@ -419,31 +522,60 @@ const NuevoManifiesto = () => {
               />
             </Field>
 
-            <Field label="Operador Nave (código) *">
+            <Field label="Operador Nave (Customer ID) *">
               <input
+                list="operadorNaveList"
                 value={form.operadorNave}
                 onChange={onChange("operadorNave")}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Ej: 006011"
+                placeholder="Selecciona o escribe (ej: 060321)"
               />
+              <datalist id="operadorNaveList">
+                {referencias.map((ref) => (
+                  <option key={ref.id} value={ref.customer_id}>
+                    {ref.customer_id} — {ref.nombre_emisor}
+                  </option>
+                ))}
+              </datalist>
+              {referencias.find(r => r.customer_id === form.operadorNave) && (
+                <Hint text={`${referencias.find(r => r.customer_id === form.operadorNave).nombre_emisor}`} />
+              )}
             </Field>
 
-            <Field label="Emisor Doc (código) *">
-              <input
+            <Field label="Emisor Doc (Customer ID) *">
+              <select
                 value={form.emisorDocumento}
                 onChange={onChange("emisorDocumento")}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Ej: 000001"
-              />
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+              >
+                <option value="">-- Selecciona un emisor --</option>
+                {referencias.map((ref) => (
+                  <option key={ref.id} value={ref.customer_id}>
+                    {ref.customer_id}
+                  </option>
+                ))}
+              </select>
+              {emisorSeleccionado && (
+                <Hint text={`${emisorSeleccionado.nombre_emisor} | Match: ${emisorSeleccionado.match_code} | RUT: ${emisorSeleccionado.rut}`} />
+              )}
             </Field>
 
             <Field label="Representante *">
-              <input
+              <select
                 value={form.representante}
                 onChange={onChange("representante")}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Ej: AJBROOM"
-              />
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+              >
+                <option value="">-- Selecciona un representante --</option>
+                {referencias.map((ref) => (
+                  <option key={ref.id} value={ref.match_code}>
+                    {ref.match_code} - {ref.nombre_emisor}
+                  </option>
+                ))}
+              </select>
+              {representanteSeleccionado && (
+                <Hint text={`Customer ID: ${representanteSeleccionado.customer_id} | RUT: ${representanteSeleccionado.rut}`} />
+              )}
             </Field>
 
             <Field label="Fecha Mfto Aduana CL *">
@@ -487,7 +619,7 @@ const NuevoManifiesto = () => {
             </Field>
           </div>
 
-          {/* ITINERARIO */}
+          {/* ── ITINERARIO ── */}
           <div className="mt-10">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-slate-700">
@@ -495,7 +627,7 @@ const NuevoManifiesto = () => {
               </h2>
               <button
                 type="button"
-                onClick={addRow}
+                onClick={addItinerarioRow}
                 className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50"
               >
                 + Agregar puerto
@@ -521,7 +653,7 @@ const NuevoManifiesto = () => {
                         <input
                           list="puertosList"
                           value={row.port}
-                          onChange={(e) => updateRow(idx, "port", e.target.value)}
+                          onChange={(e) => updateItinerarioRow(idx, "port", e.target.value)}
                           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                           placeholder="Escribe código (ej: CLVAP)"
                         />
@@ -530,7 +662,7 @@ const NuevoManifiesto = () => {
                       <td className="px-4 py-2">
                         <select
                           value={row.portType}
-                          onChange={(e) => updateRow(idx, "portType", e.target.value)}
+                          onChange={(e) => updateItinerarioRow(idx, "portType", e.target.value)}
                           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
                         >
                           <option value="LOAD">LOAD</option>
@@ -542,7 +674,7 @@ const NuevoManifiesto = () => {
                         <input
                           type="datetime-local"
                           value={row.eta}
-                          onChange={(e) => updateRow(idx, "eta", e.target.value)}
+                          onChange={(e) => updateItinerarioRow(idx, "eta", e.target.value)}
                           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
                         />
                       </td>
@@ -551,7 +683,7 @@ const NuevoManifiesto = () => {
                         <input
                           type="datetime-local"
                           value={row.ets}
-                          onChange={(e) => updateRow(idx, "ets", e.target.value)}
+                          onChange={(e) => updateItinerarioRow(idx, "ets", e.target.value)}
                           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
                         />
                       </td>
@@ -559,7 +691,7 @@ const NuevoManifiesto = () => {
                       <td className="px-4 py-2 text-right">
                         <button
                           type="button"
-                          onClick={() => removeRow(idx)}
+                          onClick={() => removeItinerarioRow(idx)}
                           disabled={itinerario.length === 1}
                           className="px-3 py-2 rounded-lg text-xs font-medium border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-50"
                           title="Eliminar fila"
@@ -578,6 +710,74 @@ const NuevoManifiesto = () => {
             </p>
           </div>
 
+          {/* ── REFERENCIA (simplificada) ── */}
+          <div className="mt-10">
+            <div className="mb-3">
+              <h2 className="text-sm font-semibold text-slate-700">
+                Referencia del Manifiesto
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                El número de referencia se sincroniza automáticamente con el N° de Manifiesto Aduana CL.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Field label="Número de Referencia">
+                <input
+                  value={referencia.numeroReferencia}
+                  disabled
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-slate-50 text-slate-500"
+                  placeholder="Se genera automáticamente"
+                />
+                <Hint text="Sincronizado con N° Mfto Aduana CL" />
+              </Field>
+
+              <Field label="Emisor / Agencia *">
+                <select
+                  value={referencia.referenciaId}
+                  onChange={(e) => updateReferencia("referenciaId", e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                >
+                  <option value="">-- Selecciona un emisor --</option>
+                  {referencias.map((ref) => (
+                    <option key={ref.id} value={ref.id}>
+                      {ref.match_code} - {ref.nombre_emisor}
+                    </option>
+                  ))}
+                </select>
+                {referenciaSeleccionada && (
+                  <Hint text={`RUT: ${referenciaSeleccionada.rut}`} />
+                )}
+              </Field>
+
+              <Field label="Fecha de Referencia">
+                <input
+                  type="date"
+                  value={referencia.fecha}
+                  onChange={(e) => updateReferencia("fecha", e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                />
+              </Field>
+            </div>
+
+            {referenciaSeleccionada && (
+              <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <p className="text-xs font-medium text-slate-700 mb-2">
+                  Información completa de la referencia:
+                </p>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-slate-600">
+                  <div><span className="font-medium">Tipo Referencia:</span> REF</div>
+                  <div><span className="font-medium">Tipo Documento:</span> MFTO</div>
+                  <div><span className="font-medium">RUT Emisor:</span> {referenciaSeleccionada.rut}</div>
+                  <div><span className="font-medium">Tipo ID:</span> {referenciaSeleccionada.tipo_id_emisor}</div>
+                  <div><span className="font-medium">País:</span> {referenciaSeleccionada.pais}</div>
+                  <div><span className="font-medium">Nacionalidad:</span> {referenciaSeleccionada.nacion_id}</div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── FOOTER ── */}
           <div className="mt-8 flex items-center justify-between">
             <p className="text-xs text-slate-500">(*) Campos obligatorios</p>
 
