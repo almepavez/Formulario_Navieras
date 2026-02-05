@@ -2137,6 +2137,50 @@ function extractPartyName(rawLine) {
 
   return name;
 }
+// ============================================
+// ✅ NUEVA FUNCIÓN: Extraer código PIL + nombre
+// Agregar después de la línea 2139 (después de extractPartyName)
+// ============================================
+function extractPartyCodeAndName(rawLine) {
+  if (!rawLine) return { codigo_pil: null, nombre: null };
+
+  const s = String(rawLine).trim();
+
+  // Formato: "16   CL101742         INTER-TANK SPA   [...]"
+  //          "21   CN116263         WEN RAN SHIPPING CO.,LTD.   [...]"
+  //          "26  1CN116263         WEN RAN SHIPPING CO.,LTD.   [...]"
+  
+  // Capturar: tipo_linea (16/21/26) + código_pil + nombre
+  const match = s.match(/^\s*(\d{2})\s+(\S+)\s+(.+)$/);
+  
+  if (!match) {
+    return { codigo_pil: null, nombre: null };
+  }
+
+  const tipoLinea = match[1];  // "16", "21", "26"
+  let codigoPil = match[2];    // "CL101742", "CN116263", "1CN116263"
+  const resto = match[3];      // "INTER-TANK SPA   [...]"
+
+  // ⚠️ CASO ESPECIAL: Línea 26 (NOTIFY) puede tener "1" adelante del código
+  // Ejemplo: "26  1CN116263" → debemos limpiar el "1"
+  if (tipoLinea === "26" && codigoPil.startsWith("1") && codigoPil.length > 2) {
+    codigoPil = codigoPil.substring(1); // "1CN116263" → "CN116263"
+  }
+
+  // Extraer el nombre (primera columna del resto, separado por 2+ espacios)
+  const cols = resto.split(/\s{2,}/).map(x => x.trim()).filter(Boolean);
+  const nombre = cols[0] || null;
+
+  // Si el nombre parece ser un código de país (ej: "CLSCL"), es inválido
+  if (nombre && /^[A-Z]{5}$/.test(nombre)) {
+    return { codigo_pil: codigoPil, nombre: null };
+  }
+
+  return {
+    codigo_pil: normalizeStr(codigoPil),
+    nombre: nombre
+  };
+}
 
 function extractDescripcionFrom41(line41) {
   return normalizeStr(String(line41 || "").slice(2));
@@ -2470,9 +2514,15 @@ function parsePmsTxt(content) {
 
       const tipoServicioCod = extractServiceCodeFrom12(l12);
 
-      const shipper = extractPartyName(pickFirst(bLines, "16"));
-      const consignee = extractPartyName(pickFirst(bLines, "21"));
-      const notify = extractPartyName(pickFirst(bLines, "26"));
+      // ✅ Extraer código PIL y nombre de participantes
+      const shipperData = extractPartyCodeAndName(pickFirst(bLines, "16"));
+      const consigneeData = extractPartyCodeAndName(pickFirst(bLines, "21"));
+      const notifyData = extractPartyCodeAndName(pickFirst(bLines, "26"));
+
+      // Mantener compatibilidad con código anterior (nombre solo)
+      const shipper = shipperData.nombre;
+      const consignee = consigneeData.nombre;
+      const notify = notifyData.nombre;
 
       // Fallback POL/POD desde 13 (por si 14 viene rara)
       const l13 = pickFirst(bLines, "13");
@@ -2575,6 +2625,12 @@ function parsePmsTxt(content) {
         shipper,
         consignee,
         notify,
+        
+        // ✅ NUEVO: códigos PIL de participantes
+        shipper_codigo_pil: shipperData.codigo_pil,
+        consignee_codigo_pil: consigneeData.codigo_pil,
+        notify_codigo_pil: notifyData.codigo_pil,
+        
         descripcion_carga: null,
 
         peso_bruto: weightKgs,
@@ -2718,6 +2774,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
       INSERT INTO bls
         (manifiesto_id, bl_number, tipo_servicio_id,
          shipper, consignee, notify_party,
+         shipper_id, consignee_id, notify_id,
          lugar_emision_id, puerto_embarque_id, puerto_descarga_id,
          lugar_destino_id, lugar_entrega_id, lugar_recepcion_id,
          lugar_emision_cod, puerto_embarque_cod, puerto_descarga_cod,
@@ -2730,6 +2787,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
          status)
       VALUES
         (?, ?, ?,
+         ?, ?, ?,
          ?, ?, ?,
          ?, ?, ?,
          ?, ?, ?,
@@ -2816,6 +2874,42 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         valorCrudo: b.tipoServicioCod || null
       });
 
+      // ============================================
+      // ✅ RESOLVER PARTICIPANTES POR CÓDIGO PIL
+      // ============================================
+      const shipperId = await getParticipanteIdByCodigoPIL(conn, b.shipper_codigo_pil);
+      if (b.shipper_codigo_pil && !shipperId) {
+        pendingValidations.push({
+          nivel: "BL",
+          severidad: "ERROR",
+          campo: "shipper_id",
+          mensaje: `Código PIL de shipper '${b.shipper_codigo_pil}' no encontrado en traductor. Debe agregarse manualmente.`,
+          valorCrudo: b.shipper_codigo_pil
+        });
+      }
+
+      const consigneeId = await getParticipanteIdByCodigoPIL(conn, b.consignee_codigo_pil);
+      if (b.consignee_codigo_pil && !consigneeId) {
+        pendingValidations.push({
+          nivel: "BL",
+          severidad: "ERROR",
+          campo: "consignee_id",
+          mensaje: `Código PIL de consignee '${b.consignee_codigo_pil}' no encontrado en traductor. Debe agregarse manualmente.`,
+          valorCrudo: b.consignee_codigo_pil
+        });
+      }
+
+      const notifyId = await getParticipanteIdByCodigoPIL(conn, b.notify_codigo_pil);
+      if (b.notify_codigo_pil && !notifyId) {
+        pendingValidations.push({
+          nivel: "BL",
+          severidad: "ERROR",
+          campo: "notify_id",
+          mensaje: `Código PIL de notify '${b.notify_codigo_pil}' no encontrado en traductor. Debe agregarse manualmente.`,
+          valorCrudo: b.notify_codigo_pil
+        });
+      }
+
       // Pre-calcular tipo_bulto para items
       for (const it of (b.items || [])) {
         const itemNum = Number(it.numero_item);
@@ -2833,6 +2927,9 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         b.shipper || null,
         b.consignee || null,
         b.notify || null,
+        shipperId || null,        // ✅ NUEVO: shipper_id
+        consigneeId || null,      // ✅ NUEVO: consignee_id
+        notifyId || null,         // ✅ NUEVO: notify_id
         lugarEmisionId,
         puertoEmbarqueId,
         puertoDescargaId,
@@ -3189,6 +3286,24 @@ async function getTipoServicioIdByCodigo(conn, codigo2) {
   if (!c) return null;
   const [rows] = await conn.query("SELECT id FROM tipos_servicio WHERE codigo = ? LIMIT 1", [c]);
   return rows.length ? rows[0].id : null;
+}
+
+// ============================================
+// ✅ NUEVA FUNCIÓN: Buscar participante por código PIL
+// ============================================
+async function getParticipanteIdByCodigoPIL(conn, codigoPil) {
+  const codigo = normalizeStr(codigoPil);
+  if (!codigo) return null;
+  
+  const [rows] = await conn.query(
+    `SELECT participante_id 
+     FROM traductor_pil_bms 
+     WHERE codigo_pil = ? AND activo = TRUE 
+     LIMIT 1`,
+    [codigo]
+  );
+  
+  return rows.length ? rows[0].participante_id : null;
 }
 
 
