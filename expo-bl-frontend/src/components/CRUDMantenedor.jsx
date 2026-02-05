@@ -14,6 +14,10 @@ import {
   Box,
   AlertCircle,
   PackageSearch,
+  Users,
+  ArrowLeftRight,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 
@@ -40,6 +44,14 @@ const colorStyles = {
     badgeBg: "bg-emerald-100",
     badgeText: "text-emerald-600",
   },
+  indigo: {
+    badgeBg: "bg-indigo-100",
+    badgeText: "text-indigo-600",
+  },
+  rose: {
+    badgeBg: "bg-rose-100",
+    badgeText: "text-rose-600",
+  },
 };
 
 const CRUDMantenedor = () => {
@@ -53,6 +65,11 @@ const CRUDMantenedor = () => {
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [participantes, setParticipantes] = useState([]);
+
+  // Estados de paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const configs = {
     puertos: {
@@ -144,6 +161,141 @@ const CRUDMantenedor = () => {
         },
       ],
     },
+    participantes: {
+      title: "Participantes",
+      singular: "Participante",
+      icon: Users,
+      color: "indigo",
+      fields: [
+        { 
+          key: "codigo_bms", 
+          label: "Código BMS", 
+          type: "text", 
+          required: true, 
+          placeholder: "Ej: SHIP001, CONS002",
+          helpText: "Código único del participante en el sistema BMS"
+        },
+        { 
+          key: "nombre", 
+          label: "Nombre", 
+          type: "text", 
+          required: true, 
+          placeholder: "Razón social o nombre completo"
+        },
+        { 
+          key: "rut", 
+          label: "RUT", 
+          type: "text", 
+          required: true,
+          placeholder: "12345678-9"
+        },
+        { 
+          key: "direccion", 
+          label: "Dirección", 
+          type: "textarea", 
+          required: false,
+          placeholder: "Dirección completa (opcional)"
+        },
+        { 
+          key: "ciudad", 
+          label: "Ciudad", 
+          type: "text", 
+          required: true,
+          placeholder: "Santiago"
+        },
+        { 
+          key: "pais", 
+          label: "País", 
+          type: "text", 
+          required: true,
+          placeholder: "CL, US, CN"
+        },
+        { 
+          key: "email", 
+          label: "Email", 
+          type: "email", 
+          required: false,
+          requireOneOf: "telefono",
+          placeholder: "contacto@empresa.cl",
+          helpText: "Debe ingresar al menos Email o Teléfono"
+        },
+        { 
+          key: "telefono", 
+          label: "Teléfono", 
+          type: "text", 
+          required: false,
+          requireOneOf: "email",
+          placeholder: "+56 9 1234 5678",
+          helpText: "Debe ingresar al menos Email o Teléfono"
+        },
+        { 
+          key: "contacto", 
+          label: "Persona de Contacto", 
+          type: "text", 
+          required: true,
+          placeholder: "Nombre del contacto principal"
+        },
+        { 
+          key: "matchcode", 
+          label: "Matchcode", 
+          type: "text", 
+          required: true,
+          placeholder: "Código de búsqueda rápida"
+        },
+        { 
+          key: "tiene_contacto_valido", 
+          label: "Contacto Válido", 
+          type: "select",
+          options: [
+            { value: 1, label: "Sí" },
+            { value: 0, label: "No" }
+          ],
+          required: true
+        },
+      ],
+    },
+    "traductor-pil-bms": {
+      title: "Traductor PIL-BMS",
+      singular: "Traducción",
+      icon: ArrowLeftRight,
+      color: "rose",
+      fields: [
+        { 
+          key: "codigo_pil", 
+          label: "Código PIL", 
+          type: "text", 
+          required: true, 
+          placeholder: "Ej: CL100001, CL100011",
+          helpText: "Código del participante en el sistema PIL"
+        },
+        { 
+          key: "codigo_bms", 
+          label: "Código BMS", 
+          type: "text", 
+          required: true, 
+          placeholder: "Ej: 48535, 32646",
+          helpText: "Código del participante en el sistema BMS"
+        },
+        { 
+          key: "participante_id", 
+          label: "Participante", 
+          type: "select-participantes", 
+          required: false,
+          placeholder: "Seleccionar participante (opcional)",
+          helpText: "Vincular con un participante existente"
+        },
+        { 
+          key: "activo", 
+          label: "Estado", 
+          type: "select",
+          options: [
+            { value: 1, label: "Activo" },
+            { value: 0, label: "Inactivo" }
+          ],
+          required: true 
+        },
+      ],
+    },
   };
 
   const config = configs[tipo];
@@ -151,8 +303,26 @@ const CRUDMantenedor = () => {
 
   useEffect(() => {
     if (config) loadData();
+    if (tipo === "traductor-pil-bms") loadParticipantes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tipo]);
+
+  // Resetear a página 1 cuando cambie la búsqueda
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  const loadParticipantes = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/mantenedores/participantes`);
+      if (!response.ok) throw new Error("Error al cargar participantes");
+      const data = await response.json();
+      setParticipantes(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Error cargando participantes:", err);
+      setParticipantes([]);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -176,11 +346,61 @@ const CRUDMantenedor = () => {
     )
   );
 
+  // Cálculos de paginación
+  const totalItems = filteredItems.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentItems = filteredItems.slice(startIndex, endIndex);
+
+  // Generar números de página para mostrar
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxPagesToShow = 5;
+    
+    if (totalPages <= maxPagesToShow) {
+      // Mostrar todas las páginas si son pocas
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      // Mostrar páginas con puntos suspensivos
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 4; i++) pages.push(i);
+        pages.push('...');
+        pages.push(totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1);
+        pages.push('...');
+        for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i);
+      } else {
+        pages.push(1);
+        pages.push('...');
+        for (let i = currentPage - 1; i <= currentPage + 1; i++) pages.push(i);
+        pages.push('...');
+        pages.push(totalPages);
+      }
+    }
+    
+    return pages;
+  };
+
+  const handlePageChange = (page) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
+  const handleItemsPerPageChange = (value) => {
+    setItemsPerPage(Number(value));
+    setCurrentPage(1);
+  };
+
   const handleAdd = () => {
     setEditingItem(null);
     const emptyForm = config.fields.reduce((acc, field) => {
-      if (field.key === "activo") {
-        return { ...acc, [field.key]: 1 };
+      if (field.key === "activo" || field.key === "tiene_contacto_valido") {
+        return { ...acc, [field.key]: field.required ? 1 : 0 };
       }
       return { ...acc, [field.key]: "" };
     }, {});
@@ -191,8 +411,8 @@ const CRUDMantenedor = () => {
   const handleEdit = (item) => {
     setEditingItem(item);
     const clean = config.fields.reduce((acc, f) => {
-      if (f.key === "activo") {
-        return { ...acc, [f.key]: Number(item[f.key] ?? 1) };
+      if (f.key === "activo" || f.key === "tiene_contacto_valido") {
+        return { ...acc, [f.key]: Number(item[f.key] ?? 0) };
       }
       return { ...acc, [f.key]: item[f.key] ?? "" };
     }, {});
@@ -222,6 +442,34 @@ const CRUDMantenedor = () => {
         confirmButtonText: "Entendido",
       });
       return false;
+    }
+
+    // Validación especial para participantes: email o teléfono
+    if (tipo === "participantes") {
+      const email = String(formData.email ?? "").trim();
+      const telefono = String(formData.telefono ?? "").trim();
+      
+      if (!email && !telefono) {
+        Swal.fire({
+          title: "Validación de contacto",
+          html: `
+            <p style="margin-bottom: 12px; color: #dc2626;">
+              Debes ingresar al menos uno de los siguientes campos:
+            </p>
+            <ul style="text-align: left; padding-left: 24px; color: #dc2626;">
+              <li><strong>Email</strong></li>
+              <li><strong>Teléfono</strong></li>
+            </ul>
+            <p style="margin-top: 12px; color: #64748b; font-size: 14px;">
+              Puedes completar ambos campos o solo uno, pero no puedes dejar ambos vacíos.
+            </p>
+          `,
+          icon: "warning",
+          confirmButtonColor: "#0F2A44",
+          confirmButtonText: "Entendido",
+        });
+        return false;
+      }
     }
 
     return true;
@@ -285,6 +533,9 @@ const CRUDMantenedor = () => {
       if (dataToSend.activo !== undefined) {
         dataToSend.activo = Number(dataToSend.activo);
       }
+      if (dataToSend.tiene_contacto_valido !== undefined) {
+        dataToSend.tiene_contacto_valido = Number(dataToSend.tiene_contacto_valido);
+      }
 
       console.log('Enviando:', { url, method, data: dataToSend });
 
@@ -335,6 +586,23 @@ const CRUDMantenedor = () => {
 
   const badge = colorStyles[config.color] ?? colorStyles.teal;
 
+  // Determinar qué campos mostrar en la tabla (máximo 5 columnas principales)
+  const getTableFields = () => {
+    if (tipo === "participantes") {
+      return config.fields.filter(f => 
+        ["codigo_bms", "nombre", "rut", "ciudad", "tiene_contacto_valido"].includes(f.key)
+      );
+    }
+    if (tipo === "traductor-pil-bms") {
+      return config.fields.filter(f => 
+        ["codigo_pil", "codigo_bms", "activo"].includes(f.key)
+      );
+    }
+    return config.fields;
+  };
+
+  const tableFields = getTableFields();
+
   return (
     <div className="flex min-h-screen bg-slate-100">
       <Sidebar />
@@ -360,7 +628,7 @@ const CRUDMantenedor = () => {
                     {config.title}
                   </h1>
                   <p className="text-slate-600 mt-1 text-sm">
-                    {loading ? "Cargando..." : `${items.length} ${items.length === 1 ? "registro" : "registros"}`}
+                    {loading ? "Cargando..." : `${totalItems} ${totalItems === 1 ? "registro" : "registros"}`}
                   </p>
                 </div>
               </div>
@@ -397,8 +665,8 @@ const CRUDMantenedor = () => {
             </div>
           )}
 
-          <div className="mb-6">
-            <div className="relative max-w-md">
+          <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+            <div className="relative w-full sm:max-w-md">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
               <input
                 type="text"
@@ -409,6 +677,21 @@ const CRUDMantenedor = () => {
                 className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0F2A44] focus:border-transparent shadow-sm disabled:opacity-50"
               />
             </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-600">Mostrar:</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => handleItemsPerPageChange(e.target.value)}
+                className="px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F2A44] text-sm"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <span className="text-sm text-slate-600">por página</span>
+            </div>
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -416,7 +699,7 @@ const CRUDMantenedor = () => {
               <table className="w-full">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    {config.fields.map((field) => (
+                    {tableFields.map((field) => (
                       <th key={field.key} className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
                         {field.label}
                       </th>
@@ -430,30 +713,33 @@ const CRUDMantenedor = () => {
                 <tbody className="divide-y divide-slate-100">
                   {loading ? (
                     <tr>
-                      <td colSpan={config.fields.length + 1} className="px-6 py-12 text-center text-slate-500">
+                      <td colSpan={tableFields.length + 1} className="px-6 py-12 text-center text-slate-500">
                         Cargando...
                       </td>
                     </tr>
-                  ) : filteredItems.length === 0 ? (
+                  ) : currentItems.length === 0 ? (
                     <tr>
-                      <td colSpan={config.fields.length + 1} className="px-6 py-12 text-center text-slate-500">
+                      <td colSpan={tableFields.length + 1} className="px-6 py-12 text-center text-slate-500">
                         {searchTerm ? "No se encontraron resultados para tu búsqueda" : "No hay registros aún"}
                       </td>
                     </tr>
                   ) : (
-                    filteredItems.map((item) => (
+                    currentItems.map((item) => (
                       <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                        {config.fields.map((field) => (
+                        {tableFields.map((field) => (
                           <td key={field.key} className="px-6 py-4 text-sm text-slate-700">
-                            {field.key === "codigo" || field.key === "tipo_cnt" || field.key === "tipo_bulto" || field.key === "token" ? (
+                            {field.key === "codigo" || field.key === "tipo_cnt" || field.key === "tipo_bulto" || field.key === "token" || field.key === "codigo_bms" || field.key === "rut" ? (
                               <span className="font-mono font-semibold text-[#0F2A44]">{item[field.key]}</span>
-                            ) : field.key === "activo" ? (
+                            ) : field.key === "activo" || field.key === "tiene_contacto_valido" ? (
                               <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                                 item[field.key] === 1 || item[field.key] === "1" 
                                   ? "bg-green-100 text-green-700" 
                                   : "bg-red-100 text-red-700"
                               }`}>
-                                {item[field.key] === 1 || item[field.key] === "1" ? "Activo" : "Inactivo"}
+                                {field.key === "tiene_contacto_valido" 
+                                  ? (item[field.key] === 1 || item[field.key] === "1" ? "Sí" : "No")
+                                  : (item[field.key] === 1 || item[field.key] === "1" ? "Activo" : "Inactivo")
+                                }
                               </span>
                             ) : field.type === "textarea" ? (
                               <span className="line-clamp-2">{item[field.key] || "—"}</span>
@@ -480,11 +766,73 @@ const CRUDMantenedor = () => {
                 </tbody>
               </table>
             </div>
+
+            {/* Paginación */}
+            {!loading && totalItems > 0 && (
+              <div className="border-t border-slate-200 px-6 py-4 bg-slate-50">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  {/* Información de registros */}
+                  <div className="text-sm text-slate-600">
+                    Mostrando <span className="font-semibold text-slate-900">{startIndex + 1}</span> a{" "}
+                    <span className="font-semibold text-slate-900">{Math.min(endIndex, totalItems)}</span> de{" "}
+                    <span className="font-semibold text-slate-900">{totalItems}</span> {config.title.toLowerCase()}
+                  </div>
+
+                  {/* Controles de paginación */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center gap-2">
+                      {/* Botón Anterior */}
+                      <button
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="p-2 rounded-lg border border-slate-300 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent transition"
+                        title="Página anterior"
+                      >
+                        <ChevronLeft size={18} />
+                      </button>
+
+                      {/* Números de página */}
+                      <div className="flex gap-1">
+                        {getPageNumbers().map((page, index) => (
+                          page === '...' ? (
+                            <span key={`ellipsis-${index}`} className="px-3 py-2 text-slate-400">
+                              ...
+                            </span>
+                          ) : (
+                            <button
+                              key={page}
+                              onClick={() => handlePageChange(page)}
+                              className={`min-w-[40px] px-3 py-2 rounded-lg text-sm font-medium transition ${
+                                currentPage === page
+                                  ? "bg-[#0F2A44] text-white"
+                                  : "hover:bg-slate-100 text-slate-700"
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          )
+                        ))}
+                      </div>
+
+                      {/* Botón Siguiente */}
+                      <button
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="p-2 rounded-lg border border-slate-300 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent transition"
+                        title="Página siguiente"
+                      >
+                        <ChevronRight size={18} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {isModalOpen && (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
                 <div className="sticky top-0 bg-white flex items-center justify-between p-6 border-b border-slate-200">
                   <div className="flex items-center gap-3">
                     <div className={`${badge.badgeBg} p-2 rounded-lg`}>
@@ -509,7 +857,7 @@ const CRUDMantenedor = () => {
                     {config.fields.map((field) => (
                       <div
                         key={field.key}
-                        className={field.key === "nombre" || field.key === "descripcion" ? "md:col-span-2" : ""}
+                        className={field.key === "nombre" || field.key === "descripcion" || field.key === "direccion" ? "md:col-span-2" : ""}
                       >
                         <label className="block text-sm font-semibold text-slate-700 mb-2">
                           {field.label} {field.required && <span className="text-red-500">*</span>}
@@ -523,6 +871,19 @@ const CRUDMantenedor = () => {
                             placeholder={field.placeholder || `Ingrese ${field.label.toLowerCase()}`}
                             rows={3}
                           />
+                        ) : field.type === "select-participantes" ? (
+                          <select
+                            value={formData[field.key] ?? ""}
+                            onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value === "" ? null : Number(e.target.value) })}
+                            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0F2A44] focus:border-transparent transition"
+                          >
+                            <option value="">Sin asignar</option>
+                            {participantes.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.codigo_bms} - {p.nombre}
+                              </option>
+                            ))}
+                          </select>
                         ) : field.type === "select" ? (
                           <select
                             value={formData[field.key] ?? ""}

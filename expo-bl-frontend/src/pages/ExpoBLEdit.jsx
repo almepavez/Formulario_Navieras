@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import Sidebar from "../components/Sidebar";
+import ParticipanteSelector from '../components/ParticipanteSelector';
 
 const steps = [
     { id: 1, name: "General", description: "Información básica del BL" },
@@ -54,6 +55,10 @@ const ExpoBLEdit = () => {
         shipper: "",
         consignee: "",
         notify_party: "",
+        // ✨ NUEVOS CAMPOS para participantes
+        shipper_id: null,
+        consignee_id: null,
+        notify_id: null,
         descripcion_carga: "",
         peso_bruto: "",
         unidad_peso: "",        // ← AGREGAR
@@ -1060,6 +1065,10 @@ const ExpoBLEdit = () => {
                 shipper: formData.shipper || null,
                 consignee: formData.consignee || null,
                 notify_party: formData.notify_party || null,
+                // ✨ IDs de participantes (nombres correctos)
+                shipper_id: formData.shipper_id || null,
+                consignee_id: formData.consignee_id || null,
+                notify_id: formData.notify_id || null,
                 descripcion_carga: formData.descripcion_carga?.trim() || null,
                 peso_bruto: formData.peso_bruto ? parseFloat(formData.peso_bruto) : null,
                 unidad_peso: formData.unidad_peso || null,                                  // ← AGREGAR
@@ -1739,50 +1748,56 @@ const ExpoBLEdit = () => {
                             </div>
                         </div>
                     )}
-                    {/* STEP 3: DIRECCIONES */}
+                    {/* STEP 3: PARTICIPANTES */}
                     {currentStep === 3 && (
                         <div className="space-y-8">
-                            <div className="border-b pb-6">
-                                <h3 className="font-semibold text-slate-800 mb-4">
-                                    Shipper / Embarcador <span className="text-red-500">*</span>
-                                </h3>
-                                <textarea
-                                    rows={4}
-                                    value={formData.shipper}
-                                    onChange={(e) => updateField("shipper", e.target.value)}
-                                    placeholder="Nombre completo, dirección y contacto del embarcador"
-                                    className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
-                                />
-                                <p className="text-xs text-slate-500 mt-1">
-                                    Incluye nombre, dirección y datos de contacto en un solo campo
-                                </p>
-                            </div>
+                            {/* SHIPPER */}
+                            <ParticipanteSelector
+                                label="Shipper / Embarcador"
+                                tipo="shipper"
+                                value={formData.shipper_id}
+                                displayValue={formData.shipper}
+                                onChange={(participanteId, textoCompleto) => {
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        shipper_id: participanteId,
+                                        shipper: textoCompleto
+                                    }));
+                                }}
+                                required={true}
+                            />
 
-                            <div className="border-b pb-6">
-                                <h3 className="font-semibold text-slate-800 mb-4">
-                                    Consignatario <span className="text-red-500">*</span>
-                                </h3>
-                                <textarea
-                                    rows={4}
-                                    value={formData.consignee}
-                                    onChange={(e) => updateField("consignee", e.target.value)}
-                                    placeholder="Nombre completo, dirección y contacto del consignatario"
-                                    className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
-                                />
-                            </div>
+                            {/* CONSIGNEE */}
+                            <ParticipanteSelector
+                                label="Consignatario"
+                                tipo="consignee"
+                                value={formData.consignee_id}
+                                displayValue={formData.consignee}
+                                onChange={(participanteId, textoCompleto) => {
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        consignee_id: participanteId,
+                                        consignee: textoCompleto
+                                    }));
+                                }}
+                                required={true}
+                            />
 
-                            <div>
-                                <h3 className="font-semibold text-slate-800 mb-4">
-                                    Notify Party <span className="text-red-500">*</span>
-                                </h3>
-                                <textarea
-                                    rows={4}
-                                    value={formData.notify_party}
-                                    onChange={(e) => updateField("notify_party", e.target.value)}
-                                    placeholder="Nombre completo, dirección y contacto del notify"
-                                    className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
-                                />
-                            </div>
+                            {/* NOTIFY PARTY */}
+                            <ParticipanteSelector
+                                label="Notify Party"
+                                tipo="notify"
+                                value={formData.notify_id}
+                                displayValue={formData.notify_party}
+                                onChange={(participanteId, textoCompleto) => {
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        notify_id: participanteId,
+                                        notify_party: textoCompleto
+                                    }));
+                                }}
+                                required={true}
+                            />
                         </div>
                     )}
 
