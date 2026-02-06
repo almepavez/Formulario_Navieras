@@ -3308,6 +3308,79 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         });
       }
 
+      // ============================================
+      // ✅ VALIDAR CONTACTO DE PARTICIPANTES
+      // ============================================
+
+      // Shipper - validar contacto
+      if (shipperId) {
+        const [[participante]] = await conn.query(
+          'SELECT email, telefono FROM participantes WHERE id = ?',
+          [shipperId]
+        );
+        
+        const tieneContacto = participante && (
+          (participante.email && participante.email.trim()) ||
+          (participante.telefono && participante.telefono.trim())
+        );
+        
+        if (!tieneContacto) {
+          pendingValidations.push({
+            nivel: "BL",
+            severidad: "ERROR",
+            campo: "shipper_contacto",
+            mensaje: `Shipper con código PIL '${b.shipper_codigo_pil}' no tiene email ni teléfono. Debe completarse en el maestro de participantes.`,
+            valorCrudo: b.shipper_codigo_pil
+          });
+        }
+      }
+
+      // Consignee - validar contacto
+      if (consigneeId) {
+        const [[participante]] = await conn.query(
+          'SELECT email, telefono FROM participantes WHERE id = ?',
+          [consigneeId]
+        );
+        
+        const tieneContacto = participante && (
+          (participante.email && participante.email.trim()) ||
+          (participante.telefono && participante.telefono.trim())
+        );
+        
+        if (!tieneContacto) {
+          pendingValidations.push({
+            nivel: "BL",
+            severidad: "ERROR",
+            campo: "consignee_contacto",
+            mensaje: `Consignee con código PIL '${b.consignee_codigo_pil}' no tiene email ni teléfono. Debe completarse en el maestro de participantes.`,
+            valorCrudo: b.consignee_codigo_pil
+          });
+        }
+      }
+
+      // Notify - validar contacto
+      if (notifyId) {
+        const [[participante]] = await conn.query(
+          'SELECT email, telefono FROM participantes WHERE id = ?',
+          [notifyId]
+        );
+        
+        const tieneContacto = participante && (
+          (participante.email && participante.email.trim()) ||
+          (participante.telefono && participante.telefono.trim())
+        );
+        
+        if (!tieneContacto) {
+          pendingValidations.push({
+            nivel: "BL",
+            severidad: "ERROR",
+            campo: "notify_contacto",
+            mensaje: `Notify con código PIL '${b.notify_codigo_pil}' no tiene email ni teléfono. Debe completarse en el maestro de participantes.`,
+            valorCrudo: b.notify_codigo_pil
+          });
+        }
+      }
+
       // Pre-calcular tipo_bulto para items
       for (const it of (b.items || [])) {
         const itemNum = Number(it.numero_item);
@@ -6322,10 +6395,10 @@ async function revalidarBLCompleto(conn, blId) {
   if (isBlank(bl.notify_party)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "notify_party", mensaje: "Falta notify (Linea 26)", valorCrudo: bl.notify_party || null });
 
   // ============================================
-  // ✅ VALIDAR PARTICIPANTES FK
+  // ✅ VALIDAR PARTICIPANTES FK Y CONTACTO
   // ============================================
-  
-  // Shipper
+
+  // Shipper - validar FK
   if (!bl.shipper_id && bl.shipper_codigo_pil) {
     vals.push({
       nivel: "BL",
@@ -6336,7 +6409,30 @@ async function revalidarBLCompleto(conn, blId) {
     });
   }
 
-  // Consignee
+  // Shipper - validar contacto
+  if (bl.shipper_id) {
+    const [[participante]] = await conn.query(
+      'SELECT email, telefono FROM participantes WHERE id = ?',
+      [bl.shipper_id]
+    );
+    
+    const tieneContacto = participante && (
+      (participante.email && participante.email.trim()) ||
+      (participante.telefono && participante.telefono.trim())
+    );
+    
+    if (!tieneContacto) {
+      vals.push({
+        nivel: "BL",
+        severidad: "ERROR",
+        campo: "shipper_contacto",
+        mensaje: `Shipper con código PIL '${bl.shipper_codigo_pil || 'N/A'}' no tiene email ni teléfono. Debe completarse en el maestro de participantes.`,
+        valorCrudo: bl.shipper_codigo_pil
+      });
+    }
+  }
+
+  // Consignee - validar FK
   if (!bl.consignee_id && bl.consignee_codigo_pil) {
     vals.push({
       nivel: "BL",
@@ -6347,7 +6443,30 @@ async function revalidarBLCompleto(conn, blId) {
     });
   }
 
-  // Notify
+  // Consignee - validar contacto
+  if (bl.consignee_id) {
+    const [[participante]] = await conn.query(
+      'SELECT email, telefono FROM participantes WHERE id = ?',
+      [bl.consignee_id]
+    );
+    
+    const tieneContacto = participante && (
+      (participante.email && participante.email.trim()) ||
+      (participante.telefono && participante.telefono.trim())
+    );
+    
+    if (!tieneContacto) {
+      vals.push({
+        nivel: "BL",
+        severidad: "ERROR",
+        campo: "consignee_contacto",
+        mensaje: `Consignee con código PIL '${bl.consignee_codigo_pil || 'N/A'}' no tiene email ni teléfono. Debe completarse en el maestro de participantes.`,
+        valorCrudo: bl.consignee_codigo_pil
+      });
+    }
+  }
+
+  // Notify - validar FK
   if (!bl.notify_id && bl.notify_codigo_pil) {
     vals.push({
       nivel: "BL",
@@ -6356,6 +6475,29 @@ async function revalidarBLCompleto(conn, blId) {
       mensaje: `Código PIL de notify '${bl.notify_codigo_pil}' no encontrado en traductor. Debe agregarse manualmente.`,
       valorCrudo: bl.notify_codigo_pil
     });
+  }
+
+  // Notify - validar contacto
+  if (bl.notify_id) {
+    const [[participante]] = await conn.query(
+      'SELECT email, telefono FROM participantes WHERE id = ?',
+      [bl.notify_id]
+    );
+    
+    const tieneContacto = participante && (
+      (participante.email && participante.email.trim()) ||
+      (participante.telefono && participante.telefono.trim())
+    );
+    
+    if (!tieneContacto) {
+      vals.push({
+        nivel: "BL",
+        severidad: "ERROR",
+        campo: "notify_contacto",
+        mensaje: `Notify con código PIL '${bl.notify_codigo_pil || 'N/A'}' no tiene email ni teléfono. Debe completarse en el maestro de participantes.`,
+        valorCrudo: bl.notify_codigo_pil
+      });
+    }
   }
 
 
