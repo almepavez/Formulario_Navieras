@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
@@ -109,29 +110,29 @@ const CRUDMantenedor = () => {
       icon: Box,
       color: "blue",
       fields: [
-        { 
-          key: "tipo_cnt", 
-          label: "Tipo Contenedor", 
-          type: "text", 
-          required: true, 
-          placeholder: "Ej: 45R1, 22G1, 45G1" 
+        {
+          key: "tipo_cnt",
+          label: "Tipo Contenedor",
+          type: "text",
+          required: true,
+          placeholder: "Ej: 45R1, 22G1, 45G1"
         },
-        { 
-          key: "tipo_bulto", 
-          label: "Tipo Bulto", 
-          type: "text", 
-          required: true, 
-          placeholder: "Ej: 76, 73, 78" 
+        {
+          key: "tipo_bulto",
+          label: "Tipo Bulto",
+          type: "text",
+          required: true,
+          placeholder: "Ej: 76, 73, 78"
         },
-        { 
-          key: "activo", 
-          label: "Estado", 
+        {
+          key: "activo",
+          label: "Estado",
           type: "select",
           options: [
             { value: 1, label: "Activo" },
             { value: 0, label: "Inactivo" }
           ],
-          required: true 
+          required: true
         },
       ],
     },
@@ -141,23 +142,23 @@ const CRUDMantenedor = () => {
       icon: PackageSearch,
       color: "emerald",
       fields: [
-        { 
-          key: "token", 
-          label: "Palabra Clave", 
-          type: "text", 
-          required: true, 
+        {
+          key: "token",
+          label: "Palabra Clave",
+          type: "text",
+          required: true,
           placeholder: "Ej: CASE, CARTON, PALLET, BAG, DRUM",
           helpText: "Palabra que identifica el tipo de empaque en archivos PMS (se guarda en MAYÚSCULAS)"
         },
-        { 
-          key: "activo", 
-          label: "Estado", 
+        {
+          key: "activo",
+          label: "Estado",
           type: "select",
           options: [
             { value: 1, label: "Activo" },
             { value: 0, label: "Inactivo" }
           ],
-          required: true 
+          required: true
         },
       ],
     },
@@ -167,84 +168,100 @@ const CRUDMantenedor = () => {
       icon: Users,
       color: "indigo",
       fields: [
-        { 
-          key: "codigo_bms", 
-          label: "Código BMS", 
-          type: "text", 
-          required: true, 
+        {
+          key: "codigo_bms",
+          label: "Código BMS",
+          type: "text",
+          required: true,
           placeholder: "Ej: SHIP001, CONS002",
           helpText: "Código único del participante en el sistema BMS"
         },
-        { 
-          key: "nombre", 
-          label: "Nombre", 
-          type: "text", 
-          required: true, 
+        {
+          key: "codigo_pil",
+          label: "Código PIL",
+          type: "text",
+          required: false,
+          placeholder: "Ej: CL100001, CL100011",
+          helpText: "Código del participante en el sistema PIL (opcional, se sincroniza con traductor PIL-BMS)"
+        },
+        {
+          key: "nombre",
+          label: "Nombre",
+          type: "text",
+          required: true,
           placeholder: "Razón social o nombre completo"
         },
-        { 
-          key: "rut", 
-          label: "RUT", 
-          type: "text", 
+        {
+          key: "rut",
+          label: "RUT",
+          type: "text",
           required: true,
           placeholder: "12345678-9"
         },
-        { 
-          key: "direccion", 
-          label: "Dirección", 
-          type: "textarea", 
+        {
+          key: "direccion",
+          label: "Dirección",
+          type: "textarea",
           required: false,
           placeholder: "Dirección completa (opcional)"
         },
-        { 
-          key: "ciudad", 
-          label: "Ciudad", 
-          type: "text", 
+        {
+          key: "ciudad",
+          label: "Ciudad",
+          type: "text",
           required: true,
           placeholder: "Santiago"
         },
-        { 
-          key: "pais", 
-          label: "País", 
-          type: "text", 
+        {
+          key: "pais",
+          label: "País",
+          type: "text",
           required: true,
           placeholder: "CL, US, CN"
         },
-        { 
-          key: "email", 
-          label: "Email", 
-          type: "email", 
+        {
+          key: "email",
+          label: "Email",
+          type: "email",
           required: false,
           requireOneOf: "telefono",
           placeholder: "contacto@empresa.cl",
           helpText: "Debe ingresar al menos Email o Teléfono"
         },
-        { 
-          key: "telefono", 
-          label: "Teléfono", 
-          type: "text", 
+        {
+          key: "telefono",
+          label: "Teléfono",
+          type: "text",
           required: false,
           requireOneOf: "email",
           placeholder: "+56 9 1234 5678",
           helpText: "Debe ingresar al menos Email o Teléfono"
         },
-        { 
-          key: "contacto", 
-          label: "Persona de Contacto", 
-          type: "text", 
+        {
+          key: "contacto",
+          label: "Persona de Contacto",
+          type: "text",
           required: true,
           placeholder: "Nombre del contacto principal"
         },
-        { 
-          key: "matchcode", 
-          label: "Matchcode", 
-          type: "text", 
+        {
+          key: "matchcode",
+          label: "Matchcode",
+          type: "text",
           required: true,
           placeholder: "Código de búsqueda rápida"
         },
-        { 
-          key: "tiene_contacto_valido", 
-          label: "Contacto Válido", 
+        {
+          key: "codigo_almacen",
+          label: "Código de Almacén",
+          type: "text",
+          required: false,
+          placeholder: "Ej: A-36, B-12",
+          helpText: "Solo necesario para participantes tipo Almacén (ALM)"
+        },
+        {
+          key: "tiene_contacto_valido",
+          label: "Contacto Válido",
           type: "select",
           options: [
             { value: 1, label: "Sí" },
@@ -260,39 +277,39 @@ const CRUDMantenedor = () => {
       icon: ArrowLeftRight,
       color: "rose",
       fields: [
-        { 
-          key: "codigo_pil", 
-          label: "Código PIL", 
-          type: "text", 
-          required: true, 
+        {
+          key: "codigo_pil",
+          label: "Código PIL",
+          type: "text",
+          required: true,
           placeholder: "Ej: CL100001, CL100011",
           helpText: "Código del participante en el sistema PIL"
         },
-        { 
-          key: "codigo_bms", 
-          label: "Código BMS", 
-          type: "text", 
-          required: true, 
+        {
+          key: "codigo_bms",
+          label: "Código BMS",
+          type: "text",
+          required: true,
           placeholder: "Ej: 48535, 32646",
           helpText: "Código del participante en el sistema BMS"
         },
-        { 
-          key: "participante_id", 
-          label: "Participante", 
-          type: "select-participantes", 
+        {
+          key: "participante_id",
+          label: "Participante",
+          type: "select-participantes",
           required: false,
           placeholder: "Seleccionar participante (opcional)",
           helpText: "Vincular con un participante existente"
         },
-        { 
-          key: "activo", 
-          label: "Estado", 
+        {
+          key: "activo",
+          label: "Estado",
           type: "select",
           options: [
             { value: 1, label: "Activo" },
             { value: 0, label: "Inactivo" }
           ],
-          required: true 
+          required: true
         },
       ],
     },
@@ -357,14 +374,12 @@ const CRUDMantenedor = () => {
   const getPageNumbers = () => {
     const pages = [];
     const maxPagesToShow = 5;
-    
+
     if (totalPages <= maxPagesToShow) {
-      // Mostrar todas las páginas si son pocas
       for (let i = 1; i <= totalPages; i++) {
         pages.push(i);
       }
     } else {
-      // Mostrar páginas con puntos suspensivos
       if (currentPage <= 3) {
         for (let i = 1; i <= 4; i++) pages.push(i);
         pages.push('...');
@@ -381,7 +396,7 @@ const CRUDMantenedor = () => {
         pages.push(totalPages);
       }
     }
-    
+
     return pages;
   };
 
@@ -448,7 +463,7 @@ const CRUDMantenedor = () => {
     if (tipo === "participantes") {
       const email = String(formData.email ?? "").trim();
       const telefono = String(formData.telefono ?? "").trim();
-      
+
       if (!email && !telefono) {
         Swal.fire({
           title: "Validación de contacto",
@@ -479,24 +494,142 @@ const CRUDMantenedor = () => {
     return `
       <div style="text-align: left; font-size: 14px;">
         ${config.fields
-          .map((field) => {
-            let value = formData[field.key];
-            
-            if (field.type === "select" && field.options) {
-              const option = field.options.find(opt => opt.value === formData[field.key]);
-              value = option ? option.label : value;
-            } else {
-              value = value || "—";
-            }
-            
-            return `<p><strong>${field.label}:</strong> ${value}</p>`;
-          })
-          .join("")}
+        .map((field) => {
+          let value = formData[field.key];
+
+          if (field.type === "select" && field.options) {
+            const option = field.options.find(opt => opt.value === formData[field.key]);
+            value = option ? option.label : value;
+          } else {
+            value = value || "—";
+          }
+
+          return `<p><strong>${field.label}:</strong> ${value}</p>`;
+        })
+        .join("")}
       </div>
     `;
   };
 
+  // 🔥 NUEVA FUNCIÓN: Guardar participante con sincronización de traductor PIL-BMS
+  const handleSaveParticipante = async () => {
+    if (!validateForm()) return;
+
+    const action = editingItem ? "actualizar" : "crear";
+    const result = await Swal.fire({
+      title: `¿${action === "crear" ? "Crear" : "Actualizar"} ${config.singular}?`,
+      html: `
+        <div style="margin-bottom: 16px;">
+          <p style="color: #64748b; margin-bottom: 12px;">
+            Verifica que la información sea correcta:
+          </p>
+          ${buildSummary()}
+          ${formData.codigo_pil ? `
+            <div style="margin-top: 12px; padding: 8px; background: #dbeafe; border-left: 3px solid #3b82f6; border-radius: 4px;">
+              <p style="color: #1e40af; font-size: 12px; margin: 0;">
+                ℹ️ Se creará/actualizará automáticamente la traducción PIL-BMS
+              </p>
+            </div>
+          ` : ''}
+        </div>
+      `,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#62c755ff",
+      cancelButtonColor: "#ff5353ff",
+      confirmButtonText: `Sí, ${action}`,
+      cancelButtonText: "Cancelar",
+      width: "500px",
+    });
+
+    if (!result.isConfirmed) return;
+
+    setLoading(true);
+    try {
+      // 1️⃣ Guardar participante
+      const url = editingItem
+        ? `${API_BASE_URL}/api/mantenedores/participantes/${editingItem.id}`
+        : `${API_BASE_URL}/api/mantenedores/participantes`;
+
+      const method = editingItem ? "PUT" : "POST";
+
+      const dataToSend = { ...formData };
+      if (dataToSend.tiene_contacto_valido !== undefined) {
+        dataToSend.tiene_contacto_valido = Number(dataToSend.tiene_contacto_valido);
+      }
+
+      console.log('Guardando participante:', { url, method, data: dataToSend });
+
+      const response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dataToSend),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Error ${response.status}: ${response.statusText}`);
+      }
+
+      const savedParticipante = await response.json();
+      const participanteId = savedParticipante.id || editingItem?.id;
+
+      // 2️⃣ Si tiene codigo_pil, sincronizar con traductor_pil_bms
+      if (formData.codigo_pil && formData.codigo_pil.trim()) {
+        console.log('Sincronizando traductor PIL-BMS...');
+
+        const translatorResponse = await fetch(
+          `${API_BASE_URL}/api/mantenedores/traductor-pil-bms/sync-participante`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              codigo_pil: formData.codigo_pil.trim(),
+              codigo_bms: formData.codigo_bms.trim(),
+              participante_id: participanteId,
+              activo: 1
+            }),
+          }
+        );
+
+        if (!translatorResponse.ok) {
+          console.warn('Advertencia al sincronizar traductor:', await translatorResponse.text());
+        }
+      }
+
+      await Swal.fire({
+        title: "¡Guardado!",
+        text: `${config.singular} ${action === "crear" ? "creado" : "actualizado"} correctamente`,
+        icon: "success",
+        confirmButtonColor: "#0F2A44",
+        timer: 2000,
+      });
+
+      await loadData();
+
+      setIsModalOpen(false);
+      setFormData({});
+      setEditingItem(null);
+    } catch (err) {
+      console.error('Error al guardar:', err);
+      await Swal.fire({
+        title: "Error al guardar",
+        text: err.message || "No se pudo guardar el registro",
+        icon: "error",
+        confirmButtonColor: "#0F2A44",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSave = async () => {
+    // 🔥 Si es participante, usar función especial
+    if (tipo === "participantes") {
+      return handleSaveParticipante();
+    }
+
+    // Para otros mantenedores, usar flujo normal
     if (!validateForm()) return;
 
     const action = editingItem ? "actualizar" : "crear";
@@ -586,17 +719,20 @@ const CRUDMantenedor = () => {
 
   const badge = colorStyles[config.color] ?? colorStyles.teal;
 
-  // Determinar qué campos mostrar en la tabla (máximo 5 columnas principales)
+  // 🔥 MODIFICADO: Mostrar codigo_pil en la tabla de participantes
   const getTableFields = () => {
     if (tipo === "participantes") {
-      return config.fields.filter(f => 
-        ["codigo_bms", "nombre", "rut", "ciudad", "tiene_contacto_valido"].includes(f.key)
+      return config.fields.filter(f =>
+        ["codigo_bms", "codigo_pil", "nombre", "rut", "ciudad"].includes(f.key)
       );
     }
     if (tipo === "traductor-pil-bms") {
-      return config.fields.filter(f => 
-        ["codigo_pil", "codigo_bms", "activo"].includes(f.key)
-      );
+      return [
+        { key: "codigo_pil", label: "Código PIL", type: "text" },
+        { key: "codigo_bms", label: "Código BMS", type: "text" },
+        { key: "participante_nombre", label: "Participante", type: "text" }, // 🔥 Nuevo campo
+        { key: "activo", label: "Estado", type: "select" }
+      ];
     }
     return config.fields;
   };
@@ -606,7 +742,6 @@ const CRUDMantenedor = () => {
   return (
     <div className="flex min-h-screen bg-slate-100">
       <Sidebar />
-
       <main className="flex-1 p-6 sm:p-8 lg:p-10">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8">
@@ -649,7 +784,7 @@ const CRUDMantenedor = () => {
             <div className="text-sm">
               <p className="text-blue-800 font-semibold mb-1">Información importante</p>
               <p className="text-blue-700">
-                Los registros <strong>no se pueden eliminar</strong> porque pueden estar siendo utilizados en manifiestos o BLs. 
+                Los registros <strong>no se pueden eliminar</strong> porque pueden estar siendo utilizados en manifiestos o BLs.
                 Solo puedes crear nuevos o editar los existentes.
               </p>
             </div>
@@ -728,15 +863,21 @@ const CRUDMantenedor = () => {
                       <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                         {tableFields.map((field) => (
                           <td key={field.key} className="px-6 py-4 text-sm text-slate-700">
-                            {field.key === "codigo" || field.key === "tipo_cnt" || field.key === "tipo_bulto" || field.key === "token" || field.key === "codigo_bms" || field.key === "rut" ? (
+                            {field.key === "codigo" || field.key === "tipo_cnt" || field.key === "tipo_bulto" || field.key === "token" || field.key === "codigo_bms" || field.key === "codigo_pil" || field.key === "rut" ? (
                               <span className="font-mono font-semibold text-[#0F2A44]">{item[field.key]}</span>
+                            ) : field.key === "participante_nombre" ? (
+                              // 🔥 Renderizado especial para nombre de participante
+                              item[field.key] ? (
+                                <span className="text-slate-700">{item[field.key]}</span>
+                              ) : (
+                                <span className="text-slate-400 italic">Sin asignar</span>
+                              )
                             ) : field.key === "activo" || field.key === "tiene_contacto_valido" ? (
-                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                item[field.key] === 1 || item[field.key] === "1" 
-                                  ? "bg-green-100 text-green-700" 
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${item[field.key] === 1 || item[field.key] === "1"
+                                  ? "bg-green-100 text-green-700"
                                   : "bg-red-100 text-red-700"
-                              }`}>
-                                {field.key === "tiene_contacto_valido" 
+                                }`}>
+                                {field.key === "tiene_contacto_valido"
                                   ? (item[field.key] === 1 || item[field.key] === "1" ? "Sí" : "No")
                                   : (item[field.key] === 1 || item[field.key] === "1" ? "Activo" : "Inactivo")
                                 }
@@ -802,11 +943,10 @@ const CRUDMantenedor = () => {
                             <button
                               key={page}
                               onClick={() => handlePageChange(page)}
-                              className={`min-w-[40px] px-3 py-2 rounded-lg text-sm font-medium transition ${
-                                currentPage === page
-                                  ? "bg-[#0F2A44] text-white"
-                                  : "hover:bg-slate-100 text-slate-700"
-                              }`}
+                              className={`min-w-[40px] px-3 py-2 rounded-lg text-sm font-medium transition ${currentPage === page
+                                ? "bg-[#0F2A44] text-white"
+                                : "hover:bg-slate-100 text-slate-700"
+                                }`}
                             >
                               {page}
                             </button>

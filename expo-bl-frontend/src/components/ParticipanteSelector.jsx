@@ -57,7 +57,8 @@ const ParticipanteSelector = ({ label, tipo, value, displayValue, onChange, requ
         const filtered = participantes.filter(p =>
             p.codigo_bms.toLowerCase().includes(term) ||
             p.nombre.toLowerCase().includes(term) ||
-            (p.rut && p.rut.toLowerCase().includes(term))
+            (p.rut && p.rut.toLowerCase().includes(term)) ||
+            (p.codigo_pil && p.codigo_pil.toLowerCase().includes(term)) // 🔥 BÚSQUEDA POR CÓDIGO PIL
         );
         setFilteredParticipantes(filtered);
     }, [searchTerm, participantes]);
@@ -99,6 +100,7 @@ const ParticipanteSelector = ({ label, tipo, value, displayValue, onChange, requ
     const handleOpenNewModal = () => {
         setSelectedParticipante({
             codigo_bms: '',
+            codigo_pil: '', // 🔥 NUEVO CAMPO
             nombre: '',
             direccion: '',
             ciudad: '',
@@ -106,13 +108,14 @@ const ParticipanteSelector = ({ label, tipo, value, displayValue, onChange, requ
             email: '',
             telefono: '',
             rut: '',
-            contacto: ''
+            contacto: '',
+            matchcode: '',
+            tiene_contacto_valido: 0
         });
         setModalMode('new');
         setShowModal(true);
     };
 
-    // 🔥 NUEVA FUNCIÓN: Validar formulario
     const validateParticipante = () => {
         const p = selectedParticipante;
 
@@ -177,6 +180,16 @@ const ParticipanteSelector = ({ label, tipo, value, displayValue, onChange, requ
             return false;
         }
 
+        if (!p.matchcode || !p.matchcode.trim()) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Campo requerido',
+                text: 'El Matchcode es obligatorio',
+                confirmButtonColor: '#3b82f6'
+            });
+            return false;
+        }
+
         // 🔥 VALIDACIÓN: Debe tener email O teléfono (o ambos)
         const tieneEmail = p.email && p.email.trim();
         const tieneTelefono = p.telefono && p.telefono.trim();
@@ -212,7 +225,6 @@ const ParticipanteSelector = ({ label, tipo, value, displayValue, onChange, requ
     };
 
     const handleSaveParticipante = async () => {
-        // 🔥 VALIDAR antes de guardar
         if (!validateParticipante()) {
             return;
         }
@@ -225,41 +237,68 @@ const ParticipanteSelector = ({ label, tipo, value, displayValue, onChange, requ
 
             const method = modalMode === 'new' ? 'POST' : 'PUT';
 
+            // 🔥 Preparar datos para enviar
+            const dataToSend = { ...selectedParticipante };
+
+            // Asegurar que tiene_contacto_valido sea número
+            if (dataToSend.tiene_contacto_valido !== undefined) {
+                dataToSend.tiene_contacto_valido = Number(dataToSend.tiene_contacto_valido);
+            }
+
             const response = await fetch(url, {
                 method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(selectedParticipante)
+                body: JSON.stringify(dataToSend)
             });
 
-            if (response.ok) {
-                const savedParticipante = await response.json();
-                await fetchParticipantes();
-
-                if (modalMode === 'new') {
-                    handleSelectParticipante(savedParticipante);
-                } else {
-                    // Si estamos editando Y es el participante actualmente seleccionado
-                    if (value === savedParticipante.id) {
-                        const textoActualizado = formatParticipanteTexto(savedParticipante);
-                        onChange(savedParticipante.id, textoActualizado);
-                    }
-                }
-
-                setShowModal(false);
-                setSelectedParticipante(null);
-
-                // 🔥 Mensaje de éxito
-                Swal.fire({
-                    icon: 'success',
-                    title: modalMode === 'new' ? '¡Creado!' : '¡Actualizado!',
-                    text: `Participante ${modalMode === 'new' ? 'creado' : 'actualizado'} correctamente`,
-                    timer: 2000,
-                    showConfirmButton: false
-                });
-            } else {
+            if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.message || 'Error al guardar');
+                throw new Error(errorData.error || 'Error al guardar');
             }
+
+            const savedParticipante = await response.json();
+
+            // 🔥 Si tiene codigo_pil, sincronizar con traductor_pil_bms
+            if (selectedParticipante.codigo_pil && selectedParticipante.codigo_pil.trim()) {
+                try {
+                    const participanteId = savedParticipante.id || selectedParticipante.id;
+
+                    await fetch('http://localhost:4000/api/mantenedores/traductor-pil-bms/sync-participante', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            codigo_pil: selectedParticipante.codigo_pil.trim(),
+                            codigo_bms: selectedParticipante.codigo_bms.trim(),
+                            participante_id: participanteId,
+                            activo: 1
+                        })
+                    });
+                } catch (syncError) {
+                    console.warn('Advertencia al sincronizar traductor:', syncError);
+                }
+            }
+
+            await fetchParticipantes();
+
+            if (modalMode === 'new') {
+                handleSelectParticipante(savedParticipante);
+            } else {
+                if (value === savedParticipante.id) {
+                    const textoActualizado = formatParticipanteTexto(savedParticipante);
+                    onChange(savedParticipante.id, textoActualizado);
+                }
+            }
+
+            setShowModal(false);
+            setSelectedParticipante(null);
+
+            Swal.fire({
+                icon: 'success',
+                title: modalMode === 'new' ? '¡Creado!' : '¡Actualizado!',
+                text: `Participante ${modalMode === 'new' ? 'creado' : 'actualizado'} correctamente`,
+                timer: 2000,
+                showConfirmButton: false
+            });
         } catch (error) {
             console.error('Error guardando participante:', error);
             Swal.fire({
@@ -289,7 +328,7 @@ const ParticipanteSelector = ({ label, tipo, value, displayValue, onChange, requ
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             onFocus={() => setShowDropdown(true)}
-                            placeholder="Buscar por código o nombre..."
+                            placeholder="Buscar por código BMS, código PIL, nombre o RUT..."
                             className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
                         />
                     </div>
@@ -321,7 +360,7 @@ const ParticipanteSelector = ({ label, tipo, value, displayValue, onChange, requ
                                         className="flex-1"
                                     >
                                         <div className="font-medium text-slate-800">
-                                            {p.codigo_bms} - {p.nombre}
+                                            {p.codigo_bms} {p.codigo_pil && `(PIL: ${p.codigo_pil})`} - {p.nombre}
                                         </div>
                                         <div className="text-sm text-slate-500">
                                             {p.ciudad && `${p.ciudad}, `}{p.pais}
@@ -381,6 +420,7 @@ const ParticipanteSelector = ({ label, tipo, value, displayValue, onChange, requ
                         </div>
 
                         <div className="p-6 space-y-4">
+                            {/* 🔥 ACTUALIZADO: Fila con Código BMS y Código PIL */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -393,11 +433,36 @@ const ParticipanteSelector = ({ label, tipo, value, displayValue, onChange, requ
                                             ...selectedParticipante,
                                             codigo_bms: e.target.value
                                         })}
-                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100 disabled:text-slate-500"
                                         disabled={modalMode === 'edit'}
                                     />
                                 </div>
 
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                                        Código PIL
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={selectedParticipante?.codigo_pil || ''}
+                                        onChange={(e) => setSelectedParticipante({
+                                            ...selectedParticipante,
+                                            codigo_pil: e.target.value
+                                        })}
+                                        placeholder={modalMode === 'new' ? "Ej: CL100001" : ""}
+                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100 disabled:text-slate-500"
+                                        disabled={modalMode === 'edit'} // 🔥 DESHABILITADO EN EDICIÓN
+                                    />
+                                    <p className="mt-1 text-xs text-slate-500">
+                                        {modalMode === 'new'
+                                            ? 'Opcional. Se sincroniza automáticamente con el traductor PIL-BMS'
+                                            : 'El código PIL no se puede modificar. Edítalo desde el mantenedor de Traductor PIL-BMS'
+                                        }
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1">
                                         RUT <span className="text-red-500">*</span>
@@ -409,6 +474,22 @@ const ParticipanteSelector = ({ label, tipo, value, displayValue, onChange, requ
                                             ...selectedParticipante,
                                             rut: e.target.value
                                         })}
+                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                                        Matchcode <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={selectedParticipante?.matchcode || ''}
+                                        onChange={(e) => setSelectedParticipante({
+                                            ...selectedParticipante,
+                                            matchcode: e.target.value
+                                        })}
+                                        placeholder="Código de búsqueda rápida"
                                         className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                                     />
                                 </div>

@@ -52,16 +52,16 @@ const CargaSueltaEdit = () => {
         lugar_entrega: "",
 
         // 🔥 NUEVOS CAMPOS: IDs de participantes
-        shipper_id: null,
+        shipper_id: null,        // Este ES el embarcador (EMB)
         consignee_id: null,
         notify_id: null,
-        embarcador_id: null,
+        almacenador_id: null,    // Este es el almacenador (ALM)
 
         // Participantes - Display Text
         shipper: "",
         consignee: "",
         notify_party: "",
-        embarcador: "", // 🔥 NUEVO
+        almacenador: "", // 🔥 NUEVO
 
         items: [],
         observaciones: [
@@ -138,16 +138,15 @@ const CargaSueltaEdit = () => {
                 lugar_entrega: bl.lugar_entrega_cod || "",
 
                 // 🔥 CARGAR IDs DE PARTICIPANTES
-                shipper_id: bl.shipper_id || null,
+                shipper_id: bl.shipper_id || null,      // Shipper = Embarcador
                 consignee_id: bl.consignee_id || null,
                 notify_id: bl.notify_id || null,
-                embarcador_id: bl.embarcador_id || null,
-
+                almacenador_id: bl.almacenador_id || null,  // Almacenador (separado)
                 // Textos de participantes
                 shipper: bl.shipper || "",
                 consignee: bl.consignee || "",
                 notify_party: bl.notify_party || "",
-                embarcador: bl.embarcador || "",
+                almacenador: bl.almacenador || "",
 
                 items: (dataItems.items || []).map(item => ({
                     numero_item: item.numero_item,
@@ -488,13 +487,13 @@ const CargaSueltaEdit = () => {
                     shipper_id: formData.shipper_id,
                     consignee_id: formData.consignee_id,
                     notify_id: formData.notify_id,
-                    embarcador_id: formData.embarcador_id,
+                    almacenador_id: formData.almacenador_id,  // Almacenador
 
                     // Textos de participantes (backup)
                     shipper: formData.shipper,
                     consignee: formData.consignee,
                     notify_party: formData.notify_party,
-                    embarcador: formData.embarcador,
+                    almacenador: formData.almacenador,
 
                     // Items y observaciones
                     items: formData.items,
@@ -574,9 +573,7 @@ const CargaSueltaEdit = () => {
                     peso_bruto: "",
                     unidad_peso: "KGM",
                     volumen: 0,
-                    unidad_volumen: "MTQ",
-                    carga_cnt: "N"
-                }
+                    unidad_volumen: "MTQ"                }
             ]
         });
     };
@@ -918,7 +915,7 @@ const Step2Participantes = ({ formData, setFormData }) => {
             shipper: { id: 'shipper_id', text: 'shipper' },
             consignee: { id: 'consignee_id', text: 'consignee' },
             notify: { id: 'notify_id', text: 'notify_party' },
-            embarcador: { id: 'embarcador_id', text: 'embarcador' }
+            almacenador: { id: 'almacenador_id', text: 'almacenador' }
         };
 
         const fields = fieldMap[tipo];
@@ -955,17 +952,19 @@ const Step2Participantes = ({ formData, setFormData }) => {
     return (
         <div className="space-y-6">
             <h2 className="text-lg font-semibold text-slate-800 mb-4">
-                Shipper / Consignee / Notify Party
+                Participantes de Carga Suelta
             </h2>
 
-            {/* 🔥 SHIPPER con ParticipanteSelector */}
+
+            {/* 🔥 SHIPPER = EMBARCADOR */}
             <ParticipanteSelector
-                label="Shipper / Emisor (EMI)"
+                label="Shipper / Embarcador (EMB)"
                 tipo="shipper"
                 value={formData.shipper_id}
                 displayValue={formData.shipper}
                 onChange={(id, text) => handleParticipanteChange('shipper', id, text)}
                 required={true}
+                helpText="El shipper actúa como embarcador en carga suelta"
             />
 
             {/* 🔥 CONSIGNEE con ParticipanteSelector */}
@@ -987,22 +986,18 @@ const Step2Participantes = ({ formData, setFormData }) => {
                 onChange={(id, text) => handleParticipanteChange('notify', id, text)}
                 required={false}
             />
-
-            {/* 🔥 EMBARCADOR (EMB) con ParticipanteSelector */}
+            {/* 🔥 ALMACENADOR (DIFERENTE AL SHIPPER) */}
             <ParticipanteSelector
-                label="Embarcador (EMB)"
-                tipo="embarcador"
-                value={formData.embarcador_id}
-                displayValue={formData.embarcador || ''}
-                onChange={(id, text) => {
-                    setFormData(prev => ({
-                        ...prev,
-                        embarcador_id: id,
-                        embarcador: text
-                    }));
-                }}
+                label="Almacenador (ALM)"
+                tipo="almacenador"
+                value={formData.almacenador_id}
+                displayValue={formData.almacenador || ''}
+                onChange={(id, text) => handleParticipanteChange('almacenador', id, text)}
                 required={false}
+                helpText="Empresa que almacena la mercancía (requiere código de almacén)"
             />
+
+
 
             {/* 🆕 SECCIÓN DE OBSERVACIONES */}
             <div className="mt-6 pt-6 border-t border-slate-200">
@@ -1022,66 +1017,6 @@ const Step2Participantes = ({ formData, setFormData }) => {
                     </button>
                 </div>
 
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3 text-sm text-blue-800">
-                    <strong>Info:</strong> Las observaciones aparecerán en el XML de carga suelta.
-                    Por defecto se incluye "LISTA DE ENCARGO" como motivo (MOT).
-                </div>
-
-                <div className="space-y-3">
-                    {formData.observaciones && formData.observaciones.map((obs, idx) => (
-                        <div key={idx} className="border border-slate-200 rounded-lg p-3 bg-slate-50 relative">
-                            {/* Botón eliminar */}
-                            {formData.observaciones.length > 1 && (
-                                <button
-                                    type="button"
-                                    onClick={() => removeObservacion(idx)}
-                                    className="absolute top-2 right-2 text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
-                                    title="Eliminar observación"
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            )}
-
-                            <div className="grid grid-cols-4 gap-3">
-                                <div className="col-span-1">
-                                    <label className="block text-xs font-medium text-slate-600 mb-1">
-                                        Tipo
-                                    </label>
-                                    <select
-                                        value={obs.nombre}
-                                        onChange={(e) => updateObservacion(idx, 'nombre', e.target.value)}
-                                        className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    >
-                                        <option value="GRAL">GRAL</option>
-                                        <option value="MOT">MOT</option>
-                                        <option value="OBS">OBS</option>
-                                    </select>
-                                </div>
-
-                                <div className="col-span-3">
-                                    <label className="block text-xs font-medium text-slate-600 mb-1">
-                                        Contenido
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={obs.contenido}
-                                        onChange={(e) => updateObservacion(idx, 'contenido', e.target.value)}
-                                        placeholder="Ej: SELLOS PARA CONTENEDORES"
-                                        className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                {(!formData.observaciones || formData.observaciones.length === 0) && (
-                    <div className="text-center py-6 text-slate-500 bg-slate-50 rounded-lg border-2 border-dashed border-slate-300">
-                        <p className="text-sm">No hay observaciones. Haz clic en "Agregar Observación".</p>
-                    </div>
-                )}
 
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3 text-sm text-blue-800">
                     <strong>Info:</strong> Las observaciones aparecerán en el XML de carga suelta.
@@ -1450,20 +1385,29 @@ const Step4Revision = ({ formData, manifiestoData, tiposBulto }) => {
             </div>
 
             <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                <h3 className="font-semibold text-slate-700 mb-3">Participantes</h3>
+                <h3 className="font-semibold text-slate-700 mb-3">Participantes del BL</h3>
                 <div className="space-y-2 text-sm">
                     <div>
-                        <span className="font-medium text-slate-600">Shipper:</span>
+                        <span className="font-medium text-slate-600">Shipper/Embarcador (EMB):</span>
                         <p className="text-slate-900 mt-1 text-xs whitespace-pre-line">{formData.shipper || "—"}</p>
                     </div>
                     <div className="pt-2 border-t border-slate-200">
-                        <span className="font-medium text-slate-600">Consignee:</span>
+                        <span className="font-medium text-slate-600">Consignee (CONS):</span>
                         <p className="text-slate-900 mt-1 text-xs whitespace-pre-line">{formData.consignee || "—"}</p>
                     </div>
                     <div className="pt-2 border-t border-slate-200">
-                        <span className="font-medium text-slate-600">Notify Party:</span>
+                        <span className="font-medium text-slate-600">Notify Party (NOTI):</span>
                         <p className="text-slate-900 mt-1 text-xs whitespace-pre-line">{formData.notify_party || "—"}</p>
                     </div>
+                    {formData.almacenador && (
+                        <div className="pt-2 border-t border-slate-200">
+                            <span className="font-medium text-slate-600">Almacenador (ALM):</span>
+                            <p className="text-slate-900 mt-1 text-xs whitespace-pre-line">{formData.almacenador}</p>
+                        </div>
+                    )}
+                </div>
+                <div className="mt-3 pt-3 border-t border-slate-200 text-xs text-slate-500">
+                    <strong>Nota:</strong> Los roles EMI (Emisor), REP (Representante) y EMIDO (Emisor Doc) se toman de las referencias del manifiesto.
                 </div>
             </div>
             {/* 🆕 Observaciones */}
