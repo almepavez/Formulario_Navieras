@@ -55,7 +55,6 @@ const ExpoBLEdit = () => {
         shipper: "",
         consignee: "",
         notify_party: "",
-        // ✨ NUEVOS CAMPOS para participantes
         shipper_id: null,
         consignee_id: null,
         notify_id: null,
@@ -1053,7 +1052,7 @@ const ExpoBLEdit = () => {
             const dataToSend = {
                 tipo_servicio: formData.tipo_servicio,
                 fecha_emision: formData.fecha_emision || null,
-                fecha_presentacion: formatToMysql(formData.fecha_presentacion),  // ← AGREGAR AQUÍ
+                fecha_presentacion: formatToMysql(formData.fecha_presentacion),
                 fecha_zarpe: formatToMysql(formData.fecha_zarpe),
                 fecha_embarque: formatToMysql(formData.fecha_embarque),
                 puerto_embarque: formData.puerto_embarque || null,
@@ -1065,26 +1064,28 @@ const ExpoBLEdit = () => {
                 shipper: formData.shipper || null,
                 consignee: formData.consignee || null,
                 notify_party: formData.notify_party || null,
-                // ✨ IDs de participantes (nombres correctos)
                 shipper_id: formData.shipper_id || null,
                 consignee_id: formData.consignee_id || null,
                 notify_id: formData.notify_id || null,
                 descripcion_carga: formData.descripcion_carga?.trim() || null,
                 peso_bruto: formData.peso_bruto ? parseFloat(formData.peso_bruto) : null,
-                unidad_peso: formData.unidad_peso || null,                                  // ← AGREGAR
+                unidad_peso: formData.unidad_peso || null,
                 volumen: formData.volumen ? parseFloat(formData.volumen) : null,
-                unidad_volumen: formData.unidad_volumen || null,                           // ← AGREGAR
+                unidad_volumen: formData.unidad_volumen || null,
                 bultos: formData.bultos ? parseInt(formData.bultos) : null
             };
 
-            // 🔥 AGREGAR ESTE DEBUG
-            console.log("=== DEBUG DESCRIPCION_CARGA ===");
-            console.log("Valor original:", formData.descripcion_carga);
-            console.log("Valor después de trim:", formData.descripcion_carga?.trim());
-            console.log("Valor final a enviar:", dataToSend.descripcion_carga);
-            console.log("JSON completo:", JSON.stringify(dataToSend, null, 2));
+            // 🔥 AGREGA ESTO AQUÍ 👇
+            console.log('═══════════════════════════════════');
+            console.log('🚀 DATOS QUE SE ENVIARÁN AL BACKEND:');
+            console.log('shipper_id:', formData.shipper_id);
+            console.log('consignee_id:', formData.consignee_id);
+            console.log('notify_id:', formData.notify_id);
+            console.log('formData COMPLETO:', formData);
+            console.log('dataToSend COMPLETO:', dataToSend);
+            console.log('═══════════════════════════════════');
 
-            const res = await fetch(`http://localhost:4000/bls/${blNumber}`, {
+            const res = await fetch(`http://localhost:4000/api/bls/${blNumber}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(dataToSend)
