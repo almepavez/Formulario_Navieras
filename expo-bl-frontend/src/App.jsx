@@ -16,6 +16,7 @@ import GenerarXML from "./pages/GenerarXML";
 import BulkEditBL from "./pages/BulkEditBL";
 import CargaSueltaNuevo from "./pages/CargaSueltaNuevo";
 import CargaSueltaEdit from "./pages/CargaSueltaEdit";
+import ParticipanteSelector from "./components/ParticipanteSelector";
 
 function App() {
   return (
