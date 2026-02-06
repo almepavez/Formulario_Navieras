@@ -2775,6 +2775,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         (manifiesto_id, bl_number, tipo_servicio_id,
          shipper, consignee, notify_party,
          shipper_id, consignee_id, notify_id,
+         shipper_codigo_pil, consignee_codigo_pil, notify_codigo_pil,
          lugar_emision_id, puerto_embarque_id, puerto_descarga_id,
          lugar_destino_id, lugar_entrega_id, lugar_recepcion_id,
          lugar_emision_cod, puerto_embarque_cod, puerto_descarga_cod,
@@ -2788,6 +2789,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
       VALUES
         (?, ?, ?,
          ?, ?, ?,
+         ?, ?, ?,  
          ?, ?, ?,
          ?, ?, ?,
          ?, ?, ?,
@@ -2930,6 +2932,9 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         shipperId || null,        // ✅ NUEVO: shipper_id
         consigneeId || null,      // ✅ NUEVO: consignee_id
         notifyId || null,         // ✅ NUEVO: notify_id
+        b.shipper_codigo_pil || null,      // ✅ NUEVO
+        b.consignee_codigo_pil || null,    // ✅ NUEVO
+        b.notify_codigo_pil || null,       // ✅ NUEVO
         lugarEmisionId,
         puertoEmbarqueId,
         puertoDescargaId,
@@ -5809,6 +5814,43 @@ async function revalidarBLCompleto(conn, blId) {
   if (isBlank(bl.shipper)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "shipper", mensaje: "Falta shipper (Linea 16)", valorCrudo: bl.shipper || null });
   if (isBlank(bl.consignee)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "consignee", mensaje: "Falta consignee (Linea 21)", valorCrudo: bl.consignee || null });
   if (isBlank(bl.notify_party)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "notify_party", mensaje: "Falta notify (Linea 26)", valorCrudo: bl.notify_party || null });
+
+  // ============================================
+  // ✅ VALIDAR PARTICIPANTES FK
+  // ============================================
+  
+  // Shipper
+  if (!bl.shipper_id && bl.shipper_codigo_pil) {
+    vals.push({
+      nivel: "BL",
+      severidad: "ERROR",
+      campo: "shipper_id",
+      mensaje: `Código PIL de shipper '${bl.shipper_codigo_pil}' no encontrado en traductor. Debe agregarse manualmente.`,
+      valorCrudo: bl.shipper_codigo_pil
+    });
+  }
+
+  // Consignee
+  if (!bl.consignee_id && bl.consignee_codigo_pil) {
+    vals.push({
+      nivel: "BL",
+      severidad: "ERROR",
+      campo: "consignee_id",
+      mensaje: `Código PIL de consignee '${bl.consignee_codigo_pil}' no encontrado en traductor. Debe agregarse manualmente.`,
+      valorCrudo: bl.consignee_codigo_pil
+    });
+  }
+
+  // Notify
+  if (!bl.notify_id && bl.notify_codigo_pil) {
+    vals.push({
+      nivel: "BL",
+      severidad: "ERROR",
+      campo: "notify_id",
+      mensaje: `Código PIL de notify '${bl.notify_codigo_pil}' no encontrado en traductor. Debe agregarse manualmente.`,
+      valorCrudo: bl.notify_codigo_pil
+    });
+  }
 
 
   // ✅ NUEVO: contar contenedores reales por item_id (lo que realmente quedó en BD)
