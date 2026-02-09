@@ -7,7 +7,7 @@ import CrearPuertoModal from "../components/CrearPuertoModal";  // 🔥 AGREGAR 
 
 const steps = [
     { id: 1, name: "General", description: "Información básica del BL" },
-    { id: 2, name: "", description: "" },
+    { id: 2, name: "Rutas", description: "" },
     { id: 3, name: "Addr.", description: "Shipper, Consignee, Notify" },
     { id: 4, name: "Mercancía", description: "Descripción general de carga" },
     { id: 5, name: "Items", description: "Detalle de ítems" },
