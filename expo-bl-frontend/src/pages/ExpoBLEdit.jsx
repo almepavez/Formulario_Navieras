@@ -3,10 +3,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import Sidebar from "../components/Sidebar";
 import ParticipanteSelector from '../components/ParticipanteSelector';
+import CrearPuertoModal from "../components/CrearPuertoModal";  // 🔥 AGREGAR ESTE IMPORT
 
 const steps = [
     { id: 1, name: "General", description: "Información básica del BL" },
-    { id: 2, name: "Rutas", description: "Puertos y transbordos" },
+    { id: 2, name: "", description: "" },
     { id: 3, name: "Addr.", description: "Shipper, Consignee, Notify" },
     { id: 4, name: "Mercancía", description: "Descripción general de carga" },
     { id: 5, name: "Items", description: "Detalle de ítems" },
@@ -28,6 +29,8 @@ const ExpoBLEdit = () => {
     const [tiposBulto, setTiposBulto] = useState([]); // 🆕 NUEVO
     const [tiposContenedor, setTiposContenedor] = useState([]);
     const [tipoCntTipoBulto, setTipoCntTipoBulto] = useState([]); // 🆕 NUEVO
+    const [showCrearPuertoModal, setShowCrearPuertoModal] = useState(false);
+
 
     useEffect(() => {
         fetch('http://localhost:4000/tipos-contenedor')  // ✅ CORRECTO
@@ -634,6 +637,16 @@ const ExpoBLEdit = () => {
             }
         });
     };
+
+    // AGREGAR ESTA FUNCIÓN (después de las otras funciones)
+    const handlePuertoCreado = (nuevoPuerto) => {
+        // Agregar a la lista de puertos y ordenar
+        setPuertos(prev => [...prev, nuevoPuerto].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+
+        // Mostrar mensaje de éxito
+        alert(`✅ Puerto ${nuevoPuerto.codigo} creado exitosamente`);
+    };
+
     const validateStep = (step) => {
         switch (step) {
             case 1: // General
@@ -1539,6 +1552,26 @@ const ExpoBLEdit = () => {
                     {/* STEP 2: RUTAS Y TRANSBORDOS */}
                     {currentStep === 2 && (
                         <div className="space-y-8">
+                            {/* 🆕 Header con botón crear puerto */}
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <h2 className="text-xl font-bold text-slate-800">Rutas y Transbordos</h2>
+                                    <p className="text-sm text-slate-600 mt-1">
+                                        Define las ubicaciones y rutas del BL
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCrearPuertoModal(true)}
+                                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    Crear Puerto
+                                </button>
+                            </div>
+
                             {/* Lugares de Origen */}
                             <div className="border-b pb-6">
                                 <h3 className="font-semibold text-slate-800 mb-4">
@@ -1744,7 +1777,7 @@ const ExpoBLEdit = () => {
                                 )}
 
                                 <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
-                                    <strong>Nota:</strong> Si un puerto no aparece en la lista, ve a <strong>Mantenedores → Puertos</strong> para agregarlo.
+                                    <strong>Nota:</strong> Si un puerto no aparece en la lista, usa el botón <strong>"Crear Puerto"</strong> arriba.
                                 </div>
                             </div>
                         </div>
@@ -2487,6 +2520,12 @@ const ExpoBLEdit = () => {
                     )}
                 </div>
             </main >
+            {/* 🔥 AGREGAR EL MODAL AQUÍ - JUSTO ANTES DEL CIERRE DEL RETURN */}
+            <CrearPuertoModal
+                isOpen={showCrearPuertoModal}
+                onClose={() => setShowCrearPuertoModal(false)}
+                onPuertoCreado={handlePuertoCreado}
+            />
         </div >
     );
 };

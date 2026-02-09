@@ -1015,7 +1015,40 @@ app.post("/api/mantenedores/puertos", async (req, res) => {
 
     const puertoId = result.insertId;
 
-    // 2️⃣ Buscar BLs que tienen este código en sus campos _cod
+    console.log(`🆕 Puerto '${codigoUpper}' creado con ID ${puertoId}`);
+
+    // 2️⃣ ACTUALIZAR BLs que tienen este código en _cod pero NO tienen el _id
+    const blsActualizados = [];
+    
+    // Función helper para actualizar un campo específico
+    const actualizarCampoPuerto = async (campoCod, campoId) => {
+      const [result] = await conn.query(
+        `UPDATE bls 
+         SET ${campoId} = ? 
+         WHERE ${campoCod} = ? 
+         AND ${campoId} IS NULL`,
+        [puertoId, codigoUpper]
+      );
+      
+      if (result.affectedRows > 0) {
+        console.log(`   ✅ ${result.affectedRows} BL(s) actualizados en ${campoId}`);
+        return result.affectedRows;
+      }
+      return 0;
+    };
+
+    // Actualizar cada campo de puerto
+    const totalLugarEmision = await actualizarCampoPuerto('lugar_emision_cod', 'lugar_emision_id');
+    const totalPuertoEmbarque = await actualizarCampoPuerto('puerto_embarque_cod', 'puerto_embarque_id');
+    const totalPuertoDescarga = await actualizarCampoPuerto('puerto_descarga_cod', 'puerto_descarga_id');
+    const totalLugarDestino = await actualizarCampoPuerto('lugar_destino_cod', 'lugar_destino_id');
+    const totalLugarEntrega = await actualizarCampoPuerto('lugar_entrega_cod', 'lugar_entrega_id');
+    const totalLugarRecepcion = await actualizarCampoPuerto('lugar_recepcion_cod', 'lugar_recepcion_id');
+
+    const totalActualizados = totalLugarEmision + totalPuertoEmbarque + totalPuertoDescarga + 
+                              totalLugarDestino + totalLugarEntrega + totalLugarRecepcion;
+
+    // 3️⃣ Obtener lista de BLs únicos que fueron afectados (para re-validar)
     const [blsAfectados] = await conn.query(`
       SELECT DISTINCT id 
       FROM bls 
@@ -1027,12 +1060,12 @@ app.post("/api/mantenedores/puertos", async (req, res) => {
          OR lugar_recepcion_cod = ?
     `, [codigoUpper, codigoUpper, codigoUpper, codigoUpper, codigoUpper, codigoUpper]);
 
-    console.log(`🔄 Puerto '${codigoUpper}' creado. Afecta a ${blsAfectados.length} BL(s)`);
+    console.log(`🔄 Re-validando ${blsAfectados.length} BL(s) afectados...`);
 
-    // 3️⃣ Re-validar cada BL afectado
+    // 4️⃣ Re-validar cada BL afectado
     for (const bl of blsAfectados) {
       await revalidarBLCompleto(conn, bl.id);
-      console.log(`✅ BL ID ${bl.id} re-validado`);
+      console.log(`   ✅ BL ID ${bl.id} re-validado`);
     }
 
     await conn.commit();
@@ -1041,7 +1074,16 @@ app.post("/api/mantenedores/puertos", async (req, res) => {
       id: puertoId,
       codigo: codigoUpper,
       nombre: nombre.trim(),
-      bls_revalidados: blsAfectados.length
+      bls_actualizados: totalActualizados,
+      bls_revalidados: blsAfectados.length,
+      detalle: {
+        lugar_emision: totalLugarEmision,
+        puerto_embarque: totalPuertoEmbarque,
+        puerto_descarga: totalPuertoDescarga,
+        lugar_destino: totalLugarDestino,
+        lugar_entrega: totalLugarEntrega,
+        lugar_recepcion: totalLugarRecepcion
+      }
     });
   } catch (error) {
     await conn.rollback();
@@ -1078,7 +1120,37 @@ app.put("/api/mantenedores/puertos/:id", async (req, res) => {
       return res.status(404).json({ error: "Puerto no encontrado" });
     }
 
-    // 2️⃣ Buscar BLs afectados
+    console.log(`📝 Puerto ID ${id} actualizado a '${codigoUpper}'`);
+
+    // 2️⃣ ACTUALIZAR BLs que tienen este código en _cod pero NO tienen el _id correcto
+    const actualizarCampoPuerto = async (campoCod, campoId) => {
+      const [result] = await conn.query(
+        `UPDATE bls 
+         SET ${campoId} = ? 
+         WHERE ${campoCod} = ? 
+         AND (${campoId} IS NULL OR ${campoId} != ?)`,
+        [id, codigoUpper, id]
+      );
+      
+      if (result.affectedRows > 0) {
+        console.log(`   ✅ ${result.affectedRows} BL(s) actualizados en ${campoId}`);
+        return result.affectedRows;
+      }
+      return 0;
+    };
+
+    // Actualizar cada campo de puerto
+    const totalLugarEmision = await actualizarCampoPuerto('lugar_emision_cod', 'lugar_emision_id');
+    const totalPuertoEmbarque = await actualizarCampoPuerto('puerto_embarque_cod', 'puerto_embarque_id');
+    const totalPuertoDescarga = await actualizarCampoPuerto('puerto_descarga_cod', 'puerto_descarga_id');
+    const totalLugarDestino = await actualizarCampoPuerto('lugar_destino_cod', 'lugar_destino_id');
+    const totalLugarEntrega = await actualizarCampoPuerto('lugar_entrega_cod', 'lugar_entrega_id');
+    const totalLugarRecepcion = await actualizarCampoPuerto('lugar_recepcion_cod', 'lugar_recepcion_id');
+
+    const totalActualizados = totalLugarEmision + totalPuertoEmbarque + totalPuertoDescarga + 
+                              totalLugarDestino + totalLugarEntrega + totalLugarRecepcion;
+
+    // 3️⃣ Obtener BLs afectados para re-validar
     const [blsAfectados] = await conn.query(`
       SELECT DISTINCT id 
       FROM bls 
@@ -1090,12 +1162,12 @@ app.put("/api/mantenedores/puertos/:id", async (req, res) => {
          OR lugar_recepcion_cod = ?
     `, [codigoUpper, codigoUpper, codigoUpper, codigoUpper, codigoUpper, codigoUpper]);
 
-    console.log(`🔄 Puerto '${codigoUpper}' actualizado. Afecta a ${blsAfectados.length} BL(s)`);
+    console.log(`🔄 Re-validando ${blsAfectados.length} BL(s) afectados...`);
 
-    // 3️⃣ Re-validar BLs afectados
+    // 4️⃣ Re-validar BLs afectados
     for (const bl of blsAfectados) {
       await revalidarBLCompleto(conn, bl.id);
-      console.log(`✅ BL ID ${bl.id} re-validado`);
+      console.log(`   ✅ BL ID ${bl.id} re-validado`);
     }
 
     await conn.commit();
@@ -1104,7 +1176,16 @@ app.put("/api/mantenedores/puertos/:id", async (req, res) => {
       id: Number(id),
       codigo: codigoUpper,
       nombre: nombre.trim(),
-      bls_revalidados: blsAfectados.length
+      bls_actualizados: totalActualizados,
+      bls_revalidados: blsAfectados.length,
+      detalle: {
+        lugar_emision: totalLugarEmision,
+        puerto_embarque: totalPuertoEmbarque,
+        puerto_descarga: totalPuertoDescarga,
+        lugar_destino: totalLugarDestino,
+        lugar_entrega: totalLugarEntrega,
+        lugar_recepcion: totalLugarRecepcion
+      }
     });
   } catch (error) {
     await conn.rollback();
@@ -1114,7 +1195,6 @@ app.put("/api/mantenedores/puertos/:id", async (req, res) => {
     conn.release();
   }
 });
-
 
 app.delete("/api/mantenedores/puertos/:id", async (req, res) => {
   try {
