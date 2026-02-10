@@ -6006,13 +6006,7 @@ almacenador_p.codigo_almacen AS almacenador_codigo_almacen
         'numero-referencia': bl.bl_number,
         'service': 'LINER',
         'tipo-servicio': esCargaSuelta ? 'BB' : (bl.tipo_servicio_nombre || 'FCL/FCL'),
-
         'cond-transporte': bl.cond_transporte || 'HH',
-
-        ...(esCargaSuelta && {
-          'forma-pago-flete': bl.forma_pago_flete || 'PREPAID'
-        }),
-
         'total-bultos': bl.bultos || 0,
         'total-peso': bl.peso_bruto || 0,
         'unidad-peso': bl.unidad_peso || 'KGM',
@@ -6026,6 +6020,15 @@ almacenador_p.codigo_almacen AS almacenador_codigo_almacen
             'nombre-nave': bl.nave_nombre || ''
           }
         },
+
+        // 🔥 FLETE VA AQUÍ (después de OpTransporte, antes de Fechas)
+        ...(esCargaSuelta && {
+          Flete: {
+            'forma-pago-flete': {
+              tipo: bl.forma_pago_flete || 'PREPAID'
+            }
+          }
+        }),
 
         Fechas: {
           fecha: [
@@ -6576,13 +6579,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
           'numero-referencia': bl.bl_number,
           'service': 'LINER',
           'tipo-servicio': esCargaSuelta ? 'BB' : (bl.tipo_servicio_nombre || 'FCL/FCL'),
-
           'cond-transporte': bl.cond_transporte || 'HH',
-
-          ...(esCargaSuelta && {
-            'forma-pago-flete': bl.forma_pago_flete || 'PREPAID'
-          }),
-
           'total-bultos': bl.bultos || 0,
           'total-peso': bl.peso_bruto || 0,
           'unidad-peso': bl.unidad_peso || 'KGM',
@@ -6596,6 +6593,15 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
               'nombre-nave': bl.nave_nombre || ''
             }
           },
+
+          ...(esCargaSuelta && {
+            Flete: {
+              'forma-pago-flete': {
+                tipo: bl.forma_pago_flete || 'PREPAID'
+              }
+            }
+          }),
+
 
           Fechas: {
             fecha: [
