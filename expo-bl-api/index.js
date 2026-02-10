@@ -3250,9 +3250,16 @@ function parsePmsByFile(filename, content) {
   throw new Error(`Formato no soportado: ${ext}. Usa .txt (PMS por líneas)`);
 }
 
-// ============================================
-// 🆕 PROCESAMIENTO DIRECTO DE PMS (SIN GUARDAR ARCHIVO)
-// ============================================
+// 🔥 HELPER: Obtener peso tara por tipo de contenedor
+async function getPesoTaraByTipoCnt(conn, tipoCnt) {
+  if (!tipoCnt) return null;
+  const [[row]] = await conn.query(
+    'SELECT peso_tara_kg FROM tipo_cnt_tipo_bulto WHERE tipo_cnt = ?',
+    [tipoCnt]
+  );
+  return row?.peso_tara_kg || null;
+}
+
 app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (req, res) => {
   const { id } = req.params;
 
@@ -3573,6 +3580,31 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         it.tipo_bulto = await getTipoBultoFromTipoCnt(conn, tipoCnt);
       }
 
+      // 🔥 CALCULAR PESO REAL PARA MM (EMPTY)
+      let pesoBrutoReal = b.peso_bruto ?? null;
+
+      if (esEmpty) {
+        let pesoTotal = 0;
+        
+        for (const it of (b.items || [])) {
+          const itemNum = Number(it.numero_item);
+          const contsDelItem = (b.contenedores || []).filter(c => Number(c.itemNo) === itemNum);
+          
+          // Obtener tipo_cnt del primer contenedor del item
+          const tipoCnt = contsDelItem[0]?.tipo_cnt || null;
+          
+          if (tipoCnt) {
+            const pesoTara = await getPesoTaraByTipoCnt(conn, tipoCnt);
+            if (pesoTara) {
+              // Peso tara × cantidad de contenedores de este item
+              pesoTotal += pesoTara * contsDelItem.length;
+            }
+          }
+        }
+        
+        pesoBrutoReal = pesoTotal > 0 ? pesoTotal : null;
+      }
+
       // Insertar BL
       const [blIns] = await conn.query(insertBlSql, [
         id,
@@ -3600,7 +3632,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         b.lugar_entrega_cod || null,
         b.lugar_recepcion_cod || null,
         null, // descripcion_carga
-        b.peso_bruto ?? null,
+        pesoBrutoReal,  // 🔥 PESO CALCULADO PARA MM
         b.unidad_peso || null,
         b.volumen ?? null,
         b.unidad_volumen || null,
@@ -3782,7 +3814,17 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
 
         if (!c.tipo_cnt) pendingContValidations.push({ nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR", campo: "tipo_cnt", mensaje: "Contenedor sin tipo_cnt", valorCrudo: c.tipo_cnt ?? null });
 
-        if (!esEmpty && (num(c.peso) == null || num(c.peso) <= 0)) {
+        // 🔥 APLICAR PESO TARA SI ES MM Y PESO = 0
+        let pesoContenedor = c.peso ?? null;
+
+        if (esEmpty && (pesoContenedor === null || pesoContenedor === 0) && c.tipo_cnt) {
+          const pesoTara = await getPesoTaraByTipoCnt(conn, c.tipo_cnt);
+          if (pesoTara) {
+            pesoContenedor = pesoTara;
+          }
+        }
+
+        if (!esEmpty && (num(pesoContenedor) == null || num(pesoContenedor) <= 0)) {
           pendingContValidations.push({
             nivel: "CONTENEDOR", sec: itemNo, severidad: "ERROR", campo: "peso",
             mensaje: "peso debe ser > 0",
@@ -3815,7 +3857,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
           c.digito || null,
           c.tipo_cnt || null,
           c.carga_cnt || null,
-          c.peso ?? null,
+          pesoContenedor,  // 🔥 PESO CORREGIDO CON TARA
           c.unidad_peso || null,
           c.volumen ?? null,
           c.unidad_volumen || null,
@@ -3827,6 +3869,23 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
           await addValidacion(conn, { blId, ...v, refId: contenedorId, sec: itemNo });
           await addValidacionPMS(conn, { blId, ...v, refId: contenedorId, sec: itemNo });
         }
+
+        // 🔥 VALIDAR: Si es EMPTY y quedó con peso 0, probablemente falta peso_tara
+        if (esEmpty && (pesoContenedor === null || pesoContenedor === 0)) {
+          const payload = {
+            blId,
+            nivel: "CONTENEDOR",
+            refId: contenedorId,
+            sec: itemNo,
+            severidad: "ERROR",
+            campo: "peso",
+            mensaje: `Contenedor ${c.codigo || '(SIN CODIGO)'} tipo '${c.tipo_cnt || 'NULL'}' quedó con peso 0. Probablemente falta configurar peso_tara_kg para este tipo de contenedor en el mantenedor.`,
+            valorCrudo: c.tipo_cnt || null
+          };
+          await addValidacion(conn, payload);
+          await addValidacionPMS(conn, payload);
+        }
+
 
         const itemObj = itemNo ? itemsArr.find(it => Number(it.numero_item) === itemNo) : null;
         const itemPeligroso = itemObj && String(itemObj.carga_peligrosa || "").toUpperCase() === "S";
@@ -7313,6 +7372,21 @@ async function revalidarBLCompleto(conn, blId) {
         mensaje: "Falta unidad_volumen", valorCrudo: c.unidad_volumen ?? null
       });
     }
+
+
+    // 🔥 VALIDAR: Si es EMPTY y tiene peso 0, probablemente falta peso_tara
+    if (esEmpty && (num(c.peso) === null || num(c.peso) === 0)) {
+      vals.push({
+        nivel: "CONTENEDOR",
+        ref_id: refId,
+        sec: itemNo,
+        severidad: "ERROR",
+        campo: "peso",
+        mensaje: `Contenedor ${c.codigo || '(SIN CODIGO)'} tipo '${c.tipo_cnt || 'NULL'}' tiene peso 0. Probablemente falta configurar peso_tara_kg para este tipo de contenedor en el mantenedor.`,
+        valorCrudo: c.tipo_cnt || null
+      });
+    }
+
 
     // IMO estricto si item peligroso
     const itemPeligroso = itemObj && String(itemObj.carga_peligrosa || "").toUpperCase() === "S";
