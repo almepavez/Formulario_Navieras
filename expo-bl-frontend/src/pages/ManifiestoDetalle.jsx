@@ -68,6 +68,7 @@ const ManifiestoDetalle = () => {
     referenciaId: "",
     numeroReferencia: "",
     fechaReferencia: "",
+    puertoCentralId: "", // ← Cambiar a ID
   });
 
   const [itinerario, setItinerario] = useState([]);
@@ -79,22 +80,9 @@ const ManifiestoDetalle = () => {
 
   // Estado para referencias
   const [referencias, setReferencias] = useState([]);
-
-  // Cargar catálogo de referencias
-  useEffect(() => {
-    const loadReferencias = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/mantenedores/referencias`);
-        if (!res.ok) throw new Error(`Error referencias HTTP ${res.status}`);
-        const data = await res.json();
-        setReferencias(Array.isArray(data) ? data : []);
-      } catch (e) {
-        console.error("Error cargando referencias:", e);
-      }
-    };
-
-    loadReferencias();
-  }, []);
+  const [puertos, setPuertos] = useState([]);
+  const [showPuertoDropdown, setShowPuertoDropdown] = useState(false);
+  const [puertoSearch, setPuertoSearch] = useState("");
 
   useEffect(() => {
     fetchDetalle();
@@ -122,6 +110,43 @@ const ManifiestoDetalle = () => {
     }
   }, [formData.numeroManifiestoAduana]);
 
+  // Cargar catálogos (referencias y puertos)
+  useEffect(() => {
+    const loadCatalogos = async () => {
+      try {
+        // Cargar referencias
+        const resRef = await fetch(`${API_BASE}/api/mantenedores/referencias`);
+        if (resRef.ok) {
+          const dataRef = await resRef.json();
+          console.log("✅ Referencias cargadas:", dataRef);
+          setReferencias(Array.isArray(dataRef) ? dataRef : []);
+        }
+
+        // Cargar puertos
+        const resPuertos = await fetch(`${API_BASE}/api/mantenedores/puertos`);
+        if (resPuertos.ok) {
+          const dataPuertos = await resPuertos.json();
+          console.log("✅ Puertos cargados:", dataPuertos);
+          setPuertos(Array.isArray(dataPuertos) ? dataPuertos : []);
+        }
+      } catch (e) {
+        console.error("❌ Error cargando catálogos:", e);
+      }
+    };
+
+    loadCatalogos();
+  }, []);
+
+  // Cerrar dropdown de puertos al hacer click fuera
+  useEffect(() => {
+    const handleClickOutside = () => setShowPuertoDropdown(false);
+
+    if (showPuertoDropdown) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showPuertoDropdown]);
+
   const fetchDetalle = async () => {
     setLoading(true);
     setError("");
@@ -130,6 +155,9 @@ const ManifiestoDetalle = () => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       setData(json);
+
+      console.log("📥 Datos recibidos del servidor:", json);
+      console.log("🏝️ Puerto Central recibido:", json.manifiesto?.puertoCentral);
 
       setBlCount(json.bls?.length || 0);
       console.log("🔍 BLs cargados:", json.bls?.length || 0, json.bls);
@@ -146,7 +174,14 @@ const ManifiestoDetalle = () => {
         referenciaId: m.referenciaId || "",
         numeroReferencia: m.numeroReferencia || "",
         fechaReferencia: toInputDate(m.fechaReferencia),
+        puertoCentralId: m.puertoCentralId || "", // ← ID del puerto
       });
+      
+      // Sincronizar el código del puerto para mostrarlo en el input
+      setPuertoSearch(m.puertoCentral || "");
+
+      console.log("📝 FormData actualizado con puertoCentralId:", m.puertoCentralId);
+      console.log("📝 puertoSearch actualizado con código:", m.puertoCentral);
 
       setItinerario(
         (json.itinerario || []).map((it) => ({
@@ -166,17 +201,6 @@ const ManifiestoDetalle = () => {
     }
   };
 
-  useEffect(() => {
-    const handleBeforeUnload = (e) => {
-      if (isEditing && hasUnsavedChanges) {
-        e.preventDefault();
-        e.returnValue = "";
-      }
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [isEditing, hasUnsavedChanges]);
 
   const handleInputChange = (field, value) => {
     // Si se cambia Representante, autocompletar Emisor Doc
@@ -257,6 +281,17 @@ const ManifiestoDetalle = () => {
   };
 
   const handleSaveChanges = async () => {
+    // ✅ VALIDAR PUERTO CENTRAL ANTES DE GUARDAR
+    if (puertoSearch && !formData.puertoCentralId) {
+      await Swal.fire({
+        title: "Puerto no válido",
+        text: "El puerto ingresado no existe en el catálogo. Por favor selecciona un puerto válido de la lista o deja el campo vacío.",
+        icon: "error",
+        confirmButtonColor: "#10b981",
+      });
+      return;
+    }
+
     const result = await Swal.fire({
       title: "¿Guardar cambios?",
       text: "Se actualizará el manifiesto con la información editada",
@@ -282,6 +317,8 @@ const ManifiestoDetalle = () => {
         referenciaId: formData.referenciaId || null,
         numeroReferencia: formData.numeroReferencia || null,
         fechaReferencia: formData.fechaReferencia || null,
+        puertoCentral: formData.puertoCentralId, // ← Enviar el ID
+
         itinerario: itinerario.map((it) => ({
           id: it.id,
           port: it.port,
@@ -291,6 +328,9 @@ const ManifiestoDetalle = () => {
           orden: it.orden,
         })),
       };
+
+      console.log("📦 Payload a enviar:", payload);
+      console.log("🏝️ Puerto Central ID en payload:", payload.puertoCentral);
 
       const res = await fetch(`${API_BASE}/manifiestos/${id}`, {
         method: "PUT",
@@ -303,6 +343,9 @@ const ManifiestoDetalle = () => {
         throw new Error(errText || `HTTP ${res.status}`);
       }
 
+      const responseData = await res.json();
+      console.log("✅ Respuesta del servidor:", responseData);
+
       await Swal.fire({
         title: "¡Guardado!",
         text: "El manifiesto ha sido actualizado correctamente",
@@ -313,6 +356,8 @@ const ManifiestoDetalle = () => {
 
       setIsEditing(false);
       setHasUnsavedChanges(false);
+      
+      console.log("🔄 Recargando datos del servidor...");
       await fetchDetalle();
     } catch (e) {
       Swal.fire({
@@ -478,9 +523,14 @@ const ManifiestoDetalle = () => {
   }, [referencias, formData.representante]);
 
   // Obtener operador nave seleccionado
-const operadorNaveSeleccionado = useMemo(() => {
-  return referencias.find(r => r.customer_id === formData.operadorNave);
-}, [referencias, formData.operadorNave]);
+  const operadorNaveSeleccionado = useMemo(() => {
+    return referencias.find(r => r.customer_id === formData.operadorNave);
+  }, [referencias, formData.operadorNave]);
+
+  // Obtener puerto central seleccionado
+  const puertoCentralSeleccionado = useMemo(() => {
+    return puertos.find(p => p.id === parseInt(formData.puertoCentralId));
+  }, [puertos, formData.puertoCentralId]);
 
   const m = data?.manifiesto;
 
@@ -567,9 +617,62 @@ const operadorNaveSeleccionado = useMemo(() => {
                 <InfoReadOnly label="Servicio" value={m.servicio} />
                 <InfoReadOnly label="Nave" value={m.nave} />
                 <InfoReadOnly label="Viaje" value={m.viaje} />
-                <InfoReadOnly label="Puerto central" value={m.puertoCentral} />
                 <InfoReadOnly label="Operación" value={m.tipoOperacion} />
-
+                {!isEditing ? (
+                  <InfoReadOnly
+                    label="Puerto central"
+                    value={
+                      puertoCentralSeleccionado
+                        ? `${puertoCentralSeleccionado.codigo} — ${puertoCentralSeleccionado.nombre}`
+                        : m.puertoCentral
+                    }
+                  />
+                ) : (
+                  <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
+                    <div className="text-xs font-medium text-slate-700">Puerto central</div>
+                    <input
+                      type="text"
+                      list="puertos-list"
+                      value={puertoSearch}
+                      onChange={(e) => {
+                        const valorIngresado = e.target.value;
+                        setPuertoSearch(valorIngresado);
+                        
+                        // Buscar si el valor ingresado coincide con algún código de puerto
+                        const puertoEncontrado = puertos.find(p => 
+                          p.codigo.toUpperCase() === valorIngresado.toUpperCase()
+                        );
+                        
+                        // Si encuentra el puerto, guardar su ID
+                        if (puertoEncontrado) {
+                          handleInputChange("puertoCentralId", puertoEncontrado.id.toString());
+                        } else {
+                          // Si no encuentra el puerto, limpiar el ID
+                          handleInputChange("puertoCentralId", "");
+                        }
+                      }}
+                      placeholder="Escribe o selecciona un puerto..."
+                      className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    />
+                    <datalist id="puertos-list">
+                      {puertos.map((puerto) => (
+                        <option key={puerto.id} value={puerto.codigo}>
+                          {puerto.codigo} — {puerto.nombre}
+                        </option>
+                      ))}
+                    </datalist>
+                    {puertoCentralSeleccionado && (
+                      <p className="mt-1 text-[10px] text-slate-500">
+                        ✓ {puertoCentralSeleccionado.nombre} ({puertoCentralSeleccionado.pais})
+                      </p>
+                    )}
+                    {puertoSearch && !puertoCentralSeleccionado && (
+                      <p className="mt-1 text-[10px] text-orange-600">
+                        ⚠️ Puerto no reconocido - debe seleccionar un puerto válido
+                      </p>
+                    )}
+                  </div>
+                )}
                 {!isEditing ? (
                   <>
                     <InfoReadOnly label="Status" value={m.status} />
@@ -577,7 +680,7 @@ const operadorNaveSeleccionado = useMemo(() => {
                       label="Operador nave"
                       value={
                         operadorNaveSeleccionado
-                          ? `${m.operadorNave} — ${operadorNaveSeleccionado.nombre_emisor}`
+                          ? operadorNaveSeleccionado.nombre_emisor
                           : m.operadorNave
                       }
                     />
@@ -631,10 +734,15 @@ const operadorNaveSeleccionado = useMemo(() => {
                         <option value="">-- Selecciona --</option>
                         {referencias.map((ref) => (
                           <option key={ref.id} value={ref.customer_id}>
-                            {ref.customer_id} — {ref.nombre_emisor}
+                            {ref.nombre_emisor}
                           </option>
                         ))}
                       </select>
+                      {operadorNaveSeleccionado && (
+                        <p className="mt-1 text-[10px] text-slate-500">
+                          Customer ID: {operadorNaveSeleccionado.customer_id} | RUT: {operadorNaveSeleccionado.rut}
+                        </p>
+                      )}
                     </div>
 
                     {/* 🆕 Emisor Doc - NOMBRE EN SELECT, CUSTOMER ID ABAJO */}

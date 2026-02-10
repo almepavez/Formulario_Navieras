@@ -35,44 +35,46 @@ const BulkEditBL = () => {
     const [filteredBLs, setFilteredBLs] = useState([]);
     const [tipoBL, setTipoBL] = useState(""); // "contenedor" o "carga_suelta"
 
-
     // Step 2: Selección de BLs
     const [selectedBLs, setSelectedBLs] = useState([]);
 
-const [fieldsToEdit, setFieldsToEdit] = useState({
-    shipper: false,
-    consignee: false,
-    notify_party: false,
-    puerto_embarque: false,
-    puerto_descarga: false,
-    descripcion_carga: false,
-    bultos: false,
-    peso_bruto: false,
-    status: false,
-    forma_pago_flete: false,  // 👈 NUEVO
-    cond_transporte: false     // 👈 NUEVO
-});
+    // 🔥 ESTADOS ACTUALIZADOS - SIN shipper/consignee/notify + NUEVOS CAMPOS
+    const [fieldsToEdit, setFieldsToEdit] = useState({
+        descripcion_carga: false,
+        bultos: false,
+        peso_bruto: false,
+        status: false,
+        fecha_embarque: false,
+        fecha_zarpe: false,
+        fecha_emision: false,
+        observaciones: false,
+        // Campos específicos BB (Carga Suelta)
+        forma_pago_flete: false,
+        cond_transporte: false,
+        almacenador: false
+    });
 
-const [editValues, setEditValues] = useState({
-    shipper: "",
-    consignee: "",
-    notify_party: "",
-    puerto_embarque: "",
-    puerto_descarga: "",
-    descripcion_carga: "",
-    bultos: "",
-    peso_bruto: "",
-    status: "ACTIVO",
-    forma_pago_flete: "PREPAID",  // 👈 NUEVO
-    cond_transporte: ""            // 👈 NUEVO
-});
+    const [editValues, setEditValues] = useState({
+        descripcion_carga: "",
+        bultos: "",
+        peso_bruto: "",
+        status: "ACTIVO",
+        fecha_embarque: "",
+        fecha_zarpe: "",
+        fecha_emision: "",
+        observaciones: "",
+        // Campos específicos BB (Carga Suelta)
+        forma_pago_flete: "PREPAID",
+        cond_transporte: "",
+        almacenador: ""
+    });
 
     // Step 4: Edición de puertos individual
     const [puertosDisponibles, setPuertosDisponibles] = useState([]);
     const [editarPuertos, setEditarPuertos] = useState(false);
     const [puertosIndividuales, setPuertosIndividuales] = useState({});
 
-    // 🆕 ESTADOS PARA EDICIÓN MASIVA DE PUERTOS
+    // Estados para edición masiva de puertos
     const [editarPuertosMasivo, setEditarPuertosMasivo] = useState(false);
     const [puertosMasivos, setPuertosMasivos] = useState({
         lugar_recepcion_cod: '',
@@ -122,29 +124,24 @@ const [editValues, setEditValues] = useState({
 
     const viajes = [...new Set(allBLs.map(bl => bl.viaje).filter(Boolean))].sort();
 
-    // 🔄 REEMPLAZAR ESTE useEffect COMPLETO:
     useEffect(() => {
-        // 🆕 Si no ha seleccionado tipo de BL, no mostrar nada
         if (!tipoBL) {
             setFilteredBLs([]);
             return;
         }
 
-        let bls = [...allBLs]; // Empezar con todos los BLs
+        let bls = [...allBLs];
 
-        // 🔥 FILTRAR POR TIPO DE BL (la clave está en tipo_servicio)
+        // Filtrar por tipo de BL
         bls = bls.filter(bl => {
             if (tipoBL === "carga_suelta") {
-                // Carga suelta = tipo_servicio "BB"
                 return bl.tipo_servicio === "BB" || bl.tipo_servicio_codigo === "BB";
             } else {
-                // Contenedores = tipo_servicio "FF" o "MM" (cualquier cosa que NO sea BB)
                 return bl.tipo_servicio !== "BB" && bl.tipo_servicio_codigo !== "BB";
             }
         });
 
-
-        // Luego filtrar por viaje o búsqueda (como antes)
+        // Filtrar por viaje
         if (searchMode === "viaje" && selectedViaje) {
             bls = bls.filter(bl => bl.viaje === selectedViaje);
             setFilteredBLs(bls);
@@ -167,9 +164,7 @@ const [editValues, setEditValues] = useState({
         } else {
             setFilteredBLs([]);
         }
-    }, [searchMode, selectedViaje, searchTerm, allBLs, tipoBL]); // 🆕 Agregado: tipoBL
-
-
+    }, [searchMode, selectedViaje, searchTerm, allBLs, tipoBL]);
 
     // Inicializar puertos individuales cuando se seleccionan BLs
     useEffect(() => {
@@ -178,17 +173,6 @@ const [editValues, setEditValues] = useState({
             selectedBLs.forEach(blNumber => {
                 const bl = filteredBLs.find(b => b.bl_number === blNumber);
                 if (bl) {
-                    // 🆕 DEBUG: Ver qué datos tiene el BL
-                    console.log('🔍 BL encontrado:', blNumber);
-                    console.log('📦 Datos del BL:', {
-                        lugar_recepcion_cod: bl.lugar_recepcion_cod,
-                        puerto_embarque_cod: bl.puerto_embarque_cod,
-                        puerto_descarga_cod: bl.puerto_descarga_cod,
-                        lugar_entrega_cod: bl.lugar_entrega_cod,
-                        lugar_destino_cod: bl.lugar_destino_cod,
-                        lugar_emision_cod: bl.lugar_emision_cod
-                    });
-
                     initialPuertos[blNumber] = {
                         lugar_recepcion_cod: bl.lugar_recepcion_cod || '',
                         puerto_embarque_cod: bl.puerto_embarque_cod || '',
@@ -199,14 +183,11 @@ const [editValues, setEditValues] = useState({
                     };
                 }
             });
-
-            // 🆕 DEBUG: Ver qué se guardó en el estado
-            console.log('💾 Puertos individuales inicializados:', initialPuertos);
             setPuertosIndividuales(initialPuertos);
         }
     }, [selectedBLs, filteredBLs]);
 
-    // 🆕 Inicializar puertos masivos con el primer BL seleccionado
+    // Inicializar puertos masivos con el primer BL seleccionado
     useEffect(() => {
         if (editarPuertosMasivo && selectedBLs.length > 0 && filteredBLs.length > 0) {
             const primerBL = filteredBLs.find(b => b.bl_number === selectedBLs[0]);
@@ -283,7 +264,8 @@ const [editValues, setEditValues] = useState({
                     throw new Error(errorData.error || 'Error al actualizar campos generales');
                 }
             }
-            // 2. 🆕 Actualizar puertos MASIVOS (todos los BLs reciben lo mismo)
+
+            // Actualizar puertos MASIVOS
             if (editarPuertosMasivo) {
                 const promises = selectedBLs.map(blNumber => {
                     return fetch(`http://localhost:4000/bls/${blNumber}`, {
@@ -295,6 +277,8 @@ const [editValues, setEditValues] = useState({
 
                 await Promise.all(promises);
             }
+
+            // Actualizar puertos INDIVIDUALES
             if (editarPuertos) {
                 const promises = selectedBLs.map(blNumber => {
                     const puertos = puertosIndividuales[blNumber];
@@ -320,8 +304,6 @@ const [editValues, setEditValues] = useState({
         }
     };
 
-    // 👇 VALIDACIONES CON VERIFICACIÓN DE CAMPOS OBLIGATORIOS
-
     // Validar que los campos con checkbox activado tengan contenido
     const validateStep3 = () => {
         const emptyFields = [];
@@ -342,34 +324,29 @@ const [editValues, setEditValues] = useState({
     // Función para obtener nombre legible del campo
     const getFieldLabel = (field) => {
         const labels = {
-            shipper: "Shipper",
-            consignee: "Consignee",
-            notify_party: "Notify Party",
-            puerto_embarque: "Puerto de Embarque",
-            puerto_descarga: "Puerto de Descarga",
             descripcion_carga: "Descripción de Carga",
             bultos: "Bultos",
             peso_bruto: "Peso Bruto",
-            status: "Estado"
+            status: "Estado",
+            fecha_embarque: "Fecha de Embarque",
+            fecha_zarpe: "Fecha de Zarpe",
+            fecha_emision: "Fecha de Emisión",
+            observaciones: "Observaciones",
+            forma_pago_flete: "Forma de Pago Flete",
+            cond_transporte: "Condición de Transporte",
+            almacenador: "Almacenador"
         };
         return labels[field] || field;
     };
 
-    // DESPUÉS (nueva versión):
     const canContinue = {
-        1: tipoBL && (searchMode === "viaje" ? selectedViaje : filteredBLs.length > 0), // 🆕 Agregado: tipoBL
+        1: tipoBL && (searchMode === "viaje" ? selectedViaje : filteredBLs.length > 0),
         2: selectedBLs.length > 0,
         3: !hasEmptyRequiredFields,
         4: true,
     };
 
     const hasChangesToSave = Object.values(fieldsToEdit).some(v => v) || editarPuertos || editarPuertosMasivo;
-    // 👆 FIN DE VALIDACIONES
-
-    // Validaciones para continuar en cada step
-    const canProceedStep1 = searchMode === "viaje" ? selectedViaje : filteredBLs.length > 0;
-    const canProceedStep2 = selectedBLs.length > 0;
-    const canProceedStep3 = Object.values(fieldsToEdit).some(v => v);
 
     const steps = [
         { number: 1, title: "Seleccionar Manifesto" },
@@ -449,7 +426,7 @@ const [editValues, setEditValues] = useState({
                     </div>
                 )}
 
-                {/* 🆕 ALERTA DE CAMPOS VACÍOS EN STEP 3 */}
+                {/* Alerta de campos vacíos en Step 3 */}
                 {currentStep === 3 && hasEmptyRequiredFields && (
                     <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                         <div className="flex items-start gap-2">
@@ -474,7 +451,7 @@ const [editValues, setEditValues] = useState({
                     {/* STEP 1 */}
                     {currentStep === 1 && (
                         <div className="space-y-6">
-                            {/* 1. Seleccionar tipo de BL */}
+                            {/* Seleccionar tipo de BL */}
                             <div>
                                 <h2 className="text-lg font-semibold text-slate-900 mb-4">
                                     1. Selecciona el tipo de BL a editar
@@ -532,7 +509,6 @@ const [editValues, setEditValues] = useState({
                                     </button>
                                 </div>
 
-                                {/* Mostrar tipo seleccionado */}
                                 {tipoBL && (
                                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
                                         <div className="text-sm font-medium text-blue-900">
@@ -542,7 +518,7 @@ const [editValues, setEditValues] = useState({
                                 )}
                             </div>
 
-                            {/* 2. SOLO SELECCIÓN POR VIAJE (eliminar búsqueda) */}
+                            {/* Selección por viaje */}
                             {tipoBL && (
                                 <div>
                                     <h2 className="text-lg font-semibold text-slate-900 mb-4">
@@ -556,7 +532,6 @@ const [editValues, setEditValues] = useState({
                                     >
                                         <option value="">Selecciona un viaje...</option>
                                         {viajes.map(viaje => {
-                                            // 🔥 CONTAR SOLO BLs DEL TIPO SELECCIONADO
                                             const count = allBLs.filter(bl => {
                                                 const esViaje = bl.viaje === viaje;
                                                 if (tipoBL === "carga_suelta") {
@@ -566,7 +541,6 @@ const [editValues, setEditValues] = useState({
                                                 }
                                             }).length;
 
-                                            // Solo mostrar viajes que tengan BLs del tipo seleccionado
                                             if (count === 0) return null;
 
                                             return (
@@ -666,7 +640,7 @@ const [editValues, setEditValues] = useState({
                         </div>
                     )}
 
-                    {/* STEP 3 */}
+                    {/* STEP 3 - CAMPOS ACTUALIZADOS */}
                     {currentStep === 3 && (
                         <div className="space-y-6">
                             <div>
@@ -679,24 +653,39 @@ const [editValues, setEditValues] = useState({
                             </div>
 
                             <div className="space-y-4">
+                                {/* 📦 CAMPOS GENERALES */}
+                                <div className="border-t-2 border-blue-300 pt-4">
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                                        <div className="flex items-center gap-2 text-blue-800">
+                                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                            </svg>
+                                            <span className="font-semibold text-sm">
+                                                Campos Generales
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Descripción de Carga */}
                                 <div className="border border-slate-200 rounded-lg p-4">
                                     <label className="flex items-start gap-3 cursor-pointer">
                                         <input
                                             type="checkbox"
-                                            checked={fieldsToEdit.shipper}
-                                            onChange={() => handleToggleField("shipper")}
+                                            checked={fieldsToEdit.descripcion_carga}
+                                            onChange={() => handleToggleField("descripcion_carga")}
                                             className="mt-1 w-5 h-5 text-[#0F2A44] rounded focus:ring-2 focus:ring-[#0F2A44]"
                                         />
                                         <div className="flex-1">
                                             <div className="font-medium text-slate-900 mb-2">
-                                                Shipper {fieldsToEdit.shipper && <span className="text-red-500">*</span>}
+                                                Descripción de Carga {fieldsToEdit.descripcion_carga && <span className="text-red-500">*</span>}
                                             </div>
-                                            {fieldsToEdit.shipper && (
-                                                <input
-                                                    type="text"
-                                                    value={editValues.shipper}
-                                                    onChange={(e) => setEditValues(prev => ({ ...prev, shipper: e.target.value }))}
-                                                    placeholder="Ingresa el nuevo shipper..."
+                                            {fieldsToEdit.descripcion_carga && (
+                                                <textarea
+                                                    value={editValues.descripcion_carga}
+                                                    onChange={(e) => setEditValues(prev => ({ ...prev, descripcion_carga: e.target.value }))}
+                                                    placeholder="Ingresa la descripción de carga..."
+                                                    rows={3}
                                                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
                                                 />
                                             )}
@@ -704,24 +693,25 @@ const [editValues, setEditValues] = useState({
                                     </label>
                                 </div>
 
+                                {/* Bultos */}
                                 <div className="border border-slate-200 rounded-lg p-4">
                                     <label className="flex items-start gap-3 cursor-pointer">
                                         <input
                                             type="checkbox"
-                                            checked={fieldsToEdit.consignee}
-                                            onChange={() => handleToggleField("consignee")}
+                                            checked={fieldsToEdit.bultos}
+                                            onChange={() => handleToggleField("bultos")}
                                             className="mt-1 w-5 h-5 text-[#0F2A44] rounded focus:ring-2 focus:ring-[#0F2A44]"
                                         />
                                         <div className="flex-1">
                                             <div className="font-medium text-slate-900 mb-2">
-                                                Consignee {fieldsToEdit.consignee && <span className="text-red-500">*</span>}
+                                                Bultos {fieldsToEdit.bultos && <span className="text-red-500">*</span>}
                                             </div>
-                                            {fieldsToEdit.consignee && (
+                                            {fieldsToEdit.bultos && (
                                                 <input
-                                                    type="text"
-                                                    value={editValues.consignee}
-                                                    onChange={(e) => setEditValues(prev => ({ ...prev, consignee: e.target.value }))}
-                                                    placeholder="Ingresa el nuevo consignee..."
+                                                    type="number"
+                                                    value={editValues.bultos}
+                                                    onChange={(e) => setEditValues(prev => ({ ...prev, bultos: e.target.value }))}
+                                                    placeholder="Número de bultos..."
                                                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
                                                 />
                                             )}
@@ -729,24 +719,26 @@ const [editValues, setEditValues] = useState({
                                     </label>
                                 </div>
 
+                                {/* Peso Bruto */}
                                 <div className="border border-slate-200 rounded-lg p-4">
                                     <label className="flex items-start gap-3 cursor-pointer">
                                         <input
                                             type="checkbox"
-                                            checked={fieldsToEdit.notify_party}
-                                            onChange={() => handleToggleField("notify_party")}
+                                            checked={fieldsToEdit.peso_bruto}
+                                            onChange={() => handleToggleField("peso_bruto")}
                                             className="mt-1 w-5 h-5 text-[#0F2A44] rounded focus:ring-2 focus:ring-[#0F2A44]"
                                         />
                                         <div className="flex-1">
                                             <div className="font-medium text-slate-900 mb-2">
-                                                Notify Party {fieldsToEdit.notify_party && <span className="text-red-500">*</span>}
+                                                Peso Bruto {fieldsToEdit.peso_bruto && <span className="text-red-500">*</span>}
                                             </div>
-                                            {fieldsToEdit.notify_party && (
+                                            {fieldsToEdit.peso_bruto && (
                                                 <input
-                                                    type="text"
-                                                    value={editValues.notify_party}
-                                                    onChange={(e) => setEditValues(prev => ({ ...prev, notify_party: e.target.value }))}
-                                                    placeholder="Ingresa notify party..."
+                                                    type="number"
+                                                    step="0.001"
+                                                    value={editValues.peso_bruto}
+                                                    onChange={(e) => setEditValues(prev => ({ ...prev, peso_bruto: e.target.value }))}
+                                                    placeholder="Peso bruto (kg)..."
                                                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
                                                 />
                                             )}
@@ -754,6 +746,7 @@ const [editValues, setEditValues] = useState({
                                     </label>
                                 </div>
 
+                                {/* Estado */}
                                 <div className="border border-slate-200 rounded-lg p-4">
                                     <label className="flex items-start gap-3 cursor-pointer">
                                         <input
@@ -784,39 +777,111 @@ const [editValues, setEditValues] = useState({
                                     </label>
                                 </div>
 
+                                {/* 📅 FECHAS */}
+                                {/* Fecha de Embarque */}
                                 <div className="border border-slate-200 rounded-lg p-4">
                                     <label className="flex items-start gap-3 cursor-pointer">
                                         <input
                                             type="checkbox"
-                                            checked={fieldsToEdit.descripcion_carga}
-                                            onChange={() => handleToggleField("descripcion_carga")}
+                                            checked={fieldsToEdit.fecha_embarque}
+                                            onChange={() => handleToggleField("fecha_embarque")}
                                             className="mt-1 w-5 h-5 text-[#0F2A44] rounded focus:ring-2 focus:ring-[#0F2A44]"
                                         />
                                         <div className="flex-1">
                                             <div className="font-medium text-slate-900 mb-2">
-                                                Descripción de Carga {fieldsToEdit.descripcion_carga && <span className="text-red-500">*</span>}
+                                                Fecha de Embarque {fieldsToEdit.fecha_embarque && <span className="text-red-500">*</span>}
                                             </div>
-                                            {fieldsToEdit.descripcion_carga && (
+                                            {fieldsToEdit.fecha_embarque && (
+                                                <input
+                                                    type="date"
+                                                    value={editValues.fecha_embarque}
+                                                    onChange={(e) => setEditValues(prev => ({ ...prev, fecha_embarque: e.target.value }))}
+                                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
+                                                />
+                                            )}
+                                        </div>
+                                    </label>
+                                </div>
+
+                                {/* Fecha de Zarpe */}
+                                <div className="border border-slate-200 rounded-lg p-4">
+                                    <label className="flex items-start gap-3 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={fieldsToEdit.fecha_zarpe}
+                                            onChange={() => handleToggleField("fecha_zarpe")}
+                                            className="mt-1 w-5 h-5 text-[#0F2A44] rounded focus:ring-2 focus:ring-[#0F2A44]"
+                                        />
+                                        <div className="flex-1">
+                                            <div className="font-medium text-slate-900 mb-2">
+                                                Fecha de Zarpe {fieldsToEdit.fecha_zarpe && <span className="text-red-500">*</span>}
+                                            </div>
+                                            {fieldsToEdit.fecha_zarpe && (
+                                                <input
+                                                    type="date"
+                                                    value={editValues.fecha_zarpe}
+                                                    onChange={(e) => setEditValues(prev => ({ ...prev, fecha_zarpe: e.target.value }))}
+                                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
+                                                />
+                                            )}
+                                        </div>
+                                    </label>
+                                </div>
+
+                                {/* Fecha de Emisión */}
+                                <div className="border border-slate-200 rounded-lg p-4">
+                                    <label className="flex items-start gap-3 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={fieldsToEdit.fecha_emision}
+                                            onChange={() => handleToggleField("fecha_emision")}
+                                            className="mt-1 w-5 h-5 text-[#0F2A44] rounded focus:ring-2 focus:ring-[#0F2A44]"
+                                        />
+                                        <div className="flex-1">
+                                            <div className="font-medium text-slate-900 mb-2">
+                                                Fecha de Emisión {fieldsToEdit.fecha_emision && <span className="text-red-500">*</span>}
+                                            </div>
+                                            {fieldsToEdit.fecha_emision && (
+                                                <input
+                                                    type="date"
+                                                    value={editValues.fecha_emision}
+                                                    onChange={(e) => setEditValues(prev => ({ ...prev, fecha_emision: e.target.value }))}
+                                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
+                                                />
+                                            )}
+                                        </div>
+                                    </label>
+                                </div>
+
+                                {/* Observaciones */}
+                                <div className="border border-slate-200 rounded-lg p-4">
+                                    <label className="flex items-start gap-3 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={fieldsToEdit.observaciones}
+                                            onChange={() => handleToggleField("observaciones")}
+                                            className="mt-1 w-5 h-5 text-[#0F2A44] rounded focus:ring-2 focus:ring-[#0F2A44]"
+                                        />
+                                        <div className="flex-1">
+                                            <div className="font-medium text-slate-900 mb-2">
+                                                Observaciones {fieldsToEdit.observaciones && <span className="text-red-500">*</span>}
+                                            </div>
+                                            {fieldsToEdit.observaciones && (
                                                 <textarea
-                                                    value={editValues.descripcion_carga}
-                                                    onChange={(e) => setEditValues(prev => ({ ...prev, descripcion_carga: e.target.value }))}
-                                                    placeholder="Ingresa la descripción de carga..."
+                                                    value={editValues.observaciones}
+                                                    onChange={(e) => setEditValues(prev => ({ ...prev, observaciones: e.target.value }))}
+                                                    placeholder="Observaciones generales del BL..."
                                                     rows={3}
                                                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
                                                 />
                                             )}
-
-
                                         </div>
-
                                     </label>
-
                                 </div>
-                                {/* 🔥🔥🔥 AQUÍ EMPIEZA LO NUEVO - CAMPOS DE CARGA SUELTA 🔥🔥🔥 */}
 
+                                {/* 🔥 CAMPOS ESPECÍFICOS DE CARGA SUELTA (BB) */}
                                 {tipoBL === "carga_suelta" && (
                                     <>
-                                        {/* Separador visual */}
                                         <div className="border-t-2 border-green-300 pt-4 mt-6">
                                             <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
                                                 <div className="flex items-center gap-2 text-green-800">
@@ -830,7 +895,7 @@ const [editValues, setEditValues] = useState({
                                             </div>
                                         </div>
 
-                                        {/* Campo: Forma de Pago Flete */}
+                                        {/* Forma de Pago Flete */}
                                         <div className="border border-green-200 rounded-lg p-4 bg-green-50">
                                             <label className="flex items-start gap-3 cursor-pointer">
                                                 <input
@@ -857,7 +922,7 @@ const [editValues, setEditValues] = useState({
                                             </label>
                                         </div>
 
-                                        {/* Campo: Condición de Transporte */}
+                                        {/* Condición de Transporte */}
                                         <div className="border border-green-200 rounded-lg p-4 bg-green-50">
                                             <label className="flex items-start gap-3 cursor-pointer">
                                                 <input
@@ -871,580 +936,586 @@ const [editValues, setEditValues] = useState({
                                                         Condición de Transporte {fieldsToEdit.cond_transporte && <span className="text-red-500">*</span>}
                                                     </div>
                                                     {fieldsToEdit.cond_transporte && (
-                                                        <input
-                                                            type="text"
-                                                            value={editValues.cond_transporte || ""}
-                                                            onChange={(e) => setEditValues(prev => ({ ...prev, cond_transporte: e.target.value.toUpperCase() }))}
-                                                            placeholder="Ej: HH, CY, SD, DD..."
-                                                            maxLength={10}
-                                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 uppercase"
-                                                        />
+                                                        <>
+                                                            <input
+                                                                type="text"
+                                                                value={editValues.cond_transporte || ""}
+                                                                onChange={(e) => setEditValues(prev => ({ ...prev, cond_transporte: e.target.value.toUpperCase() }))}
+                                                                placeholder="Ej: HH, CY, SD, DD..."
+                                                                maxLength={10}
+                                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 uppercase"
+                                                            />
+                                                            <p className="text-xs text-slate-500 mt-1">
+                                                                Ejemplo: HH (House to House), CY (Container Yard), SD (Store Door), etc.
+                                                            </p>
+                                                        </>
                                                     )}
-                                                    {fieldsToEdit.cond_transporte && (
-                                                        <p className="text-xs text-slate-500 mt-1">
-                                                            Ejemplo: HH (House to House), CY (Container Yard), SD (Store Door), etc.
-                                                        </p>
+                                                </div>
+                                            </label>
+                                        </div>
+
+                                        {/* 🆕 Almacenador */}
+                                        <div className="border border-green-200 rounded-lg p-4 bg-green-50">
+                                            <label className="flex items-start gap-3 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={fieldsToEdit.almacenador || false}
+                                                    onChange={() => handleToggleField("almacenador")}
+                                                    className="mt-1 w-5 h-5 text-green-600 rounded focus:ring-2 focus:ring-green-500"
+                                                />
+                                                <div className="flex-1">
+                                                    <div className="font-medium text-slate-900 mb-2">
+                                                        Almacenador {fieldsToEdit.almacenador && <span className="text-red-500">*</span>}
+                                                    </div>
+                                                    {fieldsToEdit.almacenador && (
+                                                        <>
+                                                            <input
+                                                                type="text"
+                                                                value={editValues.almacenador || ""}
+                                                                onChange={(e) => setEditValues(prev => ({ ...prev, almacenador: e.target.value }))}
+                                                                placeholder="Nombre del almacenador..."
+                                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                                            />
+                                                            <p className="text-xs text-slate-500 mt-1">
+                                                                Empresa o almacén donde se depositará la carga
+                                                            </p>
+                                                        </>
                                                     )}
                                                 </div>
                                             </label>
                                         </div>
                                     </>
                                 )}
-
-                                {/* 🔥🔥🔥 FIN DE CAMPOS DE CARGA SUELTA 🔥🔥🔥 */}
-
                             </div>
                         </div>
                     )}
-    
 
-
-{/* STEP 4: Editar Puertos */ }
-{
-    currentStep === 4 && (
-        <div className="space-y-6">
-            <div>
-                <h2 className="text-lg font-semibold text-slate-900 mb-1">
-                    ¿Deseas editar los puertos de cada BL?
-                </h2>
-                <p className="text-sm text-slate-600">
-                    Puedes ajustar los puertos de forma masiva o individual para cada BL seleccionado
-                </p>
-            </div>
-
-            {/* 🆕 SECCIÓN DE OPCIONES */}
-            <div className="space-y-3">
-                {/* Opción 1: Edición Masiva */}
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <label className="flex items-start gap-3 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={editarPuertosMasivo}
-                            onChange={(e) => {
-                                setEditarPuertosMasivo(e.target.checked);
-                                if (e.target.checked) setEditarPuertos(false); // Desactivar individual
-                            }}
-                            className="mt-1 w-5 h-5 text-green-600 rounded focus:ring-2 focus:ring-green-500"
-                        />
-                        <div>
-                            <div className="font-medium text-green-900">
-                                Editar puertos de forma masiva
+                    {/* STEP 4: Editar Puertos - SIN CAMBIOS */}
+                    {currentStep === 4 && (
+                        <div className="space-y-6">
+                            <div>
+                                <h2 className="text-lg font-semibold text-slate-900 mb-1">
+                                    ¿Deseas editar los puertos de cada BL?
+                                </h2>
+                                <p className="text-sm text-slate-600">
+                                    Puedes ajustar los puertos de forma masiva o individual para cada BL seleccionado
+                                </p>
                             </div>
-                            <div className="text-sm text-green-700 mt-1">
-                                Todos los BLs seleccionados tendrán los mismos puertos
-                            </div>
-                        </div>
-                    </label>
-                </div>
 
-                {/* Opción 2: Edición Individual */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <label className="flex items-start gap-3 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={editarPuertos}
-                            onChange={(e) => {
-                                setEditarPuertos(e.target.checked);
-                                if (e.target.checked) setEditarPuertosMasivo(false); // Desactivar masivo
-                            }}
-                            className="mt-1 w-5 h-5 text-[#0F2A44] rounded focus:ring-2 focus:ring-[#0F2A44]"
-                        />
-                        <div>
-                            <div className="font-medium text-blue-900">
-                                Editar puertos de forma individual
-                            </div>
-                            <div className="text-sm text-blue-700 mt-1">
-                                Configura puertos diferentes para cada BL
-                            </div>
-                        </div>
-                    </label>
-                </div>
-            </div>
-
-            {/* 🆕 FORMULARIO DE EDICIÓN MASIVA */}
-            {editarPuertosMasivo && (
-                <div className="border border-green-200 rounded-lg p-6 bg-green-50">
-                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-green-200">
-                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                        <h3 className="font-semibold text-green-900">
-                            Configuración Masiva - Se aplicará a {selectedBLs.length} BL(s)
-                        </h3>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white p-5 rounded-lg">
-                        {/* Lugar de Recepción */}
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-2">
-                                Lugar de Recepción (LRM)
-                            </label>
-                            <select
-                                value={puertosMasivos.lugar_recepcion_cod}
-                                onChange={(e) => setPuertosMasivos(prev => ({
-                                    ...prev,
-                                    lugar_recepcion_cod: e.target.value
-                                }))}
-                                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                            >
-                                <option value="">Seleccionar puerto...</option>
-                                {puertosDisponibles.map(puerto => (
-                                    <option key={puerto.id} value={puerto.codigo}>
-                                        {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        {/* Puerto de Embarque */}
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-2">
-                                Puerto de Embarque (PE) *
-                            </label>
-                            <select
-                                value={puertosMasivos.puerto_embarque_cod}
-                                onChange={(e) => setPuertosMasivos(prev => ({
-                                    ...prev,
-                                    puerto_embarque_cod: e.target.value
-                                }))}
-                                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                            >
-                                <option value="">Seleccionar puerto...</option>
-                                {puertosDisponibles.map(puerto => (
-                                    <option key={puerto.id} value={puerto.codigo}>
-                                        {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        {/* Puerto de Descarga */}
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-2">
-                                Puerto de Descarga (PD) *
-                            </label>
-                            <select
-                                value={puertosMasivos.puerto_descarga_cod}
-                                onChange={(e) => setPuertosMasivos(prev => ({
-                                    ...prev,
-                                    puerto_descarga_cod: e.target.value
-                                }))}
-                                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                            >
-                                <option value="">Seleccionar puerto...</option>
-                                {puertosDisponibles.map(puerto => (
-                                    <option key={puerto.id} value={puerto.codigo}>
-                                        {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        {/* Lugar de Entrega */}
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-2">
-                                Lugar de Entrega (LEM)
-                            </label>
-                            <select
-                                value={puertosMasivos.lugar_entrega_cod}
-                                onChange={(e) => setPuertosMasivos(prev => ({
-                                    ...prev,
-                                    lugar_entrega_cod: e.target.value
-                                }))}
-                                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                            >
-                                <option value="">Seleccionar puerto...</option>
-                                {puertosDisponibles.map(puerto => (
-                                    <option key={puerto.id} value={puerto.codigo}>
-                                        {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        {/* Lugar de Destino */}
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-2">
-                                Lugar de Destino (LD)
-                            </label>
-                            <select
-                                value={puertosMasivos.lugar_destino_cod}
-                                onChange={(e) => setPuertosMasivos(prev => ({
-                                    ...prev,
-                                    lugar_destino_cod: e.target.value
-                                }))}
-                                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                            >
-                                <option value="">Seleccionar puerto...</option>
-                                {puertosDisponibles.map(puerto => (
-                                    <option key={puerto.id} value={puerto.codigo}>
-                                        {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        {/* Lugar de Emisión */}
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-2">
-                                Lugar de Emisión (LE)
-                            </label>
-                            <select
-                                value={puertosMasivos.lugar_emision_cod}
-                                onChange={(e) => setPuertosMasivos(prev => ({
-                                    ...prev,
-                                    lugar_emision_cod: e.target.value
-                                }))}
-                                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                            >
-                                <option value="">Seleccionar puerto...</option>
-                                {puertosDisponibles.map(puerto => (
-                                    <option key={puerto.id} value={puerto.codigo}>
-                                        {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-
-                    {/* Vista previa de ruta */}
-                    {(puertosMasivos.puerto_embarque_cod || puertosMasivos.puerto_descarga_cod) && (
-                        <div className="mt-4 p-4 bg-white rounded-lg border border-green-300">
-                            <div className="text-sm font-medium text-green-900 mb-2">
-                                📍 Vista previa de ruta:
-                            </div>
-                            <div className="flex items-center gap-2 text-sm text-slate-700">
-                                <span className="font-medium">
-                                    {puertosMasivos.puerto_embarque_cod || '---'}
-                                </span>
-                                <span className="text-slate-400">→</span>
-                                <span className="font-medium">
-                                    {puertosMasivos.puerto_descarga_cod || '---'}
-                                </span>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* FORMULARIO DE EDICIÓN INDIVIDUAL (el que ya tenías) */}
-            {editarPuertos && (
-                <div className="space-y-4">
-                    {selectedBLs.map((blNumber) => {
-                        const bl = filteredBLs.find(b => b.bl_number === blNumber);
-                        return (
-                            <div key={blNumber} className="border border-slate-200 rounded-lg p-5 bg-white">
-                                <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200">
-                                    <div>
-                                        <div className="font-semibold text-slate-900 text-base">
-                                            {blNumber}
+                            <div className="space-y-3">
+                                {/* Opción 1: Edición Masiva */}
+                                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                    <label className="flex items-start gap-3 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={editarPuertosMasivo}
+                                            onChange={(e) => {
+                                                setEditarPuertosMasivo(e.target.checked);
+                                                if (e.target.checked) setEditarPuertos(false);
+                                            }}
+                                            className="mt-1 w-5 h-5 text-green-600 rounded focus:ring-2 focus:ring-green-500"
+                                        />
+                                        <div>
+                                            <div className="font-medium text-green-900">
+                                                Editar puertos de forma masiva
+                                            </div>
+                                            <div className="text-sm text-green-700 mt-1">
+                                                Todos los BLs seleccionados tendrán los mismos puertos
+                                            </div>
                                         </div>
-                                        <div className="text-sm text-slate-600 mt-0.5">
-                                            {bl?.shipper || 'Sin shipper'}
-                                        </div>
-                                    </div>
+                                    </label>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {/* Lugar de Recepción */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                                            Lugar de Recepción (LRM)
-                                        </label>
-                                        <select
-                                            value={puertosIndividuales[blNumber]?.lugar_recepcion_cod || ''}
-                                            onChange={(e) => handlePuertoChange(blNumber, 'lugar_recepcion_cod', e.target.value)}
-                                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
-                                        >
-                                            <option value="">Seleccionar puerto...</option>
-                                            {puertosDisponibles.map(puerto => (
-                                                <option key={puerto.id} value={puerto.codigo}>
-                                                    {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    {/* Puerto de Embarque */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                                            Puerto de Embarque (PE) *
-                                        </label>
-                                        <select
-                                            value={puertosIndividuales[blNumber]?.puerto_embarque_cod || ''}
-                                            onChange={(e) => handlePuertoChange(blNumber, 'puerto_embarque_cod', e.target.value)}
-                                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
-                                        >
-                                            <option value="">Seleccionar puerto...</option>
-                                            {puertosDisponibles.map(puerto => (
-                                                <option key={puerto.id} value={puerto.codigo}>
-                                                    {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    {/* Puerto de Descarga */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                                            Puerto de Descarga (PD) *
-                                        </label>
-                                        <select
-                                            value={puertosIndividuales[blNumber]?.puerto_descarga_cod || ''}
-                                            onChange={(e) => handlePuertoChange(blNumber, 'puerto_descarga_cod', e.target.value)}
-                                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
-                                        >
-                                            <option value="">Seleccionar puerto...</option>
-                                            {puertosDisponibles.map(puerto => (
-                                                <option key={puerto.id} value={puerto.codigo}>
-                                                    {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    {/* Lugar de Entrega */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                                            Lugar de Entrega (LEM)
-                                        </label>
-                                        <select
-                                            value={puertosIndividuales[blNumber]?.lugar_entrega_cod || ''}
-                                            onChange={(e) => handlePuertoChange(blNumber, 'lugar_entrega_cod', e.target.value)}
-                                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
-                                        >
-                                            <option value="">Seleccionar puerto...</option>
-                                            {puertosDisponibles.map(puerto => (
-                                                <option key={puerto.id} value={puerto.codigo}>
-                                                    {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    {/* 🆕 LUGAR DE DESTINO */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                                            Lugar de Destino (LD)
-                                        </label>
-                                        <select
-                                            value={puertosIndividuales[blNumber]?.lugar_destino_cod || ''}
-                                            onChange={(e) => handlePuertoChange(blNumber, 'lugar_destino_cod', e.target.value)}
-                                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
-                                        >
-                                            <option value="">Seleccionar puerto...</option>
-                                            {puertosDisponibles.map(puerto => (
-                                                <option key={puerto.id} value={puerto.codigo}>
-                                                    {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    {/* 🆕 LUGAR DE EMISIÓN */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                                            Lugar de Emisión (LE)
-                                        </label>
-                                        <select
-                                            value={puertosIndividuales[blNumber]?.lugar_emision_cod || ''}
-                                            onChange={(e) => handlePuertoChange(blNumber, 'lugar_emision_cod', e.target.value)}
-                                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
-                                        >
-                                            <option value="">Seleccionar puerto...</option>
-                                            {puertosDisponibles.map(puerto => (
-                                                <option key={puerto.id} value={puerto.codigo}>
-                                                    {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
+                                {/* Opción 2: Edición Individual */}
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <label className="flex items-start gap-3 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={editarPuertos}
+                                            onChange={(e) => {
+                                                setEditarPuertos(e.target.checked);
+                                                if (e.target.checked) setEditarPuertosMasivo(false);
+                                            }}
+                                            className="mt-1 w-5 h-5 text-[#0F2A44] rounded focus:ring-2 focus:ring-[#0F2A44]"
+                                        />
+                                        <div>
+                                            <div className="font-medium text-blue-900">
+                                                Editar puertos de forma individual
+                                            </div>
+                                            <div className="text-sm text-blue-700 mt-1">
+                                                Configura puertos diferentes para cada BL
+                                            </div>
+                                        </div>
+                                    </label>
                                 </div>
                             </div>
-                        );
-                    })}
-                </div>
-            )}
 
-            {!editarPuertos && !editarPuertosMasivo && (
-                <div className="text-center py-12 text-slate-500">
-                    <p>Los puertos se mantendrán sin cambios</p>
-                    <p className="text-sm mt-2">Activa una de las opciones de arriba si necesitas editarlos</p>
-                </div>
-            )}
-        </div>
-    )
-}
+                            {/* Formulario de Edición Masiva */}
+                            {editarPuertosMasivo && (
+                                <div className="border border-green-200 rounded-lg p-6 bg-green-50">
+                                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-green-200">
+                                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                        <h3 className="font-semibold text-green-900">
+                                            Configuración Masiva - Se aplicará a {selectedBLs.length} BL(s)
+                                        </h3>
+                                    </div>
 
-{/* STEP 5: Confirmación */ }
-{
-    currentStep === 5 && (
-        <div className="space-y-6">
-            {saveSuccess ? (
-                <div className="text-center py-12">
-                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Check className="w-8 h-8 text-green-600" />
-                    </div>
-                    <h2 className="text-xl font-semibold text-slate-900 mb-2">
-                        ¡Cambios guardados exitosamente!
-                    </h2>
-                    <p className="text-slate-600">
-                        Redirigiendo a la lista de BLs...
-                    </p>
-                </div>
-            ) : (
-                <>
-                    <div>
-                        <h2 className="text-lg font-semibold text-slate-900 mb-1">
-                            Revisa los cambios antes de guardar
-                        </h2>
-                        <p className="text-sm text-slate-600">
-                            Los siguientes cambios se aplicarán a {selectedBLs.length} BL(s)
-                        </p>
-                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white p-5 rounded-lg">
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                Lugar de Recepción (LRM)
+                                            </label>
+                                            <select
+                                                value={puertosMasivos.lugar_recepcion_cod}
+                                                onChange={(e) => setPuertosMasivos(prev => ({
+                                                    ...prev,
+                                                    lugar_recepcion_cod: e.target.value
+                                                }))}
+                                                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                            >
+                                                <option value="">Seleccionar puerto...</option>
+                                                {puertosDisponibles.map(puerto => (
+                                                    <option key={puerto.id} value={puerto.codigo}>
+                                                        {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
 
-                    <div className="bg-slate-50 rounded-lg p-6 space-y-4">
-                        <div>
-                            <div className="text-sm font-medium text-slate-700 mb-2">
-                                BLs seleccionados ({selectedBLs.length}):
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                                {selectedBLs.slice(0, 10).map(bl => (
-                                    <span key={bl} className="px-3 py-1 bg-white rounded-full text-sm text-slate-700 border border-slate-200">
-                                        {bl}
-                                    </span>
-                                ))}
-                                {selectedBLs.length > 10 && (
-                                    <span className="px-3 py-1 bg-white rounded-full text-sm text-slate-500 border border-slate-200">
-                                        +{selectedBLs.length - 10} más
-                                    </span>
-                                )}
-                            </div>
-                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                Puerto de Embarque (PE) *
+                                            </label>
+                                            <select
+                                                value={puertosMasivos.puerto_embarque_cod}
+                                                onChange={(e) => setPuertosMasivos(prev => ({
+                                                    ...prev,
+                                                    puerto_embarque_cod: e.target.value
+                                                }))}
+                                                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                            >
+                                                <option value="">Seleccionar puerto...</option>
+                                                {puertosDisponibles.map(puerto => (
+                                                    <option key={puerto.id} value={puerto.codigo}>
+                                                        {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
 
-                        <div className="border-t border-slate-200 pt-4">
-                            <div className="text-sm font-medium text-slate-700 mb-3">
-                                Campos generales que se modificarán:
-                            </div>
-                            {Object.keys(fieldsToEdit).filter(key => fieldsToEdit[key]).length > 0 ? (
-                                <div className="space-y-2">
-                                    {Object.keys(fieldsToEdit).filter(key => fieldsToEdit[key]).map(key => (
-                                        <div key={key} className="flex items-start gap-3 text-sm">
-                                            <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
-                                            <div>
-                                                <span className="font-medium text-slate-900">
-                                                    {getFieldLabel(key)}:
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                Puerto de Descarga (PD) *
+                                            </label>
+                                            <select
+                                                value={puertosMasivos.puerto_descarga_cod}
+                                                onChange={(e) => setPuertosMasivos(prev => ({
+                                                    ...prev,
+                                                    puerto_descarga_cod: e.target.value
+                                                }))}
+                                                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                            >
+                                                <option value="">Seleccionar puerto...</option>
+                                                {puertosDisponibles.map(puerto => (
+                                                    <option key={puerto.id} value={puerto.codigo}>
+                                                        {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                Lugar de Entrega (LEM)
+                                            </label>
+                                            <select
+                                                value={puertosMasivos.lugar_entrega_cod}
+                                                onChange={(e) => setPuertosMasivos(prev => ({
+                                                    ...prev,
+                                                    lugar_entrega_cod: e.target.value
+                                                }))}
+                                                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                            >
+                                                <option value="">Seleccionar puerto...</option>
+                                                {puertosDisponibles.map(puerto => (
+                                                    <option key={puerto.id} value={puerto.codigo}>
+                                                        {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                Lugar de Destino (LD)
+                                            </label>
+                                            <select
+                                                value={puertosMasivos.lugar_destino_cod}
+                                                onChange={(e) => setPuertosMasivos(prev => ({
+                                                    ...prev,
+                                                    lugar_destino_cod: e.target.value
+                                                }))}
+                                                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                            >
+                                                <option value="">Seleccionar puerto...</option>
+                                                {puertosDisponibles.map(puerto => (
+                                                    <option key={puerto.id} value={puerto.codigo}>
+                                                        {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                Lugar de Emisión (LE)
+                                            </label>
+                                            <select
+                                                value={puertosMasivos.lugar_emision_cod}
+                                                onChange={(e) => setPuertosMasivos(prev => ({
+                                                    ...prev,
+                                                    lugar_emision_cod: e.target.value
+                                                }))}
+                                                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                            >
+                                                <option value="">Seleccionar puerto...</option>
+                                                {puertosDisponibles.map(puerto => (
+                                                    <option key={puerto.id} value={puerto.codigo}>
+                                                        {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {(puertosMasivos.puerto_embarque_cod || puertosMasivos.puerto_descarga_cod) && (
+                                        <div className="mt-4 p-4 bg-white rounded-lg border border-green-300">
+                                            <div className="text-sm font-medium text-green-900 mb-2">
+                                                📍 Vista previa de ruta:
+                                            </div>
+                                            <div className="flex items-center gap-2 text-sm text-slate-700">
+                                                <span className="font-medium">
+                                                    {puertosMasivos.puerto_embarque_cod || '---'}
                                                 </span>
-                                                <span className="text-slate-700 ml-2">
-                                                    {editValues[key]}
+                                                <span className="text-slate-400">→</span>
+                                                <span className="font-medium">
+                                                    {puertosMasivos.puerto_descarga_cod || '---'}
                                                 </span>
                                             </div>
                                         </div>
-                                    ))}
+                                    )}
                                 </div>
-                            ) : (
-                                <p className="text-sm text-slate-500">No se modificarán campos generales</p>
+                            )}
+
+                            {/* Formulario de Edición Individual */}
+                            {editarPuertos && (
+                                <div className="space-y-4">
+                                    {selectedBLs.map((blNumber) => {
+                                        const bl = filteredBLs.find(b => b.bl_number === blNumber);
+                                        return (
+                                            <div key={blNumber} className="border border-slate-200 rounded-lg p-5 bg-white">
+                                                <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200">
+                                                    <div>
+                                                        <div className="font-semibold text-slate-900 text-base">
+                                                            {blNumber}
+                                                        </div>
+                                                        <div className="text-sm text-slate-600 mt-0.5">
+                                                            {bl?.shipper || 'Sin shipper'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                            Lugar de Recepción (LRM)
+                                                        </label>
+                                                        <select
+                                                            value={puertosIndividuales[blNumber]?.lugar_recepcion_cod || ''}
+                                                            onChange={(e) => handlePuertoChange(blNumber, 'lugar_recepcion_cod', e.target.value)}
+                                                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
+                                                        >
+                                                            <option value="">Seleccionar puerto...</option>
+                                                            {puertosDisponibles.map(puerto => (
+                                                                <option key={puerto.id} value={puerto.codigo}>
+                                                                    {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                            Puerto de Embarque (PE) *
+                                                        </label>
+                                                        <select
+                                                            value={puertosIndividuales[blNumber]?.puerto_embarque_cod || ''}
+                                                            onChange={(e) => handlePuertoChange(blNumber, 'puerto_embarque_cod', e.target.value)}
+                                                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
+                                                        >
+                                                            <option value="">Seleccionar puerto...</option>
+                                                            {puertosDisponibles.map(puerto => (
+                                                                <option key={puerto.id} value={puerto.codigo}>
+                                                                    {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                            Puerto de Descarga (PD) *
+                                                        </label>
+                                                        <select
+                                                            value={puertosIndividuales[blNumber]?.puerto_descarga_cod || ''}
+                                                            onChange={(e) => handlePuertoChange(blNumber, 'puerto_descarga_cod', e.target.value)}
+                                                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
+                                                        >
+                                                            <option value="">Seleccionar puerto...</option>
+                                                            {puertosDisponibles.map(puerto => (
+                                                                <option key={puerto.id} value={puerto.codigo}>
+                                                                    {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                            Lugar de Entrega (LEM)
+                                                        </label>
+                                                        <select
+                                                            value={puertosIndividuales[blNumber]?.lugar_entrega_cod || ''}
+                                                            onChange={(e) => handlePuertoChange(blNumber, 'lugar_entrega_cod', e.target.value)}
+                                                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
+                                                        >
+                                                            <option value="">Seleccionar puerto...</option>
+                                                            {puertosDisponibles.map(puerto => (
+                                                                <option key={puerto.id} value={puerto.codigo}>
+                                                                    {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                            Lugar de Destino (LD)
+                                                        </label>
+                                                        <select
+                                                            value={puertosIndividuales[blNumber]?.lugar_destino_cod || ''}
+                                                            onChange={(e) => handlePuertoChange(blNumber, 'lugar_destino_cod', e.target.value)}
+                                                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
+                                                        >
+                                                            <option value="">Seleccionar puerto...</option>
+                                                            {puertosDisponibles.map(puerto => (
+                                                                <option key={puerto.id} value={puerto.codigo}>
+                                                                    {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                                            Lugar de Emisión (LE)
+                                                        </label>
+                                                        <select
+                                                            value={puertosIndividuales[blNumber]?.lugar_emision_cod || ''}
+                                                            onChange={(e) => handlePuertoChange(blNumber, 'lugar_emision_cod', e.target.value)}
+                                                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]"
+                                                        >
+                                                            <option value="">Seleccionar puerto...</option>
+                                                            {puertosDisponibles.map(puerto => (
+                                                                <option key={puerto.id} value={puerto.codigo}>
+                                                                    {puerto.nombre} ({puerto.codigo}) - {puerto.pais}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {!editarPuertos && !editarPuertosMasivo && (
+                                <div className="text-center py-12 text-slate-500">
+                                    <p>Los puertos se mantendrán sin cambios</p>
+                                    <p className="text-sm mt-2">Activa una de las opciones de arriba si necesitas editarlos</p>
+                                </div>
                             )}
                         </div>
+                    )}
 
-                        {editarPuertos && (
-                            <div className="border-t border-slate-200 pt-4">
-                                <div className="text-sm font-medium text-slate-700 mb-3">
-                                    Puertos editados individualmente:
+                    {/* STEP 5: Confirmación */}
+                    {currentStep === 5 && (
+                        <div className="space-y-6">
+                            {saveSuccess ? (
+                                <div className="text-center py-12">
+                                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <Check className="w-8 h-8 text-green-600" />
+                                    </div>
+                                    <h2 className="text-xl font-semibold text-slate-900 mb-2">
+                                        ¡Cambios guardados exitosamente!
+                                    </h2>
+                                    <p className="text-slate-600">
+                                        Redirigiendo a la lista de BLs...
+                                    </p>
                                 </div>
-                                <div className="space-y-2">
-                                    {selectedBLs.map(blNumber => (
-                                        <div key={blNumber} className="text-sm bg-white rounded p-3 border border-slate-200">
-                                            <div className="font-medium text-slate-900 mb-2">{blNumber}</div>
-                                            <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
-                                                {puertosIndividuales[blNumber]?.lugar_recepcion_cod && (
-                                                    <div>Recepción: {puertosIndividuales[blNumber].lugar_recepcion_cod}</div>
-                                                )}
-                                                {puertosIndividuales[blNumber]?.puerto_embarque_cod && (
-                                                    <div>Embarque: {puertosIndividuales[blNumber].puerto_embarque_cod}</div>
-                                                )}
-                                                {puertosIndividuales[blNumber]?.puerto_descarga_cod && (
-                                                    <div>Descarga: {puertosIndividuales[blNumber].puerto_descarga_cod}</div>
-                                                )}
-                                                {puertosIndividuales[blNumber]?.lugar_entrega_cod && (
-                                                    <div>Entrega: {puertosIndividuales[blNumber].lugar_entrega_cod}</div>
+                            ) : (
+                                <>
+                                    <div>
+                                        <h2 className="text-lg font-semibold text-slate-900 mb-1">
+                                            Revisa los cambios antes de guardar
+                                        </h2>
+                                        <p className="text-sm text-slate-600">
+                                            Los siguientes cambios se aplicarán a {selectedBLs.length} BL(s)
+                                        </p>
+                                    </div>
+
+                                    <div className="bg-slate-50 rounded-lg p-6 space-y-4">
+                                        <div>
+                                            <div className="text-sm font-medium text-slate-700 mb-2">
+                                                BLs seleccionados ({selectedBLs.length}):
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {selectedBLs.slice(0, 10).map(bl => (
+                                                    <span key={bl} className="px-3 py-1 bg-white rounded-full text-sm text-slate-700 border border-slate-200">
+                                                        {bl}
+                                                    </span>
+                                                ))}
+                                                {selectedBLs.length > 10 && (
+                                                    <span className="px-3 py-1 bg-white rounded-full text-sm text-slate-500 border border-slate-200">
+                                                        +{selectedBLs.length - 10} más
+                                                    </span>
                                                 )}
                                             </div>
                                         </div>
-                                    ))}
-                                </div>
-                            </div>
+
+                                        <div className="border-t border-slate-200 pt-4">
+                                            <div className="text-sm font-medium text-slate-700 mb-3">
+                                                Campos generales que se modificarán:
+                                            </div>
+                                            {Object.keys(fieldsToEdit).filter(key => fieldsToEdit[key]).length > 0 ? (
+                                                <div className="space-y-2">
+                                                    {Object.keys(fieldsToEdit).filter(key => fieldsToEdit[key]).map(key => (
+                                                        <div key={key} className="flex items-start gap-3 text-sm">
+                                                            <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                                                            <div>
+                                                                <span className="font-medium text-slate-900">
+                                                                    {getFieldLabel(key)}:
+                                                                </span>
+                                                                <span className="text-slate-700 ml-2">
+                                                                    {editValues[key]}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <p className="text-sm text-slate-500">No se modificarán campos generales</p>
+                                            )}
+                                        </div>
+
+                                        {editarPuertos && (
+                                            <div className="border-t border-slate-200 pt-4">
+                                                <div className="text-sm font-medium text-slate-700 mb-3">
+                                                    Puertos editados individualmente:
+                                                </div>
+                                                <div className="space-y-2">
+                                                    {selectedBLs.map(blNumber => (
+                                                        <div key={blNumber} className="text-sm bg-white rounded p-3 border border-slate-200">
+                                                            <div className="font-medium text-slate-900 mb-2">{blNumber}</div>
+                                                            <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
+                                                                {puertosIndividuales[blNumber]?.lugar_recepcion_cod && (
+                                                                    <div>Recepción: {puertosIndividuales[blNumber].lugar_recepcion_cod}</div>
+                                                                )}
+                                                                {puertosIndividuales[blNumber]?.puerto_embarque_cod && (
+                                                                    <div>Embarque: {puertosIndividuales[blNumber].puerto_embarque_cod}</div>
+                                                                )}
+                                                                {puertosIndividuales[blNumber]?.puerto_descarga_cod && (
+                                                                    <div>Descarga: {puertosIndividuales[blNumber].puerto_descarga_cod}</div>
+                                                                )}
+                                                                {puertosIndividuales[blNumber]?.lugar_entrega_cod && (
+                                                                    <div>Entrega: {puertosIndividuales[blNumber].lugar_entrega_cod}</div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+                                        <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                                        <div className="text-sm text-amber-800">
+                                            <div className="font-medium mb-1">Atención</div>
+                                            Esta acción modificará {selectedBLs.length} BL(s) simultáneamente.
+                                            Asegúrate de que la información sea correcta antes de continuar.
+                                        </div>
+                                    </div>
+
+                                    {!hasChangesToSave && (
+                                        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+                                            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                                            <div className="text-sm text-red-800">
+                                                <div className="font-medium mb-1">No hay cambios para guardar</div>
+                                                Debes seleccionar al menos un campo para editar en el Step 3,
+                                                o activar la edición de puertos en el Step 4.
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* Navigation Buttons */}
+                {!saveSuccess && (
+                    <div className="flex items-center justify-between pt-6 border-t border-slate-200 mt-8">
+                        <button
+                            onClick={() => setCurrentStep(prev => prev - 1)}
+                            disabled={currentStep === 1}
+                            className="px-6 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                            Atrás
+                        </button>
+
+                        {currentStep < 5 ? (
+                            <button
+                                onClick={() => setCurrentStep(prev => prev + 1)}
+                                disabled={!canContinue[currentStep]}
+                                className="px-6 py-2.5 text-sm font-medium text-white bg-[#0F2A44] hover:bg-[#1a3a5c] rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                Continuar
+                            </button>
+                        ) : (
+                            <button
+                                onClick={handleSave}
+                                disabled={saving || !hasChangesToSave}
+                                className="px-6 py-2.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                            >
+                                {saving ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        Guardando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Check className="w-4 h-4" />
+                                        Guardar Cambios
+                                    </>
+                                )}
+                            </button>
                         )}
                     </div>
-
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
-                        <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                        <div className="text-sm text-amber-800">
-                            <div className="font-medium mb-1">Atención</div>
-                            Esta acción modificará {selectedBLs.length} BL(s) simultáneamente.
-                            Asegúrate de que la información sea correcta antes de continuar.
-                        </div>
-                    </div>
-
-                    {!hasChangesToSave && (
-                        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
-                            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                            <div className="text-sm text-red-800">
-                                <div className="font-medium mb-1">No hay cambios para guardar</div>
-                                Debes seleccionar al menos un campo para editar en el Step 3,
-                                o activar la edición de puertos en el Step 4.
-                            </div>
-                        </div>
-                    )}
-                </>
-            )}
+                )}
+            </main>
         </div>
-    )
-}
-                </div >
-
-    {/* Navigation Buttons */ }
-{
-    !saveSuccess && (
-        <div className="flex items-center justify-between pt-6 border-t border-slate-200 mt-8">
-            <button
-                onClick={() => setCurrentStep(prev => prev - 1)}
-                disabled={currentStep === 1}
-                className="px-6 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-                Atrás
-            </button>
-
-            {currentStep < 5 ? (
-                <button
-                    onClick={() => setCurrentStep(prev => prev + 1)}
-                    disabled={!canContinue[currentStep]}
-                    className="px-6 py-2.5 text-sm font-medium text-white bg-[#0F2A44] hover:bg-[#1a3a5c] rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                    Continuar
-                </button>
-            ) : (
-                <button
-                    onClick={handleSave}
-                    disabled={saving || !hasChangesToSave}
-                    className="px-6 py-2.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                >
-                    {saving ? (
-                        <>
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            Guardando...
-                        </>
-                    ) : (
-                        <>
-                            <Check className="w-4 h-4" />
-                            Guardar Cambios
-                        </>
-                    )}
-                </button>
-            )}
-        </div>
-    )
-}
-            </main >
-        </div >
     );
 };
 

@@ -719,7 +719,6 @@ app.post("/manifiestos", async (req, res) => {
 });
 
 
-
 app.put("/manifiestos/:id", async (req, res) => {
   const { id } = req.params;
   const {
@@ -731,10 +730,12 @@ app.put("/manifiestos/:id", async (req, res) => {
     fechaManifiestoAduana,
     numeroManifiestoAduana,
     itinerario,
-    // 🆕 NUEVOS CAMPOS
+    // 🆕 CAMPOS DE REFERENCIA
     referenciaId,
     numeroReferencia,
-    fechaReferencia
+    fechaReferencia,
+    // 🆕 PUERTO CENTRAL - ¡FALTABA ESTE!
+    puertoCentral
   } = req.body;
 
   const connection = await pool.getConnection();
@@ -742,7 +743,7 @@ app.put("/manifiestos/:id", async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    // 1️⃣ ACTUALIZAR EL MANIFIESTO (🆕 CON CAMPOS DE REFERENCIA)
+    // 1️⃣ ACTUALIZAR EL MANIFIESTO (🆕 CON PUERTO CENTRAL)
     await connection.query(
       `UPDATE manifiestos 
        SET operador_nave = ?, 
@@ -755,6 +756,7 @@ app.put("/manifiestos/:id", async (req, res) => {
            referencia_id = ?,
            numero_referencia = ?,
            fecha_referencia = ?,
+           puerto_central_id = ?,
            updated_at = NOW()
        WHERE id = ?`,
       [
@@ -765,9 +767,10 @@ app.put("/manifiestos/:id", async (req, res) => {
         representante,
         fechaManifiestoAduana,
         numeroManifiestoAduana,
-        referenciaId || null,      // 🆕
-        numeroReferencia || null,  // 🆕
-        fechaReferencia || null,   // 🆕
+        referenciaId || null,
+        numeroReferencia || null,
+        fechaReferencia || null,
+        puertoCentral || null,  // 🆕 ESTE DEBERÍA SER EL ID DEL PUERTO
         id
       ]
     );
@@ -1019,7 +1022,7 @@ app.post("/api/mantenedores/puertos", async (req, res) => {
 
     // 2️⃣ ACTUALIZAR BLs que tienen este código en _cod pero NO tienen el _id
     const blsActualizados = [];
-    
+
     // Función helper para actualizar un campo específico
     const actualizarCampoPuerto = async (campoCod, campoId) => {
       const [result] = await conn.query(
@@ -1029,7 +1032,7 @@ app.post("/api/mantenedores/puertos", async (req, res) => {
          AND ${campoId} IS NULL`,
         [puertoId, codigoUpper]
       );
-      
+
       if (result.affectedRows > 0) {
         console.log(`   ✅ ${result.affectedRows} BL(s) actualizados en ${campoId}`);
         return result.affectedRows;
@@ -1045,8 +1048,8 @@ app.post("/api/mantenedores/puertos", async (req, res) => {
     const totalLugarEntrega = await actualizarCampoPuerto('lugar_entrega_cod', 'lugar_entrega_id');
     const totalLugarRecepcion = await actualizarCampoPuerto('lugar_recepcion_cod', 'lugar_recepcion_id');
 
-    const totalActualizados = totalLugarEmision + totalPuertoEmbarque + totalPuertoDescarga + 
-                              totalLugarDestino + totalLugarEntrega + totalLugarRecepcion;
+    const totalActualizados = totalLugarEmision + totalPuertoEmbarque + totalPuertoDescarga +
+      totalLugarDestino + totalLugarEntrega + totalLugarRecepcion;
 
     // 3️⃣ Obtener lista de BLs únicos que fueron afectados (para re-validar)
     const [blsAfectados] = await conn.query(`
@@ -1131,7 +1134,7 @@ app.put("/api/mantenedores/puertos/:id", async (req, res) => {
          AND (${campoId} IS NULL OR ${campoId} != ?)`,
         [id, codigoUpper, id]
       );
-      
+
       if (result.affectedRows > 0) {
         console.log(`   ✅ ${result.affectedRows} BL(s) actualizados en ${campoId}`);
         return result.affectedRows;
@@ -1147,8 +1150,8 @@ app.put("/api/mantenedores/puertos/:id", async (req, res) => {
     const totalLugarEntrega = await actualizarCampoPuerto('lugar_entrega_cod', 'lugar_entrega_id');
     const totalLugarRecepcion = await actualizarCampoPuerto('lugar_recepcion_cod', 'lugar_recepcion_id');
 
-    const totalActualizados = totalLugarEmision + totalPuertoEmbarque + totalPuertoDescarga + 
-                              totalLugarDestino + totalLugarEntrega + totalLugarRecepcion;
+    const totalActualizados = totalLugarEmision + totalPuertoEmbarque + totalPuertoDescarga +
+      totalLugarDestino + totalLugarEntrega + totalLugarRecepcion;
 
     // 3️⃣ Obtener BLs afectados para re-validar
     const [blsAfectados] = await conn.query(`
@@ -1817,11 +1820,14 @@ async function loadPms51Tokens() {
 // GET - Obtener todos los participantes CON sus códigos PIL
 app.get('/api/mantenedores/participantes', async (req, res) => {
   try {
-    const [rows] = await pool.query(
-      `SELECT 
+    const { tipo } = req.query; // 👈 AGREGAR ESTO
+
+    let query = `
+      SELECT 
          p.id, 
          p.codigo_bms, 
-         t.codigo_pil,  -- 🔥 Traer desde traductor_pil_bms
+         p.codigo_almacen,  -- 👈 AGREGAR ESTA COLUMNA
+         t.codigo_pil,
          p.nombre, 
          p.rut, 
          p.direccion, 
@@ -1836,15 +1842,22 @@ app.get('/api/mantenedores/participantes', async (req, res) => {
          p.updated_at 
        FROM participantes p
        LEFT JOIN traductor_pil_bms t ON p.id = t.participante_id AND t.activo = 1
-       ORDER BY p.nombre ASC`
-    );
+    `;
+
+    // 🔥 FILTRO PARA ALMACENADORES
+    if (tipo === 'almacenador') {
+      query += ' WHERE p.codigo_almacen IS NOT NULL';
+    }
+
+    query += ' ORDER BY p.nombre ASC';
+
+    const [rows] = await pool.query(query);
     res.json(rows);
   } catch (error) {
     console.error('Error al obtener participantes:', error);
     res.status(500).json({ error: 'Error al obtener participantes' });
   }
 });
-
 // GET - Obtener UN participante específico CON su código PIL
 app.get('/api/mantenedores/participantes/:id', async (req, res) => {
   try {
@@ -4842,28 +4855,33 @@ app.patch('/bls/bulk-update', async (req, res) => {
     await connection.beginTransaction();
 
     // Campos permitidos según tu esquema de base de datos
+    // Campos permitidos según tu esquema de base de datos
     const validFields = [
-      'shipper',
-      'consignee',
-      'notify_party',
-      'shipper_id',      // 🆕 AGREGAR
-      'consignee_id',    // 🆕 AGREGAR
-      'notify_id',       // 🆕 AGREGAR
+      // ❌ ELIMINADOS: 'shipper', 'consignee', 'notify_party'
+      'shipper_id',
+      'consignee_id',
+      'notify_id',
       'descripcion_carga',
       'bultos',
       'peso_bruto',
       'volumen',
       'status',
-      // Campos de puerto (para edición masiva)
+      // 🆕 NUEVOS CAMPOS GENERALES
+      'fecha_embarque',
+      'fecha_zarpe',
+      'fecha_emision',
+      'observaciones',
+      // Campos de puerto (ya los tienes)
       'lugar_recepcion_cod',
       'puerto_embarque_cod',
       'puerto_descarga_cod',
       'lugar_entrega_cod',
       'lugar_destino_cod',
       'lugar_emision_cod',
-      // 🔥🔥🔥 NUEVOS CAMPOS PARA CARGA SUELTA 🔥🔥🔥
-      'forma_pago_flete',    // 👈 AGREGAR ESTE
-      'cond_transporte'      // 👈 AGREGAR ESTE
+      // 🆕 CAMPOS ESPECÍFICOS BB (Carga Suelta)
+      'forma_pago_flete',
+      'cond_transporte',
+      'almacenador'
     ];
 
 
@@ -4961,25 +4979,31 @@ app.patch('/bls/:blNumber', async (req, res) => {
 
     // 🔥 CAMPOS PERMITIDOS (ACTUALIZADO)
     const validFields = [
-      'shipper',
-      'consignee',
-      'notify_party',
-      'shipper_id',      // 🆕 AGREGAR ESTE
-      'consignee_id',    // 🆕 AGREGAR ESTE
-      'notify_id',       // 🆕 AGREGAR ESTE
+      // ❌ ELIMINADOS: 'shipper', 'consignee', 'notify_party'
+      'shipper_id',
+      'consignee_id',
+      'notify_id',
       'descripcion_carga',
       'bultos',
       'peso_bruto',
       'volumen',
       'status',
-      // 🆕 AGREGAR CAMPOS DE PUERTO
+      // 🆕 NUEVOS CAMPOS GENERALES
+      'fecha_embarque',
+      'fecha_zarpe',
+      'fecha_emision',
+      'observaciones',
+      // Campos de puerto (ya los tienes)
       'lugar_recepcion_cod',
       'puerto_embarque_cod',
       'puerto_descarga_cod',
       'lugar_entrega_cod',
       'lugar_destino_cod',
       'lugar_emision_cod',
-      'observaciones'
+      // 🆕 CAMPOS ESPECÍFICOS BB (Carga Suelta)
+      'forma_pago_flete',
+      'cond_transporte',
+      'almacenador'
     ];
 
     // 🔥 MAPEO DE CÓDIGOS → IDs
@@ -5851,184 +5875,184 @@ almacenador_p.codigo_almacen AS almacenador_codigo_almacen
       return rut.replace(/\./g, '').trim();
     };
 
-  const buildParticipacion = (nombre, participante, includeRUT = true, extraFields = {}) => {
-  if (!participante || !participante.nombre) return null;
+    const buildParticipacion = (nombre, participante, includeRUT = true, extraFields = {}) => {
+      if (!participante || !participante.nombre) return null;
 
-  const baseData = {
-    nombre: nombre
-  };
+      const baseData = {
+        nombre: nombre
+      };
 
-  if (includeRUT && participante.rut) {
-    baseData['tipo-id'] = participante.tipo_id || 'RUT';
-    baseData['valor-id'] = cleanRUT(participante.rut);
-    baseData['nacion-id'] = participante.nacion_id || participante.pais || 'CL';
-  }
+      if (includeRUT && participante.rut) {
+        baseData['tipo-id'] = participante.tipo_id || 'RUT';
+        baseData['valor-id'] = cleanRUT(participante.rut);
+        baseData['nacion-id'] = participante.nacion_id || participante.pais || 'CL';
+      }
 
-  baseData['nombres'] = participante.nombre;
+      baseData['nombres'] = participante.nombre;
 
-  // 🔥 AGREGAR CAMPOS EXTRA
-  Object.assign(baseData, extraFields);
+      // 🔥 AGREGAR CAMPOS EXTRA
+      Object.assign(baseData, extraFields);
 
-  // 🔥 AGREGAR DIRECCIÓN SI EXISTE
-  if (participante.direccion && participante.direccion.trim()) {
-    baseData['direccion'] = participante.direccion.trim();
-  }
+      // 🔥 AGREGAR DIRECCIÓN SI EXISTE
+      if (participante.direccion && participante.direccion.trim()) {
+        baseData['direccion'] = participante.direccion.trim();
+      }
 
-  // 🔥 AGREGAR TELÉFONO SI EXISTE
-  if (participante.telefono && participante.telefono.trim()) {
-    baseData['telefono'] = participante.telefono.trim();
-  }
+      // 🔥 AGREGAR TELÉFONO SI EXISTE
+      if (participante.telefono && participante.telefono.trim()) {
+        baseData['telefono'] = participante.telefono.trim();
+      }
 
-  // 🔥 AGREGAR CIUDAD/COMUNA SI EXISTE
-  if (participante.ciudad && participante.ciudad.trim()) {
-    baseData['comuna'] = participante.ciudad.trim();
-  }
+      // 🔥 AGREGAR CIUDAD/COMUNA SI EXISTE
+      if (participante.ciudad && participante.ciudad.trim()) {
+        baseData['comuna'] = participante.ciudad.trim();
+      }
 
-  return baseData;
-};
-
-// 🔥 CONSTRUIR PARTICIPACIONES EN EL ORDEN CORRECTO
-const participaciones = [];
-
-// Datos del representante desde REFERENCIAS (para EMI, EMIDO, REP)
-const representanteData = bl.rep_id ? {
-  nombre: bl.rep_nombre,
-  rut: bl.rep_rut,
-  pais: bl.rep_pais || 'CL',
-  tipo_id: bl.rep_tipo_id || 'RUT',
-  nacion_id: bl.rep_nacion_id || 'CL'
-} : null;
-
-// Datos del shipper (para EMB) - AHORA CON VALORES POR DEFECTO
-const shipperData = bl.shipper_id ? {
-  nombre: bl.shipper_nombre,
-  rut: bl.shipper_rut,
-  pais: bl.shipper_pais || 'CL',
-  direccion: bl.shipper_direccion || '.',
-  telefono: bl.shipper_telefono || '.'
-} : null;
-
-// Datos del consignee (para CONS) - AHORA CON VALORES POR DEFECTO
-const consigneeData = bl.consignee_id ? {
-  nombre: bl.consignee_nombre,
-  rut: bl.consignee_rut,
-  pais: bl.consignee_pais || 'CL',
-  tipo_id: 'RUT',
-  nacion_id: 'CL',
-  direccion: bl.consignee_direccion || '.',
-  telefono: bl.consignee_telefono || '.',
-  ciudad: bl.consignee_ciudad || '5101'
-} : null;
-
-// Datos del notify (para NOTI) - AHORA CON VALORES POR DEFECTO
-const notifyData = bl.notify_id ? {
-  nombre: bl.notify_nombre,
-  rut: bl.notify_rut,
-  pais: bl.notify_pais || 'CL',
-  direccion: bl.notify_direccion || '.',
-  telefono: bl.notify_telefono || '.',
-  ciudad: bl.notify_ciudad || '5101'
-} : null;
-
-// ✅ ORDEN ESPECÍFICO PARA CARGA SUELTA (BB)
-if (esCargaSuelta) {
-  // 1️⃣ EMI - CON CODIGO-PAIS
-  if (representanteData) {
-    const emi = buildParticipacion('EMI', representanteData, true, {
-      'codigo-pais': representanteData.pais
-    });
-    if (emi) participaciones.push(emi);
-  }
-
-  // 2️⃣ ALM (Almacenador) - CON CODIGO-ALMACEN
-  if (bl.almacenador_id) {
-    const almacenadorData = {
-      nombre: bl.almacenador_nombre,
-      rut: bl.almacenador_rut,
-      pais: bl.almacenador_pais || 'CL',
-      tipo_id: 'RUT',
-      nacion_id: 'CL'
+      return baseData;
     };
 
-    const extraFields = {};
-    if (bl.almacenador_codigo_almacen) {
-      extraFields['codigo-almacen'] = bl.almacenador_codigo_almacen;
+    // 🔥 CONSTRUIR PARTICIPACIONES EN EL ORDEN CORRECTO
+    const participaciones = [];
+
+    // Datos del representante desde REFERENCIAS (para EMI, EMIDO, REP)
+    const representanteData = bl.rep_id ? {
+      nombre: bl.rep_nombre,
+      rut: bl.rep_rut,
+      pais: bl.rep_pais || 'CL',
+      tipo_id: bl.rep_tipo_id || 'RUT',
+      nacion_id: bl.rep_nacion_id || 'CL'
+    } : null;
+
+    // Datos del shipper (para EMB) - AHORA CON VALORES POR DEFECTO
+    const shipperData = bl.shipper_id ? {
+      nombre: bl.shipper_nombre,
+      rut: bl.shipper_rut,
+      pais: bl.shipper_pais || 'CL',
+      direccion: bl.shipper_direccion || '.',
+      telefono: bl.shipper_telefono || '.'
+    } : null;
+
+    // Datos del consignee (para CONS) - AHORA CON VALORES POR DEFECTO
+    const consigneeData = bl.consignee_id ? {
+      nombre: bl.consignee_nombre,
+      rut: bl.consignee_rut,
+      pais: bl.consignee_pais || 'CL',
+      tipo_id: 'RUT',
+      nacion_id: 'CL',
+      direccion: bl.consignee_direccion || '.',
+      telefono: bl.consignee_telefono || '.',
+      ciudad: bl.consignee_ciudad || '5101'
+    } : null;
+
+    // Datos del notify (para NOTI) - AHORA CON VALORES POR DEFECTO
+    const notifyData = bl.notify_id ? {
+      nombre: bl.notify_nombre,
+      rut: bl.notify_rut,
+      pais: bl.notify_pais || 'CL',
+      direccion: bl.notify_direccion || '.',
+      telefono: bl.notify_telefono || '.',
+      ciudad: bl.notify_ciudad || '5101'
+    } : null;
+
+    // ✅ ORDEN ESPECÍFICO PARA CARGA SUELTA (BB)
+    if (esCargaSuelta) {
+      // 1️⃣ EMI - CON CODIGO-PAIS
+      if (representanteData) {
+        const emi = buildParticipacion('EMI', representanteData, true, {
+          'codigo-pais': representanteData.pais
+        });
+        if (emi) participaciones.push(emi);
+      }
+
+      // 2️⃣ ALM (Almacenador) - CON CODIGO-ALMACEN
+      if (bl.almacenador_id) {
+        const almacenadorData = {
+          nombre: bl.almacenador_nombre,
+          rut: bl.almacenador_rut,
+          pais: bl.almacenador_pais || 'CL',
+          tipo_id: 'RUT',
+          nacion_id: 'CL'
+        };
+
+        const extraFields = {};
+        if (bl.almacenador_codigo_almacen) {
+          extraFields['codigo-almacen'] = bl.almacenador_codigo_almacen;
+        }
+
+        const alm = buildParticipacion('ALM', almacenadorData, true, extraFields);
+        if (alm) participaciones.push(alm);
+      }
+
+      // 3️⃣ REP - SIN CODIGO-PAIS
+      if (representanteData) {
+        const rep = buildParticipacion('REP', representanteData, true);
+        if (rep) participaciones.push(rep);
+      }
+
+      // 4️⃣ EMIDO - SIN CODIGO-PAIS
+      if (representanteData) {
+        const emido = buildParticipacion('EMIDO', representanteData, true);
+        if (emido) participaciones.push(emido);
+      }
+
+      // 5️⃣ EMB - SIN RUT, CON DIRECCION Y TELEFONO
+      if (shipperData) {
+        const emb = buildParticipacion('EMB', shipperData, false);
+        if (emb) participaciones.push(emb);
+      }
+
+      // 6️⃣ CONS - CON RUT (si existe), DIRECCION, TELEFONO, COMUNA
+      if (consigneeData) {
+        const cons = buildParticipacion('CONS', consigneeData, !!consigneeData.rut);
+        if (cons) participaciones.push(cons);
+      }
+
+      // 7️⃣ NOTI - SIN RUT NORMALMENTE, CON DIRECCION, TELEFONO, COMUNA
+      if (notifyData) {
+        const noti = buildParticipacion('NOTI', notifyData, false);
+        if (noti) participaciones.push(noti);
+      }
     }
+    // ✅ ORDEN PARA CONTENEDORES (FF/MM) - SIN CAMBIOS
+    else {
+      // 1️⃣ EMI
+      if (representanteData) {
+        const emi = buildParticipacion('EMI', representanteData, true, {
+          'codigo-pais': representanteData.pais
+        });
+        if (emi) participaciones.push(emi);
+      }
 
-    const alm = buildParticipacion('ALM', almacenadorData, true, extraFields);
-    if (alm) participaciones.push(alm);
-  }
+      // 2️⃣ CONS
+      if (consigneeData) {
+        const cons = buildParticipacion('CONS', consigneeData, false);
+        if (cons) participaciones.push(cons);
+      }
 
-  // 3️⃣ REP - SIN CODIGO-PAIS
-  if (representanteData) {
-    const rep = buildParticipacion('REP', representanteData, true);
-    if (rep) participaciones.push(rep);
-  }
+      // 3️⃣ EMIDO
+      if (representanteData) {
+        const emido = buildParticipacion('EMIDO', representanteData, true);
+        if (emido) participaciones.push(emido);
+      }
 
-  // 4️⃣ EMIDO - SIN CODIGO-PAIS
-  if (representanteData) {
-    const emido = buildParticipacion('EMIDO', representanteData, true);
-    if (emido) participaciones.push(emido);
-  }
+      // 4️⃣ NOTI
+      if (notifyData) {
+        const noti = buildParticipacion('NOTI', notifyData, false);
+        if (noti) participaciones.push(noti);
+      }
 
-  // 5️⃣ EMB - SIN RUT, CON DIRECCION Y TELEFONO
-  if (shipperData) {
-    const emb = buildParticipacion('EMB', shipperData, false);
-    if (emb) participaciones.push(emb);
-  }
+      // 5️⃣ REP
+      if (representanteData) {
+        const rep = buildParticipacion('REP', representanteData, true);
+        if (rep) participaciones.push(rep);
+      }
 
-  // 6️⃣ CONS - CON RUT (si existe), DIRECCION, TELEFONO, COMUNA
-  if (consigneeData) {
-    const cons = buildParticipacion('CONS', consigneeData, !!consigneeData.rut);
-    if (cons) participaciones.push(cons);
-  }
-
-  // 7️⃣ NOTI - SIN RUT NORMALMENTE, CON DIRECCION, TELEFONO, COMUNA
-  if (notifyData) {
-    const noti = buildParticipacion('NOTI', notifyData, false);
-    if (noti) participaciones.push(noti);
-  }
-}
-// ✅ ORDEN PARA CONTENEDORES (FF/MM) - SIN CAMBIOS
-else {
-  // 1️⃣ EMI
-  if (representanteData) {
-    const emi = buildParticipacion('EMI', representanteData, true, {
-      'codigo-pais': representanteData.pais
-    });
-    if (emi) participaciones.push(emi);
-  }
-
-  // 2️⃣ CONS
-  if (consigneeData) {
-    const cons = buildParticipacion('CONS', consigneeData, false);
-    if (cons) participaciones.push(cons);
-  }
-
-  // 3️⃣ EMIDO
-  if (representanteData) {
-    const emido = buildParticipacion('EMIDO', representanteData, true);
-    if (emido) participaciones.push(emido);
-  }
-
-  // 4️⃣ NOTI
-  if (notifyData) {
-    const noti = buildParticipacion('NOTI', notifyData, false);
-    if (noti) participaciones.push(noti);
-  }
-
-  // 5️⃣ REP
-  if (representanteData) {
-    const rep = buildParticipacion('REP', representanteData, true);
-    if (rep) participaciones.push(rep);
-  }
-
-  // 6️⃣ EMB
-  if (shipperData) {
-    const emb = buildParticipacion('EMB', shipperData, false);
-    if (emb) participaciones.push(emb);
-  }
-}
+      // 6️⃣ EMB
+      if (shipperData) {
+        const emb = buildParticipacion('EMB', shipperData, false);
+        if (emb) participaciones.push(emb);
+      }
+    }
 
     // 4️⃣ Construir XML
     const xmlObj = {
@@ -6039,13 +6063,7 @@ else {
         'numero-referencia': bl.bl_number,
         'service': 'LINER',
         'tipo-servicio': esCargaSuelta ? 'BB' : (bl.tipo_servicio_nombre || 'FCL/FCL'),
-
         'cond-transporte': bl.cond_transporte || 'HH',
-
-        ...(esCargaSuelta && {
-          'forma-pago-flete': bl.forma_pago_flete || 'PREPAID'
-        }),
-
         'total-bultos': bl.bultos || 0,
         'total-peso': bl.peso_bruto || 0,
         'unidad-peso': bl.unidad_peso || 'KGM',
@@ -6059,6 +6077,15 @@ else {
             'nombre-nave': bl.nave_nombre || ''
           }
         },
+
+        // 🔥 FLETE VA AQUÍ (después de OpTransporte, antes de Fechas)
+        ...(esCargaSuelta && {
+          Flete: {
+            'forma-pago-flete': {
+              tipo: bl.forma_pago_flete || 'PREPAID'
+            }
+          }
+        }),
 
         Fechas: {
           fecha: [
@@ -6209,46 +6236,46 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
       return rut.replace(/\./g, '').trim();
     };
 
-   const buildParticipacion = (nombre, participante, includeRUT = true, extraFields = {}) => {
-  if (!participante || !participante.nombre) return null;
+    const buildParticipacion = (nombre, participante, includeRUT = true, extraFields = {}) => {
+      if (!participante || !participante.nombre) return null;
 
-  const baseData = {
-    nombre: nombre
-  };
+      const baseData = {
+        nombre: nombre
+      };
 
-  if (includeRUT && participante.rut) {
-    baseData['tipo-id'] = participante.tipo_id || 'RUT';
-    baseData['valor-id'] = cleanRUT(participante.rut);
-    baseData['nacion-id'] = participante.nacion_id || participante.pais || 'CL';
-  }
+      if (includeRUT && participante.rut) {
+        baseData['tipo-id'] = participante.tipo_id || 'RUT';
+        baseData['valor-id'] = cleanRUT(participante.rut);
+        baseData['nacion-id'] = participante.nacion_id || participante.pais || 'CL';
+      }
 
-  baseData['nombres'] = participante.nombre;
+      baseData['nombres'] = participante.nombre;
 
-  // 🔥 AGREGAR CAMPOS EXTRA
-  Object.assign(baseData, extraFields);
+      // 🔥 AGREGAR CAMPOS EXTRA
+      Object.assign(baseData, extraFields);
 
-  // 🔥 AGREGAR DIRECCIÓN SI EXISTE
-  if (participante.direccion && participante.direccion.trim()) {
-    baseData['direccion'] = participante.direccion.trim();
-  }
+      // 🔥 AGREGAR DIRECCIÓN SI EXISTE
+      if (participante.direccion && participante.direccion.trim()) {
+        baseData['direccion'] = participante.direccion.trim();
+      }
 
-  // 🔥 AGREGAR TELÉFONO SI EXISTE
-  if (participante.telefono && participante.telefono.trim()) {
-    baseData['telefono'] = participante.telefono.trim();
-  }
+      // 🔥 AGREGAR TELÉFONO SI EXISTE
+      if (participante.telefono && participante.telefono.trim()) {
+        baseData['telefono'] = participante.telefono.trim();
+      }
 
-  // 🔥 AGREGAR CIUDAD/COMUNA SI EXISTE
-  if (participante.ciudad && participante.ciudad.trim()) {
-    baseData['comuna'] = participante.ciudad.trim();
-  }
+      // 🔥 AGREGAR CIUDAD/COMUNA SI EXISTE
+      if (participante.ciudad && participante.ciudad.trim()) {
+        baseData['comuna'] = participante.ciudad.trim();
+      }
 
-  // ❌ QUITAR ESTE BLOQUE COMPLETO - SOLO PARA EMI
-  // if (participante.pais) {
-  //   baseData['codigo-pais'] = participante.pais;
-  // }
+      // ❌ QUITAR ESTE BLOQUE COMPLETO - SOLO PARA EMI
+      // if (participante.pais) {
+      //   baseData['codigo-pais'] = participante.pais;
+      // }
 
-  return baseData;
-};
+      return baseData;
+    };
     // 🛡️ VALIDAR TODOS LOS BLs ANTES DE GENERAR
     const blsConErrores = [];
 
@@ -6474,131 +6501,131 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
         contenedores = contRows;
       }
 
-    const participaciones = [];
+      const participaciones = [];
 
-// Datos del representante desde REFERENCIAS (para EMI, EMIDO, REP)
-const representanteData = bl.rep_id ? {
-  nombre: bl.rep_nombre,
-  rut: bl.rep_rut,
-  pais: bl.rep_pais || 'CL',
-  tipo_id: bl.rep_tipo_id || 'RUT',
-  nacion_id: bl.rep_nacion_id || 'CL'
-} : null;
+      // Datos del representante desde REFERENCIAS (para EMI, EMIDO, REP)
+      const representanteData = bl.rep_id ? {
+        nombre: bl.rep_nombre,
+        rut: bl.rep_rut,
+        pais: bl.rep_pais || 'CL',
+        tipo_id: bl.rep_tipo_id || 'RUT',
+        nacion_id: bl.rep_nacion_id || 'CL'
+      } : null;
 
-// Datos del shipper (para EMB)
-const shipperData = bl.shipper_id ? {
-  nombre: bl.shipper_nombre,
-  rut: bl.shipper_rut,
-  pais: bl.shipper_pais || 'CL'
-} : null;
+      // Datos del shipper (para EMB)
+      const shipperData = bl.shipper_id ? {
+        nombre: bl.shipper_nombre,
+        rut: bl.shipper_rut,
+        pais: bl.shipper_pais || 'CL'
+      } : null;
 
-// Datos del consignee (para CONS)
-const consigneeData = bl.consignee_id ? {
-  nombre: bl.consignee_nombre,
-  rut: bl.consignee_rut,
-  pais: bl.consignee_pais || 'CL'
-} : null;
+      // Datos del consignee (para CONS)
+      const consigneeData = bl.consignee_id ? {
+        nombre: bl.consignee_nombre,
+        rut: bl.consignee_rut,
+        pais: bl.consignee_pais || 'CL'
+      } : null;
 
-// Datos del notify (para NOTI)
-const notifyData = bl.notify_id ? {
-  nombre: bl.notify_nombre,
-  rut: bl.notify_rut,
-  pais: bl.notify_pais || 'CL'
-} : null;
+      // Datos del notify (para NOTI)
+      const notifyData = bl.notify_id ? {
+        nombre: bl.notify_nombre,
+        rut: bl.notify_rut,
+        pais: bl.notify_pais || 'CL'
+      } : null;
 
-// ✅ ORDEN ESPECÍFICO PARA CARGA SUELTA (BB)
-if (esCargaSuelta) {
-  // 1️⃣ EMI
-  if (representanteData) {
-    const emi = buildParticipacion('EMI', representanteData, true);
-    if (emi) participaciones.push(emi);
-  }
+      // ✅ ORDEN ESPECÍFICO PARA CARGA SUELTA (BB)
+      if (esCargaSuelta) {
+        // 1️⃣ EMI
+        if (representanteData) {
+          const emi = buildParticipacion('EMI', representanteData, true);
+          if (emi) participaciones.push(emi);
+        }
 
-  // 2️⃣ ALM (Almacenador)
-  if (bl.almacenador_id) {
-    const almacenadorData = {
-      nombre: bl.almacenador_nombre,
-      rut: bl.almacenador_rut,
-      pais: bl.almacenador_pais || 'CL'
-    };
+        // 2️⃣ ALM (Almacenador)
+        if (bl.almacenador_id) {
+          const almacenadorData = {
+            nombre: bl.almacenador_nombre,
+            rut: bl.almacenador_rut,
+            pais: bl.almacenador_pais || 'CL'
+          };
 
-    const extraFields = {};
-    if (bl.almacenador_codigo_almacen) {
-      extraFields['codigo-almacen'] = bl.almacenador_codigo_almacen;
-    }
+          const extraFields = {};
+          if (bl.almacenador_codigo_almacen) {
+            extraFields['codigo-almacen'] = bl.almacenador_codigo_almacen;
+          }
 
-    const alm = buildParticipacion('ALM', almacenadorData, true, extraFields);
-    if (alm) participaciones.push(alm);
-  }
+          const alm = buildParticipacion('ALM', almacenadorData, true, extraFields);
+          if (alm) participaciones.push(alm);
+        }
 
-  // 3️⃣ REP
-  if (representanteData) {
-    const rep = buildParticipacion('REP', representanteData, true);
-    if (rep) participaciones.push(rep);
-  }
+        // 3️⃣ REP
+        if (representanteData) {
+          const rep = buildParticipacion('REP', representanteData, true);
+          if (rep) participaciones.push(rep);
+        }
 
-  // 4️⃣ EMIDO
-  if (representanteData) {
-    const emido = buildParticipacion('EMIDO', representanteData, true);
-    if (emido) participaciones.push(emido);
-  }
+        // 4️⃣ EMIDO
+        if (representanteData) {
+          const emido = buildParticipacion('EMIDO', representanteData, true);
+          if (emido) participaciones.push(emido);
+        }
 
-  // 5️⃣ EMB
-  if (shipperData) {
-    const emb = buildParticipacion('EMB', shipperData, false);
-    if (emb) participaciones.push(emb);
-  }
+        // 5️⃣ EMB
+        if (shipperData) {
+          const emb = buildParticipacion('EMB', shipperData, false);
+          if (emb) participaciones.push(emb);
+        }
 
-  // 6️⃣ CONS
-  if (consigneeData) {
-    const cons = buildParticipacion('CONS', consigneeData, false);
-    if (cons) participaciones.push(cons);
-  }
+        // 6️⃣ CONS
+        if (consigneeData) {
+          const cons = buildParticipacion('CONS', consigneeData, false);
+          if (cons) participaciones.push(cons);
+        }
 
-  // 7️⃣ NOTI
-  if (notifyData) {
-    const noti = buildParticipacion('NOTI', notifyData, false);
-    if (noti) participaciones.push(noti);
-  }
-}
-// ✅ ORDEN PARA CONTENEDORES (FF/MM)
-else {
-  // 1️⃣ EMI
-  if (representanteData) {
-    const emi = buildParticipacion('EMI', representanteData, true);
-    if (emi) participaciones.push(emi);
-  }
+        // 7️⃣ NOTI
+        if (notifyData) {
+          const noti = buildParticipacion('NOTI', notifyData, false);
+          if (noti) participaciones.push(noti);
+        }
+      }
+      // ✅ ORDEN PARA CONTENEDORES (FF/MM)
+      else {
+        // 1️⃣ EMI
+        if (representanteData) {
+          const emi = buildParticipacion('EMI', representanteData, true);
+          if (emi) participaciones.push(emi);
+        }
 
-  // 2️⃣ CONS
-  if (consigneeData) {
-    const cons = buildParticipacion('CONS', consigneeData, false);
-    if (cons) participaciones.push(cons);
-  }
+        // 2️⃣ CONS
+        if (consigneeData) {
+          const cons = buildParticipacion('CONS', consigneeData, false);
+          if (cons) participaciones.push(cons);
+        }
 
-  // 3️⃣ EMIDO
-  if (representanteData) {
-    const emido = buildParticipacion('EMIDO', representanteData, true);
-    if (emido) participaciones.push(emido);
-  }
+        // 3️⃣ EMIDO
+        if (representanteData) {
+          const emido = buildParticipacion('EMIDO', representanteData, true);
+          if (emido) participaciones.push(emido);
+        }
 
-  // 4️⃣ NOTI
-  if (notifyData) {
-    const noti = buildParticipacion('NOTI', notifyData, false);
-    if (noti) participaciones.push(noti);
-  }
+        // 4️⃣ NOTI
+        if (notifyData) {
+          const noti = buildParticipacion('NOTI', notifyData, false);
+          if (noti) participaciones.push(noti);
+        }
 
-  // 5️⃣ REP
-  if (representanteData) {
-    const rep = buildParticipacion('REP', representanteData, true);
-    if (rep) participaciones.push(rep);
-  }
+        // 5️⃣ REP
+        if (representanteData) {
+          const rep = buildParticipacion('REP', representanteData, true);
+          if (rep) participaciones.push(rep);
+        }
 
-  // 6️⃣ EMB
-  if (shipperData) {
-    const emb = buildParticipacion('EMB', shipperData, false);
-    if (emb) participaciones.push(emb);
-  }
-}
+        // 6️⃣ EMB
+        if (shipperData) {
+          const emb = buildParticipacion('EMB', shipperData, false);
+          if (emb) participaciones.push(emb);
+        }
+      }
 
       // 🔥 CONSTRUIR XML
       const xmlObj = {
@@ -6609,13 +6636,7 @@ else {
           'numero-referencia': bl.bl_number,
           'service': 'LINER',
           'tipo-servicio': esCargaSuelta ? 'BB' : (bl.tipo_servicio_nombre || 'FCL/FCL'),
-
           'cond-transporte': bl.cond_transporte || 'HH',
-
-          ...(esCargaSuelta && {
-            'forma-pago-flete': bl.forma_pago_flete || 'PREPAID'
-          }),
-
           'total-bultos': bl.bultos || 0,
           'total-peso': bl.peso_bruto || 0,
           'unidad-peso': bl.unidad_peso || 'KGM',
@@ -6629,6 +6650,15 @@ else {
               'nombre-nave': bl.nave_nombre || ''
             }
           },
+
+          ...(esCargaSuelta && {
+            Flete: {
+              'forma-pago-flete': {
+                tipo: bl.forma_pago_flete || 'PREPAID'
+              }
+            }
+          }),
+
 
           Fechas: {
             fecha: [

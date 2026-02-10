@@ -25,7 +25,7 @@ const NuevoManifiesto = () => {
     puertoCentral: "",
     tipoOperacion: "S",
     operadorNave: "",
-    status: "En edición",
+    status: "Activo",
     remark: "",
     emisorDocumento: "",
     representante: "",
@@ -110,42 +110,42 @@ const NuevoManifiesto = () => {
   // Sincronizar número de referencia con número de manifiesto de aduana
   useEffect(() => {
     if (form.numeroManifiestoAduana.trim()) {
-      setReferencia(prev => ({ 
-        ...prev, 
-        numeroReferencia: form.numeroManifiestoAduana 
+      setReferencia(prev => ({
+        ...prev,
+        numeroReferencia: form.numeroManifiestoAduana
       }));
     }
   }, [form.numeroManifiestoAduana]);
 
   const onChange = (key) => (e) => {
     const value = e.target.value;
-    
+
     // Si se selecciona Representante, autocompletar Emisor Doc
     if (key === "representante" && value) {
       const refSeleccionada = referencias.find(r => r.match_code === value);
       if (refSeleccionada) {
-        setForm((prev) => ({ 
-          ...prev, 
+        setForm((prev) => ({
+          ...prev,
           [key]: value,
-          emisorDocumento: refSeleccionada.customer_id 
+          emisorDocumento: refSeleccionada.customer_id
         }));
         return;
       }
     }
-    
+
     // Si se selecciona Emisor Doc, autocompletar Representante
     if (key === "emisorDocumento" && value) {
       const refSeleccionada = referencias.find(r => r.customer_id === value);
       if (refSeleccionada) {
-        setForm((prev) => ({ 
-          ...prev, 
+        setForm((prev) => ({
+          ...prev,
           [key]: value,
-          representante: refSeleccionada.match_code 
+          representante: refSeleccionada.match_code
         }));
         return;
       }
     }
-    
+
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -180,6 +180,11 @@ const NuevoManifiesto = () => {
   const representanteSeleccionado = useMemo(() => {
     return referencias.find(r => r.match_code === form.representante);
   }, [referencias, form.representante]);
+
+  // Obtener datos del operador nave seleccionado
+  const operadorNaveSeleccionado = useMemo(() => {
+    return referencias.find(r => r.customer_id === form.operadorNave);
+  }, [referencias, form.operadorNave]);
 
   // Validaciones
   const getMissingFields = () => {
@@ -221,7 +226,7 @@ const NuevoManifiesto = () => {
       })
       .join("<br>");
 
-    const referenciaHtml = referenciaSeleccionada 
+    const referenciaHtml = referenciaSeleccionada
       ? `<span style="display:block; padding: 4px 0; border-bottom: 1px solid #e2e8f0;">
           <strong>REF / MFTO</strong> &nbsp;
           N°: ${referencia.numeroReferencia} &nbsp;
@@ -522,27 +527,25 @@ const NuevoManifiesto = () => {
               />
             </Field>
 
-            <Field label="Operador Nave (Customer ID) *">
-              <input
-                list="operadorNaveList"
+            <Field label="Operador Nave *">
+              <select
                 value={form.operadorNave}
                 onChange={onChange("operadorNave")}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Selecciona o escribe (ej: 060321)"
-              />
-              <datalist id="operadorNaveList">
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+              >
+                <option value="">-- Selecciona un operador --</option>
                 {referencias.map((ref) => (
                   <option key={ref.id} value={ref.customer_id}>
-                    {ref.customer_id} — {ref.nombre_emisor}
+                    {ref.nombre_emisor}
                   </option>
                 ))}
-              </datalist>
-              {referencias.find(r => r.customer_id === form.operadorNave) && (
-                <Hint text={`${referencias.find(r => r.customer_id === form.operadorNave).nombre_emisor}`} />
+              </select>
+              {operadorNaveSeleccionado && (
+                <Hint text={`Customer ID: ${operadorNaveSeleccionado.customer_id} | RUT: ${operadorNaveSeleccionado.rut}`} />
               )}
             </Field>
 
-            <Field label="Emisor Doc (Customer ID) *">
+            <Field label="Emisor Doc *">
               <select
                 value={form.emisorDocumento}
                 onChange={onChange("emisorDocumento")}
@@ -551,15 +554,14 @@ const NuevoManifiesto = () => {
                 <option value="">-- Selecciona un emisor --</option>
                 {referencias.map((ref) => (
                   <option key={ref.id} value={ref.customer_id}>
-                    {ref.customer_id}
+                    {ref.nombre_emisor}
                   </option>
                 ))}
               </select>
               {emisorSeleccionado && (
-                <Hint text={`${emisorSeleccionado.nombre_emisor} | Match: ${emisorSeleccionado.match_code} | RUT: ${emisorSeleccionado.rut}`} />
+                <Hint text={`Customer ID: ${emisorSeleccionado.customer_id} | Match: ${emisorSeleccionado.match_code} | RUT: ${emisorSeleccionado.rut}`} />
               )}
             </Field>
-
             <Field label="Representante *">
               <select
                 value={form.representante}
@@ -602,10 +604,9 @@ const NuevoManifiesto = () => {
                 onChange={onChange("status")}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
               >
-                <option>En edición</option>
-                <option>En revisión</option>
-                <option>Enviado a Aduana</option>
-                <option>Cerrado</option>
+                <option value="Activo">Activo</option>
+                <option value="Inactivo">Inactivo</option>
+                <option value="Enviado">Enviado</option>
               </select>
             </Field>
 
