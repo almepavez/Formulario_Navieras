@@ -19,14 +19,21 @@ const ParticipanteSelector = ({ label, tipo, value, displayValue, onChange, requ
         fetchParticipantes();
     }, []);
 
-    const fetchParticipantes = async () => {
-        try {
-            const response = await fetch('http://localhost:4000/api/mantenedores/participantes', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-            });
+   // ✅ CORREGIR A:
+const fetchParticipantes = async () => {
+    try {
+        // 👇 AGREGAR EL PARÁMETRO tipo SI VIENE DEL PROP
+        let url = 'http://localhost:4000/api/mantenedores/participantes';
+        if (tipo === 'almacenador') {
+            url += '?tipo=almacenador';
+        }
+        
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -36,6 +43,8 @@ const ParticipanteSelector = ({ label, tipo, value, displayValue, onChange, requ
             console.log('✅ Participantes cargados:', data.length);
             setParticipantes(data);
             setFilteredParticipantes(data);
+
+            
         } catch (error) {
             console.error('❌ Error cargando participantes:', error);
             Swal.fire({
