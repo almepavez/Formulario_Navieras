@@ -3287,13 +3287,15 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
   try {
     await conn.beginTransaction();
 
-    // 1) Validar manifiesto
-    const [mRows] = await conn.query("SELECT id FROM manifiestos WHERE id = ?", [id]);
+    // 1) Validar manifiesto y obtener tipo_operacion
+    const [mRows] = await conn.query("SELECT id, tipo_operacion FROM manifiestos WHERE id = ?", [id]);
     if (mRows.length === 0) {
       await conn.rollback();
       if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
       return res.status(404).json({ error: "Manifiesto no existe" });
     }
+
+    const tipoOperacion = mRows[0].tipo_operacion; // ✅ Guardar para usar después
 
     // 2) Leer archivo
     const content = fs.readFileSync(req.file.path, "utf-8");
@@ -3444,8 +3446,14 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         existentesMismoManifiesto.delete(blNumber);
       }
 
-      // Resolver IDs (igual que tu lógica)
-      const lugarEmisionId = await getPuertoIdByCodigo(conn, b.lugar_emision_cod);
+      let lugarEmisionCod = b.lugar_emision_cod;
+
+      if (!lugarEmisionCod && tipoOperacion === 'S') {
+        lugarEmisionCod = 'CLSCL';  // Exportación
+      }
+
+      const lugarEmisionId = await getPuertoIdByCodigo(conn, lugarEmisionCod);
+
       if (!lugarEmisionId) pendingValidations.push({
         nivel: "BL", severidad: "ERROR", campo: "lugar_emision_id",
         mensaje: `Lugar de emisión '${b.lugar_emision_cod || 'No encontrado'}' no existe en mantenedor de puertos (Linea 74)`,
@@ -3640,7 +3648,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         lugarDestinoId,
         lugarEntregaId,
         lugarRecepcionId,
-        b.lugar_emision_cod || null,
+        lugarEmisionCod || null,
         b.puerto_embarque_cod || null,
         b.puerto_descarga_cod || null,
         b.lugar_destino_cod || null,
