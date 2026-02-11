@@ -3073,11 +3073,13 @@ function extractLugarEmisionFrom00(l00) {
 }
 
 function pickLugarEmisionCod(lines, header00) {
-  const le00 = extractLugarEmisionFrom00(header00); // UNLOCODE 5
-  if (le00) return le00;
-
-  const le74 = extractLugarEmisionFrom74(lines); // puede traer cosas raras
-  return (le74 && le74.length === 5) ? le74 : "";
+  const l74 = pickFirst(lines, "74");
+  if (l74) {
+    const cod = l74.substring(5, 10).trim();
+    if (cod) return cod;
+  }
+  
+  return null;  // ✅ Sin fallback
 }
 
 // ===============================
