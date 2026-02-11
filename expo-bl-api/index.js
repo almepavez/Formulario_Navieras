@@ -5868,6 +5868,17 @@ almacenador_p.codigo_almacen AS almacenador_codigo_almacen
       }
     }
 
+    // 🔥 AQUÍ VAN LAS FUNCIONES HELPER 👇👇👇
+
+    // 🔥 MAPEO DE CÓDIGOS A DESCRIPCIONES PARA XML
+    const mapTipoServicio = (codigo) => {
+      const mapeo = {
+        'FF': 'FCL/FCL',
+        'MM': 'EMPTY',
+        'BB': 'BB'
+      };
+      return mapeo[codigo] || 'FCL/FCL';
+    };
     // 🔥 FUNCIÓN HELPER: Limpiar RUT (quitar puntos, mantener guión)
     const cleanRUT = (rut) => {
       if (!rut) return '';
@@ -5890,10 +5901,6 @@ almacenador_p.codigo_almacen AS almacenador_codigo_almacen
 
       baseData['nombres'] = participante.nombre;
 
-      // 🔥 AGREGAR CAMPOS EXTRA
-      Object.assign(baseData, extraFields);
-
-      // 🔥 AGREGAR DIRECCIÓN SI EXISTE
       if (participante.direccion && participante.direccion.trim()) {
         baseData['direccion'] = participante.direccion.trim();
       }
@@ -5907,7 +5914,10 @@ almacenador_p.codigo_almacen AS almacenador_codigo_almacen
       if (participante.ciudad && participante.ciudad.trim()) {
         baseData['comuna'] = participante.ciudad.trim();
       }
-
+      // ✅ AGREGAR CODIGO-PAIS SI TIENE RUT Y PAÍS
+      if (includeRUT && participante.rut && participante.pais) {
+        baseData['codigo-pais'] = participante.pais;
+      }
       return baseData;
     };
 
@@ -6062,7 +6072,7 @@ almacenador_p.codigo_almacen AS almacenador_codigo_almacen
         'tipo-accion': 'M',
         'numero-referencia': bl.bl_number,
         'service': 'LINER',
-        'tipo-servicio': esCargaSuelta ? 'BB' : (bl.tipo_servicio_nombre || 'FCL/FCL'),
+        'tipo-servicio': esCargaSuelta ? 'BB' : mapTipoServicio(bl.tipo_servicio_codigo),
         'cond-transporte': bl.cond_transporte || 'HH',
         'total-bultos': bl.bultos || 0,
         'total-peso': bl.peso_bruto || 0,
@@ -6167,7 +6177,7 @@ almacenador_p.codigo_almacen AS almacenador_codigo_almacen
                     peso: c.peso || 0,
                     'valor-id-op': representanteData?.rut ? cleanRUT(representanteData.rut) : '', // 🆕
                     'nombre-operador': representanteData?.nombre || '', // 🆕
-                    status: bl.tipo_servicio_nombre || 'FCL/FCL',
+                    status: bl.tipo_servicio_codigo || 'FF',
 
                     CntIMO: imoList.length > 0 ? {
                       cntimo: imoList.length === 1
@@ -6232,8 +6242,20 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
 
     if (!Array.isArray(blNumbers) || blNumbers.length === 0) {
       return res.status(400).json({ error: "Debe seleccionar al menos un BL" });
+
     }
 
+    // 🔥 AQUÍ VAN LAS FUNCIONES HELPER 👇👇👇
+
+    // 🔥 MAPEO DE CÓDIGOS A DESCRIPCIONES PARA XML
+    const mapTipoServicio = (codigo) => {
+      const mapeo = {
+        'FF': 'FCL/FCL',
+        'MM': 'EMPTY',
+        'BB': 'BB'
+      };
+      return mapeo[codigo] || 'FCL/FCL';
+    };
     // 🔥 FUNCIÓN HELPER: Limpiar RUT (quitar puntos, mantener guión)
     const cleanRUT = (rut) => {
       if (!rut) return '';
@@ -6639,7 +6661,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
           'tipo-accion': 'M',
           'numero-referencia': bl.bl_number,
           'service': 'LINER',
-          'tipo-servicio': esCargaSuelta ? 'BB' : (bl.tipo_servicio_nombre || 'FCL/FCL'),
+          'tipo-servicio': esCargaSuelta ? 'BB' : mapTipoServicio(bl.tipo_servicio_codigo),
           'cond-transporte': bl.cond_transporte || 'HH',
           'total-bultos': bl.bultos || 0,
           'total-peso': bl.peso_bruto || 0,
@@ -6745,8 +6767,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
                       peso: c.peso || 0,
                       'valor-id-op': representanteData?.rut ? cleanRUT(representanteData.rut) : '', // 🆕
                       'nombre-operador': representanteData?.nombre || '', // 🆕
-                      status: bl.tipo_servicio_nombre || 'FCL/FCL',
-
+                      status: mapTipoServicio(bl.tipo_servicio_codigo),
                       CntIMO: imoList.length > 0 ? {
                         cntimo: imoList.length === 1
                           ? { 'clase-imo': String(imoList[0].clase_imo), 'numero-imo': String(imoList[0].numero_imo) }
@@ -6840,6 +6861,8 @@ app.get("/bls/:blNumber/transbordos", async (req, res) => {
     res.status(500).json({ error: "Error al obtener transbordos" });
   }
 });
+
+
 // 🆕 PUT /bls/:blNumber/transbordos
 // Actualizar transbordos de un BL
 app.put("/bls/:blNumber/transbordos", async (req, res) => {
