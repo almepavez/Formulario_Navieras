@@ -5586,9 +5586,9 @@ function formatDateDDMMYYYY(fecha) {
 }
 
 // Función para generar la sección Referencias
-function generarReferencias(manifiesto) {
+function generarReferencias(bl) {
   // Si no hay datos de referencia, no generar la sección
-  if (!manifiesto.numero_referencia || !manifiesto.fecha_referencia) {
+  if (!bl.numero_referencia || !bl.fecha_referencia) {
     return undefined;
   }
 
@@ -5596,12 +5596,12 @@ function generarReferencias(manifiesto) {
     referencia: {
       'tipo-referencia': 'REF',
       'tipo-documento': 'MFTO',
-      'numero': String(manifiesto.numero_referencia),
-      'fecha': formatDateDDMMYYYY(manifiesto.fecha_referencia),
-      'tipo-id-emisor': 'RUT',
-      'nac-id-emisor': 'CL',
-      'valor-id-emisor': '96566940-K',
-      'emisor': manifiesto.representante || 'AGENCIAS UNIVERSALES S.A.'
+      'numero': String(bl.numero_referencia),
+      'fecha': formatDateDDMMYYYY(bl.fecha_manifiesto_aduana),
+      'tipo-id-emisor': bl.rep_tipo_id || 'RUT',
+      'nac-id-emisor': bl.rep_nacion_id || 'CL',
+      'valor-id-emisor': bl.rep_rut ? bl.rep_rut.replace(/\./g, '') : '96566940-K',
+      'emisor': bl.rep_nombre || 'AGENCIAS UNIVERSALES S.A.'
     }
   };
 }
@@ -5689,7 +5689,8 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
     m.viaje,
     m.tipo_operacion,
     m.numero_referencia,      
-    m.fecha_referencia,    
+    m.fecha_referencia,  
+    m.fecha_manifiesto_aduana,  
     m.representante AS representante_codigo,
     n.nombre AS nave_nombre,
     ts.codigo AS tipo_servicio_codigo,
@@ -5769,8 +5770,8 @@ almacenador_p.codigo_almacen AS almacenador_codigo_almacen
   LEFT JOIN participantes almacenador_p ON b.almacenador_id = almacenador_p.id
 
   
-  -- 🔥 JOIN del representante desde REFERENCIAS (match_code)
-  LEFT JOIN referencias ref ON m.representante = ref.match_code
+  -- 🔥 JOIN del representante desde REFERENCIAS usando el FK del manifiesto
+  LEFT JOIN referencias ref ON m.referencia_id = ref.id
   
   WHERE b.bl_number = ?
   LIMIT 1
@@ -6314,10 +6315,12 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
           m.viaje,
           m.tipo_operacion,
           m.numero_referencia,      
-          m.fecha_referencia,    
+          m.fecha_referencia,
+          m.fecha_manifiesto_aduana,
           m.representante AS representante_codigo,
           n.nombre AS nave_nombre,
           ts.codigo AS tipo_servicio_codigo,
+          ts.nombre AS tipo_servicio_nombre,
           le.codigo AS lugar_emision_codigo,
           le.nombre AS lugar_emision_nombre,
           pe.codigo AS puerto_embarque_codigo,
@@ -6336,18 +6339,27 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
           shipper_p.rut AS shipper_rut,
           shipper_p.nombre AS shipper_nombre,
           shipper_p.pais AS shipper_pais,
+          shipper_p.direccion AS shipper_direccion,
+          shipper_p.telefono AS shipper_telefono,
+          shipper_p.ciudad AS shipper_ciudad,
           
           consignee_p.id AS consignee_id,
           consignee_p.codigo_bms AS consignee_codigo,
           consignee_p.rut AS consignee_rut,
           consignee_p.nombre AS consignee_nombre,
           consignee_p.pais AS consignee_pais,
+          consignee_p.direccion AS consignee_direccion,
+          consignee_p.telefono AS consignee_telefono,
+          consignee_p.ciudad AS consignee_ciudad,
           
           notify_p.id AS notify_id,
           notify_p.codigo_bms AS notify_codigo,
           notify_p.rut AS notify_rut,
           notify_p.nombre AS notify_nombre,
           notify_p.pais AS notify_pais,
+          notify_p.direccion AS notify_direccion,
+          notify_p.telefono AS notify_telefono,
+          notify_p.ciudad AS notify_ciudad,
           
           ref.id AS rep_id,
           ref.match_code AS rep_codigo,
@@ -6371,7 +6383,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
         LEFT JOIN participantes shipper_p ON b.shipper_id = shipper_p.id
         LEFT JOIN participantes consignee_p ON b.consignee_id = consignee_p.id
         LEFT JOIN participantes notify_p ON b.notify_id = notify_p.id
-        LEFT JOIN referencias ref ON m.representante = ref.match_code
+        LEFT JOIN referencias ref ON m.referencia_id = ref.id
         
         WHERE b.bl_number = ?
         LIMIT 1
@@ -6413,10 +6425,12 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
           m.viaje,
           m.tipo_operacion,
           m.numero_referencia,      
-          m.fecha_referencia,    
+          m.fecha_referencia,
+          m.fecha_manifiesto_aduana,
           m.representante AS representante_codigo,
           n.nombre AS nave_nombre,
           ts.codigo AS tipo_servicio_codigo,
+          ts.nombre AS tipo_servicio_nombre,
           le.codigo AS lugar_emision_codigo,
           le.nombre AS lugar_emision_nombre,
           pe.codigo AS puerto_embarque_codigo,
@@ -6435,18 +6449,27 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
           shipper_p.rut AS shipper_rut,
           shipper_p.nombre AS shipper_nombre,
           shipper_p.pais AS shipper_pais,
+          shipper_p.direccion AS shipper_direccion,
+          shipper_p.telefono AS shipper_telefono,
+          shipper_p.ciudad AS shipper_ciudad,
           
           consignee_p.id AS consignee_id,
           consignee_p.codigo_bms AS consignee_codigo,
           consignee_p.rut AS consignee_rut,
           consignee_p.nombre AS consignee_nombre,
           consignee_p.pais AS consignee_pais,
+          consignee_p.direccion AS consignee_direccion,
+          consignee_p.telefono AS consignee_telefono,
+          consignee_p.ciudad AS consignee_ciudad,
           
           notify_p.id AS notify_id,
           notify_p.codigo_bms AS notify_codigo,
           notify_p.rut AS notify_rut,
           notify_p.nombre AS notify_nombre,
           notify_p.pais AS notify_pais,
+          notify_p.direccion AS notify_direccion,
+          notify_p.telefono AS notify_telefono,
+          notify_p.ciudad AS notify_ciudad,
           
           ref.id AS rep_id,
           ref.match_code AS rep_codigo,
@@ -6470,7 +6493,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
         LEFT JOIN participantes shipper_p ON b.shipper_id = shipper_p.id
         LEFT JOIN participantes consignee_p ON b.consignee_id = consignee_p.id
         LEFT JOIN participantes notify_p ON b.notify_id = notify_p.id
-        LEFT JOIN referencias ref ON m.representante = ref.match_code
+        LEFT JOIN referencias ref ON m.referencia_id = ref.id
         
         WHERE b.bl_number = ?
         LIMIT 1
