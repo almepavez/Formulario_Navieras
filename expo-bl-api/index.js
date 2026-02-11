@@ -3598,14 +3598,14 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
 
       if (esEmpty) {
         let pesoTotal = 0;
-        
+
         for (const it of (b.items || [])) {
           const itemNum = Number(it.numero_item);
           const contsDelItem = (b.contenedores || []).filter(c => Number(c.itemNo) === itemNum);
-          
+
           // Obtener tipo_cnt del primer contenedor del item
           const tipoCnt = contsDelItem[0]?.tipo_cnt || null;
-          
+
           if (tipoCnt) {
             const pesoTara = await getPesoTaraByTipoCnt(conn, tipoCnt);
             if (pesoTara) {
@@ -3614,7 +3614,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
             }
           }
         }
-        
+
         pesoBrutoReal = pesoTotal > 0 ? pesoTotal : null;
       }
 
@@ -6128,7 +6128,7 @@ almacenador_p.codigo_almacen AS almacenador_codigo_almacen
                 cantidad: it.cantidad || 0,
                 'peso-bruto': it.peso_bruto || 0,
                 'unidad-peso': it.unidad_peso || 'KGM',
-                volumen: it.volumen || 0,
+                volumen: parseFloat(it.volumen) || 0,
                 'unidad-volumen': it.unidad_volumen || 'MTQ',
                 'carga-cnt': 'N'
               };
@@ -6143,7 +6143,7 @@ almacenador_p.codigo_almacen AS almacenador_codigo_almacen
               cantidad: it.cantidad || 0,
               'peso-bruto': it.peso_bruto || 0,
               'unidad-peso': it.unidad_peso || 'KGM',
-              volumen: it.volumen || 0,
+              volumen: parseFloat(it.volumen) || 0,
               'unidad-volumen': it.unidad_volumen || 'MTQ',
               'carga-cnt': {},
               Contenedores: contsDelItem.length > 0 ? {
@@ -6165,6 +6165,8 @@ almacenador_p.codigo_almacen AS almacenador_codigo_almacen
                     'tipo-cnt': c.tipo_cnt || '',
                     'cnt-so': '',
                     peso: c.peso || 0,
+                    'valor-id-op': representanteData?.rut ? cleanRUT(representanteData.rut) : '', // 🆕
+                    'nombre-operador': representanteData?.nombre || '', // 🆕
                     status: bl.tipo_servicio_nombre || 'FCL/FCL',
 
                     CntIMO: imoList.length > 0 ? {
@@ -6703,7 +6705,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
                   cantidad: it.cantidad || 0,
                   'peso-bruto': it.peso_bruto || 0,
                   'unidad-peso': it.unidad_peso || 'KGM',
-                  volumen: it.volumen || 0,
+                  volumen: Number((it.volumen || 0).toFixed(2)),  // ✅ Forzar 2 decimales
                   'unidad-volumen': it.unidad_volumen || 'MTQ',
                   'carga-cnt': 'N'
                 };
@@ -6719,7 +6721,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
                 cantidad: it.cantidad || 0,
                 'peso-bruto': it.peso_bruto || 0,
                 'unidad-peso': it.unidad_peso || 'KGM',
-                volumen: it.volumen || 0,
+                volumen: Number((it.volumen || 0).toFixed(2)),  // ✅ 2 decimales también
                 'unidad-volumen': it.unidad_volumen || 'MTQ',
                 'carga-cnt': {},
                 Contenedores: contsDelItem.length > 0 ? {
@@ -6741,6 +6743,8 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
                       'tipo-cnt': c.tipo_cnt || '',
                       'cnt-so': '',
                       peso: c.peso || 0,
+                      'valor-id-op': representanteData?.rut ? cleanRUT(representanteData.rut) : '', // 🆕
+                      'nombre-operador': representanteData?.nombre || '', // 🆕
                       status: bl.tipo_servicio_nombre || 'FCL/FCL',
 
                       CntIMO: imoList.length > 0 ? {
