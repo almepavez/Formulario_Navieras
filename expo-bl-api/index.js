@@ -6098,7 +6098,9 @@ almacenador_p.codigo_almacen AS almacenador_codigo_almacen
 
         Locaciones: {
           locacion: [
-            bl.lugar_emision_codigo && { nombre: 'LE', codigo: bl.lugar_emision_codigo, descripcion: bl.lugar_emision_nombre },
+            // ✅ SOLO incluir LE si NO es carga suelta
+            !esCargaSuelta && bl.lugar_emision_codigo && { nombre: 'LE', codigo: bl.lugar_emision_codigo, descripcion: bl.lugar_emision_nombre },
+
             bl.puerto_embarque_codigo && { nombre: 'PE', codigo: bl.puerto_embarque_codigo, descripcion: bl.puerto_embarque_nombre },
             bl.puerto_descarga_codigo && { nombre: 'PD', codigo: bl.puerto_descarga_codigo, descripcion: bl.puerto_descarga_nombre },
             bl.lugar_destino_codigo && { nombre: 'LD', codigo: bl.lugar_destino_codigo, descripcion: bl.lugar_destino_nombre },
@@ -6671,7 +6673,9 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
 
           Locaciones: {
             locacion: [
-              bl.lugar_emision_codigo && { nombre: 'LE', codigo: bl.lugar_emision_codigo, descripcion: bl.lugar_emision_nombre },
+              // ✅ SOLO incluir LE si NO es carga suelta
+              !esCargaSuelta && bl.lugar_emision_codigo && { nombre: 'LE', codigo: bl.lugar_emision_codigo, descripcion: bl.lugar_emision_nombre },
+
               bl.puerto_embarque_codigo && { nombre: 'PE', codigo: bl.puerto_embarque_codigo, descripcion: bl.puerto_embarque_nombre },
               bl.puerto_descarga_codigo && { nombre: 'PD', codigo: bl.puerto_descarga_codigo, descripcion: bl.puerto_descarga_nombre },
               bl.lugar_destino_codigo && { nombre: 'LD', codigo: bl.lugar_destino_codigo, descripcion: bl.lugar_destino_nombre },
