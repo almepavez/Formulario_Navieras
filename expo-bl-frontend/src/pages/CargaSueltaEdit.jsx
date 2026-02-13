@@ -1071,15 +1071,6 @@ const Step2Participantes = ({ formData, setFormData }) => {
             {/* SHIPPER / EMBARCADOR (EMB) */}
             {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
             <div className="border border-slate-300 rounded-lg p-6 bg-white relative">
-                {/* Código PIL en la esquina */}
-                {formData.shipper_codigo_pil && (
-                    <div className="absolute top-4 right-4">
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-blue-100 text-blue-800 border border-blue-300">
-                            PIL: {formData.shipper_codigo_pil}
-                        </span>
-                    </div>
-                )}
-
                 <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
                     Shipper / Embarcador (EMB)
                 </h3>
@@ -1099,22 +1090,8 @@ const Step2Participantes = ({ formData, setFormData }) => {
                         />
                     </div>
 
-                    {/* Código PIL */}
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Código PIL
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.shipper_codigo_pil || ""}
-                            onChange={(e) => updateField("shipper_codigo_pil", e.target.value)}
-                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                            placeholder="Ej: CL123456"
-                        />
-                    </div>
-
                     {/* Dirección */}
-                    <div>
+                    <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                             Dirección
                         </label>
@@ -1161,15 +1138,6 @@ const Step2Participantes = ({ formData, setFormData }) => {
             {/* CONSIGNEE (CONS) */}
             {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
             <div className="border border-slate-300 rounded-lg p-6 bg-white relative">
-                {/* Código PIL en la esquina */}
-                {formData.consignee_codigo_pil && (
-                    <div className="absolute top-4 right-4">
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-green-100 text-green-800 border border-green-300">
-                            PIL: {formData.consignee_codigo_pil}
-                        </span>
-                    </div>
-                )}
-
                 <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
                     Consignatario (CONS)
                 </h3>
@@ -1189,22 +1157,8 @@ const Step2Participantes = ({ formData, setFormData }) => {
                         />
                     </div>
 
-                    {/* Código PIL */}
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Código PIL
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.consignee_codigo_pil || ""}
-                            onChange={(e) => updateField("consignee_codigo_pil", e.target.value)}
-                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                            placeholder="Ej: CL123456"
-                        />
-                    </div>
-
                     {/* Dirección */}
-                    <div>
+                    <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                             Dirección
                         </label>
@@ -1251,15 +1205,6 @@ const Step2Participantes = ({ formData, setFormData }) => {
             {/* NOTIFY PARTY (NOTI) - OPCIONAL */}
             {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
             <div className="border border-slate-300 rounded-lg p-6 bg-white relative">
-                {/* Código PIL en la esquina */}
-                {formData.notify_codigo_pil && (
-                    <div className="absolute top-4 right-4">
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-purple-100 text-purple-800 border border-purple-300">
-                            PIL: {formData.notify_codigo_pil}
-                        </span>
-                    </div>
-                )}
-
                 <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
                     Notify Party (NOTI) <span className="text-sm text-slate-500 font-normal">(Opcional)</span>
                 </h3>
@@ -1279,22 +1224,8 @@ const Step2Participantes = ({ formData, setFormData }) => {
                         />
                     </div>
 
-                    {/* Código PIL */}
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Código PIL
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.notify_codigo_pil || ""}
-                            onChange={(e) => updateField("notify_codigo_pil", e.target.value)}
-                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                            placeholder="Ej: CL123456"
-                        />
-                    </div>
-
                     {/* Dirección */}
-                    <div>
+                    <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                             Dirección
                         </label>
@@ -1341,15 +1272,6 @@ const Step2Participantes = ({ formData, setFormData }) => {
             {/* ALMACENADOR (ALM) - OPCIONAL */}
             {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
             <div className="border border-slate-300 rounded-lg p-6 bg-white relative">
-                {/* Código PIL en la esquina */}
-                {formData.almacenador_codigo_pil && (
-                    <div className="absolute top-4 right-4">
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-orange-100 text-orange-800 border border-orange-300">
-                            PIL: {formData.almacenador_codigo_pil}
-                        </span>
-                    </div>
-                )}
-
                 <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
                     Almacenador (ALM) <span className="text-sm text-slate-500 font-normal">(Opcional)</span>
                 </h3>
@@ -1369,22 +1291,8 @@ const Step2Participantes = ({ formData, setFormData }) => {
                         />
                     </div>
 
-                    {/* Código PIL */}
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Código PIL
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.almacenador_codigo_pil || ""}
-                            onChange={(e) => updateField("almacenador_codigo_pil", e.target.value)}
-                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                            placeholder="Ej: CL123456"
-                        />
-                    </div>
-
                     {/* Dirección */}
-                    <div>
+                    <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                             Dirección
                         </label>
