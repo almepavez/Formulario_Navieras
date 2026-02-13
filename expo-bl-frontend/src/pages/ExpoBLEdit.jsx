@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import Sidebar from "../components/Sidebar";
-import ParticipanteSelector from '../components/ParticipanteSelector';
 import CrearPuertoModal from "../components/CrearPuertoModal";  // 🔥 AGREGAR ESTE IMPORT
 
 const steps = [
@@ -39,14 +38,13 @@ const ExpoBLEdit = () => {
             .catch(err => console.error('Error:', err));
     }, []);
 
-    // Estado del formulario
-    // REEMPLAZAR POR:
+
     const [formData, setFormData] = useState({
         bl_number: "",
         viaje: "",
-        tipo_servicio: "", //REVISAR
+        tipo_servicio: "",
         fecha_emision: "",
-        fecha_presentacion: "",  // ← AGREGAR AQUÍ
+        fecha_presentacion: "",
         fecha_zarpe: "",
         fecha_embarque: "",
         lugar_emision: "",
@@ -55,19 +53,36 @@ const ExpoBLEdit = () => {
         lugar_destino: "",
         lugar_entrega: "",
         lugar_recepcion: "",
+
+        // 🔥 PARTICIPANTES - Solo nombres (para backward compatibility)
         shipper: "",
         consignee: "",
         notify_party: "",
-        shipper_id: null,
-        consignee_id: null,
-        notify_id: null,
+
+        // 🆕 DATOS EXTRAÍDOS DEL PMS (solo lectura)
+        shipper_codigo_pil: "",
+        shipper_direccion: "",
+        shipper_telefono: "",
+        shipper_email: "",
+
+        consignee_codigo_pil: "",
+        consignee_direccion: "",
+        consignee_telefono: "",
+        consignee_email: "",
+
+        notify_codigo_pil: "",
+        notify_direccion: "",
+        notify_telefono: "",
+        notify_email: "",
+
         descripcion_carga: "",
         peso_bruto: "",
-        unidad_peso: "",        // ← AGREGAR
+        unidad_peso: "",
         volumen: "",
-        unidad_volumen: "",     // ← AGREGAR
+        unidad_volumen: "",
         bultos: ""
     });
+
 
     useEffect(() => {
         const fetchData = async () => {
@@ -118,16 +133,13 @@ const ExpoBLEdit = () => {
                     return mysqlDateTime.substring(0, 16);
                 };
 
-                // Mapear datos del BL al formulario
-                // Mapear datos del BL al formulario
                 setFormData({
                     bl_number: dataBL.bl_number || "",
                     viaje: dataBL.viaje || "",
                     tipo_servicio: dataBL.tipo_servicio_id === 1 ? "FF" :
-                        dataBL.tipo_servicio_id === 2 ? "MM" :
-                            "", // 👈 Si es NULL, quedará vacío                    
+                        dataBL.tipo_servicio_id === 2 ? "MM" : "",
                     fecha_emision: formatDate(dataBL.fecha_emision),
-                    fecha_presentacion: formatDateTime(dataBL.fecha_presentacion),  // ← AGREGAR AQUÍ
+                    fecha_presentacion: formatDateTime(dataBL.fecha_presentacion),
                     fecha_zarpe: formatDateTime(dataBL.fecha_zarpe),
                     fecha_embarque: formatDateTime(dataBL.fecha_embarque),
                     lugar_emision: dataBL.lugar_emision_cod || "",
@@ -136,9 +148,28 @@ const ExpoBLEdit = () => {
                     lugar_destino: dataBL.lugar_destino_cod || "",
                     lugar_entrega: dataBL.lugar_entrega_cod || "",
                     lugar_recepcion: dataBL.lugar_recepcion_cod || "",
+
+                    // 🔥 PARTICIPANTES (nombres para backward compatibility)
                     shipper: dataBL.shipper || "",
                     consignee: dataBL.consignee || "",
                     notify_party: dataBL.notify_party || "",
+
+                    // 🆕 DATOS EXTRAÍDOS DEL PMS
+                    shipper_codigo_pil: dataBL.shipper_codigo_pil || "",
+                    shipper_direccion: dataBL.shipper_direccion || "",
+                    shipper_telefono: dataBL.shipper_telefono || "",
+                    shipper_email: dataBL.shipper_email || "",
+
+                    consignee_codigo_pil: dataBL.consignee_codigo_pil || "",
+                    consignee_direccion: dataBL.consignee_direccion || "",
+                    consignee_telefono: dataBL.consignee_telefono || "",
+                    consignee_email: dataBL.consignee_email || "",
+
+                    notify_codigo_pil: dataBL.notify_codigo_pil || "",
+                    notify_direccion: dataBL.notify_direccion || "",
+                    notify_telefono: dataBL.notify_telefono || "",
+                    notify_email: dataBL.notify_email || "",
+
                     descripcion_carga: dataBL.descripcion_carga || "",
                     peso_bruto: dataBL.peso_bruto || "",
                     unidad_peso: dataBL.unidad_peso || "",
@@ -146,6 +177,7 @@ const ExpoBLEdit = () => {
                     unidad_volumen: dataBL.unidad_volumen || "",
                     bultos: dataBL.bultos || ""
                 });
+
                 // 🆕 Cargar items y contenedores
                 const resItems = await fetch(`http://localhost:4000/bls/${blNumber}/items-contenedores`);
                 if (resItems.ok) {
@@ -762,29 +794,59 @@ const ExpoBLEdit = () => {
                 break;
 
             case 3: // Addr.
-                if (!formData.shipper || formData.shipper.trim().length < 5) {
+                // 🔥 NUEVA VALIDACIÓN: Solo verificar que existan los nombres
+                if (!formData.shipper || formData.shipper.trim().length < 3) {
                     Swal.fire({
-                        icon: "warning",
-                        title: "Campo requerido",
-                        text: "El Shipper es obligatorio (mínimo 5 caracteres)",
+                        icon: "error",
+                        title: "Datos incompletos",
+                        text: "El Shipper no tiene datos válidos del archivo PMS",
                         confirmButtonColor: "#0F2A44"
                     });
                     return false;
                 }
-                if (!formData.consignee || formData.consignee.trim().length < 5) {
+                if (!formData.consignee || formData.consignee.trim().length < 3) {
                     Swal.fire({
-                        icon: "warning",
-                        title: "Campo requerido",
-                        text: "El Consignee es obligatorio (mínimo 5 caracteres)",
+                        icon: "error",
+                        title: "Datos incompletos",
+                        text: "El Consignee no tiene datos válidos del archivo PMS",
                         confirmButtonColor: "#0F2A44"
                     });
                     return false;
                 }
-                if (!formData.notify_party || formData.notify_party.trim().length < 5) {
+                if (!formData.notify_party || formData.notify_party.trim().length < 3) {
+                    Swal.fire({
+                        icon: "error",
+                        title: "Datos incompletos",
+                        text: "El Notify Party no tiene datos válidos del archivo PMS",
+                        confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
+                }
+
+                // 🔥 VALIDAR QUE AL MENOS TENGAN TELÉFONO O EMAIL
+                if (!formData.shipper_telefono && !formData.shipper_email) {
                     Swal.fire({
                         icon: "warning",
-                        title: "Campo requerido",
-                        text: "El Notify Party es obligatorio (mínimo 5 caracteres)",
+                        title: "Datos de contacto faltantes",
+                        text: "El Shipper debe tener al menos teléfono o email",
+                        confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
+                }
+                if (!formData.consignee_telefono && !formData.consignee_email) {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "Datos de contacto faltantes",
+                        text: "El Consignee debe tener al menos teléfono o email",
+                        confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
+                }
+                if (!formData.notify_telefono && !formData.notify_email) {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "Datos de contacto faltantes",
+                        text: "El Notify Party debe tener al menos teléfono o email",
                         confirmButtonColor: "#0F2A44"
                     });
                     return false;
@@ -1061,7 +1123,6 @@ const ExpoBLEdit = () => {
                 return dateTimeLocal.replace("T", " ") + ":00";
             };
 
-            // 🆕 Preparar datos con puertos
             const dataToSend = {
                 tipo_servicio: formData.tipo_servicio,
                 fecha_emision: formData.fecha_emision || null,
@@ -1074,12 +1135,23 @@ const ExpoBLEdit = () => {
                 lugar_destino: formData.lugar_destino || null,
                 lugar_entrega: formData.lugar_entrega || null,
                 lugar_recepcion: formData.lugar_recepcion || null,
+
+                // 🔥 PARTICIPANTES (nombres + datos de contacto)
                 shipper: formData.shipper || null,
+                shipper_direccion: formData.shipper_direccion || null,
+                shipper_telefono: formData.shipper_telefono || null,
+                shipper_email: formData.shipper_email || null,
+
                 consignee: formData.consignee || null,
+                consignee_direccion: formData.consignee_direccion || null,
+                consignee_telefono: formData.consignee_telefono || null,
+                consignee_email: formData.consignee_email || null,
+
                 notify_party: formData.notify_party || null,
-                shipper_id: formData.shipper_id || null,
-                consignee_id: formData.consignee_id || null,
-                notify_id: formData.notify_id || null,
+                notify_direccion: formData.notify_direccion || null,
+                notify_telefono: formData.notify_telefono || null,
+                notify_email: formData.notify_email || null,
+
                 descripcion_carga: formData.descripcion_carga?.trim() || null,
                 peso_bruto: formData.peso_bruto ? parseFloat(formData.peso_bruto) : null,
                 unidad_peso: formData.unidad_peso || null,
@@ -1782,56 +1854,264 @@ const ExpoBLEdit = () => {
                             </div>
                         </div>
                     )}
-                    {/* STEP 3: PARTICIPANTES */}
+                    {/* STEP 3: PARTICIPANTES (EDITABLES - DATOS DEL PMS) */}
                     {currentStep === 3 && (
                         <div className="space-y-8">
-                            {/* SHIPPER */}
-                            <ParticipanteSelector
-                                label="Shipper / Embarcador"
-                                tipo="shipper"
-                                value={formData.shipper_id}
-                                displayValue={formData.shipper}
-                                onChange={(participanteId, textoCompleto) => {
-                                    setFormData(prev => ({
-                                        ...prev,
-                                        shipper_id: participanteId,
-                                        shipper: textoCompleto
-                                    }));
-                                }}
-                                required={true}
-                            />
+                            {/* 📌 NOTA INFORMATIVA */}
+                            <div className="bg-slate-50 border border-slate-300 rounded-lg p-4">
+                                <p className="text-sm text-slate-700">
+                                    ℹ️ <strong>Datos extraídos del archivo PMS.</strong> Puedes editarlos si es necesario antes de guardar.
+                                </p>
+                            </div>
 
-                            {/* CONSIGNEE */}
-                            <ParticipanteSelector
-                                label="Consignatario"
-                                tipo="consignee"
-                                value={formData.consignee_id}
-                                displayValue={formData.consignee}
-                                onChange={(participanteId, textoCompleto) => {
-                                    setFormData(prev => ({
-                                        ...prev,
-                                        consignee_id: participanteId,
-                                        consignee: textoCompleto
-                                    }));
-                                }}
-                                required={true}
-                            />
+                            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+                            {/* SHIPPER / EMBARCADOR */}
+                            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+                            <div className="border border-slate-300 rounded-lg p-6 bg-white relative">
+                                {/* Código PIL en la esquina */}
+                                {formData.shipper_codigo_pil && (
+                                    <div className="absolute top-4 right-4">
+                                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-blue-100 text-blue-800 border border-blue-300">
+                                            PIL: {formData.shipper_codigo_pil}
+                                        </span>
+                                    </div>
+                                )}
 
+                                <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
+                                    Shipper / Embarcador
+                                </h3>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* Nombre */}
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            Nombre / Razón Social <span className="text-red-500">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.shipper || ""}
+                                            onChange={(e) => updateField("shipper", e.target.value)}
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                                            placeholder="Ingrese nombre o razón social"
+                                        />
+                                    </div>
+
+                                    {/* Dirección */}
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            Dirección
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.shipper_direccion || ""}
+                                            onChange={(e) => updateField("shipper_direccion", e.target.value)}
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                                            placeholder="Ingrese dirección"
+                                        />
+                                    </div>
+
+                                    {/* Teléfono */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            Teléfono <span className="text-amber-500 text-xs">(requerido si no hay email)</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.shipper_telefono || ""}
+                                            onChange={(e) => updateField("shipper_telefono", e.target.value)}
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                                            placeholder="+56 9 1234 5678"
+                                        />
+                                    </div>
+
+                                    {/* Email */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            Email <span className="text-amber-500 text-xs">(requerido si no hay teléfono)</span>
+                                        </label>
+                                        <input
+                                            type="email"
+                                            value={formData.shipper_email || ""}
+                                            onChange={(e) => updateField("shipper_email", e.target.value)}
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                                            placeholder="correo@ejemplo.com"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Advertencia si faltan datos */}
+                                {!formData.shipper && (
+                                    <div className="mt-4 p-3 bg-amber-50 border border-amber-300 rounded text-sm text-amber-800">
+                                        ⚠️ No se encontraron datos del Shipper en el archivo PMS
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+                            {/* CONSIGNEE / CONSIGNATARIO */}
+                            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+                            <div className="border border-slate-300 rounded-lg p-6 bg-white relative">
+                                {/* Código PIL en la esquina */}
+                                {formData.consignee_codigo_pil && (
+                                    <div className="absolute top-4 right-4">
+                                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-green-100 text-green-800 border border-green-300">
+                                            PIL: {formData.consignee_codigo_pil}
+                                        </span>
+                                    </div>
+                                )}
+
+                                <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
+                                    Consignatario
+                                </h3>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* Nombre */}
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            Nombre / Razón Social <span className="text-red-500">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.consignee || ""}
+                                            onChange={(e) => updateField("consignee", e.target.value)}
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                                            placeholder="Ingrese nombre o razón social"
+                                        />
+                                    </div>
+
+                                    {/* Dirección */}
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            Dirección
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.consignee_direccion || ""}
+                                            onChange={(e) => updateField("consignee_direccion", e.target.value)}
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                                            placeholder="Ingrese dirección"
+                                        />
+                                    </div>
+
+                                    {/* Teléfono */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            Teléfono <span className="text-amber-500 text-xs">(requerido si no hay email)</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.consignee_telefono || ""}
+                                            onChange={(e) => updateField("consignee_telefono", e.target.value)}
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                                            placeholder="+56 9 1234 5678"
+                                        />
+                                    </div>
+
+                                    {/* Email */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            Email <span className="text-amber-500 text-xs">(requerido si no hay teléfono)</span>
+                                        </label>
+                                        <input
+                                            type="email"
+                                            value={formData.consignee_email || ""}
+                                            onChange={(e) => updateField("consignee_email", e.target.value)}
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                                            placeholder="correo@ejemplo.com"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Advertencia si faltan datos */}
+                                {!formData.consignee && (
+                                    <div className="mt-4 p-3 bg-amber-50 border border-amber-300 rounded text-sm text-amber-800">
+                                        ⚠️ No se encontraron datos del Consignee en el archivo PMS
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
                             {/* NOTIFY PARTY */}
-                            <ParticipanteSelector
-                                label="Notify Party"
-                                tipo="notify"
-                                value={formData.notify_id}
-                                displayValue={formData.notify_party}
-                                onChange={(participanteId, textoCompleto) => {
-                                    setFormData(prev => ({
-                                        ...prev,
-                                        notify_id: participanteId,
-                                        notify_party: textoCompleto
-                                    }));
-                                }}
-                                required={true}
-                            />
+                            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+                            <div className="border border-slate-300 rounded-lg p-6 bg-white relative">
+                                {/* Código PIL en la esquina */}
+                                {formData.notify_codigo_pil && (
+                                    <div className="absolute top-4 right-4">
+                                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-purple-100 text-purple-800 border border-purple-300">
+                                            PIL: {formData.notify_codigo_pil}
+                                        </span>
+                                    </div>
+                                )}
+
+                                <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
+                                    Notify Party
+                                </h3>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* Nombre */}
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            Nombre / Razón Social <span className="text-red-500">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.notify_party || ""}
+                                            onChange={(e) => updateField("notify_party", e.target.value)}
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                                            placeholder="Ingrese nombre o razón social"
+                                        />
+                                    </div>
+
+                                    {/* Dirección */}
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            Dirección
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.notify_direccion || ""}
+                                            onChange={(e) => updateField("notify_direccion", e.target.value)}
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                                            placeholder="Ingrese dirección"
+                                        />
+                                    </div>
+
+                                    {/* Teléfono */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            Teléfono <span className="text-amber-500 text-xs">(requerido si no hay email)</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.notify_telefono || ""}
+                                            onChange={(e) => updateField("notify_telefono", e.target.value)}
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                                            placeholder="+56 9 1234 5678"
+                                        />
+                                    </div>
+
+                                    {/* Email */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            Email <span className="text-amber-500 text-xs">(requerido si no hay teléfono)</span>
+                                        </label>
+                                        <input
+                                            type="email"
+                                            value={formData.notify_email || ""}
+                                            onChange={(e) => updateField("notify_email", e.target.value)}
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                                            placeholder="correo@ejemplo.com"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Advertencia si faltan datos */}
+                                {!formData.notify_party && (
+                                    <div className="mt-4 p-3 bg-amber-50 border border-amber-300 rounded text-sm text-amber-800">
+                                        ⚠️ No se encontraron datos del Notify Party en el archivo PMS
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
 
