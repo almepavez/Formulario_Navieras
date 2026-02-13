@@ -2445,6 +2445,14 @@ function pickAll(lines, code) {
   return lines.filter((l) => lineCode(l) === code);
 }
 
+function pickFirstWithSuffix(lines, code) {
+  // Busca líneas que empiecen exactamente con el código (ej: "16B")
+  return lines.find((l) => {
+    const s = String(l || "").trim();
+    const match = s.match(/^(\d{2}[A-Z]?)\s/);
+    return match && match[1] === code;
+  }) || "";
+}
 
 // ===============================
 // LOCACIONES desde PMS
@@ -2734,43 +2742,92 @@ function extractPartyName(rawLine) {
 // Agregar después de la línea 2139 (después de extractPartyName)
 // ============================================
 function extractPartyCodeAndName(rawLine) {
-  if (!rawLine) return { codigo_pil: null, nombre: null };
+  if (!rawLine) return { codigo_pil: null, nombre: null, direccion: null };
 
   const s = String(rawLine).trim();
 
-  // Formato: "16   CL101742         INTER-TANK SPA   [...]"
-  //          "21   CN116263         WEN RAN SHIPPING CO.,LTD.   [...]"
-  //          "26  1CN116263         WEN RAN SHIPPING CO.,LTD.   [...]"
-
-  // Capturar: tipo_linea (16/21/26) + código_pil + nombre
+  // Formato: "16   CL101742         INTER-TANK SPA                      DIRECCION COMPLETA AQUI"
+  // Capturar: tipo_linea (16/21/26) + código_pil + resto
   const match = s.match(/^\s*(\d{2})\s+(\S+)\s+(.+)$/);
 
   if (!match) {
-    return { codigo_pil: null, nombre: null };
+    return { codigo_pil: null, nombre: null, direccion: null };
   }
 
   const tipoLinea = match[1];  // "16", "21", "26"
   let codigoPil = match[2];    // "CL101742", "CN116263", "1CN116263"
-  const resto = match[3];      // "INTER-TANK SPA   [...]"
+  const resto = match[3];      // "INTER-TANK SPA   DIRECCION..."
 
   // ⚠️ CASO ESPECIAL: Línea 26 (NOTIFY) puede tener "1" adelante del código
-  // Ejemplo: "26  1CN116263" → debemos limpiar el "1"
   if (tipoLinea === "26" && codigoPil.startsWith("1") && codigoPil.length > 2) {
     codigoPil = codigoPil.substring(1); // "1CN116263" → "CN116263"
   }
 
-  // Extraer el nombre (primera columna del resto, separado por 2+ espacios)
+  // Extraer columnas separadas por 2+ espacios
   const cols = resto.split(/\s{2,}/).map(x => x.trim()).filter(Boolean);
+  
   const nombre = cols[0] || null;
+  const direccion = cols.slice(1).join(' ').trim() || null; // Todo lo demás es dirección
 
   // Si el nombre parece ser un código de país (ej: "CLSCL"), es inválido
   if (nombre && /^[A-Z]{5}$/.test(nombre)) {
-    return { codigo_pil: codigoPil, nombre: null };
+    return { codigo_pil: codigoPil, nombre: null, direccion: null };
   }
 
   return {
     codigo_pil: normalizeStr(codigoPil),
-    nombre: nombre
+    nombre: nombre,
+    direccion: direccion ? normalizeStr(direccion) : null
+  };
+}
+
+/**
+ * Extrae teléfono y email de líneas 16B, 21B, 26B
+ * Formato: "16B  5692274318          medc@gamil.com"
+ * Formato: "21B                      info@rootscomp.net"
+ * Formato: "26B 1                    tomasbianchi@rootscomp.net"
+ */
+function extractPartyContact(rawLine) {
+  if (!rawLine) return { telefono: null, email: null };
+
+  const s = String(rawLine).trim();
+
+  // Formato: tipo_linea (16B/21B/26B) + [teléfono opcional] + [email opcional]
+  // Usar regex para capturar después del tipo de línea
+  const match = s.match(/^\s*(\d{2}B)\s+(.*)$/);
+
+  if (!match) {
+    return { telefono: null, email: null };
+  }
+
+  const resto = match[2].trim(); // Todo después de "16B ", "21B ", etc.
+
+  // Separar por espacios múltiples (2+)
+  const parts = resto.split(/\s{2,}/).map(x => x.trim()).filter(Boolean);
+
+  let telefono = null;
+  let email = null;
+
+  // Buscar email (contiene @)
+  for (const part of parts) {
+    if (part.includes('@')) {
+      email = part;
+    }
+  }
+
+  // Lo que queda y no es email, asumimos es teléfono (si es numérico o tiene formato válido)
+  for (const part of parts) {
+    if (!part.includes('@') && part.length > 0) {
+      // Puede ser teléfono o el "1" del notify, validar si tiene dígitos
+      if (/\d/.test(part) && part.length > 2) {
+        telefono = part;
+      }
+    }
+  }
+
+  return {
+    telefono: normalizeStr(telefono),
+    email: normalizeStr(email)
   };
 }
 
@@ -3108,10 +3165,15 @@ function parsePmsTxt(content) {
 
       const tipoServicioCod = extractServiceCodeFrom12(l12);
 
-      // ✅ Extraer código PIL y nombre de participantes
+      // ✅ Extraer datos completos de participantes (líneas 16, 21, 26)
       const shipperData = extractPartyCodeAndName(pickFirst(bLines, "16"));
       const consigneeData = extractPartyCodeAndName(pickFirst(bLines, "21"));
       const notifyData = extractPartyCodeAndName(pickFirst(bLines, "26"));
+
+      // ✅ Extraer contacto de participantes (líneas 16B, 21B, 26B)
+      const shipperContact = extractPartyContact(pickFirstWithSuffix(bLines, "16B"));
+      const consigneeContact = extractPartyContact(pickFirstWithSuffix(bLines, "21B"));
+      const notifyContact = extractPartyContact(pickFirstWithSuffix(bLines, "26B"));
 
       // Mantener compatibilidad con código anterior (nombre solo)
       const shipper = shipperData.nombre;
@@ -3217,12 +3279,21 @@ function parsePmsTxt(content) {
         tipoServicioCod,
 
         shipper,
-        consignee,
-        notify,
-
-        // ✅ NUEVO: códigos PIL de participantes
+        shipper_direccion: shipperData.direccion,
+        shipper_telefono: shipperContact.telefono,
+        shipper_email: shipperContact.email,
         shipper_codigo_pil: shipperData.codigo_pil,
+
+        consignee,
+        consignee_direccion: consigneeData.direccion,
+        consignee_telefono: consigneeContact.telefono,
+        consignee_email: consigneeContact.email,
         consignee_codigo_pil: consigneeData.codigo_pil,
+
+        notify,
+        notify_direccion: notifyData.direccion,
+        notify_telefono: notifyContact.telefono,
+        notify_email: notifyContact.email,
         notify_codigo_pil: notifyData.codigo_pil,
 
         descripcion_carga: null,
@@ -3376,9 +3447,9 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
     const insertBlSql = `
       INSERT INTO bls
         (manifiesto_id, bl_number, tipo_servicio_id,
-         shipper, consignee, notify_party,
-         shipper_id, consignee_id, notify_id,
-         shipper_codigo_pil, consignee_codigo_pil, notify_codigo_pil,
+         shipper, shipper_direccion, shipper_telefono, shipper_email, shipper_codigo_pil, shipper_id,
+         consignee, consignee_direccion, consignee_telefono, consignee_email, consignee_codigo_pil, consignee_id,
+         notify_party, notify_direccion, notify_telefono, notify_email, notify_codigo_pil, notify_id,
          lugar_emision_id, puerto_embarque_id, puerto_descarga_id,
          lugar_destino_id, lugar_entrega_id, lugar_recepcion_id,
          lugar_emision_cod, puerto_embarque_cod, puerto_descarga_cod,
@@ -3391,9 +3462,9 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
          status)
       VALUES
         (?, ?, ?,
-         ?, ?, ?,
-         ?, ?, ?,  
-         ?, ?, ?,
+         ?, ?, ?, ?, ?, ?,
+         ?, ?, ?, ?, ?, ?,
+         ?, ?, ?, ?, ?, ?,
          ?, ?, ?,
          ?, ?, ?,
          ?, ?, ?,
@@ -3485,114 +3556,10 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         valorCrudo: b.tipoServicioCod || null
       });
 
-      // ============================================
-      // ✅ RESOLVER PARTICIPANTES POR CÓDIGO PIL
-      // ============================================
-      const shipperId = await getParticipanteIdByCodigoPIL(conn, b.shipper_codigo_pil);
-      if (b.shipper_codigo_pil && !shipperId) {
-        pendingValidations.push({
-          nivel: "BL",
-          severidad: "ERROR",
-          campo: "shipper_id",
-          mensaje: `Código PIL de shipper '${b.shipper_codigo_pil}' no encontrado en traductor. Debe agregarse manualmente.`,
-          valorCrudo: b.shipper_codigo_pil
-        });
-      }
-
-      const consigneeId = await getParticipanteIdByCodigoPIL(conn, b.consignee_codigo_pil);
-      if (b.consignee_codigo_pil && !consigneeId) {
-        pendingValidations.push({
-          nivel: "BL",
-          severidad: "ERROR",
-          campo: "consignee_id",
-          mensaje: `Código PIL de consignee '${b.consignee_codigo_pil}' no encontrado en traductor. Debe agregarse manualmente.`,
-          valorCrudo: b.consignee_codigo_pil
-        });
-      }
-
-      const notifyId = await getParticipanteIdByCodigoPIL(conn, b.notify_codigo_pil);
-      if (b.notify_codigo_pil && !notifyId) {
-        pendingValidations.push({
-          nivel: "BL",
-          severidad: "ERROR",
-          campo: "notify_id",
-          mensaje: `Código PIL de notify '${b.notify_codigo_pil}' no encontrado en traductor. Debe agregarse manualmente.`,
-          valorCrudo: b.notify_codigo_pil
-        });
-      }
-
-      // ============================================
-      // ✅ VALIDAR CONTACTO DE PARTICIPANTES
-      // ============================================
-
-      // Shipper - validar contacto
-      if (shipperId) {
-        const [[participante]] = await conn.query(
-          'SELECT email, telefono FROM participantes WHERE id = ?',
-          [shipperId]
-        );
-
-        const tieneContacto = participante && (
-          (participante.email && participante.email.trim()) ||
-          (participante.telefono && participante.telefono.trim())
-        );
-
-        if (!tieneContacto) {
-          pendingValidations.push({
-            nivel: "BL",
-            severidad: "ERROR",
-            campo: "shipper_contacto",
-            mensaje: `Shipper con código PIL '${b.shipper_codigo_pil}' no tiene email ni teléfono. Debe completarse en el mantenedor de participantes.`,
-            valorCrudo: b.shipper_codigo_pil
-          });
-        }
-      }
-
-      // Consignee - validar contacto
-      if (consigneeId) {
-        const [[participante]] = await conn.query(
-          'SELECT email, telefono FROM participantes WHERE id = ?',
-          [consigneeId]
-        );
-
-        const tieneContacto = participante && (
-          (participante.email && participante.email.trim()) ||
-          (participante.telefono && participante.telefono.trim())
-        );
-
-        if (!tieneContacto) {
-          pendingValidations.push({
-            nivel: "BL",
-            severidad: "ERROR",
-            campo: "consignee_contacto",
-            mensaje: `Consignee con código PIL '${b.consignee_codigo_pil}' no tiene email ni teléfono. Debe completarse en el mantenedor de participantes.`,
-            valorCrudo: b.consignee_codigo_pil
-          });
-        }
-      }
-
-      // Notify - validar contacto
-      if (notifyId) {
-        const [[participante]] = await conn.query(
-          'SELECT email, telefono FROM participantes WHERE id = ?',
-          [notifyId]
-        );
-
-        const tieneContacto = participante && (
-          (participante.email && participante.email.trim()) ||
-          (participante.telefono && participante.telefono.trim())
-        );
-
-        if (!tieneContacto) {
-          pendingValidations.push({
-            nivel: "BL",
-            severidad: "ERROR",
-            campo: "notify_contacto",
-            mensaje: `Notify con código PIL '${b.notify_codigo_pil}' no tiene email ni teléfono. Debe completarse en el mantenedor de participantes.`,
-            valorCrudo: b.notify_codigo_pil
-          });
-        }
-      }
+      // Ya no resolvemos participantes desde la BD
+      const shipperId = null;
+      const consigneeId = null;
+      const notifyId = null;
 
       // Pre-calcular tipo_bulto para items
       for (const it of (b.items || [])) {
@@ -3634,14 +3601,23 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         blNumber,
         tipoServicioId,
         b.shipper || null,
+        b.shipper_direccion || null,
+        b.shipper_telefono || null,
+        b.shipper_email || null,
+        b.shipper_codigo_pil || null,
+        shipperId || null,
         b.consignee || null,
+        b.consignee_direccion || null,
+        b.consignee_telefono || null,
+        b.consignee_email || null,
+        b.consignee_codigo_pil || null,
+        consigneeId || null,
         b.notify || null,
-        shipperId || null,        // ✅ NUEVO: shipper_id
-        consigneeId || null,      // ✅ NUEVO: consignee_id
-        notifyId || null,         // ✅ NUEVO: notify_id
-        b.shipper_codigo_pil || null,      // ✅ NUEVO
-        b.consignee_codigo_pil || null,    // ✅ NUEVO
-        b.notify_codigo_pil || null,       // ✅ NUEVO
+        b.notify_direccion || null,
+        b.notify_telefono || null,
+        b.notify_email || null,
+        b.notify_codigo_pil || null,
+        notifyId || null,
         lugarEmisionId,
         puertoEmbarqueId,
         puertoDescargaId,
@@ -3655,7 +3631,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         b.lugar_entrega_cod || null,
         b.lugar_recepcion_cod || null,
         null, // descripcion_carga
-        pesoBrutoReal,  // 🔥 PESO CALCULADO PARA MM
+        pesoBrutoReal,
         b.unidad_peso || null,
         b.volumen ?? null,
         b.unidad_volumen || null,
@@ -7149,112 +7125,6 @@ async function revalidarBLCompleto(conn, blId) {
   if (isBlank(bl.shipper)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "shipper", mensaje: "Falta shipper (Linea 16)", valorCrudo: bl.shipper || null });
   if (isBlank(bl.consignee)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "consignee", mensaje: "Falta consignee (Linea 21)", valorCrudo: bl.consignee || null });
   if (isBlank(bl.notify_party)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "notify_party", mensaje: "Falta notify (Linea 26)", valorCrudo: bl.notify_party || null });
-
-  // ============================================
-  // ✅ VALIDAR PARTICIPANTES FK Y CONTACTO
-  // ============================================
-
-  // Shipper - validar FK
-  if (!bl.shipper_id && bl.shipper_codigo_pil) {
-    vals.push({
-      nivel: "BL",
-      severidad: "ERROR",
-      campo: "shipper_id",
-      mensaje: `Código PIL de shipper '${bl.shipper_codigo_pil}' no encontrado en traductor. Debe agregarse manualmente.`,
-      valorCrudo: bl.shipper_codigo_pil
-    });
-  }
-
-  // Shipper - validar contacto
-  if (bl.shipper_id) {
-    const [[participante]] = await conn.query(
-      'SELECT email, telefono FROM participantes WHERE id = ?',
-      [bl.shipper_id]
-    );
-
-    const tieneContacto = participante && (
-      (participante.email && participante.email.trim()) ||
-      (participante.telefono && participante.telefono.trim())
-    );
-
-    if (!tieneContacto) {
-      vals.push({
-        nivel: "BL",
-        severidad: "ERROR",
-        campo: "shipper_contacto",
-        mensaje: `Shipper con código PIL '${bl.shipper_codigo_pil || 'N/A'}' no tiene email ni teléfono. Debe completarse en el mantenedor de participantes.`,
-        valorCrudo: bl.shipper_codigo_pil
-      });
-    }
-  }
-
-  // Consignee - validar FK
-  if (!bl.consignee_id && bl.consignee_codigo_pil) {
-    vals.push({
-      nivel: "BL",
-      severidad: "ERROR",
-      campo: "consignee_id",
-      mensaje: `Código PIL de consignee '${bl.consignee_codigo_pil}' no encontrado en traductor. Debe agregarse manualmente.`,
-      valorCrudo: bl.consignee_codigo_pil
-    });
-  }
-
-  // Consignee - validar contacto
-  if (bl.consignee_id) {
-    const [[participante]] = await conn.query(
-      'SELECT email, telefono FROM participantes WHERE id = ?',
-      [bl.consignee_id]
-    );
-
-    const tieneContacto = participante && (
-      (participante.email && participante.email.trim()) ||
-      (participante.telefono && participante.telefono.trim())
-    );
-
-    if (!tieneContacto) {
-      vals.push({
-        nivel: "BL",
-        severidad: "ERROR",
-        campo: "consignee_contacto",
-        mensaje: `Consignee con código PIL '${bl.consignee_codigo_pil || 'N/A'}' no tiene email ni teléfono. Debe completarse en el mantenedor de participantes.`,
-        valorCrudo: bl.consignee_codigo_pil
-      });
-    }
-  }
-
-  // Notify - validar FK
-  if (!bl.notify_id && bl.notify_codigo_pil) {
-    vals.push({
-      nivel: "BL",
-      severidad: "ERROR",
-      campo: "notify_id",
-      mensaje: `Código PIL de notify '${bl.notify_codigo_pil}' no encontrado en traductor. Debe agregarse manualmente.`,
-      valorCrudo: bl.notify_codigo_pil
-    });
-  }
-
-  // Notify - validar contacto
-  if (bl.notify_id) {
-    const [[participante]] = await conn.query(
-      'SELECT email, telefono FROM participantes WHERE id = ?',
-      [bl.notify_id]
-    );
-
-    const tieneContacto = participante && (
-      (participante.email && participante.email.trim()) ||
-      (participante.telefono && participante.telefono.trim())
-    );
-
-    if (!tieneContacto) {
-      vals.push({
-        nivel: "BL",
-        severidad: "ERROR",
-        campo: "notify_contacto",
-        mensaje: `Notify con código PIL '${bl.notify_codigo_pil || 'N/A'}' no tiene email ni teléfono. Debe completarse en el mantenedor de participantes.`,
-        valorCrudo: bl.notify_codigo_pil
-      });
-    }
-  }
 
 
   // ✅ NUEVO: contar contenedores reales por item_id (lo que realmente quedó en BD)
