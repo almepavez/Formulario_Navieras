@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Swal from "sweetalert2";
-import ParticipanteSelector from '../components/ParticipanteSelector'; // 👈 AGREGAR ESTE IMPORT AL INICIO DEL ARCHIVO
 
 
 const STEPS = [
@@ -51,57 +50,73 @@ const CargaSueltaNuevo = () => {
     const [puertos, setPuertos] = useState([]);
     const [tiposBulto, setTiposBulto] = useState(TIPOS_BULTO);
 
-    // Estado del formulario
-    const [formData, setFormData] = useState({
-        // Datos BL (Step 1)
-        bl_number: "",
-        tipo_servicio: "BB",
-        forma_pago_flete: "PREPAID",
-        cond_transporte: "HH",
-        fecha_emision: "",
-        fecha_presentacion: "",
-        fecha_embarque: "",
-        fecha_zarpe: "",
+   const [formData, setFormData] = useState({
+    // Datos BL (Step 1)
+    bl_number: "",
+    tipo_servicio: "BB",
+    forma_pago_flete: "PREPAID",
+    cond_transporte: "HH",
+    fecha_emision: "",
+    fecha_presentacion: "",
+    fecha_embarque: "",
+    fecha_zarpe: "",
 
-        // Locaciones (Step 1)
-        puerto_embarque: "",
-        puerto_descarga: "",
-        lugar_destino: "",
-        lugar_emision: "",
-        lugar_entrega: "",
-        lugar_recepcion: "",
+    // Locaciones (Step 1)
+    puerto_embarque: "",
+    puerto_descarga: "",
+    lugar_destino: "",
+    lugar_emision: "",
+    lugar_entrega: "",
+    lugar_recepcion: "",
 
-        // 🔥 PARTICIPANTES - IDs
-        shipper_id: null,        // EMB - Embarcador/Shipper
-        consignee_id: null,      // CONS - Consignee
-        notify_id: null,         // NOTI - Notify Party
-        almacenador_id: null,    // ALM - Almacenador (NUEVO)
+    // 🔥 PARTICIPANTES - Solo nombres (sin IDs)
+    shipper: "",
+    consignee: "",
+    notify_party: "",
+    almacenador: "",
 
-        // Participantes - Display Text
-        shipper: "",             // EMB
-        consignee: "",           // CONS
-        notify_party: "",        // NOTI
-        almacenador: "",         // ALM (NUEVO)
+    // 🆕 DATOS EXTRAÍDOS (editables)
+    shipper_codigo_pil: "",
+    shipper_direccion: "",
+    shipper_telefono: "",
+    shipper_email: "",
+    
+    consignee_codigo_pil: "",
+    consignee_direccion: "",
+    consignee_telefono: "",
+    consignee_email: "",
+    
+    notify_codigo_pil: "",
+    notify_direccion: "",
+    notify_telefono: "",
+    notify_email: "",
+    
+    almacenador_codigo_pil: "",
+    almacenador_direccion: "",
+    almacenador_telefono: "",
+    almacenador_email: "",
 
-        // Items (Step 3)
-        items: [{
-            numero_item: 1,
-            marcas: "N/M",
-            tipo_bulto: "80",
-            descripcion: "",
-            cantidad: 1,
-            peso_bruto: "",
-            unidad_peso: "KGM",
-            volumen: 0,
-            unidad_volumen: "MTQ",
-            carga_cnt: "N"
-        }],
+    // Items (Step 3)
+    items: [{
+        numero_item: 1,
+        marcas: "N/M",
+        tipo_bulto: "80",
+        descripcion: "",
+        cantidad: 1,
+        peso_bruto: "",
+        unidad_peso: "KGM",
+        volumen: 0,
+        unidad_volumen: "MTQ",
+        carga_cnt: "N"
+    }],
 
-        observaciones: [
-            { nombre: 'GRAL', contenido: '' },
-            { nombre: 'MOT', contenido: 'LISTA DE ENCARGO' }
-        ]
-    });
+    observaciones: [
+        { nombre: 'GRAL', contenido: '' },
+        { nombre: 'MOT', contenido: 'LISTA DE ENCARGO' }
+    ]
+});
+
+
     useEffect(() => {
         fetchManifiestoData();
         fetchPuertos();
@@ -321,28 +336,72 @@ const CargaSueltaNuevo = () => {
             }
             return true;
             
-            case 2:
-                // Validar Step 2: Participantes
-                if (!formData.shipper_id) {
-                    Swal.fire({
-                        title: "Campo requerido",
-                        text: "Debes seleccionar un Shipper/Embarcador (EMB)",
-                        icon: "warning",
-                        confirmButtonColor: "#10b981"
-                    });
-                    return false;
-                }
-                if (!formData.consignee_id) {
-                    Swal.fire({
-                        title: "Campo requerido",
-                        text: "Debes seleccionar un Consignee (CONS)",
-                        icon: "warning",
-                        confirmButtonColor: "#10b981"
-                    });
-                    return false;
-                }
-                // Notify party y Almacenador NO son obligatorios
-                return true;
+          case 2:
+    // Validar Step 2: Participantes
+    if (!formData.shipper || formData.shipper.trim().length < 3) {
+        Swal.fire({
+            title: "Campo requerido",
+            text: "El Shipper/Embarcador debe tener al menos 3 caracteres",
+            icon: "warning",
+            confirmButtonColor: "#10b981"
+        });
+        return false;
+    }
+    
+    // Validar que Shipper tenga al menos teléfono o email
+    if (!formData.shipper_telefono?.trim() && !formData.shipper_email?.trim()) {
+        Swal.fire({
+            title: "Datos de contacto faltantes",
+            text: "El Shipper debe tener al menos teléfono o email",
+            icon: "warning",
+            confirmButtonColor: "#10b981"
+        });
+        return false;
+    }
+    
+    if (!formData.consignee || formData.consignee.trim().length < 3) {
+        Swal.fire({
+            title: "Campo requerido",
+            text: "El Consignee debe tener al menos 3 caracteres",
+            icon: "warning",
+            confirmButtonColor: "#10b981"
+        });
+        return false;
+    }
+    
+    // Validar que Consignee tenga al menos teléfono o email
+    if (!formData.consignee_telefono?.trim() && !formData.consignee_email?.trim()) {
+        Swal.fire({
+            title: "Datos de contacto faltantes",
+            text: "El Consignee debe tener al menos teléfono o email",
+            icon: "warning",
+            confirmButtonColor: "#10b981"
+        });
+        return false;
+    }
+    
+    // Notify party y Almacenador NO son obligatorios, pero si se llenan, validar contacto
+    if (formData.notify_party?.trim() && !formData.notify_telefono?.trim() && !formData.notify_email?.trim()) {
+        Swal.fire({
+            title: "Datos de contacto faltantes",
+            text: "Si ingresas Notify Party, debe tener al menos teléfono o email",
+            icon: "warning",
+            confirmButtonColor: "#10b981"
+        });
+        return false;
+    }
+    
+    if (formData.almacenador?.trim() && !formData.almacenador_telefono?.trim() && !formData.almacenador_email?.trim()) {
+        Swal.fire({
+            title: "Datos de contacto faltantes",
+            text: "Si ingresas Almacenador, debe tener al menos teléfono o email",
+            icon: "warning",
+            confirmButtonColor: "#10b981"
+        });
+        return false;
+    }
+    
+    return true;
 
             case 3:
                 // Validar Step 3: Items
@@ -884,22 +943,8 @@ const Step1DatosBL = ({ formData, setFormData, manifiestoData, puertos }) => (
     </div>
 );
 const Step2Participantes = ({ formData, setFormData }) => {
-    const handleParticipanteChange = (tipo, id, displayText) => {
-        const fieldMap = {
-            shipper: { id: 'shipper_id', text: 'shipper' },           // 🔥 EMB
-            consignee: { id: 'consignee_id', text: 'consignee' },     // CONS
-            notify: { id: 'notify_id', text: 'notify_party' },        // NOTI
-            almacenador: { id: 'almacenador_id', text: 'almacenador' } // ALM
-        };
-
-        const fields = fieldMap[tipo];
-        if (!fields) return;
-
-        setFormData(prev => ({
-            ...prev,
-            [fields.id]: id,
-            [fields.text]: displayText
-        }));
+    const updateField = (field, value) => {
+        setFormData(prev => ({ ...prev, [field]: value }));
     };
 
     const addObservacion = () => {
@@ -929,47 +974,319 @@ const Step2Participantes = ({ formData, setFormData }) => {
                 Participantes del BL
             </h2>
 
-            {/* 📦 SHIPPER/EMBARCADOR (EMB) */}
-            <ParticipanteSelector
-                label="Shipper / Embarcador (EMB)"
-                tipo="shipper"
-                value={formData.shipper_id}
-                displayValue={formData.shipper}
-                onChange={(id, text) => handleParticipanteChange('shipper', id, text)}
-                required={true}
-            />
+            {/* 📌 NOTA INFORMATIVA */}
+            <div className="bg-slate-50 border border-slate-300 rounded-lg p-4">
+                <p className="text-sm text-slate-700">
+                    ℹ️ <strong>Información de los participantes.</strong> Completa los datos de contacto de cada participante. Al menos uno de los campos (teléfono o email) es obligatorio.
+                </p>
+            </div>
 
-            {/* 📦 CONSIGNEE (CONS) */}
-            <ParticipanteSelector
-                label="Consignee / Consignatario (CONS)"
-                tipo="consignee"
-                value={formData.consignee_id}
-                displayValue={formData.consignee}
-                onChange={(id, text) => handleParticipanteChange('consignee', id, text)}
-                required={true}
-            />
+            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+            {/* SHIPPER / EMBARCADOR (EMB) */}
+            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+            <div className="border border-slate-300 rounded-lg p-6 bg-white relative">
+                {/* Código PIL en la esquina */}
+                {formData.shipper_codigo_pil && (
+                    <div className="absolute top-4 right-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-blue-100 text-blue-800 border border-blue-300">
+                            PIL: {formData.shipper_codigo_pil}
+                        </span>
+                    </div>
+                )}
 
-            {/* 📦 NOTIFY PARTY (NOTI) */}
-            <ParticipanteSelector
-                label="Notify Party / Notificar a (NOTI)"
-                tipo="notify"
-                value={formData.notify_id}
-                displayValue={formData.notify_party}
-                onChange={(id, text) => handleParticipanteChange('notify', id, text)}
-                required={false}
-            />
+                <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
+                    Shipper / Embarcador (EMB)
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Nombre */}
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Nombre / Razón Social <span className="text-red-500">*</span>
+                        </label>
+                        <textarea
+                            rows={3}
+                            value={formData.shipper || ""}
+                            onChange={(e) => updateField("shipper", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ingrese nombre o razón social completa"
+                        />
+                    </div>
 
-            {/* 🏢 ALMACENADOR (ALM) - NUEVO */}
-            <ParticipanteSelector
-                label="Almacenador (ALM)"
-                tipo="almacenador"
-                value={formData.almacenador_id}
-                displayValue={formData.almacenador}
-                onChange={(id, text) => handleParticipanteChange('almacenador', id, text)}
-                required={false}
-            />
+                    {/* Dirección */}
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Dirección
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.shipper_direccion || ""}
+                            onChange={(e) => updateField("shipper_direccion", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ingrese dirección"
+                        />
+                    </div>
 
-            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mt-4">
+                    {/* Teléfono */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Teléfono <span className="text-amber-500 text-xs">(requerido si no hay email)</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.shipper_telefono || ""}
+                            onChange={(e) => updateField("shipper_telefono", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="+56 9 1234 5678"
+                        />
+                    </div>
+
+                    {/* Email */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Email <span className="text-amber-500 text-xs">(requerido si no hay teléfono)</span>
+                        </label>
+                        <input
+                            type="email"
+                            value={formData.shipper_email || ""}
+                            onChange={(e) => updateField("shipper_email", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="correo@ejemplo.com"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+            {/* CONSIGNEE (CONS) */}
+            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+            <div className="border border-slate-300 rounded-lg p-6 bg-white relative">
+                {/* Código PIL en la esquina */}
+                {formData.consignee_codigo_pil && (
+                    <div className="absolute top-4 right-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-green-100 text-green-800 border border-green-300">
+                            PIL: {formData.consignee_codigo_pil}
+                        </span>
+                    </div>
+                )}
+
+                <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
+                    Consignatario (CONS)
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Nombre */}
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Nombre / Razón Social <span className="text-red-500">*</span>
+                        </label>
+                        <textarea
+                            rows={3}
+                            value={formData.consignee || ""}
+                            onChange={(e) => updateField("consignee", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ingrese nombre o razón social completa"
+                        />
+                    </div>
+
+                    {/* Dirección */}
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Dirección
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.consignee_direccion || ""}
+                            onChange={(e) => updateField("consignee_direccion", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ingrese dirección"
+                        />
+                    </div>
+
+                    {/* Teléfono */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Teléfono <span className="text-amber-500 text-xs">(requerido si no hay email)</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.consignee_telefono || ""}
+                            onChange={(e) => updateField("consignee_telefono", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="+56 9 1234 5678"
+                        />
+                    </div>
+
+                    {/* Email */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Email <span className="text-amber-500 text-xs">(requerido si no hay teléfono)</span>
+                        </label>
+                        <input
+                            type="email"
+                            value={formData.consignee_email || ""}
+                            onChange={(e) => updateField("consignee_email", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="correo@ejemplo.com"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+            {/* NOTIFY PARTY (NOTI) - OPCIONAL */}
+            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+            <div className="border border-slate-300 rounded-lg p-6 bg-white relative">
+                {/* Código PIL en la esquina */}
+                {formData.notify_codigo_pil && (
+                    <div className="absolute top-4 right-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-purple-100 text-purple-800 border border-purple-300">
+                            PIL: {formData.notify_codigo_pil}
+                        </span>
+                    </div>
+                )}
+
+                <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
+                    Notify Party (NOTI) <span className="text-sm text-slate-500 font-normal">(Opcional)</span>
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Nombre */}
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Nombre / Razón Social
+                        </label>
+                        <textarea
+                            rows={3}
+                            value={formData.notify_party || ""}
+                            onChange={(e) => updateField("notify_party", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ingrese nombre o razón social completa"
+                        />
+                    </div>
+
+                    {/* Dirección */}
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Dirección
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.notify_direccion || ""}
+                            onChange={(e) => updateField("notify_direccion", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ingrese dirección"
+                        />
+                    </div>
+
+                    {/* Teléfono */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Teléfono
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.notify_telefono || ""}
+                            onChange={(e) => updateField("notify_telefono", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="+56 9 1234 5678"
+                        />
+                    </div>
+
+                    {/* Email */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Email
+                        </label>
+                        <input
+                            type="email"
+                            value={formData.notify_email || ""}
+                            onChange={(e) => updateField("notify_email", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="correo@ejemplo.com"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+            {/* ALMACENADOR (ALM) - OPCIONAL */}
+            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+            <div className="border border-slate-300 rounded-lg p-6 bg-white relative">
+                {/* Código PIL en la esquina */}
+                {formData.almacenador_codigo_pil && (
+                    <div className="absolute top-4 right-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-orange-100 text-orange-800 border border-orange-300">
+                            PIL: {formData.almacenador_codigo_pil}
+                        </span>
+                    </div>
+                )}
+
+                <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
+                    Almacenador (ALM) <span className="text-sm text-slate-500 font-normal">(Opcional)</span>
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Nombre */}
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Nombre / Razón Social
+                        </label>
+                        <textarea
+                            rows={3}
+                            value={formData.almacenador || ""}
+                            onChange={(e) => updateField("almacenador", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ingrese nombre o razón social completa"
+                        />
+                    </div>
+
+                    {/* Dirección */}
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Dirección
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.almacenador_direccion || ""}
+                            onChange={(e) => updateField("almacenador_direccion", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ingrese dirección"
+                        />
+                    </div>
+
+                    {/* Teléfono */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Teléfono
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.almacenador_telefono || ""}
+                            onChange={(e) => updateField("almacenador_telefono", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="+56 9 1234 5678"
+                        />
+                    </div>
+
+                    {/* Email */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Email
+                        </label>
+                        <input
+                            type="email"
+                            value={formData.almacenador_email || ""}
+                            onChange={(e) => updateField("almacenador_email", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="correo@ejemplo.com"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* NOTA INFORMATIVA */}
+            <div className="bg-blue-50 border-l-4 border-blue-500 p-4">
                 <div className="flex">
                     <div className="flex-shrink-0">
                         <svg className="h-5 w-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
@@ -979,10 +1296,10 @@ const Step2Participantes = ({ formData, setFormData }) => {
                     <div className="ml-3 text-sm text-blue-700">
                         <p className="font-medium mb-1">Roles específicos de Carga Suelta:</p>
                         <ul className="list-disc list-inside space-y-1 ml-2">
-                            <li><strong>EMB:</strong> Shipper/Embarcador (quien envía la carga)</li>
-                            <li><strong>CONS:</strong> Consignatario (quien recibe)</li>
-                            <li><strong>NOTI:</strong> A quien notificar</li>
-                            <li><strong>ALM:</strong> Almacenador (empresa de almacenaje)</li>
+                            <li><strong>EMB:</strong> Shipper/Embarcador (quien envía la carga) - <strong>Obligatorio</strong></li>
+                            <li><strong>CONS:</strong> Consignatario (quien recibe) - <strong>Obligatorio</strong></li>
+                            <li><strong>NOTI:</strong> A quien notificar - Opcional</li>
+                            <li><strong>ALM:</strong> Almacenador (empresa de almacenaje) - Opcional</li>
                         </ul>
                         <p className="mt-2 text-xs">Los roles EMI, REP y EMIDO se toman automáticamente de las referencias del manifiesto.</p>
                     </div>

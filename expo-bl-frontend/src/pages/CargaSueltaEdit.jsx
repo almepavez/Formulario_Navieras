@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Swal from "sweetalert2";
-import ParticipanteSelector from '../components/ParticipanteSelector';
 
 const STEPS = [
     { id: 1, name: "Datos BL" },
@@ -23,6 +22,18 @@ const TIPOS_BULTO = [
     { value: "75", label: "75 - Envases/Packages" }
 ];
 
+const UNIDADES_PESO = [
+    { value: "KGM", label: "KGM - Kilogramos" },
+    { value: "TNE", label: "TNE - Toneladas" },
+    { value: "LBR", label: "LBR - Libras" }
+];
+
+const UNIDADES_VOLUMEN = [
+    { value: "MTQ", label: "MTQ - Metros cúbicos" },
+    { value: "FTQ", label: "FTQ - Pies cúbicos" },
+    { value: "LTR", label: "LTR - Litros" }
+];
+
 const CargaSueltaEdit = () => {
     const { blNumber } = useParams();
     const navigate = useNavigate();
@@ -34,7 +45,6 @@ const CargaSueltaEdit = () => {
     const [puertos, setPuertos] = useState([]);
     const [tiposBulto, setTiposBulto] = useState(TIPOS_BULTO);
 
-    // 🔥 REEMPLAZA el useState del formData (línea ~45)
     const [formData, setFormData] = useState({
         bl_number: "",
         tipo_servicio: "BB",
@@ -51,17 +61,32 @@ const CargaSueltaEdit = () => {
         lugar_destino: "",
         lugar_entrega: "",
 
-        // 🔥 NUEVOS CAMPOS: IDs de participantes
-        shipper_id: null,        // Este ES el embarcador (EMB)
-        consignee_id: null,
-        notify_id: null,
-        almacenador_id: null,    // Este es el almacenador (ALM)
-
-        // Participantes - Display Text
+        // 🔥 PARTICIPANTES - Solo nombres (sin IDs)
         shipper: "",
         consignee: "",
         notify_party: "",
-        almacenador: "", // 🔥 NUEVO
+        almacenador: "",
+
+        // 🆕 DATOS EXTRAÍDOS (editables)
+        shipper_codigo_pil: "",
+        shipper_direccion: "",
+        shipper_telefono: "",
+        shipper_email: "",
+        
+        consignee_codigo_pil: "",
+        consignee_direccion: "",
+        consignee_telefono: "",
+        consignee_email: "",
+        
+        notify_codigo_pil: "",
+        notify_direccion: "",
+        notify_telefono: "",
+        notify_email: "",
+        
+        almacenador_codigo_pil: "",
+        almacenador_direccion: "",
+        almacenador_telefono: "",
+        almacenador_email: "",
 
         items: [],
         observaciones: [
@@ -75,7 +100,6 @@ const CargaSueltaEdit = () => {
         fetchPuertos();
     }, [blNumber]);
 
-    // 🔥 REEMPLAZA la función fetchBLData (línea ~80)
     const fetchBLData = async () => {
         try {
             setLoading(true);
@@ -137,16 +161,30 @@ const CargaSueltaEdit = () => {
                 lugar_destino: bl.lugar_destino_cod || "",
                 lugar_entrega: bl.lugar_entrega_cod || "",
 
-                // 🔥 CARGAR IDs DE PARTICIPANTES
-                shipper_id: bl.shipper_id || null,      // Shipper = Embarcador
-                consignee_id: bl.consignee_id || null,
-                notify_id: bl.notify_id || null,
-                almacenador_id: bl.almacenador_id || null,  // Almacenador (separado)
-                // Textos de participantes
+                // 🔥 CARGAR DATOS DE PARTICIPANTES
                 shipper: bl.shipper || "",
+                shipper_codigo_pil: bl.shipper_codigo_pil || "",
+                shipper_direccion: bl.shipper_direccion || "",
+                shipper_telefono: bl.shipper_telefono || "",
+                shipper_email: bl.shipper_email || "",
+                
                 consignee: bl.consignee || "",
+                consignee_codigo_pil: bl.consignee_codigo_pil || "",
+                consignee_direccion: bl.consignee_direccion || "",
+                consignee_telefono: bl.consignee_telefono || "",
+                consignee_email: bl.consignee_email || "",
+                
                 notify_party: bl.notify_party || "",
+                notify_codigo_pil: bl.notify_codigo_pil || "",
+                notify_direccion: bl.notify_direccion || "",
+                notify_telefono: bl.notify_telefono || "",
+                notify_email: bl.notify_email || "",
+                
                 almacenador: bl.almacenador || "",
+                almacenador_codigo_pil: bl.almacenador_codigo_pil || "",
+                almacenador_direccion: bl.almacenador_direccion || "",
+                almacenador_telefono: bl.almacenador_telefono || "",
+                almacenador_email: bl.almacenador_email || "",
 
                 items: (dataItems.items || []).map(item => ({
                     numero_item: item.numero_item,
@@ -197,188 +235,230 @@ const CargaSueltaEdit = () => {
         }
     };
 
-   // 🔥 ACTUALIZA la función validateStep en CargaSueltaEdit.jsx (línea ~213)
-const validateStep = (step) => {
-    switch (step) {
-        case 1:
-            // Validar BL Number
-            if (!formData.bl_number?.trim()) {
-                Swal.fire({
-                    title: "Campo requerido",
-                    text: "Debes ingresar el N° de BL",
-                    icon: "warning",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            
-            // 🔥 VALIDAR LUGAR EMISIÓN
-            if (!formData.lugar_emision?.trim()) {
-                Swal.fire({
-                    title: "Campo requerido",
-                    text: "Debes seleccionar el Lugar de Emisión",
-                    icon: "warning",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            if (!puertos.some(p => p.codigo === formData.lugar_emision)) {
-                Swal.fire({
-                    title: "Puerto inválido",
-                    html: `El código "<strong>${formData.lugar_emision}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
-                    icon: "error",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            
-            // 🔥 VALIDAR LUGAR RECEPCIÓN
-            if (!formData.lugar_recepcion?.trim()) {
-                Swal.fire({
-                    title: "Campo requerido",
-                    text: "Debes seleccionar el Lugar de Recepción",
-                    icon: "warning",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            if (!puertos.some(p => p.codigo === formData.lugar_recepcion)) {
-                Swal.fire({
-                    title: "Puerto inválido",
-                    html: `El código "<strong>${formData.lugar_recepcion}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
-                    icon: "error",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            
-            // 🔥 VALIDAR PUERTO EMBARQUE
-            if (!formData.puerto_embarque?.trim()) {
-                Swal.fire({
-                    title: "Campo requerido",
-                    text: "Debes seleccionar el Puerto de Embarque",
-                    icon: "warning",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            if (!puertos.some(p => p.codigo === formData.puerto_embarque)) {
-                Swal.fire({
-                    title: "Puerto inválido",
-                    html: `El código "<strong>${formData.puerto_embarque}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
-                    icon: "error",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            
-            // 🔥 VALIDAR PUERTO DESCARGA
-            if (!formData.puerto_descarga?.trim()) {
-                Swal.fire({
-                    title: "Campo requerido",
-                    text: "Debes seleccionar el Puerto de Descarga",
-                    icon: "warning",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            if (!puertos.some(p => p.codigo === formData.puerto_descarga)) {
-                Swal.fire({
-                    title: "Puerto inválido",
-                    html: `El código "<strong>${formData.puerto_descarga}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
-                    icon: "error",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            
-            // 🔥 VALIDAR LUGAR DESTINO (si está presente)
-            if (formData.lugar_destino?.trim()) {
-                if (!puertos.some(p => p.codigo === formData.lugar_destino)) {
+    const validateStep = (step) => {
+        switch (step) {
+            case 1:
+                // Validar BL Number
+                if (!formData.bl_number?.trim()) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "Debes ingresar el N° de BL",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                
+                // 🔥 VALIDAR LUGAR EMISIÓN
+                if (!formData.lugar_emision?.trim()) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "Debes seleccionar el Lugar de Emisión",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                if (!puertos.some(p => p.codigo === formData.lugar_emision)) {
                     Swal.fire({
                         title: "Puerto inválido",
-                        html: `El código "<strong>${formData.lugar_destino}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
+                        html: `El código "<strong>${formData.lugar_emision}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
                         icon: "error",
                         confirmButtonColor: "#10b981"
                     });
                     return false;
                 }
-            }
-            
-            // 🔥 VALIDAR LUGAR ENTREGA (si está presente)
-            if (formData.lugar_entrega?.trim()) {
-                if (!puertos.some(p => p.codigo === formData.lugar_entrega)) {
+                
+                // 🔥 VALIDAR LUGAR RECEPCIÓN
+                if (!formData.lugar_recepcion?.trim()) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "Debes seleccionar el Lugar de Recepción",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                if (!puertos.some(p => p.codigo === formData.lugar_recepcion)) {
                     Swal.fire({
                         title: "Puerto inválido",
-                        html: `El código "<strong>${formData.lugar_entrega}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
+                        html: `El código "<strong>${formData.lugar_recepcion}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
                         icon: "error",
                         confirmButtonColor: "#10b981"
                     });
                     return false;
                 }
-            }
-            
-            // Validar fechas
-            if (!formData.fecha_emision) {
-                Swal.fire({
-                    title: "Campo requerido",
-                    text: "Debes ingresar la Fecha de Emisión",
-                    icon: "warning",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            if (!formData.fecha_presentacion) {
-                Swal.fire({
-                    title: "Campo requerido",
-                    text: "Debes ingresar la Fecha de Presentación",
-                    icon: "warning",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            if (!formData.fecha_embarque) {
-                Swal.fire({
-                    title: "Campo requerido",
-                    text: "Debes ingresar la Fecha de Embarque",
-                    icon: "warning",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            if (!formData.fecha_zarpe) {
-                Swal.fire({
-                    title: "Campo requerido",
-                    text: "Debes ingresar la Fecha de Zarpe",
-                    icon: "warning",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            return true;
+                
+                // 🔥 VALIDAR PUERTO EMBARQUE
+                if (!formData.puerto_embarque?.trim()) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "Debes seleccionar el Puerto de Embarque",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                if (!puertos.some(p => p.codigo === formData.puerto_embarque)) {
+                    Swal.fire({
+                        title: "Puerto inválido",
+                        html: `El código "<strong>${formData.puerto_embarque}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
+                        icon: "error",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                
+                // 🔥 VALIDAR PUERTO DESCARGA
+                if (!formData.puerto_descarga?.trim()) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "Debes seleccionar el Puerto de Descarga",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                if (!puertos.some(p => p.codigo === formData.puerto_descarga)) {
+                    Swal.fire({
+                        title: "Puerto inválido",
+                        html: `El código "<strong>${formData.puerto_descarga}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
+                        icon: "error",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                
+                // 🔥 VALIDAR LUGAR DESTINO (si está presente)
+                if (formData.lugar_destino?.trim()) {
+                    if (!puertos.some(p => p.codigo === formData.lugar_destino)) {
+                        Swal.fire({
+                            title: "Puerto inválido",
+                            html: `El código "<strong>${formData.lugar_destino}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
+                            icon: "error",
+                            confirmButtonColor: "#10b981"
+                        });
+                        return false;
+                    }
+                }
+                
+                // 🔥 VALIDAR LUGAR ENTREGA (si está presente)
+                if (formData.lugar_entrega?.trim()) {
+                    if (!puertos.some(p => p.codigo === formData.lugar_entrega)) {
+                        Swal.fire({
+                            title: "Puerto inválido",
+                            html: `El código "<strong>${formData.lugar_entrega}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
+                            icon: "error",
+                            confirmButtonColor: "#10b981"
+                        });
+                        return false;
+                    }
+                }
+                
+                // Validar fechas
+                if (!formData.fecha_emision) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "Debes ingresar la Fecha de Emisión",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                if (!formData.fecha_presentacion) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "Debes ingresar la Fecha de Presentación",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                if (!formData.fecha_embarque) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "Debes ingresar la Fecha de Embarque",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                if (!formData.fecha_zarpe) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "Debes ingresar la Fecha de Zarpe",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                return true;
 
-        case 2:
-
+            case 2:
                 // Validar Step 2: Participantes
-                if (!formData.shipper_id) {
+                if (!formData.shipper || formData.shipper.trim().length < 3) {
                     Swal.fire({
                         title: "Campo requerido",
-                        text: "Debes seleccionar un Shipper",
+                        text: "El Shipper/Embarcador debe tener al menos 3 caracteres",
                         icon: "warning",
                         confirmButtonColor: "#10b981"
                     });
                     return false;
                 }
-                if (!formData.consignee_id) {
+                
+                // Validar que Shipper tenga al menos teléfono o email
+                if (!formData.shipper_telefono?.trim() && !formData.shipper_email?.trim()) {
                     Swal.fire({
-                        title: "Campo requerido",
-                        text: "Debes seleccionar un Consignee",
+                        title: "Datos de contacto faltantes",
+                        text: "El Shipper debe tener al menos teléfono o email",
                         icon: "warning",
                         confirmButtonColor: "#10b981"
                     });
                     return false;
                 }
-                // Notify party NO es obligatorio
+                
+                if (!formData.consignee || formData.consignee.trim().length < 3) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "El Consignee debe tener al menos 3 caracteres",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                
+                // Validar que Consignee tenga al menos teléfono o email
+                if (!formData.consignee_telefono?.trim() && !formData.consignee_email?.trim()) {
+                    Swal.fire({
+                        title: "Datos de contacto faltantes",
+                        text: "El Consignee debe tener al menos teléfono o email",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                
+                // Notify party y Almacenador NO son obligatorios, pero si se llenan, validar contacto
+                if (formData.notify_party?.trim() && !formData.notify_telefono?.trim() && !formData.notify_email?.trim()) {
+                    Swal.fire({
+                        title: "Datos de contacto faltantes",
+                        text: "Si ingresas Notify Party, debe tener al menos teléfono o email",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                
+                if (formData.almacenador?.trim() && !formData.almacenador_telefono?.trim() && !formData.almacenador_email?.trim()) {
+                    Swal.fire({
+                        title: "Datos de contacto faltantes",
+                        text: "Si ingresas Almacenador, debe tener al menos teléfono o email",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                
                 return true;
 
             case 3:
@@ -534,45 +614,10 @@ const validateStep = (step) => {
         setIsSubmitting(true);
 
         try {
-            // 🔥 DENTRO DE handleSubmit, reemplaza el body del fetch (línea ~400)
             const res = await fetch(`${API_BASE}/bls/${blNumber}/carga-suelta`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    // Datos BL
-                    bl_number: formData.bl_number,
-                    tipo_servicio: formData.tipo_servicio,
-                    forma_pago_flete: formData.forma_pago_flete,
-                    cond_transporte: formData.cond_transporte,
-                    fecha_emision: formData.fecha_emision,
-                    fecha_presentacion: formData.fecha_presentacion,
-                    fecha_embarque: formData.fecha_embarque,
-                    fecha_zarpe: formData.fecha_zarpe,
-
-                    // Locaciones
-                    lugar_emision: formData.lugar_emision,
-                    lugar_recepcion: formData.lugar_recepcion,
-                    puerto_embarque: formData.puerto_embarque,
-                    puerto_descarga: formData.puerto_descarga,
-                    lugar_destino: formData.lugar_destino,
-                    lugar_entrega: formData.lugar_entrega,
-
-                    // 🔥 IDs de participantes
-                    shipper_id: formData.shipper_id,
-                    consignee_id: formData.consignee_id,
-                    notify_id: formData.notify_id,
-                    almacenador_id: formData.almacenador_id,  // Almacenador
-
-                    // Textos de participantes (backup)
-                    shipper: formData.shipper,
-                    consignee: formData.consignee,
-                    notify_party: formData.notify_party,
-                    almacenador: formData.almacenador,
-
-                    // Items y observaciones
-                    items: formData.items,
-                    observaciones: formData.observaciones
-                })
+                body: JSON.stringify(formData)
             });
 
             const data = await res.json();
@@ -647,7 +692,8 @@ const validateStep = (step) => {
                     peso_bruto: "",
                     unidad_peso: "KGM",
                     volumen: 0,
-                    unidad_volumen: "MTQ"                }
+                    unidad_volumen: "MTQ"
+                }
             ]
         });
     };
@@ -706,7 +752,7 @@ const validateStep = (step) => {
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                             </svg>
-                            Volver {/* El texto se mantiene genérico */}
+                            Volver
                         </button>
                         <h1 className="text-2xl font-semibold text-[#0F2A44]">
                             Editar Carga Suelta
@@ -981,25 +1027,10 @@ const Step1DatosBL = ({ formData, setFormData, manifiestoData, puertos }) => (
     </div>
 );
 
-// 🔥 REEMPLAZA TODO el componente Step2Participantes (línea ~730)
+// 🔥 STEP 2 ACTUALIZADO - IGUAL QUE CARGASUELTANUEVO
 const Step2Participantes = ({ formData, setFormData }) => {
-    const handleParticipanteChange = (tipo, id, displayText) => {
-        // Mapear nombres de campos
-        const fieldMap = {
-            shipper: { id: 'shipper_id', text: 'shipper' },
-            consignee: { id: 'consignee_id', text: 'consignee' },
-            notify: { id: 'notify_id', text: 'notify_party' },
-            almacenador: { id: 'almacenador_id', text: 'almacenador' }
-        };
-
-        const fields = fieldMap[tipo];
-        if (!fields) return;
-
-        setFormData(prev => ({
-            ...prev,
-            [fields.id]: id,
-            [fields.text]: displayText
-        }));
+    const updateField = (field, value) => {
+        setFormData(prev => ({ ...prev, [field]: value }));
     };
 
     const addObservacion = () => {
@@ -1026,54 +1057,398 @@ const Step2Participantes = ({ formData, setFormData }) => {
     return (
         <div className="space-y-6">
             <h2 className="text-lg font-semibold text-slate-800 mb-4">
-                Participantes de Carga Suelta
+                Participantes del BL
             </h2>
 
+            {/* 📌 NOTA INFORMATIVA */}
+            <div className="bg-slate-50 border border-slate-300 rounded-lg p-4">
+                <p className="text-sm text-slate-700">
+                    ℹ️ <strong>Información de los participantes.</strong> Completa los datos de contacto de cada participante. Al menos uno de los campos (teléfono o email) es obligatorio.
+                </p>
+            </div>
 
-            {/* 🔥 SHIPPER = EMBARCADOR */}
-            <ParticipanteSelector
-                label="Shipper / Embarcador (EMB)"
-                tipo="shipper"
-                value={formData.shipper_id}
-                displayValue={formData.shipper}
-                onChange={(id, text) => handleParticipanteChange('shipper', id, text)}
-                required={true}
-                helpText="El shipper actúa como embarcador en carga suelta"
-            />
+            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+            {/* SHIPPER / EMBARCADOR (EMB) */}
+            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+            <div className="border border-slate-300 rounded-lg p-6 bg-white relative">
+                {/* Código PIL en la esquina */}
+                {formData.shipper_codigo_pil && (
+                    <div className="absolute top-4 right-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-blue-100 text-blue-800 border border-blue-300">
+                            PIL: {formData.shipper_codigo_pil}
+                        </span>
+                    </div>
+                )}
 
-            {/* 🔥 CONSIGNEE con ParticipanteSelector */}
-            <ParticipanteSelector
-                label="Consignee / Consignatario (CONS)"
-                tipo="consignee"
-                value={formData.consignee_id}
-                displayValue={formData.consignee}
-                onChange={(id, text) => handleParticipanteChange('consignee', id, text)}
-                required={true}
-            />
+                <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
+                    Shipper / Embarcador (EMB)
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Nombre */}
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Nombre / Razón Social <span className="text-red-500">*</span>
+                        </label>
+                        <textarea
+                            rows={3}
+                            value={formData.shipper || ""}
+                            onChange={(e) => updateField("shipper", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ingrese nombre o razón social completa"
+                        />
+                    </div>
 
-            {/* 🔥 NOTIFY PARTY con ParticipanteSelector */}
-            <ParticipanteSelector
-                label="Notify Party / Notificar a (NOTI)"
-                tipo="notify"
-                value={formData.notify_id}
-                displayValue={formData.notify_party}
-                onChange={(id, text) => handleParticipanteChange('notify', id, text)}
-                required={false}
-            />
-            {/* 🔥 ALMACENADOR (DIFERENTE AL SHIPPER) */}
-            <ParticipanteSelector
-                label="Almacenador (ALM)"
-                tipo="almacenador"
-                value={formData.almacenador_id}
-                displayValue={formData.almacenador || ''}
-                onChange={(id, text) => handleParticipanteChange('almacenador', id, text)}
-                required={false}
-                helpText="Empresa que almacena la mercancía (requiere código de almacén)"
-            />
+                    {/* Código PIL */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Código PIL
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.shipper_codigo_pil || ""}
+                            onChange={(e) => updateField("shipper_codigo_pil", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ej: CL123456"
+                        />
+                    </div>
 
+                    {/* Dirección */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Dirección
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.shipper_direccion || ""}
+                            onChange={(e) => updateField("shipper_direccion", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ingrese dirección"
+                        />
+                    </div>
 
+                    {/* Teléfono */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Teléfono <span className="text-amber-500 text-xs">(requerido si no hay email)</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.shipper_telefono || ""}
+                            onChange={(e) => updateField("shipper_telefono", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="+56 9 1234 5678"
+                        />
+                    </div>
 
-            {/* 🆕 SECCIÓN DE OBSERVACIONES */}
+                    {/* Email */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Email <span className="text-amber-500 text-xs">(requerido si no hay teléfono)</span>
+                        </label>
+                        <input
+                            type="email"
+                            value={formData.shipper_email || ""}
+                            onChange={(e) => updateField("shipper_email", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="correo@ejemplo.com"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+            {/* CONSIGNEE (CONS) */}
+            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+            <div className="border border-slate-300 rounded-lg p-6 bg-white relative">
+                {/* Código PIL en la esquina */}
+                {formData.consignee_codigo_pil && (
+                    <div className="absolute top-4 right-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-green-100 text-green-800 border border-green-300">
+                            PIL: {formData.consignee_codigo_pil}
+                        </span>
+                    </div>
+                )}
+
+                <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
+                    Consignatario (CONS)
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Nombre */}
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Nombre / Razón Social <span className="text-red-500">*</span>
+                        </label>
+                        <textarea
+                            rows={3}
+                            value={formData.consignee || ""}
+                            onChange={(e) => updateField("consignee", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ingrese nombre o razón social completa"
+                        />
+                    </div>
+
+                    {/* Código PIL */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Código PIL
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.consignee_codigo_pil || ""}
+                            onChange={(e) => updateField("consignee_codigo_pil", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ej: CL123456"
+                        />
+                    </div>
+
+                    {/* Dirección */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Dirección
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.consignee_direccion || ""}
+                            onChange={(e) => updateField("consignee_direccion", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ingrese dirección"
+                        />
+                    </div>
+
+                    {/* Teléfono */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Teléfono <span className="text-amber-500 text-xs">(requerido si no hay email)</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.consignee_telefono || ""}
+                            onChange={(e) => updateField("consignee_telefono", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="+56 9 1234 5678"
+                        />
+                    </div>
+
+                    {/* Email */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Email <span className="text-amber-500 text-xs">(requerido si no hay teléfono)</span>
+                        </label>
+                        <input
+                            type="email"
+                            value={formData.consignee_email || ""}
+                            onChange={(e) => updateField("consignee_email", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="correo@ejemplo.com"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+            {/* NOTIFY PARTY (NOTI) - OPCIONAL */}
+            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+            <div className="border border-slate-300 rounded-lg p-6 bg-white relative">
+                {/* Código PIL en la esquina */}
+                {formData.notify_codigo_pil && (
+                    <div className="absolute top-4 right-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-purple-100 text-purple-800 border border-purple-300">
+                            PIL: {formData.notify_codigo_pil}
+                        </span>
+                    </div>
+                )}
+
+                <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
+                    Notify Party (NOTI) <span className="text-sm text-slate-500 font-normal">(Opcional)</span>
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Nombre */}
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Nombre / Razón Social
+                        </label>
+                        <textarea
+                            rows={3}
+                            value={formData.notify_party || ""}
+                            onChange={(e) => updateField("notify_party", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ingrese nombre o razón social completa"
+                        />
+                    </div>
+
+                    {/* Código PIL */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Código PIL
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.notify_codigo_pil || ""}
+                            onChange={(e) => updateField("notify_codigo_pil", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ej: CL123456"
+                        />
+                    </div>
+
+                    {/* Dirección */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Dirección
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.notify_direccion || ""}
+                            onChange={(e) => updateField("notify_direccion", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ingrese dirección"
+                        />
+                    </div>
+
+                    {/* Teléfono */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Teléfono
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.notify_telefono || ""}
+                            onChange={(e) => updateField("notify_telefono", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="+56 9 1234 5678"
+                        />
+                    </div>
+
+                    {/* Email */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Email
+                        </label>
+                        <input
+                            type="email"
+                            value={formData.notify_email || ""}
+                            onChange={(e) => updateField("notify_email", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="correo@ejemplo.com"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+            {/* ALMACENADOR (ALM) - OPCIONAL */}
+            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+            <div className="border border-slate-300 rounded-lg p-6 bg-white relative">
+                {/* Código PIL en la esquina */}
+                {formData.almacenador_codigo_pil && (
+                    <div className="absolute top-4 right-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-orange-100 text-orange-800 border border-orange-300">
+                            PIL: {formData.almacenador_codigo_pil}
+                        </span>
+                    </div>
+                )}
+
+                <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
+                    Almacenador (ALM) <span className="text-sm text-slate-500 font-normal">(Opcional)</span>
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Nombre */}
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Nombre / Razón Social
+                        </label>
+                        <textarea
+                            rows={3}
+                            value={formData.almacenador || ""}
+                            onChange={(e) => updateField("almacenador", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ingrese nombre o razón social completa"
+                        />
+                    </div>
+
+                    {/* Código PIL */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Código PIL
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.almacenador_codigo_pil || ""}
+                            onChange={(e) => updateField("almacenador_codigo_pil", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ej: CL123456"
+                        />
+                    </div>
+
+                    {/* Dirección */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Dirección
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.almacenador_direccion || ""}
+                            onChange={(e) => updateField("almacenador_direccion", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ingrese dirección"
+                        />
+                    </div>
+
+                    {/* Teléfono */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Teléfono
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.almacenador_telefono || ""}
+                            onChange={(e) => updateField("almacenador_telefono", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="+56 9 1234 5678"
+                        />
+                    </div>
+
+                    {/* Email */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Email
+                        </label>
+                        <input
+                            type="email"
+                            value={formData.almacenador_email || ""}
+                            onChange={(e) => updateField("almacenador_email", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="correo@ejemplo.com"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* NOTA INFORMATIVA */}
+            <div className="bg-blue-50 border-l-4 border-blue-500 p-4">
+                <div className="flex">
+                    <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                    </div>
+                    <div className="ml-3 text-sm text-blue-700">
+                        <p className="font-medium mb-1">Roles específicos de Carga Suelta:</p>
+                        <ul className="list-disc list-inside space-y-1 ml-2">
+                            <li><strong>EMB:</strong> Shipper/Embarcador (quien envía la carga) - <strong>Obligatorio</strong></li>
+                            <li><strong>CONS:</strong> Consignatario (quien recibe) - <strong>Obligatorio</strong></li>
+                            <li><strong>NOTI:</strong> A quien notificar - Opcional</li>
+                            <li><strong>ALM:</strong> Almacenador (empresa de almacenaje) - Opcional</li>
+                        </ul>
+                        <p className="mt-2 text-xs">Los roles EMI, REP y EMIDO se toman automáticamente de las referencias del manifiesto.</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* OBSERVACIONES */}
             <div className="mt-6 pt-6 border-t border-slate-200">
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="text-md font-semibold text-slate-700">
@@ -1091,16 +1466,14 @@ const Step2Participantes = ({ formData, setFormData }) => {
                     </button>
                 </div>
 
-
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3 text-sm text-blue-800">
                     <strong>Info:</strong> Las observaciones aparecerán en el XML de carga suelta.
                     Por defecto se incluye "LISTA DE ENCARGO" como motivo (MOT).
                 </div>
 
                 <div className="space-y-3">
-                    {formData.observaciones && formData.observaciones.map((obs, idx) => (
+                    {formData.observaciones.map((obs, idx) => (
                         <div key={idx} className="border border-slate-200 rounded-lg p-3 bg-slate-50 relative">
-                            {/* Botón eliminar */}
                             {formData.observaciones.length > 1 && (
                                 <button
                                     type="button"
@@ -1147,7 +1520,7 @@ const Step2Participantes = ({ formData, setFormData }) => {
                     ))}
                 </div>
 
-                {(!formData.observaciones || formData.observaciones.length === 0) && (
+                {formData.observaciones.length === 0 && (
                     <div className="text-center py-6 text-slate-500 bg-slate-50 rounded-lg border-2 border-dashed border-slate-300">
                         <p className="text-sm">No hay observaciones. Haz clic en "Agregar Observación".</p>
                     </div>
@@ -1226,7 +1599,7 @@ const Step3Items = ({ formData, setFormData, addItem, removeItem, tiposBulto }) 
                                 onChange={(e) => updateItem(idx, 'descripcion', e.target.value)}
                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F2A44]"
                                 rows={5}
-                                placeholder="Descripción detallada de la mercancía"
+                                placeholder="Descripción detallada de la mercancía&#10;Ejemplo:&#10;01 PALLETS STC: 44 CAJAS&#10;BOLT SEALS SERIAL NO. CL000001 - CL010000&#10;10.000 PCS&#10;SIZE OF EACH BOX (LXBXH): 51 X 32 X 13.5 CM"
                             />
                         </div>
 
@@ -1252,13 +1625,12 @@ const Step3Items = ({ formData, setFormData, addItem, removeItem, tiposBulto }) 
                                 placeholder="Ej: 1500.500"
                             />
 
-                            <InputField
+                            <SelectField
                                 label="Unidad de Peso"
                                 value={item.unidad_peso}
-                                onChange={(v) => updateItem(idx, 'unidad_peso', v.toUpperCase())}
+                                onChange={(v) => updateItem(idx, 'unidad_peso', v)}
+                                options={UNIDADES_PESO}
                                 required
-                                placeholder="Ej: KGM, TNE, LBR"
-                                maxLength={3}
                             />
                         </div>
 
@@ -1274,13 +1646,12 @@ const Step3Items = ({ formData, setFormData, addItem, removeItem, tiposBulto }) 
                                 required
                             />
 
-                            <InputField
+                            <SelectField
                                 label="Unidad de Volumen"
                                 value={item.unidad_volumen}
-                                onChange={(v) => updateItem(idx, 'unidad_volumen', v.toUpperCase())}
+                                onChange={(v) => updateItem(idx, 'unidad_volumen', v)}
+                                options={UNIDADES_VOLUMEN}
                                 required
-                                placeholder="Ej: MTQ, FTQ, LTR"
-                                maxLength={3}
                             />
                         </div>
                     </div>
@@ -1484,7 +1855,7 @@ const Step4Revision = ({ formData, manifiestoData, tiposBulto }) => {
                     <strong>Nota:</strong> Los roles EMI (Emisor), REP (Representante) y EMIDO (Emisor Doc) se toman de las referencias del manifiesto.
                 </div>
             </div>
-            {/* 🆕 Observaciones */}
+
             {formData.observaciones && formData.observaciones.length > 0 && (
                 <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                     <h3 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
@@ -1552,7 +1923,6 @@ const SelectField = ({ label, value, onChange, options, required }) => (
     </div>
 );
 
-// 🔥 REEMPLAZA el componente SelectPuerto en CargaSueltaEdit.jsx (al final del archivo)
 const SelectPuerto = ({ label, value, onChange, puertos, required }) => {
     const datalistId = `puertos-edit-${label.replace(/\s+/g, '-').toLowerCase()}`;
     const isPuertoValido = puertos.some(p => p.codigo === value);
