@@ -31,6 +31,7 @@ const NuevoManifiesto = () => {
     representante: "",
     fechaManifiestoAduana: "",
     numeroManifiestoAduana: "",
+    fecha_zarpe: "", // 🆕 Fecha de zarpe manual
   });
 
   const todayAtMidnightLocal = () => {
@@ -256,6 +257,7 @@ const NuevoManifiesto = () => {
         <p><strong>Representante:</strong> ${representanteHtml}</p>
         <p><strong>Fecha Mfto Aduana:</strong> ${form.fechaManifiestoAduana}</p>
         <p><strong>N° Mfto Aduana:</strong> ${form.numeroManifiestoAduana}</p>
+        ${form.fecha_zarpe ? `<p><strong>Fecha Zarpe:</strong> ${form.fecha_zarpe}</p>` : ''}
         <hr style="margin: 12px 0; border: none; border-top: 1px solid #e2e8f0;">
         <p><strong>Puertos en itinerario:</strong></p>
         <div style="padding-left: 12px; font-size: 13px;">${puertosItinerario || "Ninguno"}</div>
@@ -562,6 +564,7 @@ const NuevoManifiesto = () => {
                 <Hint text={`Customer ID: ${emisorSeleccionado.customer_id} | Match: ${emisorSeleccionado.match_code} | RUT: ${emisorSeleccionado.rut}`} />
               )}
             </Field>
+
             <Field label="Representante *">
               <select
                 value={form.representante}
@@ -596,6 +599,17 @@ const NuevoManifiesto = () => {
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                 placeholder="Ej: 261001"
               />
+            </Field>
+
+            {/* 🆕 FECHA ZARPE */}
+            <Field label="Fecha Zarpe">
+              <input
+                type="date"
+                value={form.fecha_zarpe}
+                onChange={onChange("fecha_zarpe")}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+              />
+              <Hint text="Fecha de zarpe del manifiesto (opcional)" />
             </Field>
 
             <Field label="Status *">
