@@ -5577,7 +5577,6 @@ function formatDateDDMMYYYY(fecha) {
 
 // Función para generar la sección Referencias
 function generarReferencias(bl) {
-  // Si no hay datos de referencia, no generar la sección
   if (!bl.numero_referencia || !bl.fecha_referencia) {
     return undefined;
   }
@@ -5588,10 +5587,10 @@ function generarReferencias(bl) {
       'tipo-documento': 'MFTO',
       'numero': String(bl.numero_referencia),
       'fecha': formatDateDDMMYYYY(bl.fecha_manifiesto_aduana),
-      'tipo-id-emisor': bl.rep_tipo_id || 'RUT',
-      'nac-id-emisor': bl.rep_nacion_id || 'CL',
-      'valor-id-emisor': bl.rep_rut ? bl.rep_rut.replace(/\./g, '') : '96566940-K',
-      'emisor': bl.rep_nombre || 'AGENCIAS UNIVERSALES S.A.'
+      'tipo-id-emisor': bl.ref_doc_tipo_id || 'RUT',
+      'nac-id-emisor': bl.ref_doc_nacion_id || 'CL',
+      'valor-id-emisor': bl.ref_doc_rut ? bl.ref_doc_rut.replace(/\./g, '') : '',
+      'emisor': bl.ref_doc_nombre || ''
     }
   };
 }
@@ -5697,14 +5696,40 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
       lrm.nombre AS lugar_recepcion_nombre,
       
       -- 🔥 REPRESENTANTE desde REFERENCIAS (para EMI, EMIDO, REP)
-      ref.id AS rep_id,
-      ref.match_code AS rep_codigo,
-      ref.rut AS rep_rut,
-      ref.nombre_emisor AS rep_nombre,
-      ref.pais AS rep_pais,
-      ref.tipo_id_emisor AS rep_tipo_id,
-      ref.nacion_id AS rep_nacion_id,
+      -- EMI
+      ref_emi.id          AS emi_id,
+      ref_emi.rut         AS emi_rut,
+      ref_emi.nombre_emisor AS emi_nombre,
+      ref_emi.pais        AS emi_pais,
+      ref_emi.tipo_id_emisor AS emi_tipo_id,
+      ref_emi.nacion_id   AS emi_nacion_id,
+
+      -- EMIDO
+      ref_emido.id          AS emido_id,
+      ref_emido.rut         AS emido_rut,
+      ref_emido.nombre_emisor AS emido_nombre,
+      ref_emido.pais        AS emido_pais,
+      ref_emido.tipo_id_emisor AS emido_tipo_id,
+      ref_emido.nacion_id   AS emido_nacion_id,
+
+      -- REP
+      ref_rep.id          AS rep_id,
+      ref_rep.rut         AS rep_rut,
+      ref_rep.nombre_emisor AS rep_nombre,
+      ref_rep.pais        AS rep_pais,
+      ref_rep.tipo_id_emisor AS rep_tipo_id,
+      ref_rep.nacion_id   AS rep_nacion_id,
+
+      -- REF (para sección Referencias del XML)
+      ref_doc.id            AS ref_doc_id,
+      ref_doc.rut           AS ref_doc_rut,
+      ref_doc.nombre_emisor AS ref_doc_nombre,
+      ref_doc.match_code    AS ref_doc_codigo,
+      ref_doc.pais          AS ref_doc_pais,
+      ref_doc.tipo_id_emisor AS ref_doc_tipo_id,
+      ref_doc.nacion_id      AS ref_doc_nacion_id,
       
+
       -- 🔥 ALMACENADOR (para ALM en carga suelta)
       almacenador_p.id AS almacenador_id,
       almacenador_p.rut AS almacenador_rut,
@@ -5727,7 +5752,11 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
     LEFT JOIN participantes almacenador_p ON b.almacenador_id = almacenador_p.id
     
     -- 🔥 JOIN del representante desde REFERENCIAS
-    LEFT JOIN referencias ref ON m.referencia_id = ref.id
+    LEFT JOIN referencias ref_emi   ON m.operador_nave      = ref_emi.customer_id
+    LEFT JOIN referencias ref_emido ON m.emisor_documento   = ref_emido.customer_id
+    LEFT JOIN referencias ref_rep   ON m.representante       = ref_rep.match_code
+
+    LEFT JOIN referencias ref_doc ON m.referencia_id = ref_doc.id
     
     WHERE b.bl_number = ?
     LIMIT 1
@@ -5878,15 +5907,15 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
       if (participante.ciudad && participante.ciudad.trim()) {
         baseData['comuna'] = participante.ciudad.trim();
       }
-      
+
       // ✅ AGREGAR CODIGO-PAIS SI TIENE RUT Y PAÍS
       if (includeRUT && participante.rut && participante.pais) {
         baseData['codigo-pais'] = participante.pais;
       }
-      
+
       // Agregar campos extra si vienen (ej: codigo-almacen)
       Object.assign(baseData, extraFields);
-      
+
       return baseData;
     };
 
@@ -5894,7 +5923,25 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
     const participaciones = [];
 
     // Datos del representante desde REFERENCIAS (para EMI, EMIDO, REP)
-    const representanteData = bl.rep_id ? {
+    // REEMPLAZA el bloque "representanteData" por estos tres:
+
+    const emiData = bl.emi_id ? {
+      nombre: bl.emi_nombre,
+      rut: bl.emi_rut,
+      pais: bl.emi_pais || 'CL',
+      tipo_id: bl.emi_tipo_id || 'RUT',
+      nacion_id: bl.emi_nacion_id || 'CL'
+    } : null;
+
+    const emidoData = bl.emido_id ? {
+      nombre: bl.emido_nombre,
+      rut: bl.emido_rut,
+      pais: bl.emido_pais || 'CL',
+      tipo_id: bl.emido_tipo_id || 'RUT',
+      nacion_id: bl.emido_nacion_id || 'CL'
+    } : null;
+
+    const repData = bl.rep_id ? {
       nombre: bl.rep_nombre,
       rut: bl.rep_rut,
       pais: bl.rep_pais || 'CL',
@@ -5929,10 +5976,8 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
     // ✅ ORDEN ESPECÍFICO PARA CARGA SUELTA (BB)
     if (esCargaSuelta) {
       // 1️⃣ EMI - CON CODIGO-PAIS
-      if (representanteData) {
-        const emi = buildParticipacion('EMI', representanteData, true, {
-          'codigo-pais': representanteData.pais
-        });
+      if (emiData) {
+        const emi = buildParticipacion('EMI', emiData, true, { 'codigo-pais': emiData.pais });
         if (emi) participaciones.push(emi);
       }
 
@@ -5955,15 +6000,15 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
         if (alm) participaciones.push(alm);
       }
 
-      // 3️⃣ REP - SIN CODIGO-PAIS
-      if (representanteData) {
-        const rep = buildParticipacion('REP', representanteData, true);
+      // REP
+      if (repData) {
+        const rep = buildParticipacion('REP', repData, true);
         if (rep) participaciones.push(rep);
       }
 
-      // 4️⃣ EMIDO - SIN CODIGO-PAIS
-      if (representanteData) {
-        const emido = buildParticipacion('EMIDO', representanteData, true);
+      // EMIDO
+      if (emidoData) {
+        const emido = buildParticipacion('EMIDO', emidoData, true);
         if (emido) participaciones.push(emido);
       }
 
@@ -5987,13 +6032,12 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
     }
     // ✅ ORDEN PARA CONTENEDORES (FF/MM) - SIN CAMBIOS
     else {
-      // 1️⃣ EMI
-      if (representanteData) {
-        const emi = buildParticipacion('EMI', representanteData, true, {
-          'codigo-pais': representanteData.pais
-        });
+      // EMI
+      if (emiData) {
+        const emi = buildParticipacion('EMI', emiData, true, { 'codigo-pais': emiData.pais });
         if (emi) participaciones.push(emi);
       }
+
 
       // 2️⃣ CONS
       if (consigneeData) {
@@ -6001,9 +6045,10 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
         if (cons) participaciones.push(cons);
       }
 
-      // 3️⃣ EMIDO
-      if (representanteData) {
-        const emido = buildParticipacion('EMIDO', representanteData, true);
+
+      // EMIDO
+      if (emidoData) {
+        const emido = buildParticipacion('EMIDO', emidoData, true);
         if (emido) participaciones.push(emido);
       }
 
@@ -6013,11 +6058,12 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
         if (noti) participaciones.push(noti);
       }
 
-      // 5️⃣ REP
-      if (representanteData) {
-        const rep = buildParticipacion('REP', representanteData, true);
+      // REP
+      if (repData) {
+        const rep = buildParticipacion('REP', repData, true);
         if (rep) participaciones.push(rep);
       }
+
 
       // 6️⃣ EMB
       if (shipperData) {
@@ -6137,9 +6183,9 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
                     'tipo-cnt': c.tipo_cnt || '',
                     'cnt-so': '',
                     peso: c.peso || 0,
-                    'valor-id-op': representanteData?.rut ? cleanRUT(representanteData.rut) : '', // 🆕
-                    'nombre-operador': representanteData?.nombre || '', // 🆕
-                    status: bl.tipo_servicio_codigo || 'FF',
+                    'valor-id-op': repData?.rut ? cleanRUT(repData.rut) : '',
+                    'nombre-operador': repData?.nombre || '',
+                    status: mapTipoServicio(bl.tipo_servicio_codigo), 
 
                     CntIMO: imoList.length > 0 ? {
                       cntimo: imoList.length === 1
@@ -6204,21 +6250,14 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
 
     if (!Array.isArray(blNumbers) || blNumbers.length === 0) {
       return res.status(400).json({ error: "Debe seleccionar al menos un BL" });
-
     }
 
-    // 🔥 AQUÍ VAN LAS FUNCIONES HELPER 👇👇👇
-
-    // 🔥 MAPEO DE CÓDIGOS A DESCRIPCIONES PARA XML
+    // 🔥 MAPEO DE CÓDIGOS
     const mapTipoServicio = (codigo) => {
-      const mapeo = {
-        'FF': 'FCL/FCL',
-        'MM': 'EMPTY',
-        'BB': 'BB'
-      };
+      const mapeo = { 'FF': 'FCL/FCL', 'MM': 'EMPTY', 'BB': 'BB' };
       return mapeo[codigo] || 'FCL/FCL';
     };
-    // 🔥 FUNCIÓN HELPER: Limpiar RUT (quitar puntos, mantener guión)
+
     const cleanRUT = (rut) => {
       if (!rut) return '';
       return rut.replace(/\./g, '').trim();
@@ -6227,9 +6266,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
     const buildParticipacion = (nombre, participante, includeRUT = true, extraFields = {}) => {
       if (!participante || !participante.nombre) return null;
 
-      const baseData = {
-        nombre: nombre
-      };
+      const baseData = { nombre };
 
       if (includeRUT && participante.rut) {
         baseData['tipo-id'] = participante.tipo_id || 'RUT';
@@ -6239,127 +6276,130 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
 
       baseData['nombres'] = participante.nombre;
 
-      // 🔥 AGREGAR CAMPOS EXTRA
-      Object.assign(baseData, extraFields);
-
-      // 🔥 AGREGAR DIRECCIÓN SI EXISTE
       if (participante.direccion && participante.direccion.trim()) {
         baseData['direccion'] = participante.direccion.trim();
       }
 
-      // 🔥 AGREGAR TELÉFONO SI EXISTE
       if (participante.telefono && participante.telefono.trim()) {
         baseData['telefono'] = participante.telefono.trim();
       }
 
-      // 🔥 AGREGAR CIUDAD/COMUNA SI EXISTE
+      if (participante.email && participante.email.trim()) {
+        baseData['correo-electronico'] = participante.email.trim();
+      }
+
       if (participante.ciudad && participante.ciudad.trim()) {
         baseData['comuna'] = participante.ciudad.trim();
       }
 
-      // ❌ QUITAR ESTE BLOQUE COMPLETO - SOLO PARA EMI
-      // if (participante.pais) {
-      //   baseData['codigo-pais'] = participante.pais;
-      // }
+      if (includeRUT && participante.rut && participante.pais) {
+        baseData['codigo-pais'] = participante.pais;
+      }
+
+      Object.assign(baseData, extraFields);
 
       return baseData;
     };
+
+    // 🔥 QUERY REUTILIZABLE (con los 4 JOINs correctos)
+    const getBLQuery = () => `
+      SELECT
+        b.*,
+        m.viaje,
+        m.tipo_operacion,
+        m.numero_referencia,
+        m.fecha_referencia,
+        m.fecha_manifiesto_aduana,
+        m.representante AS representante_codigo,
+        n.nombre AS nave_nombre,
+        ts.codigo AS tipo_servicio_codigo,
+        ts.nombre AS tipo_servicio_nombre,
+        le.codigo AS lugar_emision_codigo,
+        le.nombre AS lugar_emision_nombre,
+        pe.codigo AS puerto_embarque_codigo,
+        pe.nombre AS puerto_embarque_nombre,
+        pd.codigo AS puerto_descarga_codigo,
+        pd.nombre AS puerto_descarga_nombre,
+        ld.codigo AS lugar_destino_codigo,
+        ld.nombre AS lugar_destino_nombre,
+        lem.codigo AS lugar_entrega_codigo,
+        lem.nombre AS lugar_entrega_nombre,
+        lrm.codigo AS lugar_recepcion_codigo,
+        lrm.nombre AS lugar_recepcion_nombre,
+
+        -- EMI
+        ref_emi.id            AS emi_id,
+        ref_emi.rut           AS emi_rut,
+        ref_emi.nombre_emisor AS emi_nombre,
+        ref_emi.pais          AS emi_pais,
+        ref_emi.tipo_id_emisor AS emi_tipo_id,
+        ref_emi.nacion_id     AS emi_nacion_id,
+
+        -- EMIDO
+        ref_emido.id            AS emido_id,
+        ref_emido.rut           AS emido_rut,
+        ref_emido.nombre_emisor AS emido_nombre,
+        ref_emido.pais          AS emido_pais,
+        ref_emido.tipo_id_emisor AS emido_tipo_id,
+        ref_emido.nacion_id     AS emido_nacion_id,
+
+        -- REP
+        ref_rep.id            AS rep_id,
+        ref_rep.rut           AS rep_rut,
+        ref_rep.nombre_emisor AS rep_nombre,
+        ref_rep.pais          AS rep_pais,
+        ref_rep.tipo_id_emisor AS rep_tipo_id,
+        ref_rep.nacion_id     AS rep_nacion_id,
+
+        -- REF (Referencias XML)
+        ref_doc.id            AS ref_doc_id,
+        ref_doc.rut           AS ref_doc_rut,
+        ref_doc.nombre_emisor AS ref_doc_nombre,
+        ref_doc.match_code    AS ref_doc_codigo,
+        ref_doc.pais          AS ref_doc_pais,
+        ref_doc.tipo_id_emisor AS ref_doc_tipo_id,
+        ref_doc.nacion_id     AS ref_doc_nacion_id,
+
+        -- ALMACENADOR
+        almacenador_p.id               AS almacenador_id,
+        almacenador_p.rut              AS almacenador_rut,
+        almacenador_p.nombre           AS almacenador_nombre,
+        almacenador_p.pais             AS almacenador_pais,
+        almacenador_p.codigo_almacen   AS almacenador_codigo_almacen
+
+      FROM bls b
+      LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
+      LEFT JOIN naves n ON m.nave_id = n.id
+      LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
+      LEFT JOIN puertos le ON b.lugar_emision_id = le.id
+      LEFT JOIN puertos pe ON b.puerto_embarque_id = pe.id
+      LEFT JOIN puertos pd ON b.puerto_descarga_id = pd.id
+      LEFT JOIN puertos ld ON b.lugar_destino_id = ld.id
+      LEFT JOIN puertos lem ON b.lugar_entrega_id = lem.id
+      LEFT JOIN puertos lrm ON b.lugar_recepcion_id = lrm.id
+      LEFT JOIN participantes almacenador_p ON b.almacenador_id = almacenador_p.id
+      LEFT JOIN referencias ref_emi   ON m.operador_nave    = ref_emi.customer_id
+      LEFT JOIN referencias ref_emido ON m.emisor_documento = ref_emido.customer_id
+      LEFT JOIN referencias ref_rep   ON m.representante    = ref_rep.match_code
+      LEFT JOIN referencias ref_doc   ON m.referencia_id    = ref_doc.id
+
+      WHERE b.bl_number = ?
+      LIMIT 1
+    `;
+
     // 🛡️ VALIDAR TODOS LOS BLs ANTES DE GENERAR
     const blsConErrores = [];
 
     for (const blNumber of blNumbers) {
-      const [blRows] = await pool.query(`
-        SELECT
-          b.*,
-          m.viaje,
-          m.tipo_operacion,
-          m.numero_referencia,      
-          m.fecha_referencia,
-          m.fecha_manifiesto_aduana,
-          m.representante AS representante_codigo,
-          n.nombre AS nave_nombre,
-          ts.codigo AS tipo_servicio_codigo,
-          ts.nombre AS tipo_servicio_nombre,
-          le.codigo AS lugar_emision_codigo,
-          le.nombre AS lugar_emision_nombre,
-          pe.codigo AS puerto_embarque_codigo,
-          pe.nombre AS puerto_embarque_nombre,
-          pd.codigo AS puerto_descarga_codigo,
-          pd.nombre AS puerto_descarga_nombre,
-          ld.codigo AS lugar_destino_codigo,
-          ld.nombre AS lugar_destino_nombre,
-          lem.codigo AS lugar_entrega_codigo,
-          lem.nombre AS lugar_entrega_nombre,
-          lrm.codigo AS lugar_recepcion_codigo,
-          lrm.nombre AS lugar_recepcion_nombre,
-          
-          shipper_p.id AS shipper_id,
-          shipper_p.codigo_bms AS shipper_codigo,
-          shipper_p.rut AS shipper_rut,
-          shipper_p.nombre AS shipper_nombre,
-          shipper_p.pais AS shipper_pais,
-          shipper_p.direccion AS shipper_direccion,
-          shipper_p.telefono AS shipper_telefono,
-          shipper_p.ciudad AS shipper_ciudad,
-          
-          consignee_p.id AS consignee_id,
-          consignee_p.codigo_bms AS consignee_codigo,
-          consignee_p.rut AS consignee_rut,
-          consignee_p.nombre AS consignee_nombre,
-          consignee_p.pais AS consignee_pais,
-          consignee_p.direccion AS consignee_direccion,
-          consignee_p.telefono AS consignee_telefono,
-          consignee_p.ciudad AS consignee_ciudad,
-          
-          notify_p.id AS notify_id,
-          notify_p.codigo_bms AS notify_codigo,
-          notify_p.rut AS notify_rut,
-          notify_p.nombre AS notify_nombre,
-          notify_p.pais AS notify_pais,
-          notify_p.direccion AS notify_direccion,
-          notify_p.telefono AS notify_telefono,
-          notify_p.ciudad AS notify_ciudad,
-          
-          ref.id AS rep_id,
-          ref.match_code AS rep_codigo,
-          ref.rut AS rep_rut,
-          ref.nombre_emisor AS rep_nombre,
-          ref.pais AS rep_pais,
-          ref.tipo_id_emisor AS rep_tipo_id,
-          ref.nacion_id AS rep_nacion_id
-          
-        FROM bls b
-        LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
-        LEFT JOIN naves n ON m.nave_id = n.id
-        LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
-        LEFT JOIN puertos le ON b.lugar_emision_id = le.id
-        LEFT JOIN puertos pe ON b.puerto_embarque_id = pe.id
-        LEFT JOIN puertos pd ON b.puerto_descarga_id = pd.id
-        LEFT JOIN puertos ld ON b.lugar_destino_id = ld.id
-        LEFT JOIN puertos lem ON b.lugar_entrega_id = lem.id
-        LEFT JOIN puertos lrm ON b.lugar_recepcion_id = lrm.id
-        
-        LEFT JOIN participantes shipper_p ON b.shipper_id = shipper_p.id
-        LEFT JOIN participantes consignee_p ON b.consignee_id = consignee_p.id
-        LEFT JOIN participantes notify_p ON b.notify_id = notify_p.id
-        LEFT JOIN referencias ref ON m.referencia_id = ref.id
-        
-        WHERE b.bl_number = ?
-        LIMIT 1
-      `, [blNumber]);
-
+      const [blRows] = await pool.query(getBLQuery(), [blNumber]);
       if (blRows.length === 0) continue;
 
       const validation = validateBLForXML(blRows[0]);
       if (!validation.isValid) {
-        blsConErrores.push({
-          bl_number: blNumber,
-          errors: validation.errors
-        });
+        blsConErrores.push({ bl_number: blNumber, errors: validation.errors });
       }
     }
 
-    // 🚫 SI HAY ERRORES, RECHAZAR LA SOLICITUD
     if (blsConErrores.length > 0) {
       return res.status(400).json({
         error: "Hay BLs con datos faltantes",
@@ -6370,151 +6410,69 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
 
     // Crear archivo ZIP
     const archive = archiver('zip', { zlib: { level: 9 } });
-
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="BLs_Manifiesto_${id}.zip"`);
-
     archive.pipe(res);
 
     // Generar XML por cada BL
     for (const blNumber of blNumbers) {
-      const [blRows] = await pool.query(`
-        SELECT
-          b.*,
-          m.viaje,
-          m.tipo_operacion,
-          m.numero_referencia,      
-          m.fecha_referencia,
-          m.fecha_manifiesto_aduana,
-          m.representante AS representante_codigo,
-          n.nombre AS nave_nombre,
-          ts.codigo AS tipo_servicio_codigo,
-          ts.nombre AS tipo_servicio_nombre,
-          le.codigo AS lugar_emision_codigo,
-          le.nombre AS lugar_emision_nombre,
-          pe.codigo AS puerto_embarque_codigo,
-          pe.nombre AS puerto_embarque_nombre,
-          pd.codigo AS puerto_descarga_codigo,
-          pd.nombre AS puerto_descarga_nombre,
-          ld.codigo AS lugar_destino_codigo,
-          ld.nombre AS lugar_destino_nombre,
-          lem.codigo AS lugar_entrega_codigo,
-          lem.nombre AS lugar_entrega_nombre,
-          lrm.codigo AS lugar_recepcion_codigo,
-          lrm.nombre AS lugar_recepcion_nombre,
-          
-          shipper_p.id AS shipper_id,
-          shipper_p.codigo_bms AS shipper_codigo,
-          shipper_p.rut AS shipper_rut,
-          shipper_p.nombre AS shipper_nombre,
-          shipper_p.pais AS shipper_pais,
-          shipper_p.direccion AS shipper_direccion,
-          shipper_p.telefono AS shipper_telefono,
-          shipper_p.ciudad AS shipper_ciudad,
-          
-          consignee_p.id AS consignee_id,
-          consignee_p.codigo_bms AS consignee_codigo,
-          consignee_p.rut AS consignee_rut,
-          consignee_p.nombre AS consignee_nombre,
-          consignee_p.pais AS consignee_pais,
-          consignee_p.direccion AS consignee_direccion,
-          consignee_p.telefono AS consignee_telefono,
-          consignee_p.ciudad AS consignee_ciudad,
-          
-          notify_p.id AS notify_id,
-          notify_p.codigo_bms AS notify_codigo,
-          notify_p.rut AS notify_rut,
-          notify_p.nombre AS notify_nombre,
-          notify_p.pais AS notify_pais,
-          notify_p.direccion AS notify_direccion,
-          notify_p.telefono AS notify_telefono,
-          notify_p.ciudad AS notify_ciudad,
-          
-          ref.id AS rep_id,
-          ref.match_code AS rep_codigo,
-          ref.rut AS rep_rut,
-          ref.nombre_emisor AS rep_nombre,
-          ref.pais AS rep_pais,
-          ref.tipo_id_emisor AS rep_tipo_id,
-          ref.nacion_id AS rep_nacion_id
-          
-        FROM bls b
-        LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
-        LEFT JOIN naves n ON m.nave_id = n.id
-        LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
-        LEFT JOIN puertos le ON b.lugar_emision_id = le.id
-        LEFT JOIN puertos pe ON b.puerto_embarque_id = pe.id
-        LEFT JOIN puertos pd ON b.puerto_descarga_id = pd.id
-        LEFT JOIN puertos ld ON b.lugar_destino_id = ld.id
-        LEFT JOIN puertos lem ON b.lugar_entrega_id = lem.id
-        LEFT JOIN puertos lrm ON b.lugar_recepcion_id = lrm.id
-        
-        LEFT JOIN participantes shipper_p ON b.shipper_id = shipper_p.id
-        LEFT JOIN participantes consignee_p ON b.consignee_id = consignee_p.id
-        LEFT JOIN participantes notify_p ON b.notify_id = notify_p.id
-        LEFT JOIN referencias ref ON m.referencia_id = ref.id
-        
-        WHERE b.bl_number = ?
-        LIMIT 1
-      `, [blNumber]);
-
+      const [blRows] = await pool.query(getBLQuery(), [blNumber]);
       if (blRows.length === 0) continue;
 
       const bl = blRows[0];
 
       // 🔥 PARSEAR OBSERVACIONES
       if (bl.observaciones && typeof bl.observaciones === 'string') {
-        try {
-          bl.observaciones = JSON.parse(bl.observaciones);
-        } catch (e) {
-          console.error('Error parseando observaciones:', e);
-          bl.observaciones = null;
-        }
+        try { bl.observaciones = JSON.parse(bl.observaciones); }
+        catch (e) { bl.observaciones = null; }
       }
 
-      // 🔥 DETECTAR SI ES CARGA SUELTA
       const esCargaSuelta = bl.tipo_servicio_codigo === 'BB';
 
       const [items] = await pool.query(`
         SELECT * FROM bl_items WHERE bl_id = ? ORDER BY numero_item
       `, [bl.id]);
 
-      // 🔥 Obtener contenedores SOLO SI NO ES CARGA SUELTA
       let contenedores = [];
 
       if (!esCargaSuelta) {
         const [contRows] = await pool.query(`
           SELECT
-            c.id,
-            c.item_id,
-            c.codigo,
-            c.sigla,
-            c.numero,
-            c.digito,
-            c.tipo_cnt,
-            c.carga_cnt,
-            c.peso,
-            c.unidad_peso,
-            c.volumen,
-            c.unidad_volumen,
+            c.id, c.item_id, c.codigo, c.sigla, c.numero, c.digito,
+            c.tipo_cnt, c.carga_cnt, c.peso, c.unidad_peso, c.volumen, c.unidad_volumen,
             GROUP_CONCAT(DISTINCT s.sello ORDER BY s.sello SEPARATOR '|') as sellos,
             GROUP_CONCAT(DISTINCT CONCAT(i.clase_imo, ':', i.numero_imo) SEPARATOR '|') as imo_data
           FROM bl_contenedores c
           LEFT JOIN bl_contenedor_sellos s ON s.contenedor_id = c.id
           LEFT JOIN bl_contenedor_imo i ON i.contenedor_id = c.id
           WHERE c.bl_id = ?
-          GROUP BY c.id, c.item_id, c.codigo, c.sigla, c.numero, c.digito, 
+          GROUP BY c.id, c.item_id, c.codigo, c.sigla, c.numero, c.digito,
                    c.tipo_cnt, c.carga_cnt, c.peso, c.unidad_peso, c.volumen, c.unidad_volumen
           ORDER BY c.codigo
         `, [bl.id]);
-
         contenedores = contRows;
       }
 
       const participaciones = [];
 
-      // Datos del representante desde REFERENCIAS (para EMI, EMIDO, REP)
-      const representanteData = bl.rep_id ? {
+      // 🔥 TRES FUENTES DISTINTAS (igual que generar-xml)
+      const emiData = bl.emi_id ? {
+        nombre: bl.emi_nombre,
+        rut: bl.emi_rut,
+        pais: bl.emi_pais || 'CL',
+        tipo_id: bl.emi_tipo_id || 'RUT',
+        nacion_id: bl.emi_nacion_id || 'CL'
+      } : null;
+
+      const emidoData = bl.emido_id ? {
+        nombre: bl.emido_nombre,
+        rut: bl.emido_rut,
+        pais: bl.emido_pais || 'CL',
+        tipo_id: bl.emido_tipo_id || 'RUT',
+        nacion_id: bl.emido_nacion_id || 'CL'
+      } : null;
+
+      const repData = bl.rep_id ? {
         nombre: bl.rep_nombre,
         rut: bl.rep_rut,
         pais: bl.rep_pais || 'CL',
@@ -6522,115 +6480,103 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
         nacion_id: bl.rep_nacion_id || 'CL'
       } : null;
 
-      // Datos del shipper (para EMB)
-      const shipperData = bl.shipper_id ? {
-        nombre: bl.shipper_nombre,
-        rut: bl.shipper_rut,
-        pais: bl.shipper_pais || 'CL'
+      // 🔥 SHIPPER, CONSIGNEE, NOTIFY - DIRECTOS DE BLS (igual que generar-xml)
+      const shipperData = bl.shipper ? {
+        nombre: bl.shipper,
+        direccion: bl.shipper_direccion || '.',
+        telefono: bl.shipper_telefono || '.',
+        email: bl.shipper_email || null
       } : null;
 
-      // Datos del consignee (para CONS)
-      const consigneeData = bl.consignee_id ? {
-        nombre: bl.consignee_nombre,
-        rut: bl.consignee_rut,
-        pais: bl.consignee_pais || 'CL'
+      const consigneeData = bl.consignee ? {
+        nombre: bl.consignee,
+        direccion: bl.consignee_direccion || '.',
+        telefono: bl.consignee_telefono || '.',
+        email: bl.consignee_email || null
       } : null;
 
-      // Datos del notify (para NOTI)
-      const notifyData = bl.notify_id ? {
-        nombre: bl.notify_nombre,
-        rut: bl.notify_rut,
-        pais: bl.notify_pais || 'CL'
+      const notifyData = bl.notify_party ? {
+        nombre: bl.notify_party,
+        direccion: bl.notify_direccion || '.',
+        telefono: bl.notify_telefono || '.',
+        email: bl.notify_email || null
       } : null;
 
-      // ✅ ORDEN ESPECÍFICO PARA CARGA SUELTA (BB)
+      // ✅ ORDEN CARGA SUELTA (BB)
       if (esCargaSuelta) {
-        // 1️⃣ EMI
-        if (representanteData) {
-          const emi = buildParticipacion('EMI', representanteData, true);
+        if (emiData) {
+          const emi = buildParticipacion('EMI', emiData, true, { 'codigo-pais': emiData.pais });
           if (emi) participaciones.push(emi);
         }
 
-        // 2️⃣ ALM (Almacenador)
         if (bl.almacenador_id) {
           const almacenadorData = {
             nombre: bl.almacenador_nombre,
             rut: bl.almacenador_rut,
-            pais: bl.almacenador_pais || 'CL'
+            pais: bl.almacenador_pais || 'CL',
+            tipo_id: 'RUT',
+            nacion_id: 'CL'
           };
-
           const extraFields = {};
           if (bl.almacenador_codigo_almacen) {
             extraFields['codigo-almacen'] = bl.almacenador_codigo_almacen;
           }
-
           const alm = buildParticipacion('ALM', almacenadorData, true, extraFields);
           if (alm) participaciones.push(alm);
         }
 
-        // 3️⃣ REP
-        if (representanteData) {
-          const rep = buildParticipacion('REP', representanteData, true);
+        if (repData) {
+          const rep = buildParticipacion('REP', repData, true);
           if (rep) participaciones.push(rep);
         }
 
-        // 4️⃣ EMIDO
-        if (representanteData) {
-          const emido = buildParticipacion('EMIDO', representanteData, true);
+        if (emidoData) {
+          const emido = buildParticipacion('EMIDO', emidoData, true);
           if (emido) participaciones.push(emido);
         }
 
-        // 5️⃣ EMB
         if (shipperData) {
           const emb = buildParticipacion('EMB', shipperData, false);
           if (emb) participaciones.push(emb);
         }
 
-        // 6️⃣ CONS
         if (consigneeData) {
-          const cons = buildParticipacion('CONS', consigneeData, false);
+          const cons = buildParticipacion('CONS', consigneeData, !!consigneeData.rut);
           if (cons) participaciones.push(cons);
         }
 
-        // 7️⃣ NOTI
         if (notifyData) {
           const noti = buildParticipacion('NOTI', notifyData, false);
           if (noti) participaciones.push(noti);
         }
       }
-      // ✅ ORDEN PARA CONTENEDORES (FF/MM)
+      // ✅ ORDEN CONTENEDORES (FF/MM)
       else {
-        // 1️⃣ EMI
-        if (representanteData) {
-          const emi = buildParticipacion('EMI', representanteData, true);
+        if (emiData) {
+          const emi = buildParticipacion('EMI', emiData, true, { 'codigo-pais': emiData.pais });
           if (emi) participaciones.push(emi);
         }
 
-        // 2️⃣ CONS
         if (consigneeData) {
           const cons = buildParticipacion('CONS', consigneeData, false);
           if (cons) participaciones.push(cons);
         }
 
-        // 3️⃣ EMIDO
-        if (representanteData) {
-          const emido = buildParticipacion('EMIDO', representanteData, true);
+        if (emidoData) {
+          const emido = buildParticipacion('EMIDO', emidoData, true);
           if (emido) participaciones.push(emido);
         }
 
-        // 4️⃣ NOTI
         if (notifyData) {
           const noti = buildParticipacion('NOTI', notifyData, false);
           if (noti) participaciones.push(noti);
         }
 
-        // 5️⃣ REP
-        if (representanteData) {
-          const rep = buildParticipacion('REP', representanteData, true);
+        if (repData) {
+          const rep = buildParticipacion('REP', repData, true);
           if (rep) participaciones.push(rep);
         }
 
-        // 6️⃣ EMB
         if (shipperData) {
           const emb = buildParticipacion('EMB', shipperData, false);
           if (emb) participaciones.push(emb);
@@ -6669,7 +6615,6 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
             }
           }),
 
-
           Fechas: {
             fecha: [
               bl.fecha_presentacion && { nombre: 'FPRES', valor: formatDateTimeCL(bl.fecha_presentacion) },
@@ -6681,9 +6626,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
 
           Locaciones: {
             locacion: [
-              // ✅ SOLO incluir LE si NO es carga suelta
               !esCargaSuelta && bl.lugar_emision_codigo && { nombre: 'LE', codigo: bl.lugar_emision_codigo, descripcion: bl.lugar_emision_nombre },
-
               bl.puerto_embarque_codigo && { nombre: 'PE', codigo: bl.puerto_embarque_codigo, descripcion: bl.puerto_embarque_nombre },
               bl.puerto_descarga_codigo && { nombre: 'PD', codigo: bl.puerto_descarga_codigo, descripcion: bl.puerto_descarga_nombre },
               bl.lugar_destino_codigo && { nombre: 'LD', codigo: bl.lugar_destino_codigo, descripcion: bl.lugar_destino_nombre },
@@ -6700,7 +6643,6 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
             item: items.map(it => {
               const contsDelItem = contenedores.filter(c => c.item_id === it.id);
 
-              // 🔥 CARGA SUELTA
               if (esCargaSuelta) {
                 return {
                   'numero-item': it.numero_item,
@@ -6711,13 +6653,12 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
                   cantidad: it.cantidad || 0,
                   'peso-bruto': it.peso_bruto || 0,
                   'unidad-peso': it.unidad_peso || 'KGM',
-                  volumen: Number((it.volumen || 0).toFixed(2)),  // ✅ Forzar 2 decimales
+                  volumen: parseFloat(it.volumen) || 0,
                   'unidad-volumen': it.unidad_volumen || 'MTQ',
                   'carga-cnt': 'N'
                 };
               }
 
-              // 🔥 CONTENEDORES
               return {
                 'numero-item': it.numero_item,
                 marcas: it.marcas || '',
@@ -6727,7 +6668,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
                 cantidad: it.cantidad || 0,
                 'peso-bruto': it.peso_bruto || 0,
                 'unidad-peso': it.unidad_peso || 'KGM',
-                volumen: Number((it.volumen || 0).toFixed(2)),  // ✅ 2 decimales también
+                volumen: parseFloat(it.volumen) || 0,
                 'unidad-volumen': it.unidad_volumen || 'MTQ',
                 'carga-cnt': {},
                 Contenedores: contsDelItem.length > 0 ? {
@@ -6749,9 +6690,10 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
                       'tipo-cnt': c.tipo_cnt || '',
                       'cnt-so': '',
                       peso: c.peso || 0,
-                      'valor-id-op': representanteData?.rut ? cleanRUT(representanteData.rut) : '', // 🆕
-                      'nombre-operador': representanteData?.nombre || '', // 🆕
+                      'valor-id-op': repData?.rut ? cleanRUT(repData.rut) : '',
+                      'nombre-operador': repData?.nombre || '',
                       status: mapTipoServicio(bl.tipo_servicio_codigo),
+
                       CntIMO: imoList.length > 0 ? {
                         cntimo: imoList.length === 1
                           ? { 'clase-imo': String(imoList[0].clase_imo), 'numero-imo': String(imoList[0].numero_imo) }
@@ -6778,14 +6720,8 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
                   contenido: obs.contenido || ''
                 }))
                 : [
-                  {
-                    nombre: 'GRAL',
-                    contenido: bl.observaciones
-                  },
-                  {
-                    nombre: 'MOT',
-                    contenido: 'LISTA DE ENCARGO'
-                  }
+                  { nombre: 'GRAL', contenido: bl.observaciones },
+                  { nombre: 'MOT', contenido: 'LISTA DE ENCARGO' }
                 ]
             }
           })
@@ -6794,7 +6730,6 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
 
       const doc = create({ version: '1.0', encoding: 'ISO-8859-1' }, xmlObj);
       const xmlString = doc.end({ prettyPrint: true });
-
       archive.append(xmlString, { name: `BMS_V1_SNA-BL-1.0-${bl.bl_number}.xml` });
     }
 
