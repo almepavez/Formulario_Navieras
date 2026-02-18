@@ -23,8 +23,6 @@ const formatDTCL = (iso) => {
   return `${dd}-${mm}-${yyyy} ${hh}:${mi}`;
 };
 
-
-
 const toInputDate = (iso) => {
   if (!iso) return "";
   const d = new Date(iso);
@@ -68,7 +66,9 @@ const ManifiestoDetalle = () => {
     referenciaId: "",
     numeroReferencia: "",
     fechaReferencia: "",
-    puertoCentralId: "", // ← Cambiar a ID
+    puertoCentralId: "",
+    fechaZarpe: "",    // ← AGREGAR ACÁ
+
   });
 
   const [itinerario, setItinerario] = useState([]);
@@ -78,10 +78,8 @@ const ManifiestoDetalle = () => {
   const [pmsUploading, setPmsUploading] = useState(false);
   const [pmsMsg, setPmsMsg] = useState("");
 
-  // Estado para referencias
   const [referencias, setReferencias] = useState([]);
   const [puertos, setPuertos] = useState([]);
-  const [showPuertoDropdown, setShowPuertoDropdown] = useState(false);
   const [puertoSearch, setPuertoSearch] = useState("");
 
   useEffect(() => {
@@ -110,11 +108,32 @@ const ManifiestoDetalle = () => {
     }
   }, [formData.numeroManifiestoAduana]);
 
+  // ✅ NUEVO: Sincronizar puertoCentralId y puertoSearch cuando lleguen datos + puertos cargados
+  useEffect(() => {
+    if (!data || puertos.length === 0) return;
+
+    const m = data.manifiesto;
+
+    // Buscar el puerto por nombre (VALPARAISO) o por código (CLVAP)
+    const puertoMatch = puertos.find(p =>
+      p.nombre?.toUpperCase() === m.puertoCentral?.toUpperCase() ||
+      p.codigo?.toUpperCase() === m.puertoCentral?.toUpperCase()
+    );
+
+    if (puertoMatch) {
+      setFormData(prev => ({ ...prev, puertoCentralId: puertoMatch.id.toString() }));
+      setPuertoSearch(puertoMatch.codigo); // Mostrar el código, ej: "CLVAP"
+      console.log("✅ Puerto sincronizado:", puertoMatch.codigo, "→ ID:", puertoMatch.id);
+    } else {
+      setPuertoSearch(m.puertoCentral || "");
+      console.warn("⚠️ No se encontró puerto con nombre/código:", m.puertoCentral);
+    }
+  }, [data, puertos]);
+
   // Cargar catálogos (referencias y puertos)
   useEffect(() => {
     const loadCatalogos = async () => {
       try {
-        // Cargar referencias
         const resRef = await fetch(`${API_BASE}/api/mantenedores/referencias`);
         if (resRef.ok) {
           const dataRef = await resRef.json();
@@ -122,7 +141,6 @@ const ManifiestoDetalle = () => {
           setReferencias(Array.isArray(dataRef) ? dataRef : []);
         }
 
-        // Cargar puertos
         const resPuertos = await fetch(`${API_BASE}/api/mantenedores/puertos`);
         if (resPuertos.ok) {
           const dataPuertos = await resPuertos.json();
@@ -136,16 +154,6 @@ const ManifiestoDetalle = () => {
 
     loadCatalogos();
   }, []);
-
-  // Cerrar dropdown de puertos al hacer click fuera
-  useEffect(() => {
-    const handleClickOutside = () => setShowPuertoDropdown(false);
-
-    if (showPuertoDropdown) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
-    }
-  }, [showPuertoDropdown]);
 
   const fetchDetalle = async () => {
     setLoading(true);
@@ -174,14 +182,13 @@ const ManifiestoDetalle = () => {
         referenciaId: m.referenciaId || "",
         numeroReferencia: m.numeroReferencia || "",
         fechaReferencia: toInputDate(m.fechaReferencia),
-        puertoCentralId: m.puertoCentralId || "", // ← ID del puerto
-      });
-      
-      // Sincronizar el código del puerto para mostrarlo en el input
-      setPuertoSearch(m.puertoCentral || "");
+        puertoCentralId: "", // ← Se setea en el useEffect de sincronización (data + puertos)
+        fechaZarpe: toInputDate(m.fechaZarpe),   // ← AGREGAR ACÁ
 
-      console.log("📝 FormData actualizado con puertoCentralId:", m.puertoCentralId);
-      console.log("📝 puertoSearch actualizado con código:", m.puertoCentral);
+      });
+
+      // ✅ NO seteamos puertoSearch aquí — lo hace el useEffect de sincronización
+      // para garantizar que el array "puertos" ya esté cargado
 
       setItinerario(
         (json.itinerario || []).map((it) => ({
@@ -201,9 +208,7 @@ const ManifiestoDetalle = () => {
     }
   };
 
-
   const handleInputChange = (field, value) => {
-    // Si se cambia Representante, autocompletar Emisor Doc
     if (field === "representante" && value) {
       const refSeleccionada = referencias.find(r => r.match_code === value);
       if (refSeleccionada) {
@@ -217,7 +222,6 @@ const ManifiestoDetalle = () => {
       }
     }
 
-    // Si se cambia Emisor Doc, autocompletar Representante
     if (field === "emisorDocumento" && value) {
       const refSeleccionada = referencias.find(r => r.customer_id === value);
       if (refSeleccionada) {
@@ -317,7 +321,9 @@ const ManifiestoDetalle = () => {
         referenciaId: formData.referenciaId || null,
         numeroReferencia: formData.numeroReferencia || null,
         fechaReferencia: formData.fechaReferencia || null,
-        puertoCentral: formData.puertoCentralId, // ← Enviar el ID
+        puertoCentral: formData.puertoCentralId,
+        fechaZarpe: formData.fechaZarpe || null,   // ← AGREGAR ACÁ
+
 
         itinerario: itinerario.map((it) => ({
           id: it.id,
@@ -356,7 +362,7 @@ const ManifiestoDetalle = () => {
 
       setIsEditing(false);
       setHasUnsavedChanges(false);
-      
+
       console.log("🔄 Recargando datos del servidor...");
       await fetchDetalle();
     } catch (e) {
@@ -413,12 +419,12 @@ const ManifiestoDetalle = () => {
     try {
       setPmsUploading(true);
 
-      const formData = new FormData();
-      formData.append('pms', pmsFile);
+      const formDataUpload = new FormData();
+      formDataUpload.append('pms', pmsFile);
 
       const res = await fetch(`${API_BASE}/manifiestos/${id}/pms/procesar-directo`, {
         method: "POST",
-        body: formData,
+        body: formDataUpload,
       });
 
       if (!res.ok) {
@@ -512,22 +518,18 @@ const ManifiestoDetalle = () => {
     return referencias.find(r => r.id === parseInt(refId));
   }, [referencias, data]);
 
-  // Obtener emisor seleccionado
   const emisorSeleccionado = useMemo(() => {
     return referencias.find(r => r.customer_id === formData.emisorDocumento);
   }, [referencias, formData.emisorDocumento]);
 
-  // Obtener representante seleccionado
   const representanteSeleccionado = useMemo(() => {
     return referencias.find(r => r.match_code === formData.representante);
   }, [referencias, formData.representante]);
 
-  // Obtener operador nave seleccionado
   const operadorNaveSeleccionado = useMemo(() => {
     return referencias.find(r => r.customer_id === formData.operadorNave);
   }, [referencias, formData.operadorNave]);
 
-  // Obtener puerto central seleccionado
   const puertoCentralSeleccionado = useMemo(() => {
     return puertos.find(p => p.id === parseInt(formData.puertoCentralId));
   }, [puertos, formData.puertoCentralId]);
@@ -580,8 +582,6 @@ const ManifiestoDetalle = () => {
                     Guardar cambios
                   </button>
                 </>
-
-
               )}
               <button
                 onClick={() => navigate(`/manifiestos/${id}/carga-suelta/nuevo`)}
@@ -637,17 +637,16 @@ const ManifiestoDetalle = () => {
                       onChange={(e) => {
                         const valorIngresado = e.target.value;
                         setPuertoSearch(valorIngresado);
-                        
-                        // Buscar si el valor ingresado coincide con algún código de puerto
-                        const puertoEncontrado = puertos.find(p => 
-                          p.codigo.toUpperCase() === valorIngresado.toUpperCase()
+
+                        // ✅ Buscar por código exacto O por "CODIGO - NOMBRE"
+                        const puertoEncontrado = puertos.find(p =>
+                          p.codigo.toUpperCase() === valorIngresado.toUpperCase() ||
+                          `${p.codigo} - ${p.nombre}`.toUpperCase() === valorIngresado.toUpperCase()
                         );
-                        
-                        // Si encuentra el puerto, guardar su ID
+
                         if (puertoEncontrado) {
                           handleInputChange("puertoCentralId", puertoEncontrado.id.toString());
                         } else {
-                          // Si no encuentra el puerto, limpiar el ID
                           handleInputChange("puertoCentralId", "");
                         }
                       }}
@@ -657,20 +656,12 @@ const ManifiestoDetalle = () => {
                     <datalist id="puertos-list">
                       {puertos.map((puerto) => (
                         <option key={puerto.id} value={puerto.codigo}>
-                          {puerto.codigo} — {puerto.nombre}
+                          {puerto.nombre}
                         </option>
                       ))}
                     </datalist>
-                    {puertoCentralSeleccionado && (
-                      <p className="mt-1 text-[10px] text-slate-500">
-                        ✓ {puertoCentralSeleccionado.nombre} ({puertoCentralSeleccionado.pais})
-                      </p>
-                    )}
-                    {puertoSearch && !puertoCentralSeleccionado && (
-                      <p className="mt-1 text-[10px] text-orange-600">
-                        ⚠️ Puerto no reconocido - debe seleccionar un puerto válido
-                      </p>
-                    )}
+
+
                   </div>
                 )}
                 {!isEditing ? (
@@ -708,8 +699,13 @@ const ManifiestoDetalle = () => {
                       label="N° Mfto Aduana CL"
                       value={m.numeroManifiestoAduana}
                     />
+                    <InfoReadOnly
+                      label="Fecha Zarpe"                          // ← AGREGAR ESTE BLOQUE
+                      value={formatDateCL(m.fechaZarpe)}
+                    />
                     <InfoReadOnly label="Remark" value={m.remark || "—"} />
                   </>
+
                 ) : (
                   <>
                     <InfoEditableSelect
@@ -723,7 +719,6 @@ const ManifiestoDetalle = () => {
                       ]}
                     />
 
-                    {/* 🆕 Operador Nave */}
                     <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
                       <div className="text-xs font-medium text-slate-700">Operador nave</div>
                       <select
@@ -745,7 +740,6 @@ const ManifiestoDetalle = () => {
                       )}
                     </div>
 
-                    {/* 🆕 Emisor Doc - NOMBRE EN SELECT, CUSTOMER ID ABAJO */}
                     <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
                       <div className="text-xs font-medium text-slate-700">Emisor doc</div>
                       <select
@@ -767,7 +761,6 @@ const ManifiestoDetalle = () => {
                       )}
                     </div>
 
-                    {/* 🆕 Representante */}
                     <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
                       <div className="text-xs font-medium text-slate-700">Representante</div>
                       <select
@@ -793,6 +786,11 @@ const ManifiestoDetalle = () => {
                       label="Fecha Mfto Aduana CL"
                       value={formData.fechaManifiestoAduana}
                       onChange={(v) => handleInputChange("fechaManifiestoAduana", v)}
+                    />
+                    <InfoEditableDate                               // ← AGREGAR ESTE BLOQUE
+                      label="Fecha Zarpe"
+                      value={formData.fechaZarpe}
+                      onChange={(v) => handleInputChange("fechaZarpe", v)}
                     />
                     <InfoEditable
                       label="N° Mfto Aduana CL"
@@ -821,7 +819,6 @@ const ManifiestoDetalle = () => {
               </div>
 
               <div className="flex items-center gap-3">
-                {/* Input de archivo OCULTO */}
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -832,7 +829,6 @@ const ManifiestoDetalle = () => {
                   id="pms-file-input"
                 />
 
-                {/* Botón personalizado para seleccionar archivo */}
                 <label
                   htmlFor="pms-file-input"
                   className={`flex-1 px-4 py-2 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 text-slate-700 text-sm font-medium hover:bg-slate-100 cursor-pointer transition-colors flex items-center gap-2 ${pmsUploading ? 'opacity-60 cursor-not-allowed' : ''
@@ -851,7 +847,6 @@ const ManifiestoDetalle = () => {
                   )}
                 </label>
 
-                {/* Botón Procesar PMS */}
                 <button
                   onClick={handleUploadPMS}
                   disabled={pmsUploading || !pmsFile}
@@ -860,7 +855,6 @@ const ManifiestoDetalle = () => {
                   {pmsUploading ? "Procesando..." : "Procesar PMS"}
                 </button>
 
-                {/* Botón Generar XML */}
                 <button
                   onClick={() => navigate(`/manifiestos/${id}/generar-xml`)}
                   disabled={blCount === 0}
@@ -889,14 +883,12 @@ const ManifiestoDetalle = () => {
                 </button>
               </div>
 
-              {/* Mensaje de éxito */}
               {pmsMsg && (
                 <div className="mt-3 text-sm text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg">
                   {pmsMsg}
                 </div>
               )}
 
-              {/* Estado de BLs */}
               {blCount > 0 && (
                 <div className="mt-3 text-xs text-slate-700 bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 flex items-center gap-2">
                   <svg className="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
@@ -977,7 +969,7 @@ const ManifiestoDetalle = () => {
               </div>
             </div>
 
-            {/* Sección de Referencia - DESPUÉS DEL ITINERARIO */}
+            {/* Sección de Referencia */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mt-6">
               <div className="mb-4">
                 <h2 className="text-sm font-semibold text-slate-700">
@@ -989,7 +981,6 @@ const ManifiestoDetalle = () => {
               </div>
 
               {!isEditing ? (
-                // ✅ MODO LECTURA
                 referenciaManifiesto ? (
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-4">
@@ -1027,10 +1018,8 @@ const ManifiestoDetalle = () => {
                   </div>
                 )
               ) : (
-                // 🆕 MODO EDICIÓN
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-4">
-                    {/* 🆕 Selector de Referencia */}
                     <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
                       <div className="text-xs font-medium text-slate-700">Referencia</div>
                       <select
@@ -1039,7 +1028,6 @@ const ManifiestoDetalle = () => {
                           const refId = e.target.value;
                           handleInputChange("referenciaId", refId);
 
-                          // Si selecciona una referencia, auto-completar número
                           if (refId) {
                             const ref = referencias.find(r => r.id === parseInt(refId));
                             if (ref) {
@@ -1061,7 +1049,6 @@ const ManifiestoDetalle = () => {
                       </select>
                     </div>
 
-                    {/* 🆕 Número de Referencia - SINCRONIZADO */}
                     <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
                       <div className="text-xs font-medium text-slate-700">N° Referencia</div>
                       <input
@@ -1076,7 +1063,6 @@ const ManifiestoDetalle = () => {
                       </p>
                     </div>
 
-                    {/* 🆕 Fecha de Referencia */}
                     <InfoEditableDate
                       label="Fecha Referencia"
                       value={formData.fechaReferencia}
@@ -1084,7 +1070,6 @@ const ManifiestoDetalle = () => {
                     />
                   </div>
 
-                  {/* Vista previa de la referencia seleccionada */}
                   {formData.referenciaId && (
                     <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                       <p className="text-xs font-medium text-blue-800 mb-2">
@@ -1105,7 +1090,6 @@ const ManifiestoDetalle = () => {
                   )}
                 </>
               )}
-
             </div>
           </>
         )}
