@@ -787,16 +787,16 @@ const ManifiestoDetalle = () => {
                       value={formData.fechaManifiestoAduana}
                       onChange={(v) => handleInputChange("fechaManifiestoAduana", v)}
                     />
-                    <InfoEditableDate                               // ← AGREGAR ESTE BLOQUE
-                      label="Fecha Zarpe"
-                      value={formData.fechaZarpe}
-                      onChange={(v) => handleInputChange("fechaZarpe", v)}
-                    />
                     <InfoEditable
                       label="N° Mfto Aduana CL"
                       value={formData.numeroManifiestoAduana}
                       onChange={(v) => handleInputChange("numeroManifiestoAduana", v)}
                     />
+                    <InfoEditableDate                               // ← AGREGAR ESTE BLOQUE
+                      label="Fecha Zarpe"
+                      value={formData.fechaZarpe}
+                      onChange={(v) => handleInputChange("fechaZarpe", v)}
+                      />
                     <InfoEditable
                       label="Remark"
                       value={formData.remark}
