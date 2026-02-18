@@ -5571,7 +5571,6 @@ function formatDateDDMMYYYY(fecha) {
 
 // Función para generar la sección Referencias
 function generarReferencias(bl) {
-  // Si no hay datos de referencia, no generar la sección
   if (!bl.numero_referencia || !bl.fecha_referencia) {
     return undefined;
   }
@@ -5582,10 +5581,10 @@ function generarReferencias(bl) {
       'tipo-documento': 'MFTO',
       'numero': String(bl.numero_referencia),
       'fecha': formatDateDDMMYYYY(bl.fecha_manifiesto_aduana),
-      'tipo-id-emisor': bl.rep_tipo_id || 'RUT',
-      'nac-id-emisor': bl.rep_nacion_id || 'CL',
-      'valor-id-emisor': bl.rep_rut ? bl.rep_rut.replace(/\./g, '') : '96566940-K',
-      'emisor': bl.rep_nombre || 'AGENCIAS UNIVERSALES S.A.'
+      'tipo-id-emisor': bl.ref_doc_tipo_id || 'RUT',
+      'nac-id-emisor': bl.ref_doc_nacion_id || 'CL',
+      'valor-id-emisor': bl.ref_doc_rut ? bl.ref_doc_rut.replace(/\./g, '') : '',
+      'emisor': bl.ref_doc_nombre || ''
     }
   };
 }
@@ -5691,14 +5690,40 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
       lrm.nombre AS lugar_recepcion_nombre,
       
       -- 🔥 REPRESENTANTE desde REFERENCIAS (para EMI, EMIDO, REP)
-      ref.id AS rep_id,
-      ref.match_code AS rep_codigo,
-      ref.rut AS rep_rut,
-      ref.nombre_emisor AS rep_nombre,
-      ref.pais AS rep_pais,
-      ref.tipo_id_emisor AS rep_tipo_id,
-      ref.nacion_id AS rep_nacion_id,
+      -- EMI
+      ref_emi.id          AS emi_id,
+      ref_emi.rut         AS emi_rut,
+      ref_emi.nombre_emisor AS emi_nombre,
+      ref_emi.pais        AS emi_pais,
+      ref_emi.tipo_id_emisor AS emi_tipo_id,
+      ref_emi.nacion_id   AS emi_nacion_id,
+
+      -- EMIDO
+      ref_emido.id          AS emido_id,
+      ref_emido.rut         AS emido_rut,
+      ref_emido.nombre_emisor AS emido_nombre,
+      ref_emido.pais        AS emido_pais,
+      ref_emido.tipo_id_emisor AS emido_tipo_id,
+      ref_emido.nacion_id   AS emido_nacion_id,
+
+      -- REP
+      ref_rep.id          AS rep_id,
+      ref_rep.rut         AS rep_rut,
+      ref_rep.nombre_emisor AS rep_nombre,
+      ref_rep.pais        AS rep_pais,
+      ref_rep.tipo_id_emisor AS rep_tipo_id,
+      ref_rep.nacion_id   AS rep_nacion_id,
+
+      -- REF (para sección Referencias del XML)
+      ref_doc.id            AS ref_doc_id,
+      ref_doc.rut           AS ref_doc_rut,
+      ref_doc.nombre_emisor AS ref_doc_nombre,
+      ref_doc.match_code    AS ref_doc_codigo,
+      ref_doc.pais          AS ref_doc_pais,
+      ref_doc.tipo_id_emisor AS ref_doc_tipo_id,
+      ref_doc.nacion_id      AS ref_doc_nacion_id,
       
+
       -- 🔥 ALMACENADOR (para ALM en carga suelta)
       almacenador_p.id AS almacenador_id,
       almacenador_p.rut AS almacenador_rut,
@@ -5721,7 +5746,11 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
     LEFT JOIN participantes almacenador_p ON b.almacenador_id = almacenador_p.id
     
     -- 🔥 JOIN del representante desde REFERENCIAS
-    LEFT JOIN referencias ref ON m.referencia_id = ref.id
+    LEFT JOIN referencias ref_emi   ON m.operador_nave      = ref_emi.customer_id
+    LEFT JOIN referencias ref_emido ON m.emisor_documento   = ref_emido.customer_id
+    LEFT JOIN referencias ref_rep   ON m.representante       = ref_rep.match_code
+
+    LEFT JOIN referencias ref_doc ON m.referencia_id = ref_doc.id
     
     WHERE b.bl_number = ?
     LIMIT 1
@@ -5872,15 +5901,15 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
       if (participante.ciudad && participante.ciudad.trim()) {
         baseData['comuna'] = participante.ciudad.trim();
       }
-      
+
       // ✅ AGREGAR CODIGO-PAIS SI TIENE RUT Y PAÍS
       if (includeRUT && participante.rut && participante.pais) {
         baseData['codigo-pais'] = participante.pais;
       }
-      
+
       // Agregar campos extra si vienen (ej: codigo-almacen)
       Object.assign(baseData, extraFields);
-      
+
       return baseData;
     };
 
@@ -5888,7 +5917,25 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
     const participaciones = [];
 
     // Datos del representante desde REFERENCIAS (para EMI, EMIDO, REP)
-    const representanteData = bl.rep_id ? {
+    // REEMPLAZA el bloque "representanteData" por estos tres:
+
+    const emiData = bl.emi_id ? {
+      nombre: bl.emi_nombre,
+      rut: bl.emi_rut,
+      pais: bl.emi_pais || 'CL',
+      tipo_id: bl.emi_tipo_id || 'RUT',
+      nacion_id: bl.emi_nacion_id || 'CL'
+    } : null;
+
+    const emidoData = bl.emido_id ? {
+      nombre: bl.emido_nombre,
+      rut: bl.emido_rut,
+      pais: bl.emido_pais || 'CL',
+      tipo_id: bl.emido_tipo_id || 'RUT',
+      nacion_id: bl.emido_nacion_id || 'CL'
+    } : null;
+
+    const repData = bl.rep_id ? {
       nombre: bl.rep_nombre,
       rut: bl.rep_rut,
       pais: bl.rep_pais || 'CL',
@@ -5923,10 +5970,8 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
     // ✅ ORDEN ESPECÍFICO PARA CARGA SUELTA (BB)
     if (esCargaSuelta) {
       // 1️⃣ EMI - CON CODIGO-PAIS
-      if (representanteData) {
-        const emi = buildParticipacion('EMI', representanteData, true, {
-          'codigo-pais': representanteData.pais
-        });
+      if (emiData) {
+        const emi = buildParticipacion('EMI', emiData, true, { 'codigo-pais': emiData.pais });
         if (emi) participaciones.push(emi);
       }
 
@@ -5949,15 +5994,15 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
         if (alm) participaciones.push(alm);
       }
 
-      // 3️⃣ REP - SIN CODIGO-PAIS
-      if (representanteData) {
-        const rep = buildParticipacion('REP', representanteData, true);
+      // REP
+      if (repData) {
+        const rep = buildParticipacion('REP', repData, true);
         if (rep) participaciones.push(rep);
       }
 
-      // 4️⃣ EMIDO - SIN CODIGO-PAIS
-      if (representanteData) {
-        const emido = buildParticipacion('EMIDO', representanteData, true);
+      // EMIDO
+      if (emidoData) {
+        const emido = buildParticipacion('EMIDO', emidoData, true);
         if (emido) participaciones.push(emido);
       }
 
@@ -5981,13 +6026,12 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
     }
     // ✅ ORDEN PARA CONTENEDORES (FF/MM) - SIN CAMBIOS
     else {
-      // 1️⃣ EMI
-      if (representanteData) {
-        const emi = buildParticipacion('EMI', representanteData, true, {
-          'codigo-pais': representanteData.pais
-        });
+      // EMI
+      if (emiData) {
+        const emi = buildParticipacion('EMI', emiData, true, { 'codigo-pais': emiData.pais });
         if (emi) participaciones.push(emi);
       }
+
 
       // 2️⃣ CONS
       if (consigneeData) {
@@ -5995,9 +6039,10 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
         if (cons) participaciones.push(cons);
       }
 
-      // 3️⃣ EMIDO
-      if (representanteData) {
-        const emido = buildParticipacion('EMIDO', representanteData, true);
+
+      // EMIDO
+      if (emidoData) {
+        const emido = buildParticipacion('EMIDO', emidoData, true);
         if (emido) participaciones.push(emido);
       }
 
@@ -6007,11 +6052,12 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
         if (noti) participaciones.push(noti);
       }
 
-      // 5️⃣ REP
-      if (representanteData) {
-        const rep = buildParticipacion('REP', representanteData, true);
+      // REP
+      if (repData) {
+        const rep = buildParticipacion('REP', repData, true);
         if (rep) participaciones.push(rep);
       }
+
 
       // 6️⃣ EMB
       if (shipperData) {
@@ -6131,8 +6177,8 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
                     'tipo-cnt': c.tipo_cnt || '',
                     'cnt-so': '',
                     peso: c.peso || 0,
-                    'valor-id-op': representanteData?.rut ? cleanRUT(representanteData.rut) : '', // 🆕
-                    'nombre-operador': representanteData?.nombre || '', // 🆕
+                    'valor-id-op': repData?.rut ? cleanRUT(repData.rut) : '',
+                    'nombre-operador': repData?.nombre || '',
                     status: bl.tipo_servicio_codigo || 'FF',
 
                     CntIMO: imoList.length > 0 ? {
