@@ -2765,7 +2765,7 @@ function extractPartyCodeAndName(rawLine) {
 
   // Extraer columnas separadas por 2+ espacios
   const cols = resto.split(/\s{2,}/).map(x => x.trim()).filter(Boolean);
-  
+
   const nombre = cols[0] || null;
   const direccion = cols.slice(1).join(' ').trim() || null; // Todo lo demás es dirección
 
@@ -3135,7 +3135,7 @@ function pickLugarEmisionCod(lines, header00) {
     const cod = l74.substring(5, 10).trim();
     if (cod) return cod;
   }
-  
+
   return null;  // ✅ Sin fallback
 }
 
@@ -5666,100 +5666,66 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
   try {
     const { blNumber } = req.params;
 
-    // 1️⃣ Obtener datos completos del BL CON PARTICIPANTES
     const [blRows] = await pool.query(`
-  SELECT
-    b.*,
-    m.viaje,
-    m.tipo_operacion,
-    m.numero_referencia,      
-    m.fecha_referencia,  
-    m.fecha_manifiesto_aduana,  
-    m.representante AS representante_codigo,
-    n.nombre AS nave_nombre,
-    ts.codigo AS tipo_servicio_codigo,
-    le.codigo AS lugar_emision_codigo,
-    le.nombre AS lugar_emision_nombre,
-    pe.codigo AS puerto_embarque_codigo,
-    pe.nombre AS puerto_embarque_nombre,
-    pd.codigo AS puerto_descarga_codigo,
-    pd.nombre AS puerto_descarga_nombre,
-    ld.codigo AS lugar_destino_codigo,
-    ld.nombre AS lugar_destino_nombre,
-    lem.codigo AS lugar_entrega_codigo,
-    lem.nombre AS lugar_entrega_nombre,
-    lrm.codigo AS lugar_recepcion_codigo,
-    lrm.nombre AS lugar_recepcion_nombre,
+    SELECT
+      b.*,
+      m.viaje,
+      m.tipo_operacion,
+      m.numero_referencia,      
+      m.fecha_referencia,  
+      m.fecha_manifiesto_aduana,  
+      m.representante AS representante_codigo,
+      n.nombre AS nave_nombre,
+      ts.codigo AS tipo_servicio_codigo,
+      le.codigo AS lugar_emision_codigo,
+      le.nombre AS lugar_emision_nombre,
+      pe.codigo AS puerto_embarque_codigo,
+      pe.nombre AS puerto_embarque_nombre,
+      pd.codigo AS puerto_descarga_codigo,
+      pd.nombre AS puerto_descarga_nombre,
+      ld.codigo AS lugar_destino_codigo,
+      ld.nombre AS lugar_destino_nombre,
+      lem.codigo AS lugar_entrega_codigo,
+      lem.nombre AS lugar_entrega_nombre,
+      lrm.codigo AS lugar_recepcion_codigo,
+      lrm.nombre AS lugar_recepcion_nombre,
+      
+      -- 🔥 REPRESENTANTE desde REFERENCIAS (para EMI, EMIDO, REP)
+      ref.id AS rep_id,
+      ref.match_code AS rep_codigo,
+      ref.rut AS rep_rut,
+      ref.nombre_emisor AS rep_nombre,
+      ref.pais AS rep_pais,
+      ref.tipo_id_emisor AS rep_tipo_id,
+      ref.nacion_id AS rep_nacion_id,
+      
+      -- 🔥 ALMACENADOR (para ALM en carga suelta)
+      almacenador_p.id AS almacenador_id,
+      almacenador_p.rut AS almacenador_rut,
+      almacenador_p.nombre AS almacenador_nombre,
+      almacenador_p.pais AS almacenador_pais,
+      almacenador_p.codigo_almacen AS almacenador_codigo_almacen
+      
+    FROM bls b
+    LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
+    LEFT JOIN naves n ON m.nave_id = n.id
+    LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
+    LEFT JOIN puertos le ON b.lugar_emision_id = le.id
+    LEFT JOIN puertos pe ON b.puerto_embarque_id = pe.id
+    LEFT JOIN puertos pd ON b.puerto_descarga_id = pd.id
+    LEFT JOIN puertos ld ON b.lugar_destino_id = ld.id
+    LEFT JOIN puertos lem ON b.lugar_entrega_id = lem.id
+    LEFT JOIN puertos lrm ON b.lugar_recepcion_id = lrm.id
     
-    -- 🔥 SHIPPER (EMB) - CON DIRECCION, TELEFONO, CIUDAD
-    shipper_p.id AS shipper_id,
-    shipper_p.codigo_bms AS shipper_codigo,
-    shipper_p.rut AS shipper_rut,
-    shipper_p.nombre AS shipper_nombre,
-    shipper_p.pais AS shipper_pais,
-    shipper_p.direccion AS shipper_direccion,
-    shipper_p.telefono AS shipper_telefono,
-    shipper_p.ciudad AS shipper_ciudad,
+    -- 🔥 JOIN del almacenador (solo para carga suelta)
+    LEFT JOIN participantes almacenador_p ON b.almacenador_id = almacenador_p.id
     
-    -- 🔥 CONSIGNEE (CONS) - CON DIRECCION, TELEFONO, CIUDAD
-    consignee_p.id AS consignee_id,
-    consignee_p.codigo_bms AS consignee_codigo,
-    consignee_p.rut AS consignee_rut,
-    consignee_p.nombre AS consignee_nombre,
-    consignee_p.pais AS consignee_pais,
-    consignee_p.direccion AS consignee_direccion,
-    consignee_p.telefono AS consignee_telefono,
-    consignee_p.ciudad AS consignee_ciudad,
+    -- 🔥 JOIN del representante desde REFERENCIAS
+    LEFT JOIN referencias ref ON m.referencia_id = ref.id
     
-    -- 🔥 NOTIFY (NOTI) - CON DIRECCION, TELEFONO, CIUDAD
-    notify_p.id AS notify_id,
-    notify_p.codigo_bms AS notify_codigo,
-    notify_p.rut AS notify_rut,
-    notify_p.nombre AS notify_nombre,
-    notify_p.pais AS notify_pais,
-    notify_p.direccion AS notify_direccion,
-    notify_p.telefono AS notify_telefono,
-    notify_p.ciudad AS notify_ciudad,
-    
-    -- 🔥 REPRESENTANTE desde REFERENCIAS (para EMI, EMIDO, REP)
-    ref.id AS rep_id,
-    ref.match_code AS rep_codigo,
-    ref.rut AS rep_rut,
-    ref.nombre_emisor AS rep_nombre,
-    ref.pais AS rep_pais,
-    ref.tipo_id_emisor AS rep_tipo_id,
-    ref.nacion_id AS rep_nacion_id,
-    almacenador_p.id AS almacenador_id,
-almacenador_p.rut AS almacenador_rut,
-almacenador_p.nombre AS almacenador_nombre,
-almacenador_p.pais AS almacenador_pais,
-almacenador_p.codigo_almacen AS almacenador_codigo_almacen
-
-    
-  FROM bls b
-  LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
-  LEFT JOIN naves n ON m.nave_id = n.id
-  LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
-  LEFT JOIN puertos le ON b.lugar_emision_id = le.id
-  LEFT JOIN puertos pe ON b.puerto_embarque_id = pe.id
-  LEFT JOIN puertos pd ON b.puerto_descarga_id = pd.id
-  LEFT JOIN puertos ld ON b.lugar_destino_id = ld.id
-  LEFT JOIN puertos lem ON b.lugar_entrega_id = lem.id
-  LEFT JOIN puertos lrm ON b.lugar_recepcion_id = lrm.id
-  
-  -- 🔥 JOINS de participantes
-  LEFT JOIN participantes shipper_p ON b.shipper_id = shipper_p.id
-  LEFT JOIN participantes consignee_p ON b.consignee_id = consignee_p.id
-  LEFT JOIN participantes notify_p ON b.notify_id = notify_p.id
-  LEFT JOIN participantes almacenador_p ON b.almacenador_id = almacenador_p.id
-
-  
-  -- 🔥 JOIN del representante desde REFERENCIAS usando el FK del manifiesto
-  LEFT JOIN referencias ref ON m.referencia_id = ref.id
-  
-  WHERE b.bl_number = ?
-  LIMIT 1
-`, [blNumber]);
+    WHERE b.bl_number = ?
+    LIMIT 1
+  `, [blNumber]);
 
     if (blRows.length === 0) {
       return res.status(404).json({ error: "BL no encontrado" });
@@ -5897,14 +5863,24 @@ almacenador_p.codigo_almacen AS almacenador_codigo_almacen
         baseData['telefono'] = participante.telefono.trim();
       }
 
+      // 🔥 AGREGAR EMAIL SI EXISTE
+      if (participante.email && participante.email.trim()) {
+        baseData['correo-electronico'] = participante.email.trim();
+      }
+
       // 🔥 AGREGAR CIUDAD/COMUNA SI EXISTE
       if (participante.ciudad && participante.ciudad.trim()) {
         baseData['comuna'] = participante.ciudad.trim();
       }
+      
       // ✅ AGREGAR CODIGO-PAIS SI TIENE RUT Y PAÍS
       if (includeRUT && participante.rut && participante.pais) {
         baseData['codigo-pais'] = participante.pais;
       }
+      
+      // Agregar campos extra si vienen (ej: codigo-almacen)
+      Object.assign(baseData, extraFields);
+      
       return baseData;
     };
 
@@ -5920,35 +5896,28 @@ almacenador_p.codigo_almacen AS almacenador_codigo_almacen
       nacion_id: bl.rep_nacion_id || 'CL'
     } : null;
 
-    // Datos del shipper (para EMB) - AHORA CON VALORES POR DEFECTO
-    const shipperData = bl.shipper_id ? {
-      nombre: bl.shipper_nombre,
-      rut: bl.shipper_rut,
-      pais: bl.shipper_pais || 'CL',
+    // 🔥 Datos del shipper (para EMB) - DIRECTOS DE BLS
+    const shipperData = bl.shipper ? {
+      nombre: bl.shipper,
       direccion: bl.shipper_direccion || '.',
-      telefono: bl.shipper_telefono || '.'
+      telefono: bl.shipper_telefono || '.',
+      email: bl.shipper_email || null
     } : null;
 
-    // Datos del consignee (para CONS) - AHORA CON VALORES POR DEFECTO
-    const consigneeData = bl.consignee_id ? {
-      nombre: bl.consignee_nombre,
-      rut: bl.consignee_rut,
-      pais: bl.consignee_pais || 'CL',
-      tipo_id: 'RUT',
-      nacion_id: 'CL',
+    // 🔥 Datos del consignee (para CONS) - DIRECTOS DE BLS
+    const consigneeData = bl.consignee ? {
+      nombre: bl.consignee,
       direccion: bl.consignee_direccion || '.',
       telefono: bl.consignee_telefono || '.',
-      ciudad: bl.consignee_ciudad || '5101'
+      email: bl.consignee_email || null
     } : null;
 
-    // Datos del notify (para NOTI) - AHORA CON VALORES POR DEFECTO
-    const notifyData = bl.notify_id ? {
-      nombre: bl.notify_nombre,
-      rut: bl.notify_rut,
-      pais: bl.notify_pais || 'CL',
+    // 🔥 Datos del notify (para NOTI) - DIRECTOS DE BLS
+    const notifyData = bl.notify_party ? {
+      nombre: bl.notify_party,
       direccion: bl.notify_direccion || '.',
       telefono: bl.notify_telefono || '.',
-      ciudad: bl.notify_ciudad || '5101'
+      email: bl.notify_email || null
     } : null;
 
     // ✅ ORDEN ESPECÍFICO PARA CARGA SUELTA (BB)
