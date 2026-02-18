@@ -67,6 +67,8 @@ const ManifiestoDetalle = () => {
     numeroReferencia: "",
     fechaReferencia: "",
     puertoCentralId: "",
+    fechaZarpe: "",    // ← AGREGAR ACÁ
+
   });
 
   const [itinerario, setItinerario] = useState([]);
@@ -181,6 +183,8 @@ const ManifiestoDetalle = () => {
         numeroReferencia: m.numeroReferencia || "",
         fechaReferencia: toInputDate(m.fechaReferencia),
         puertoCentralId: "", // ← Se setea en el useEffect de sincronización (data + puertos)
+        fechaZarpe: toInputDate(m.fechaZarpe),   // ← AGREGAR ACÁ
+
       });
 
       // ✅ NO seteamos puertoSearch aquí — lo hace el useEffect de sincronización
@@ -318,6 +322,8 @@ const ManifiestoDetalle = () => {
         numeroReferencia: formData.numeroReferencia || null,
         fechaReferencia: formData.fechaReferencia || null,
         puertoCentral: formData.puertoCentralId,
+        fechaZarpe: formData.fechaZarpe || null,   // ← AGREGAR ACÁ
+
 
         itinerario: itinerario.map((it) => ({
           id: it.id,
@@ -459,8 +465,8 @@ const ManifiestoDetalle = () => {
             <strong>BLs con errores:</strong>
             <ul style="margin:6px 0 0 18px;">
               ${blsConErrores
-            .map(bl => `<li>${bl.bl_number} (${bl.total_errores} errores)</li>`)
-            .join("")}
+          .map(bl => `<li>${bl.bl_number} (${bl.total_errores} errores)</li>`)
+          .join("")}
             </ul>
           </div>
         `
@@ -654,8 +660,8 @@ const ManifiestoDetalle = () => {
                         </option>
                       ))}
                     </datalist>
-                    
-          
+
+
                   </div>
                 )}
                 {!isEditing ? (
@@ -693,8 +699,13 @@ const ManifiestoDetalle = () => {
                       label="N° Mfto Aduana CL"
                       value={m.numeroManifiestoAduana}
                     />
+                    <InfoReadOnly
+                      label="Fecha Zarpe"                          // ← AGREGAR ESTE BLOQUE
+                      value={formatDateCL(m.fechaZarpe)}
+                    />
                     <InfoReadOnly label="Remark" value={m.remark || "—"} />
                   </>
+
                 ) : (
                   <>
                     <InfoEditableSelect
@@ -775,6 +786,11 @@ const ManifiestoDetalle = () => {
                       label="Fecha Mfto Aduana CL"
                       value={formData.fechaManifiestoAduana}
                       onChange={(v) => handleInputChange("fechaManifiestoAduana", v)}
+                    />
+                    <InfoEditableDate                               // ← AGREGAR ESTE BLOQUE
+                      label="Fecha Zarpe"
+                      value={formData.fechaZarpe}
+                      onChange={(v) => handleInputChange("fechaZarpe", v)}
                     />
                     <InfoEditable
                       label="N° Mfto Aduana CL"

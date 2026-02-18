@@ -735,7 +735,8 @@ app.put("/manifiestos/:id", async (req, res) => {
     numeroReferencia,
     fechaReferencia,
     // 🆕 PUERTO CENTRAL - ¡FALTABA ESTE!
-    puertoCentral
+    puertoCentral,
+    fechaZarpe
   } = req.body;
 
   const connection = await pool.getConnection();
@@ -757,6 +758,7 @@ app.put("/manifiestos/:id", async (req, res) => {
            numero_referencia = ?,
            fecha_referencia = ?,
            puerto_central_id = ?,
+           fecha_zarpe = ?, 
            updated_at = NOW()
        WHERE id = ?`,
       [
@@ -770,7 +772,8 @@ app.put("/manifiestos/:id", async (req, res) => {
         referenciaId || null,
         numeroReferencia || null,
         fechaReferencia || null,
-        puertoCentral || null,  // 🆕 ESTE DEBERÍA SER EL ID DEL PUERTO
+        puertoCentral || null, 
+        fechaZarpe || null,  // 🆕 ESTE DEBERÍA SER EL ID DEL PUERTO
         id
       ]
     );
@@ -820,6 +823,7 @@ app.get("/manifiestos", async (_req, res) => {
           m.representante,
           m.fecha_manifiesto_aduana AS fechaManifiestoAduana,
           m.numero_manifiesto_aduana AS numeroManifiestoAduana,
+          m.fecha_zarpe AS fechaZarpe, 
           m.created_at AS createdAt,
           m.updated_at AS updatedAt
        FROM manifiestos m
@@ -862,7 +866,9 @@ app.get("/manifiestos/:id", async (req, res) => {
           -- 🆕 AGREGAR ESTOS 3 CAMPOS
           m.referencia_id AS referenciaId,
           m.numero_referencia AS numeroReferencia,
-          m.fecha_referencia AS fechaReferencia
+          m.fecha_referencia AS fechaReferencia,
+          m.fecha_zarpe AS fechaZarpe     
+
           
        FROM manifiestos m
        JOIN servicios s ON s.id = m.servicio_id
