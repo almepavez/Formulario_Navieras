@@ -598,7 +598,8 @@ app.post("/manifiestos", async (req, res) => {
     // 🆕 NUEVOS CAMPOS PARA REFERENCIA
     referenciaId,
     numeroReferencia,
-    fechaReferencia
+    fechaReferencia,
+    fecha_zarpe
   } = req.body || {};
 
   // Validación mínima
@@ -646,12 +647,13 @@ app.post("/manifiestos", async (req, res) => {
     // 2) Insert manifiesto (🆕 CON CAMPOS DE REFERENCIA)
     const [result] = await conn.query(
       `INSERT INTO manifiestos
-        (servicio_id, nave_id, puerto_central_id,
-         viaje, tipo_operacion, operador_nave,
-         status, remark, emisor_documento, representante,
-         fecha_manifiesto_aduana, numero_manifiesto_aduana,
-         referencia_id, numero_referencia, fecha_referencia)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  (servicio_id, nave_id, puerto_central_id,
+   viaje, tipo_operacion, operador_nave,
+   status, remark, emisor_documento, representante,
+   fecha_manifiesto_aduana, numero_manifiesto_aduana,
+   referencia_id, numero_referencia, fecha_referencia,
+   fecha_zarpe)
+ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         servRow.id,
         naveRow.id,
@@ -667,7 +669,8 @@ app.post("/manifiestos", async (req, res) => {
         String(numeroManifiestoAduana).trim(),
         referenciaId || null,           // 🆕
         numeroReferencia || null,        // 🆕
-        fechaReferencia || null          // 🆕
+        fechaReferencia || null,          // 🆕
+        fecha_zarpe || null 
       ]
     );
 
@@ -772,7 +775,7 @@ app.put("/manifiestos/:id", async (req, res) => {
         referenciaId || null,
         numeroReferencia || null,
         fechaReferencia || null,
-        puertoCentral || null, 
+        puertoCentral || null,
         fechaZarpe || null,  // 🆕 ESTE DEBERÍA SER EL ID DEL PUERTO
         id
       ]
@@ -6185,7 +6188,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
                     peso: c.peso || 0,
                     'valor-id-op': repData?.rut ? cleanRUT(repData.rut) : '',
                     'nombre-operador': repData?.nombre || '',
-                    status: mapTipoServicio(bl.tipo_servicio_codigo), 
+                    status: mapTipoServicio(bl.tipo_servicio_codigo),
 
                     CntIMO: imoList.length > 0 ? {
                       cntimo: imoList.length === 1

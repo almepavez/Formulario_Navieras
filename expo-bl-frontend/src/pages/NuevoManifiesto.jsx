@@ -333,6 +333,9 @@ const NuevoManifiesto = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          fecha_zarpe: form.fecha_zarpe
+            ? form.fecha_zarpe.replace("T", " ") + ":00"
+            : null,
           referenciaId: parseInt(referencia.referenciaId),
           numeroReferencia: referencia.numeroReferencia,
           fechaReferencia: referencia.fecha,
@@ -604,12 +607,12 @@ const NuevoManifiesto = () => {
             {/* 🆕 FECHA ZARPE */}
             <Field label="Fecha Zarpe">
               <input
-                type="date"
+                type="datetime-local"
                 value={form.fecha_zarpe}
                 onChange={onChange("fecha_zarpe")}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
               />
-              <Hint text="Fecha de zarpe del manifiesto (opcional)" />
+              <Hint text="Fecha y hora de zarpe del manifiesto (opcional)" />
             </Field>
 
             <Field label="Status *">

@@ -183,8 +183,7 @@ const ManifiestoDetalle = () => {
         numeroReferencia: m.numeroReferencia || "",
         fechaReferencia: toInputDate(m.fechaReferencia),
         puertoCentralId: "", // ← Se setea en el useEffect de sincronización (data + puertos)
-        fechaZarpe: toInputDate(m.fechaZarpe),   // ← AGREGAR ACÁ
-
+        fechaZarpe: toInputDatetime(m.fechaZarpe),   // ← ASÍ
       });
 
       // ✅ NO seteamos puertoSearch aquí — lo hace el useEffect de sincronización
@@ -322,8 +321,9 @@ const ManifiestoDetalle = () => {
         numeroReferencia: formData.numeroReferencia || null,
         fechaReferencia: formData.fechaReferencia || null,
         puertoCentral: formData.puertoCentralId,
-        fechaZarpe: formData.fechaZarpe || null,   // ← AGREGAR ACÁ
-
+        fechaZarpe: formData.fechaZarpe
+          ? formData.fechaZarpe.replace("T", " ") + ":00"
+          : null,
 
         itinerario: itinerario.map((it) => ({
           id: it.id,
@@ -700,8 +700,8 @@ const ManifiestoDetalle = () => {
                       value={m.numeroManifiestoAduana}
                     />
                     <InfoReadOnly
-                      label="Fecha Zarpe"                          // ← AGREGAR ESTE BLOQUE
-                      value={formatDateCL(m.fechaZarpe)}
+                      label="Fecha Zarpe"
+                      value={formatDTCL(m.fechaZarpe)}
                     />
                     <InfoReadOnly label="Remark" value={m.remark || "—"} />
                   </>
@@ -792,11 +792,11 @@ const ManifiestoDetalle = () => {
                       value={formData.numeroManifiestoAduana}
                       onChange={(v) => handleInputChange("numeroManifiestoAduana", v)}
                     />
-                    <InfoEditableDate                               // ← AGREGAR ESTE BLOQUE
+                    <InfoEditableDatetime
                       label="Fecha Zarpe"
                       value={formData.fechaZarpe}
                       onChange={(v) => handleInputChange("fechaZarpe", v)}
-                      />
+                    />
                     <InfoEditable
                       label="Remark"
                       value={formData.remark}
@@ -1122,6 +1122,18 @@ const InfoEditableDate = ({ label, value, onChange }) => (
     <div className="text-xs font-medium text-slate-700">{label}</div>
     <input
       type="date"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+    />
+  </div>
+);
+
+const InfoEditableDatetime = ({ label, value, onChange }) => (
+  <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
+    <div className="text-xs font-medium text-slate-700">{label}</div>
+    <input
+      type="datetime-local"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
