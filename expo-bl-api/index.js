@@ -5219,6 +5219,18 @@ app.put("/bls/:blNumber/carga-suelta", async (req, res) => {
     consignee,
     notify_party,
     almacenador,
+
+    // 🆕 Contacto de participantes
+    shipper_direccion,
+    shipper_telefono,
+    shipper_email,
+    consignee_direccion,
+    consignee_telefono,
+    consignee_email,
+    notify_direccion,
+    notify_telefono,
+    notify_email,
+
     items,
     observaciones
   } = req.body;
@@ -5280,6 +5292,15 @@ app.put("/bls/:blNumber/carga-suelta", async (req, res) => {
         consignee = ?,
         notify_party = ?,
         almacenador = ?,
+        shipper_direccion = ?,
+shipper_telefono = ?,
+shipper_email = ?,
+consignee_direccion = ?,
+consignee_telefono = ?,
+consignee_email = ?,
+notify_direccion = ?,
+notify_telefono = ?,
+notify_email = ?,
         observaciones = ?,
         updated_at = NOW()
       WHERE id = ?
@@ -5304,6 +5325,15 @@ app.put("/bls/:blNumber/carga-suelta", async (req, res) => {
       consignee,
       notify_party,
       almacenador,
+      shipper_direccion || null,
+      shipper_telefono || null,
+      shipper_email || null,
+      consignee_direccion || null,
+      consignee_telefono || null,
+      consignee_email || null,
+      notify_direccion || null,
+      notify_telefono || null,
+      notify_email || null,
       observaciones ? JSON.stringify(observaciones) : null,
       blId
     ]);
@@ -5318,19 +5348,9 @@ app.put("/bls/:blNumber/carga-suelta", async (req, res) => {
           INSERT INTO bl_items (
             bl_id, numero_item, marcas, tipo_bulto, descripcion,
             cantidad, peso_bruto, unidad_peso, volumen, unidad_volumen
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [
-          blId,
-          item.numero_item,
-          item.marcas || 'N/M',
-          item.tipo_bulto,
-          item.descripcion,
-          item.cantidad,
-          item.peso_bruto,
-          item.unidad_peso,
-          item.volumen || 0,
-          item.unidad_volumen,
-          'N' // SIEMPRE 'N' para carga suelta
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`, [blId, item.numero_item, item.marcas || 'N/M', item.tipo_bulto, item.descripcion,
+          item.cantidad, item.peso_bruto, item.unidad_peso, item.volumen || 0, item.unidad_volumen
         ]);
       }
     }
