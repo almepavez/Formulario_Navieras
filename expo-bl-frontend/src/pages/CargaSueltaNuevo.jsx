@@ -349,6 +349,16 @@ const CargaSueltaNuevo = () => {
                     });
                     return false;
                 }
+                // Después de validar el nombre del shipper:
+                if (!formData.shipper_direccion?.trim()) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "La dirección del Shipper es obligatoria",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
 
                 // Validar que Shipper tenga al menos teléfono o email
                 if (!formData.shipper_telefono?.trim() && !formData.shipper_email?.trim()) {
@@ -365,6 +375,16 @@ const CargaSueltaNuevo = () => {
                     Swal.fire({
                         title: "Campo requerido",
                         text: "El Consignee debe tener al menos 3 caracteres",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                // Después de validar el nombre del consignee:
+                if (!formData.consignee_direccion?.trim()) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "La dirección del Consignee es obligatoria",
                         icon: "warning",
                         confirmButtonColor: "#10b981"
                     });
@@ -392,9 +412,6 @@ const CargaSueltaNuevo = () => {
                     });
                     return false;
                 }
-
-
-
                 return true;
 
             case 3:
