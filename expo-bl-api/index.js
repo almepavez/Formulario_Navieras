@@ -3693,6 +3693,43 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
       if (isBlank(b.shipper)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "shipper", mensaje: "Falta shipper (Linea 16)", valorCrudo: b.shipper || null });
       if (isBlank(b.consignee)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "consignee", mensaje: "Falta consignee (Linea 21)", valorCrudo: b.consignee || null });
       if (isBlank(b.notify)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "notify_party", mensaje: "Falta notify (Linea 26)", valorCrudo: b.notify || null });
+      
+      // SHIPPER
+      if (!isBlank(b.shipper)) {
+        const tieneContactoShipper = (!isBlank(b.shipper_telefono)) || (!isBlank(b.shipper_email));
+        if (!tieneContactoShipper) {
+          pendingValidations.push({
+            nivel: "BL", severidad: "ERROR", campo: "shipper_contacto",
+            mensaje: "Shipper debe tener al menos teléfono o correo electrónico (Linea 16B)",
+            valorCrudo: b.shipper || null
+          });
+        }
+      }
+
+      // CONSIGNEE
+      if (!isBlank(b.consignee)) {
+        const tieneContactoConsignee = (!isBlank(b.consignee_telefono)) || (!isBlank(b.consignee_email));
+        if (!tieneContactoConsignee) {
+          pendingValidations.push({
+            nivel: "BL", severidad: "ERROR", campo: "consignee_contacto",
+            mensaje: "Consignee debe tener al menos teléfono o correo electrónico (Linea 21B)",
+            valorCrudo: b.consignee || null
+          });
+        }
+      }
+
+      // NOTIFY
+      if (!isBlank(b.notify)) {
+        const tieneContactoNotify = (!isBlank(b.notify_telefono)) || (!isBlank(b.notify_email));
+        if (!tieneContactoNotify) {
+          pendingValidations.push({
+            nivel: "BL", severidad: "ERROR", campo: "notify_contacto",
+            mensaje: "Notify party debe tener al menos teléfono o correo electrónico (Linea 26B)",
+            valorCrudo: b.notify || null
+          });
+        }
+      }
+  
       if (isBlank(b.fecha_embarque)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_embarque", mensaje: "Falta fecha_embarque (Linea 14)", valorCrudo: b.fecha_embarque || null });
       if (isBlank(b.fecha_zarpe)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_zarpe", mensaje: "Falta fecha_zarpe (Linea 14)", valorCrudo: b.fecha_zarpe || null });
       if (isBlank(b.unidad_volumen)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "unidad_volumen", mensaje: "Falta unidad_volumen (Linea 41)", valorCrudo: b.unidad_volumen || null });
@@ -5906,19 +5943,20 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
 
       baseData['nombres'] = participante.nombre;
 
-      if (participante.direccion && participante.direccion.trim()) {
-        baseData['direccion'] = participante.direccion.trim();
-      }
+      // Teléfono: siempre sale, '.' si no tiene
+      baseData['telefono'] = (participante.telefono && participante.telefono.trim() && participante.telefono.trim() !== '.')
+        ? participante.telefono.trim()
+        : '.';
 
-      // 🔥 AGREGAR TELÉFONO SI EXISTE
-      if (participante.telefono && participante.telefono.trim()) {
-        baseData['telefono'] = participante.telefono.trim();
-      }
+      // Email: siempre sale, '.' si no tiene
+      baseData['correo-electronico'] = (participante.email && participante.email.trim() && participante.email.trim() !== '.')
+        ? participante.email.trim()
+        : '.';
 
-      // 🔥 AGREGAR EMAIL SI EXISTE
-      if (participante.email && participante.email.trim()) {
-        baseData['correo-electronico'] = participante.email.trim();
-      }
+      // Dirección: siempre sale, '.' si no tiene
+      baseData['direccion'] = (participante.direccion && participante.direccion.trim() && participante.direccion.trim() !== '.')
+        ? participante.direccion.trim()
+        : '.';
 
       // 🔥 AGREGAR CIUDAD/COMUNA SI EXISTE
       if (participante.ciudad && participante.ciudad.trim()) {
@@ -7054,6 +7092,41 @@ async function revalidarBLCompleto(conn, blId) {
   if (isBlank(bl.consignee)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "consignee", mensaje: "Falta consignee (Linea 21)", valorCrudo: bl.consignee || null });
   if (isBlank(bl.notify_party)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "notify_party", mensaje: "Falta notify (Linea 26)", valorCrudo: bl.notify_party || null });
 
+  // SHIPPER
+  if (!isBlank(bl.shipper)) {
+    const tieneContactoShipper = (!isBlank(bl.shipper_telefono)) || (!isBlank(bl.shipper_email));
+    if (!tieneContactoShipper) {
+      vals.push({
+        nivel: "BL", severidad: "ERROR", campo: "shipper_contacto",
+        mensaje: "Shipper debe tener al menos teléfono o correo electrónico (Linea 16B)",
+        valorCrudo: bl.shipper || null
+      });
+    }
+  }
+
+  // CONSIGNEE
+  if (!isBlank(bl.consignee)) {
+    const tieneContactoConsignee = (!isBlank(bl.consignee_telefono)) || (!isBlank(bl.consignee_email));
+    if (!tieneContactoConsignee) {
+      vals.push({
+        nivel: "BL", severidad: "ERROR", campo: "consignee_contacto",
+        mensaje: "Consignee debe tener al menos teléfono o correo electrónico (Linea 21B)",
+        valorCrudo: bl.consignee || null
+      });
+    }
+  }
+
+  // NOTIFY
+  if (!isBlank(bl.notify_party)) {
+    const tieneContactoNotify = (!isBlank(bl.notify_telefono)) || (!isBlank(bl.notify_email));
+    if (!tieneContactoNotify) {
+      vals.push({
+        nivel: "BL", severidad: "ERROR", campo: "notify_contacto",
+        mensaje: "Notify party debe tener al menos teléfono o correo electrónico (Linea 26B)",
+        valorCrudo: bl.notify_party || null
+      });
+    }
+  }
 
   // ✅ NUEVO: contar contenedores reales por item_id (lo que realmente quedó en BD)
   const contCountByItemId = new Map(); // item_id -> count
