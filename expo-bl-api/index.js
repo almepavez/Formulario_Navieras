@@ -670,7 +670,7 @@ app.post("/manifiestos", async (req, res) => {
         referenciaId || null,           // 🆕
         numeroReferencia || null,        // 🆕
         fechaReferencia || null,          // 🆕
-        fecha_zarpe || null 
+        fecha_zarpe || null
       ]
     );
 
@@ -7834,8 +7834,10 @@ app.post("/manifiestos/:id/carga-suelta", async (req, res) => {
     // Validar campos obligatorios
     const camposObligatorios = [
       { campo: bl_number, nombre: 'N° de BL' },
-      { campo: shipper_id, nombre: 'Shipper' },
-      { campo: consignee_id, nombre: 'Consignee' },
+   
+      // DESPUÉS (valida los textos que sí vienen)
+      { campo: shipper, nombre: 'Shipper' },
+      { campo: consignee, nombre: 'Consignee' },
       { campo: puerto_embarque, nombre: 'Puerto de Embarque' },
       { campo: puerto_descarga, nombre: 'Puerto de Descarga' },
       { campo: lugar_destino, nombre: 'Lugar de Destino' },

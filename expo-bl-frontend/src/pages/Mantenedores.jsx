@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Anchor, Globe, Package, Box, PackageSearch, Users, ArrowLeftRight } from "lucide-react";
+import { Anchor, Globe, Package, Box, PackageSearch } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 
 const Mantenedores = () => {
@@ -50,24 +50,6 @@ const Mantenedores = () => {
       color: "from-emerald-500 to-emerald-600",
       bgColor: "bg-emerald-50",
       iconColor: "text-emerald-600",
-    },
-    {
-      id: "participantes",
-      title: "Participantes",
-      description: "Gestión de clientes, consignatarios y otros participantes",
-      icon: Users,
-      color: "from-indigo-500 to-indigo-600",
-      bgColor: "bg-indigo-50",
-      iconColor: "text-indigo-600",
-    },
-    {
-      id: "traductor-pil-bms",
-      title: "Traductor PIL-BMS",
-      description: "Mapeo entre códigos PIL y BMS de participantes",
-      icon: ArrowLeftRight,
-      color: "from-rose-500 to-rose-600",
-      bgColor: "bg-rose-50",
-      iconColor: "text-rose-600",
     },
   ];
 
