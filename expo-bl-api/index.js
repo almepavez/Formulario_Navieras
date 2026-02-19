@@ -3148,6 +3148,19 @@ function pickLugarEmisionCod(lines, header00) {
   return null;  // ✅ Sin fallback
 }
 
+const { DateTime } = require('luxon');
+
+const convertSingaporeToChile = (dateStr) => {
+  if (!dateStr) return null;
+  try {
+    const dt = DateTime.fromSQL(dateStr, { zone: 'Asia/Singapore' });
+    if (!dt.isValid) return null;
+    return dt.setZone('America/Santiago').toFormat('yyyy-MM-dd HH:mm:ss');
+  } catch (e) {
+    console.error('error:', e);
+    return null;
+  }
+};
 // ===============================
 // parsePmsTxt CORREGIDA
 // ===============================
@@ -3315,7 +3328,7 @@ function parsePmsTxt(content) {
         bultos: totalContainers,
         total_items: totalItems,
 
-        fecha_presentacion: fechaPresentacion,
+        fecha_presentacion: convertSingaporeToChile(fechaPresentacion),
         fecha_emision: fechaEmision,
         fecha_embarque: fechaEmbarque,
         fecha_zarpe: fechaZarpe,
@@ -5682,6 +5695,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
       m.numero_referencia,      
       m.fecha_referencia,  
       m.fecha_manifiesto_aduana,  
+      m.fecha_zarpe AS manifiesto_fecha_zarpe,
       m.representante AS representante_codigo,
       n.nombre AS nave_nombre,
       ts.codigo AS tipo_servicio_codigo,
@@ -6111,9 +6125,9 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
         Fechas: {
           fecha: [
             bl.fecha_presentacion && { nombre: 'FPRES', valor: formatDateTimeCL(bl.fecha_presentacion) },
-            bl.fecha_emision && { nombre: 'FEM', valor: formatDateCL(bl.fecha_emision) },
-            bl.fecha_zarpe && { nombre: 'FZARPE', valor: formatDateTimeCL(bl.fecha_zarpe) },
-            bl.fecha_embarque && { nombre: 'FEMB', valor: formatDateTimeCL(bl.fecha_embarque) }
+            bl.manifiesto_fecha_zarpe && { nombre: 'FEM', valor: formatDateCL(bl.manifiesto_fecha_zarpe) },
+            bl.manifiesto_fecha_zarpe && { nombre: 'FZARPE', valor: formatDateTimeCL(bl.manifiesto_fecha_zarpe) },
+            bl.manifiesto_fecha_zarpe && { nombre: 'FEMB', valor: `${formatDateCL(bl.manifiesto_fecha_zarpe)} 00:00` }
           ].filter(Boolean)
         },
 
@@ -6313,6 +6327,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
         m.numero_referencia,
         m.fecha_referencia,
         m.fecha_manifiesto_aduana,
+        m.fecha_zarpe AS manifiesto_fecha_zarpe,
         m.representante AS representante_codigo,
         n.nombre AS nave_nombre,
         ts.codigo AS tipo_servicio_codigo,
@@ -6621,9 +6636,9 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
           Fechas: {
             fecha: [
               bl.fecha_presentacion && { nombre: 'FPRES', valor: formatDateTimeCL(bl.fecha_presentacion) },
-              bl.fecha_emision && { nombre: 'FEM', valor: formatDateCL(bl.fecha_emision) },
-              bl.fecha_zarpe && { nombre: 'FZARPE', valor: formatDateTimeCL(bl.fecha_zarpe) },
-              bl.fecha_embarque && { nombre: 'FEMB', valor: formatDateTimeCL(bl.fecha_embarque) }
+              bl.manifiesto_fecha_zarpe && { nombre: 'FEM', valor: formatDateCL(bl.manifiesto_fecha_zarpe) },
+              bl.manifiesto_fecha_zarpe && { nombre: 'FZARPE', valor: formatDateTimeCL(bl.manifiesto_fecha_zarpe) },
+              bl.manifiesto_fecha_zarpe && { nombre: 'FEMB', valor: `${formatDateCL(bl.manifiesto_fecha_zarpe)} 00:00` }
             ].filter(Boolean)
           },
 
