@@ -6331,17 +6331,15 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
 
       baseData['nombres'] = participante.nombre;
 
-      if (participante.direccion && participante.direccion.trim()) {
-        baseData['direccion'] = participante.direccion.trim();
-      }
+      // REEMPLAZA los if simples por esto:
+      baseData['direccion'] = (participante.direccion && participante.direccion.trim() && participante.direccion.trim() !== '.')
+        ? participante.direccion.trim() : '.';
 
-      if (participante.telefono && participante.telefono.trim()) {
-        baseData['telefono'] = participante.telefono.trim();
-      }
+      baseData['telefono'] = (participante.telefono && participante.telefono.trim() && participante.telefono.trim() !== '.')
+        ? participante.telefono.trim() : '.';
 
-      if (participante.email && participante.email.trim()) {
-        baseData['correo-electronico'] = participante.email.trim();
-      }
+      baseData['correo-electronico'] = (participante.email && participante.email.trim() && participante.email.trim() !== '.')
+        ? participante.email.trim() : '.';
 
       if (participante.ciudad && participante.ciudad.trim()) {
         baseData['comuna'] = participante.ciudad.trim();
@@ -7085,7 +7083,7 @@ async function revalidarBLCompleto(conn, blId) {
       valorCrudo: null
     });
   }
-  
+
   // BL: pesos/volumen/unidades/bultos/items
 
   if (!esEmpty && num(bl.peso_bruto) <= 0) {
