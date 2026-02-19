@@ -3693,7 +3693,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
       if (isBlank(b.shipper)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "shipper", mensaje: "Falta shipper (Linea 16)", valorCrudo: b.shipper || null });
       if (isBlank(b.consignee)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "consignee", mensaje: "Falta consignee (Linea 21)", valorCrudo: b.consignee || null });
       if (isBlank(b.notify)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "notify_party", mensaje: "Falta notify (Linea 26)", valorCrudo: b.notify || null });
-      
+
       // SHIPPER
       if (!isBlank(b.shipper)) {
         const tieneContactoShipper = (!isBlank(b.shipper_telefono)) || (!isBlank(b.shipper_email));
@@ -3729,7 +3729,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
           });
         }
       }
-  
+
       if (isBlank(b.fecha_embarque)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_embarque", mensaje: "Falta fecha_embarque (Linea 14)", valorCrudo: b.fecha_embarque || null });
       if (isBlank(b.fecha_zarpe)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_zarpe", mensaje: "Falta fecha_zarpe (Linea 14)", valorCrudo: b.fecha_zarpe || null });
       if (isBlank(b.unidad_volumen)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "unidad_volumen", mensaje: "Falta unidad_volumen (Linea 41)", valorCrudo: b.unidad_volumen || null });
@@ -5395,8 +5395,17 @@ app.put("/bls/:blNumber", async (req, res) => {
     unidad_volumen,   // ← AGREGAR
     // FIN NUEVOS CAMPOS
     shipper,
+    shipper_direccion,    // ← AGREGAR
+    shipper_telefono,     // ← AGREGAR
+    shipper_email,        // ← AGREGAR
     consignee,
+    consignee_direccion,  // ← AGREGAR
+    consignee_telefono,   // ← AGREGAR
+    consignee_email,      // ← AGREGAR
     notify_party,
+    notify_direccion,     // ← AGREGAR
+    notify_telefono,      // ← AGREGAR
+    notify_email,         // ← AGREGAR
     descripcion_carga,
     peso_bruto,
     volumen,
@@ -5453,9 +5462,18 @@ app.put("/bls/:blNumber", async (req, res) => {
         lugar_entrega_cod = COALESCE(?, lugar_entrega_cod),
         lugar_recepcion_id = COALESCE(?, lugar_recepcion_id),
         lugar_recepcion_cod = COALESCE(?, lugar_recepcion_cod),
-        shipper = COALESCE(?, shipper),
-        consignee = COALESCE(?, consignee),
-        notify_party = COALESCE(?, notify_party),
+       shipper = COALESCE(?, shipper),
+shipper_direccion = COALESCE(?, shipper_direccion),   
+shipper_telefono = COALESCE(?, shipper_telefono),    
+shipper_email = COALESCE(?, shipper_email),          
+consignee = COALESCE(?, consignee),
+consignee_direccion = COALESCE(?, consignee_direccion), 
+consignee_telefono = COALESCE(?, consignee_telefono),   
+consignee_email = COALESCE(?, consignee_email),         
+notify_party = COALESCE(?, notify_party),
+notify_direccion = COALESCE(?, notify_direccion),     
+notify_telefono = COALESCE(?, notify_telefono),      
+notify_email = COALESCE(?, notify_email),             
         descripcion_carga = ?,
         peso_bruto = COALESCE(?, peso_bruto),
         unidad_volumen = ?,    
@@ -5483,8 +5501,17 @@ app.put("/bls/:blNumber", async (req, res) => {
       lugarRecepcionId,
       lugar_recepcion,
       shipper,
+      shipper_direccion,    // ← AGREGAR
+      shipper_telefono,     // ← AGREGAR
+      shipper_email,        // ← AGREGAR
       consignee,
+      consignee_direccion,  // ← AGREGAR
+      consignee_telefono,   // ← AGREGAR
+      consignee_email,      // ← AGREGAR
       notify_party,
+      notify_direccion,     // ← AGREGAR
+      notify_telefono,      // ← AGREGAR
+      notify_email,         // ← AGREGAR
       descripcion_carga,
       peso_bruto,
       unidad_volumen,     // ← AGREGAR
@@ -7480,8 +7507,17 @@ app.put("/api/bls/:blNumber", async (req, res) => {
     // 🔥 CAMPOS PERMITIDOS (SIN tipo_servicio porque ya lo mapeamos arriba)
     const validFields = [
       'shipper',
+      'shipper_direccion',   // ← AGREGAR
+      'shipper_telefono',    // ← AGREGAR
+      'shipper_email',       // ← AGREGAR
       'consignee',
+      'consignee_direccion', // ← AGREGAR
+      'consignee_telefono',  // ← AGREGAR
+      'consignee_email',     // ← AGREGAR
       'notify_party',
+      'notify_direccion',    // ← AGREGAR
+      'notify_telefono',     // ← AGREGAR
+      'notify_email',        // ← AGREGAR
       'shipper_id',
       'consignee_id',
       'notify_id',
@@ -7907,7 +7943,7 @@ app.post("/manifiestos/:id/carga-suelta", async (req, res) => {
     // Validar campos obligatorios
     const camposObligatorios = [
       { campo: bl_number, nombre: 'N° de BL' },
-   
+
       // DESPUÉS (valida los textos que sí vienen)
       { campo: shipper, nombre: 'Shipper' },
       { campo: consignee, nombre: 'Consignee' },

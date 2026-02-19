@@ -1858,11 +1858,6 @@ const ExpoBLEdit = () => {
                     {currentStep === 3 && (
                         <div className="space-y-8">
                             {/* 📌 NOTA INFORMATIVA */}
-                            <div className="bg-slate-50 border border-slate-300 rounded-lg p-4">
-                                <p className="text-sm text-slate-700">
-                                    ℹ️ <strong>Datos extraídos del archivo PMS.</strong> Puedes editarlos si es necesario antes de guardar.
-                                </p>
-                            </div>
 
                             {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
                             {/* SHIPPER / EMBARCADOR */}
