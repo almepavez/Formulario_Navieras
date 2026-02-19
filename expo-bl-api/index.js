@@ -7072,6 +7072,20 @@ async function revalidarBLCompleto(conn, blId) {
   if (isBlank(bl.fecha_embarque)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_embarque", mensaje: "Falta fecha_embarque (Linea 14)", valorCrudo: bl.fecha_embarque || null });
   if (isBlank(bl.fecha_zarpe)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_zarpe", mensaje: "Falta fecha_zarpe (Linea 14)", valorCrudo: bl.fecha_zarpe || null });
 
+
+  const [[manifiesto]] = await conn.query(
+    "SELECT fecha_zarpe FROM manifiestos WHERE id = ? LIMIT 1",
+    [bl.manifiesto_id]
+  );
+
+  if (!manifiesto || !manifiesto.fecha_zarpe) {
+    vals.push({
+      nivel: "BL", severidad: "ERROR", campo: "manifiesto_fecha_zarpe",
+      mensaje: "El manifiesto no tiene fecha de zarpe configurada. Es requerida para generar el XML.",
+      valorCrudo: null
+    });
+  }
+  
   // BL: pesos/volumen/unidades/bultos/items
 
   if (!esEmpty && num(bl.peso_bruto) <= 0) {
