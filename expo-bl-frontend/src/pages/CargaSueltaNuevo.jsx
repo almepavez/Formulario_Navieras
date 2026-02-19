@@ -131,11 +131,12 @@ const CargaSueltaNuevo = () => {
             setManifiestoData(json.manifiesto);
 
             // Pre-llenar locaciones desde el manifiesto si existen
-            if (json.manifiesto.puertoCentral) {
+            // DESPUÉS
+            if (json.manifiesto.puertoCentralCodigo) {
                 setFormData(prev => ({
                     ...prev,
-                    puerto_embarque: json.manifiesto.puertoCentral,
-                    lugar_destino: json.manifiesto.puertoCentral
+                    puerto_embarque: json.manifiesto.puertoCentralCodigo,
+                    lugar_destino: json.manifiesto.puertoCentralCodigo
                 }));
             }
         } catch (e) {
@@ -392,7 +393,7 @@ const CargaSueltaNuevo = () => {
                     return false;
                 }
 
-              
+
 
                 return true;
 
