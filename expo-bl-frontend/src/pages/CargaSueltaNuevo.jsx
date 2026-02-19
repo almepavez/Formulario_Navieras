@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Swal from "sweetalert2";
+import AlmacenadorSelector from '../components/AlmacenadorSelector';
 
 
 const STEPS = [
@@ -50,71 +51,71 @@ const CargaSueltaNuevo = () => {
     const [puertos, setPuertos] = useState([]);
     const [tiposBulto, setTiposBulto] = useState(TIPOS_BULTO);
 
-   const [formData, setFormData] = useState({
-    // Datos BL (Step 1)
-    bl_number: "",
-    tipo_servicio: "BB",
-    forma_pago_flete: "PREPAID",
-    cond_transporte: "HH",
-    fecha_emision: "",
-    fecha_presentacion: "",
-    fecha_embarque: "",
-    fecha_zarpe: "",
+    const [formData, setFormData] = useState({
+        // Datos BL (Step 1)
+        bl_number: "",
+        tipo_servicio: "BB",
+        forma_pago_flete: "PREPAID",
+        cond_transporte: "HH",
+        fecha_emision: "",
+        fecha_presentacion: "",
+        fecha_embarque: "",
+        fecha_zarpe: "",
 
-    // Locaciones (Step 1)
-    puerto_embarque: "",
-    puerto_descarga: "",
-    lugar_destino: "",
-    lugar_emision: "",
-    lugar_entrega: "",
-    lugar_recepcion: "",
+        // Locaciones (Step 1)
+        puerto_embarque: "",
+        puerto_descarga: "",
+        lugar_destino: "",
+        lugar_emision: "",
+        lugar_entrega: "",
+        lugar_recepcion: "",
 
-    // 🔥 PARTICIPANTES - Solo nombres (sin IDs)
-    shipper: "",
-    consignee: "",
-    notify_party: "",
-    almacenador: "",
+        // 🔥 PARTICIPANTES - Solo nombres (sin IDs)
+        shipper: "",
+        consignee: "",
+        notify_party: "",
+        almacenador: "",
 
-    // 🆕 DATOS EXTRAÍDOS (editables)
-    shipper_codigo_pil: "",
-    shipper_direccion: "",
-    shipper_telefono: "",
-    shipper_email: "",
-    
-    consignee_codigo_pil: "",
-    consignee_direccion: "",
-    consignee_telefono: "",
-    consignee_email: "",
-    
-    notify_codigo_pil: "",
-    notify_direccion: "",
-    notify_telefono: "",
-    notify_email: "",
-    
-    almacenador_codigo_pil: "",
-    almacenador_direccion: "",
-    almacenador_telefono: "",
-    almacenador_email: "",
+        // 🆕 DATOS EXTRAÍDOS (editables)
+        shipper_codigo_pil: "",
+        shipper_direccion: "",
+        shipper_telefono: "",
+        shipper_email: "",
 
-    // Items (Step 3)
-    items: [{
-        numero_item: 1,
-        marcas: "N/M",
-        tipo_bulto: "80",
-        descripcion: "",
-        cantidad: 1,
-        peso_bruto: "",
-        unidad_peso: "KGM",
-        volumen: 0,
-        unidad_volumen: "MTQ",
-        carga_cnt: "N"
-    }],
+        consignee_codigo_pil: "",
+        consignee_direccion: "",
+        consignee_telefono: "",
+        consignee_email: "",
 
-    observaciones: [
-        { nombre: 'GRAL', contenido: '' },
-        { nombre: 'MOT', contenido: 'LISTA DE ENCARGO' }
-    ]
-});
+        notify_codigo_pil: "",
+        notify_direccion: "",
+        notify_telefono: "",
+        notify_email: "",
+
+        almacenador_codigo_pil: "",
+        almacenador_direccion: "",
+        almacenador_telefono: "",
+        almacenador_email: "",
+
+        // Items (Step 3)
+        items: [{
+            numero_item: 1,
+            marcas: "N/M",
+            tipo_bulto: "80",
+            descripcion: "",
+            cantidad: 1,
+            peso_bruto: "",
+            unidad_peso: "KGM",
+            volumen: 0,
+            unidad_volumen: "MTQ",
+            carga_cnt: "N"
+        }],
+
+        observaciones: [
+            { nombre: 'GRAL', contenido: '' },
+            { nombre: 'MOT', contenido: 'LISTA DE ENCARGO' }
+        ]
+    });
 
 
     useEffect(() => {
@@ -163,245 +164,237 @@ const CargaSueltaNuevo = () => {
         }
     };
 
-   const validateStep = (step) => {
-    switch (step) {
-        case 1:
-            // Validar Step 1: Datos BL
-            if (!formData.bl_number?.trim()) {
-                Swal.fire({
-                    title: "Campo requerido",
-                    text: "Debes ingresar el N° de BL",
-                    icon: "warning",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            
-            // 🔥 VALIDACIÓN DE PUERTOS - Puerto de Embarque
-            if (!formData.puerto_embarque?.trim()) {
-                Swal.fire({
-                    title: "Campo requerido",
-                    text: "Debes seleccionar el Puerto de Embarque",
-                    icon: "warning",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            if (!puertos.some(p => p.codigo === formData.puerto_embarque)) {
-                Swal.fire({
-                    title: "Puerto inválido",
-                    html: `El código "<strong>${formData.puerto_embarque}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
-                    icon: "error",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            
-            // 🔥 VALIDACIÓN DE PUERTOS - Puerto de Descarga
-            if (!formData.puerto_descarga?.trim()) {
-                Swal.fire({
-                    title: "Campo requerido",
-                    text: "Debes seleccionar el Puerto de Descarga",
-                    icon: "warning",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            if (!puertos.some(p => p.codigo === formData.puerto_descarga)) {
-                Swal.fire({
-                    title: "Puerto inválido",
-                    html: `El código "<strong>${formData.puerto_descarga}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
-                    icon: "error",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            
-            // 🔥 VALIDACIÓN DE PUERTOS - Lugar Destino
-            if (!formData.lugar_destino?.trim()) {
-                Swal.fire({
-                    title: "Campo requerido",
-                    text: "Debes seleccionar el Lugar de Destino",
-                    icon: "warning",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            if (!puertos.some(p => p.codigo === formData.lugar_destino)) {
-                Swal.fire({
-                    title: "Puerto inválido",
-                    html: `El código "<strong>${formData.lugar_destino}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
-                    icon: "error",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            
-            // 🔥 VALIDACIÓN DE PUERTOS - Lugar de Emisión
-            if (!formData.lugar_emision?.trim()) {
-                Swal.fire({
-                    title: "Campo requerido",
-                    text: "Debes seleccionar el Lugar de Emisión",
-                    icon: "warning",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            if (!puertos.some(p => p.codigo === formData.lugar_emision)) {
-                Swal.fire({
-                    title: "Puerto inválido",
-                    html: `El código "<strong>${formData.lugar_emision}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
-                    icon: "error",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            
-            // 🔥 VALIDACIÓN DE PUERTOS - Lugar Entrega
-            if (!formData.lugar_entrega?.trim()) {
-                Swal.fire({
-                    title: "Campo requerido",
-                    text: "Debes seleccionar el Lugar de Entrega",
-                    icon: "warning",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            if (!puertos.some(p => p.codigo === formData.lugar_entrega)) {
-                Swal.fire({
-                    title: "Puerto inválido",
-                    html: `El código "<strong>${formData.lugar_entrega}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
-                    icon: "error",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            
-            // 🔥 VALIDACIÓN DE PUERTOS - Lugar de Recepción
-            if (!formData.lugar_recepcion?.trim()) {
-                Swal.fire({
-                    title: "Campo requerido",
-                    text: "Debes seleccionar el Lugar de Recepción",
-                    icon: "warning",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            if (!puertos.some(p => p.codigo === formData.lugar_recepcion)) {
-                Swal.fire({
-                    title: "Puerto inválido",
-                    html: `El código "<strong>${formData.lugar_recepcion}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
-                    icon: "error",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            
-            // Validaciones de fechas (sin cambios)
-            if (!formData.fecha_emision) {
-                Swal.fire({
-                    title: "Campo requerido",
-                    text: "Debes ingresar la Fecha de Emisión",
-                    icon: "warning",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            if (!formData.fecha_presentacion) {
-                Swal.fire({
-                    title: "Campo requerido",
-                    text: "Debes ingresar la Fecha de Presentación",
-                    icon: "warning",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            if (!formData.fecha_embarque) {
-                Swal.fire({
-                    title: "Campo requerido",
-                    text: "Debes ingresar la Fecha de Embarque",
-                    icon: "warning",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            if (!formData.fecha_zarpe) {
-                Swal.fire({
-                    title: "Campo requerido",
-                    text: "Debes ingresar la Fecha de Zarpe",
-                    icon: "warning",
-                    confirmButtonColor: "#10b981"
-                });
-                return false;
-            }
-            return true;
-            
-          case 2:
-    // Validar Step 2: Participantes
-    if (!formData.shipper || formData.shipper.trim().length < 3) {
-        Swal.fire({
-            title: "Campo requerido",
-            text: "El Shipper/Embarcador debe tener al menos 3 caracteres",
-            icon: "warning",
-            confirmButtonColor: "#10b981"
-        });
-        return false;
-    }
-    
-    // Validar que Shipper tenga al menos teléfono o email
-    if (!formData.shipper_telefono?.trim() && !formData.shipper_email?.trim()) {
-        Swal.fire({
-            title: "Datos de contacto faltantes",
-            text: "El Shipper debe tener al menos teléfono o email",
-            icon: "warning",
-            confirmButtonColor: "#10b981"
-        });
-        return false;
-    }
-    
-    if (!formData.consignee || formData.consignee.trim().length < 3) {
-        Swal.fire({
-            title: "Campo requerido",
-            text: "El Consignee debe tener al menos 3 caracteres",
-            icon: "warning",
-            confirmButtonColor: "#10b981"
-        });
-        return false;
-    }
-    
-    // Validar que Consignee tenga al menos teléfono o email
-    if (!formData.consignee_telefono?.trim() && !formData.consignee_email?.trim()) {
-        Swal.fire({
-            title: "Datos de contacto faltantes",
-            text: "El Consignee debe tener al menos teléfono o email",
-            icon: "warning",
-            confirmButtonColor: "#10b981"
-        });
-        return false;
-    }
-    
-    // Notify party y Almacenador NO son obligatorios, pero si se llenan, validar contacto
-    if (formData.notify_party?.trim() && !formData.notify_telefono?.trim() && !formData.notify_email?.trim()) {
-        Swal.fire({
-            title: "Datos de contacto faltantes",
-            text: "Si ingresas Notify Party, debe tener al menos teléfono o email",
-            icon: "warning",
-            confirmButtonColor: "#10b981"
-        });
-        return false;
-    }
-    
-    if (formData.almacenador?.trim() && !formData.almacenador_telefono?.trim() && !formData.almacenador_email?.trim()) {
-        Swal.fire({
-            title: "Datos de contacto faltantes",
-            text: "Si ingresas Almacenador, debe tener al menos teléfono o email",
-            icon: "warning",
-            confirmButtonColor: "#10b981"
-        });
-        return false;
-    }
-    
-    return true;
+    const validateStep = (step) => {
+        switch (step) {
+            case 1:
+                // Validar Step 1: Datos BL
+                if (!formData.bl_number?.trim()) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "Debes ingresar el N° de BL",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+
+                // 🔥 VALIDACIÓN DE PUERTOS - Puerto de Embarque
+                if (!formData.puerto_embarque?.trim()) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "Debes seleccionar el Puerto de Embarque",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                if (!puertos.some(p => p.codigo === formData.puerto_embarque)) {
+                    Swal.fire({
+                        title: "Puerto inválido",
+                        html: `El código "<strong>${formData.puerto_embarque}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
+                        icon: "error",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+
+                // 🔥 VALIDACIÓN DE PUERTOS - Puerto de Descarga
+                if (!formData.puerto_descarga?.trim()) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "Debes seleccionar el Puerto de Descarga",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                if (!puertos.some(p => p.codigo === formData.puerto_descarga)) {
+                    Swal.fire({
+                        title: "Puerto inválido",
+                        html: `El código "<strong>${formData.puerto_descarga}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
+                        icon: "error",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+
+                // 🔥 VALIDACIÓN DE PUERTOS - Lugar Destino
+                if (!formData.lugar_destino?.trim()) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "Debes seleccionar el Lugar de Destino",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                if (!puertos.some(p => p.codigo === formData.lugar_destino)) {
+                    Swal.fire({
+                        title: "Puerto inválido",
+                        html: `El código "<strong>${formData.lugar_destino}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
+                        icon: "error",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+
+                // 🔥 VALIDACIÓN DE PUERTOS - Lugar de Emisión
+                if (!formData.lugar_emision?.trim()) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "Debes seleccionar el Lugar de Emisión",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                if (!puertos.some(p => p.codigo === formData.lugar_emision)) {
+                    Swal.fire({
+                        title: "Puerto inválido",
+                        html: `El código "<strong>${formData.lugar_emision}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
+                        icon: "error",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+
+                // 🔥 VALIDACIÓN DE PUERTOS - Lugar Entrega
+                if (!formData.lugar_entrega?.trim()) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "Debes seleccionar el Lugar de Entrega",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                if (!puertos.some(p => p.codigo === formData.lugar_entrega)) {
+                    Swal.fire({
+                        title: "Puerto inválido",
+                        html: `El código "<strong>${formData.lugar_entrega}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
+                        icon: "error",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+
+                // 🔥 VALIDACIÓN DE PUERTOS - Lugar de Recepción
+                if (!formData.lugar_recepcion?.trim()) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "Debes seleccionar el Lugar de Recepción",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                if (!puertos.some(p => p.codigo === formData.lugar_recepcion)) {
+                    Swal.fire({
+                        title: "Puerto inválido",
+                        html: `El código "<strong>${formData.lugar_recepcion}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
+                        icon: "error",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+
+                // Validaciones de fechas (sin cambios)
+                if (!formData.fecha_emision) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "Debes ingresar la Fecha de Emisión",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                if (!formData.fecha_presentacion) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "Debes ingresar la Fecha de Presentación",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                if (!formData.fecha_embarque) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "Debes ingresar la Fecha de Embarque",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                if (!formData.fecha_zarpe) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "Debes ingresar la Fecha de Zarpe",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+                return true;
+
+            case 2:
+                // Validar Step 2: Participantes
+                if (!formData.shipper || formData.shipper.trim().length < 3) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "El Shipper/Embarcador debe tener al menos 3 caracteres",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+
+                // Validar que Shipper tenga al menos teléfono o email
+                if (!formData.shipper_telefono?.trim() && !formData.shipper_email?.trim()) {
+                    Swal.fire({
+                        title: "Datos de contacto faltantes",
+                        text: "El Shipper debe tener al menos teléfono o email",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+
+                if (!formData.consignee || formData.consignee.trim().length < 3) {
+                    Swal.fire({
+                        title: "Campo requerido",
+                        text: "El Consignee debe tener al menos 3 caracteres",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+
+                // Validar que Consignee tenga al menos teléfono o email
+                if (!formData.consignee_telefono?.trim() && !formData.consignee_email?.trim()) {
+                    Swal.fire({
+                        title: "Datos de contacto faltantes",
+                        text: "El Consignee debe tener al menos teléfono o email",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+
+                // Notify party y Almacenador NO son obligatorios, pero si se llenan, validar contacto
+                if (formData.notify_party?.trim() && !formData.notify_telefono?.trim() && !formData.notify_email?.trim()) {
+                    Swal.fire({
+                        title: "Datos de contacto faltantes",
+                        text: "Si ingresas Notify Party, debe tener al menos teléfono o email",
+                        icon: "warning",
+                        confirmButtonColor: "#10b981"
+                    });
+                    return false;
+                }
+
+              
+
+                return true;
 
             case 3:
                 // Validar Step 3: Items
@@ -997,7 +990,7 @@ const Step2Participantes = ({ formData, setFormData }) => {
                 <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
                     Shipper / Embarcador (EMB)
                 </h3>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Nombre */}
                     <div className="md:col-span-2">
@@ -1073,7 +1066,7 @@ const Step2Participantes = ({ formData, setFormData }) => {
                 <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
                     Consignatario (CONS)
                 </h3>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Nombre */}
                     <div className="md:col-span-2">
@@ -1149,7 +1142,7 @@ const Step2Participantes = ({ formData, setFormData }) => {
                 <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
                     Notify Party (NOTI) <span className="text-sm text-slate-500 font-normal">(Opcional)</span>
                 </h3>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Nombre */}
                     <div className="md:col-span-2">
@@ -1209,81 +1202,32 @@ const Step2Participantes = ({ formData, setFormData }) => {
                 </div>
             </div>
 
-            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-            {/* ALMACENADOR (ALM) - OPCIONAL */}
-            {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-            <div className="border border-slate-300 rounded-lg p-6 bg-white relative">
-                {/* Código PIL en la esquina */}
-                {formData.almacenador_codigo_pil && (
-                    <div className="absolute top-4 right-4">
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-orange-100 text-orange-800 border border-orange-300">
-                            PIL: {formData.almacenador_codigo_pil}
-                        </span>
-                    </div>
-                )}
-
-                <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
-                    Almacenador (ALM) <span className="text-sm text-slate-500 font-normal">(Opcional)</span>
-                </h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Nombre */}
-                    <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Nombre / Razón Social
-                        </label>
-                        <textarea
-                            rows={3}
-                            value={formData.almacenador || ""}
-                            onChange={(e) => updateField("almacenador", e.target.value)}
-                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                            placeholder="Ingrese nombre o razón social completa"
-                        />
-                    </div>
-
-                    {/* Dirección */}
-                    <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Dirección
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.almacenador_direccion || ""}
-                            onChange={(e) => updateField("almacenador_direccion", e.target.value)}
-                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                            placeholder="Ingrese dirección"
-                        />
-                    </div>
-
-                    {/* Teléfono */}
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Teléfono
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.almacenador_telefono || ""}
-                            onChange={(e) => updateField("almacenador_telefono", e.target.value)}
-                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                            placeholder="+56 9 1234 5678"
-                        />
-                    </div>
-
-                    {/* Email */}
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Email
-                        </label>
-                        <input
-                            type="email"
-                            value={formData.almacenador_email || ""}
-                            onChange={(e) => updateField("almacenador_email", e.target.value)}
-                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                            placeholder="correo@ejemplo.com"
-                        />
-                    </div>
-                </div>
-            </div>
+            <AlmacenadorSelector
+                value={formData.almacenador_id}
+                displayValue={formData.almacenador}
+                onChange={(id, texto, datos) => {
+                    setFormData(prev => ({
+                        ...prev,
+                        almacenador_id: id,
+                        almacenador: texto,
+                        almacenador_direccion: datos.direccion || '',
+                        almacenador_telefono: datos.telefono || '',
+                        almacenador_email: datos.email || '',
+                        almacenador_codigo_pil: datos.codigo_pil || '',
+                    }));
+                }}
+                onClear={() => {
+                    setFormData(prev => ({
+                        ...prev,
+                        almacenador_id: null,
+                        almacenador: '',
+                        almacenador_direccion: '',
+                        almacenador_telefono: '',
+                        almacenador_email: '',
+                        almacenador_codigo_pil: '',
+                    }));
+                }}
+            />
 
             {/* NOTA INFORMATIVA */}
             <div className="bg-blue-50 border-l-4 border-blue-500 p-4">
@@ -1795,7 +1739,7 @@ const SelectPuerto = ({ label, value, onChange, puertos, required }) => {
     const datalistId = `puertos-${label.replace(/\s+/g, '-').toLowerCase()}`;
     const isPuertoValido = puertos.some(p => p.codigo === value);
     const mostrarWarning = value && !isPuertoValido;
-    
+
     return (
         <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -1808,11 +1752,10 @@ const SelectPuerto = ({ label, value, onChange, puertos, required }) => {
                     onChange={(e) => onChange(e.target.value.toUpperCase())}
                     list={datalistId}
                     placeholder="Escribe o selecciona un puerto..."
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
-                        mostrarWarning 
-                            ? 'border-red-300 focus:ring-red-500 bg-red-50' 
-                            : 'border-slate-300 focus:ring-[#0F2A44]'
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${mostrarWarning
+                        ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                        : 'border-slate-300 focus:ring-[#0F2A44]'
+                        }`}
                 />
                 {mostrarWarning && (
                     <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -1824,8 +1767,8 @@ const SelectPuerto = ({ label, value, onChange, puertos, required }) => {
             </div>
             <datalist id={datalistId}>
                 {puertos.map(puerto => (
-                    <option 
-                        key={puerto.codigo} 
+                    <option
+                        key={puerto.codigo}
                         value={puerto.codigo}
                     >
                         {puerto.nombre}
