@@ -2582,15 +2582,13 @@ function parseLine56(raw) {
 }
 
 
-function parseLine51(raw) {
+function parseLine51(raw, esEmpty = false) {
   const line = String(raw || "").toUpperCase();
 
-  // item y sec: 001001
   const mHead = line.match(/^51\s+(\d{3})(\d{3})/);
   const itemNo = mHead ? parseInt(mHead[1], 10) : null;
   const seqNo = mHead ? parseInt(mHead[2], 10) : null;
 
-  // contenedor ISO11: ABCD1234567
   const mCont = line.match(/([A-Z]{4}\d{7})/);
   if (!mCont) return null;
 
@@ -2599,7 +2597,6 @@ function parseLine51(raw) {
   const numero = codigo.slice(4, 10);
   const digito = codigo.slice(10, 11);
 
-  // tipo_cnt: N22G1E / N22G1F  => guardamos "22G1"
   const mTipo = line.match(/N(\d{2}[A-Z]\d)[EF]/);
   const tipo_cnt = mTipo ? mTipo[1] : null;
 
@@ -2624,29 +2621,34 @@ function parseLine51(raw) {
     if (i !== -1) { token = tt; idx = i; break; }
   }
 
-  // 🔥 VALIDAR: Si no se encontró token, retornar con marcador
+  // 🔥 VALIDAR: Si no se encontró token
   if (!token || idx === -1) {
-    // Intentar detectar qué token desconocido hay para informar al usuario
+    // ✅ CASO EMPTY: extraer peso desde patrón numérico
+    if (esEmpty) {
+      const mEmpty = line.match(/(\d{6})\s+(\d{15})(\d{12})/);
+      if (mEmpty) {
+        peso = parseFloat(mEmpty[2]);
+        volumen = parseFloat((parseFloat(mEmpty[3]) / 1000).toFixed(2));
+        return {
+          itemNo, seqNo, codigo, sigla, numero, digito,
+          tipo_cnt, carga_cnt, peso, unidad_peso,
+          volumen, unidad_volumen, sellos: [],
+          _hasLinea56: false, imo: []
+          // ✅ Sin _tokenFaltante porque es patrón EMPTY válido
+        };
+      }
+    }
+
+    // ❌ No es EMPTY o no matcheó patrón → token faltante real
     const mToken = line.match(/[A-Z]{4}\d{7}[A-Z0-9\s]+?([A-Z]{2,10})\s+\d{6}/);
     const tokenDesconocido = mToken ? mToken[1] : 'DESCONOCIDO';
 
     return {
-      itemNo,
-      seqNo,
-      codigo,
-      sigla,
-      numero,
-      digito,
-      tipo_cnt,
-      carga_cnt,
-      peso: null,
-      unidad_peso,
-      volumen: null,
-      unidad_volumen,
-      sellos: [],
-      _hasLinea56: false,
-      imo: [],
-      _tokenFaltante: tokenDesconocido  // 🔥 marcador para validación posterior
+      itemNo, seqNo, codigo, sigla, numero, digito,
+      tipo_cnt, carga_cnt, peso: null, unidad_peso,
+      volumen: null, unidad_volumen, sellos: [],
+      _hasLinea56: false, imo: [],
+      _tokenFaltante: tokenDesconocido
     };
   }
 
@@ -2658,14 +2660,12 @@ function parseLine51(raw) {
   if (token && idx !== -1) {
     const after = line.slice(idx + token.length);
 
-    // 🔥 FIX: primer grupo flexible para cubrir 9 o 10 dígitos
     const mNums = after.match(/(\d{7,10})(\d{10})(\d{7,9})/);
 
     if (mNums) {
       const w = mNums[1];
       const v = mNums[3];
 
-      // 🔥 FIX: divisor 1000 (006408700 / 1000 = 6408.7)
       peso = parseFloat(w) / 1000;
       volumen = parseFloat((parseFloat(v) / 1000).toFixed(2));
 
@@ -2686,32 +2686,21 @@ function parseLine51(raw) {
   }
 
   return {
-    itemNo,
-    seqNo,
-    codigo,
-    sigla,
-    numero,
-    digito,
-    tipo_cnt,
-    carga_cnt,
-    peso,
-    unidad_peso,
-    volumen,
-    unidad_volumen,
-    sellos,
-    _hasLinea56: false,
-    imo: [],
+    itemNo, seqNo, codigo, sigla, numero, digito,
+    tipo_cnt, carga_cnt, peso, unidad_peso,
+    volumen, unidad_volumen, sellos,
+    _hasLinea56: false, imo: []
   };
 }
 
 
 
-function extractContainersFrom51(lines51) {
+function extractContainersFrom51(lines51, esEmpty = false) {
   if (!Array.isArray(lines51)) return [];
   const out = [];
 
   for (const l of lines51) {
-    const c = parseLine51(l);
+    const c = parseLine51(l, esEmpty);
     if (!c) continue;
 
     // Defaults (punto 3)
@@ -3283,7 +3272,9 @@ function parsePmsTxt(content) {
       const weightKgs = extractWeightFrom12(l12);
 
       const items = extractItemsFrom41_44_47(bLines) || []; // tu función actual
-      const contenedores = extractContainersFrom51(pickAll(bLines, "51")) || [];
+
+      const esEmpty = String(tipoServicioCod || "").trim().toUpperCase() === "MM";
+      const contenedores = extractContainersFrom51(pickAll(bLines, "51"), esEmpty) || [];
 
       const totalContainers = contenedores.length;
 
@@ -3636,25 +3627,19 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
       if (esEmpty) {
         let pesoTotal = 0;
 
-        for (const it of (b.items || [])) {
-          const itemNum = Number(it.numero_item);
-          const contsDelItem = (b.contenedores || []).filter(c => Number(c.itemNo) === itemNum);
-
-          // Obtener tipo_cnt del primer contenedor del item
-          const tipoCnt = contsDelItem[0]?.tipo_cnt || null;
-
-          if (tipoCnt) {
-            const pesoTara = await getPesoTaraByTipoCnt(conn, tipoCnt);
-            if (pesoTara) {
-              // Peso tara × cantidad de contenedores de este item
-              pesoTotal += pesoTara * contsDelItem.length;
-            }
+        for (const c of (b.contenedores || [])) {
+          // 🔥 Usar peso extraído del PMS si existe, si no fallback a tabla
+          if (c.peso && c.peso > 0) {
+            pesoTotal += c.peso;
+          } else if (c.tipo_cnt) {
+            const pesoTara = await getPesoTaraByTipoCnt(conn, c.tipo_cnt);
+            if (pesoTara) pesoTotal += pesoTara;
           }
         }
 
         pesoBrutoReal = pesoTotal > 0 ? pesoTotal : null;
       }
-
+      
       // Insertar BL
       const [blIns] = await conn.query(insertBlSql, [
         id,
