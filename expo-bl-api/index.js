@@ -3811,6 +3811,11 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         if (num(it.volumen) == null || num(it.volumen) < 0) pendingItemValidations.push({ nivel: "ITEM", sec: itemNum, severidad: "ERROR", campo: "volumen", mensaje: "Falta Volumen debe ser >= 0 (Linea 41)", valorCrudo: it.volumen });
         if (isBlank(it.unidad_volumen)) pendingItemValidations.push({ nivel: "ITEM", sec: itemNum, severidad: "ERROR", campo: "unidad_volumen", mensaje: "Falta unidad_volumen (Linea 41)", valorCrudo: it.unidad_volumen ?? null });
 
+        if (esEmpty) {
+          const contsDelItem = conts.filter(c => Number(c.itemNo) === itemNum);
+          it.peso_bruto = contsDelItem.reduce((sum, c) => sum + (c.peso || 0), 0);
+        }
+
         const [itIns] = await conn.query(insertItemSql, [
           blId,
           it.numero_item,
@@ -6021,12 +6026,10 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
       return rut.replace(/\./g, '').trim();
     };
 
-    const buildParticipacion = (nombre, participante, includeRUT = true, extraFields = {}) => {
+    const buildParticipacion = (nombre, participante, includeRUT = true, extraFields = {}, includeContacto = true) => {
       if (!participante || !participante.nombre) return null;
 
-      const baseData = {
-        nombre: nombre
-      };
+      const baseData = { nombre };
 
       if (includeRUT && participante.rut) {
         baseData['tipo-id'] = participante.tipo_id || 'RUT';
@@ -6036,32 +6039,26 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
 
       baseData['nombres'] = participante.nombre;
 
-      // Teléfono: siempre sale, '.' si no tiene
-      baseData['telefono'] = (participante.telefono && participante.telefono.trim() && participante.telefono.trim() !== '.')
-        ? participante.telefono.trim()
-        : '.';
+      // 🔥 Solo agregar contacto si corresponde
+      if (includeContacto) {
+        baseData['telefono'] = (participante.telefono && participante.telefono.trim() && participante.telefono.trim() !== '.')
+          ? participante.telefono.trim() : '.';
 
-      // Email: siempre sale, '.' si no tiene
-      baseData['correo-electronico'] = (participante.email && participante.email.trim() && participante.email.trim() !== '.')
-        ? participante.email.trim()
-        : '.';
+        baseData['correo-electronico'] = (participante.email && participante.email.trim() && participante.email.trim() !== '.')
+          ? participante.email.trim() : '.';
 
-      // Dirección: siempre sale, '.' si no tiene
-      baseData['direccion'] = (participante.direccion && participante.direccion.trim() && participante.direccion.trim() !== '.')
-        ? participante.direccion.trim()
-        : '.';
+        baseData['direccion'] = (participante.direccion && participante.direccion.trim() && participante.direccion.trim() !== '.')
+          ? participante.direccion.trim() : '.';
 
-      // 🔥 AGREGAR CIUDAD/COMUNA SI EXISTE
-      if (participante.ciudad && participante.ciudad.trim()) {
-        baseData['comuna'] = participante.ciudad.trim();
+        if (participante.ciudad && participante.ciudad.trim()) {
+          baseData['comuna'] = participante.ciudad.trim();
+        }
       }
 
-      // ✅ AGREGAR CODIGO-PAIS SI TIENE RUT Y PAÍS
       if (includeRUT && participante.rut && participante.pais) {
         baseData['codigo-pais'] = participante.pais;
       }
 
-      // Agregar campos extra si vienen (ej: codigo-almacen)
       Object.assign(baseData, extraFields);
 
       return baseData;
@@ -6125,7 +6122,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
     if (esCargaSuelta) {
       // 1️⃣ EMI - CON CODIGO-PAIS
       if (emiData) {
-        const emi = buildParticipacion('EMI', emiData, true, { 'codigo-pais': emiData.pais });
+        const emi = buildParticipacion('EMI', emiData, true, { 'codigo-pais': emiData.pais }, false);
         if (emi) participaciones.push(emi);
       }
 
@@ -6144,19 +6141,19 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
           extraFields['codigo-almacen'] = bl.almacenador_codigo_almacen;
         }
 
-        const alm = buildParticipacion('ALM', almacenadorData, true, extraFields);
+        const alm = buildParticipacion('ALM', almacenadorData, true, extraFields, false);
         if (alm) participaciones.push(alm);
       }
 
       // REP
       if (repData) {
-        const rep = buildParticipacion('REP', repData, true);
+        const rep = buildParticipacion('REP', repData, true, {}, false);
         if (rep) participaciones.push(rep);
       }
 
       // EMIDO
       if (emidoData) {
-        const emido = buildParticipacion('EMIDO', emidoData, true);
+        const emido = buildParticipacion('EMIDO', emidoData, true, {}, false);
         if (emido) participaciones.push(emido);
       }
 
@@ -6182,7 +6179,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
     else {
       // EMI
       if (emiData) {
-        const emi = buildParticipacion('EMI', emiData, true, { 'codigo-pais': emiData.pais });
+        const emi = buildParticipacion('EMI', emiData, true, { 'codigo-pais': emiData.pais }, false);
         if (emi) participaciones.push(emi);
       }
 
@@ -6196,7 +6193,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
 
       // EMIDO
       if (emidoData) {
-        const emido = buildParticipacion('EMIDO', emidoData, true);
+        const emido = buildParticipacion('EMIDO', emidoData, true, {}, false);
         if (emido) participaciones.push(emido);
       }
 
@@ -6208,7 +6205,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
 
       // REP
       if (repData) {
-        const rep = buildParticipacion('REP', repData, true);
+        const rep = buildParticipacion('REP', repData, true, {}, false);
         if (rep) participaciones.push(rep);
       }
 
@@ -6652,7 +6649,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
       // ✅ ORDEN CARGA SUELTA (BB)
       if (esCargaSuelta) {
         if (emiData) {
-          const emi = buildParticipacion('EMI', emiData, true, { 'codigo-pais': emiData.pais });
+          const emi = buildParticipacion('EMI', emiData, true, { 'codigo-pais': emiData.pais }, false);
           if (emi) participaciones.push(emi);
         }
 
@@ -6668,17 +6665,17 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
           if (bl.almacenador_codigo_almacen) {
             extraFields['codigo-almacen'] = bl.almacenador_codigo_almacen;
           }
-          const alm = buildParticipacion('ALM', almacenadorData, true, extraFields);
+          const alm = buildParticipacion('ALM', almacenadorData, true, extraFields, false);
           if (alm) participaciones.push(alm);
         }
 
         if (repData) {
-          const rep = buildParticipacion('REP', repData, true);
+          const rep = buildParticipacion('REP', repData, true, {}, false);
           if (rep) participaciones.push(rep);
         }
 
         if (emidoData) {
-          const emido = buildParticipacion('EMIDO', emidoData, true);
+          const emido = buildParticipacion('EMIDO', emidoData, true, {}, false);
           if (emido) participaciones.push(emido);
         }
 
@@ -6700,7 +6697,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
       // ✅ ORDEN CONTENEDORES (FF/MM)
       else {
         if (emiData) {
-          const emi = buildParticipacion('EMI', emiData, true, { 'codigo-pais': emiData.pais });
+          const emi = buildParticipacion('EMI', emiData, true, { 'codigo-pais': emiData.pais }, false);
           if (emi) participaciones.push(emi);
         }
 
@@ -6710,7 +6707,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
         }
 
         if (emidoData) {
-          const emido = buildParticipacion('EMIDO', emidoData, true);
+          const emido = buildParticipacion('EMIDO', emidoData, true, {}, false);
           if (emido) participaciones.push(emido);
         }
 
@@ -6720,7 +6717,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
         }
 
         if (repData) {
-          const rep = buildParticipacion('REP', repData, true);
+          const rep = buildParticipacion('REP', repData, true, {}, false);
           if (rep) participaciones.push(rep);
         }
 
