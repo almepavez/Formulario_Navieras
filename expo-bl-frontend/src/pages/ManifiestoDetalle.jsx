@@ -99,14 +99,14 @@ const ManifiestoDetalle = () => {
   }, [isEditing, hasUnsavedChanges]);
 
   // Sincronizar número de referencia con número de manifiesto de aduana
+  // DESPUÉS
   useEffect(() => {
-    if (formData.numeroManifiestoAduana.trim()) {
-      setFormData(prev => ({
-        ...prev,
-        numeroReferencia: prev.numeroManifiestoAduana
-      }));
-    }
-  }, [formData.numeroManifiestoAduana]);
+    setFormData(prev => ({
+      ...prev,
+      numeroReferencia: prev.numeroManifiestoAduana,
+      fechaReferencia: formData.fechaManifiestoAduana || prev.fechaReferencia,
+    }));
+  }, [formData.numeroManifiestoAduana, formData.fechaManifiestoAduana]);
 
   // ✅ NUEVO: Sincronizar puertoCentralId y puertoSearch cuando lleguen datos + puertos cargados
   useEffect(() => {
@@ -1062,12 +1062,18 @@ const ManifiestoDetalle = () => {
                         ✓ Sincronizado automáticamente con N° Mfto Aduana CL
                       </p>
                     </div>
-
-                    <InfoEditableDate
-                      label="Fecha Referencia"
-                      value={formData.fechaReferencia}
-                      onChange={(v) => handleInputChange("fechaReferencia", v)}
-                    />
+                    <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
+                      <div className="text-xs font-medium text-slate-700">Fecha Referencia</div>
+                      <input
+                        type="date"
+                        value={formData.fechaReferencia}
+                        disabled
+                        className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm bg-slate-100 text-slate-500 cursor-not-allowed"
+                      />
+                      <p className="mt-1 text-[10px] text-slate-500">
+                        ✓ Sincronizado automáticamente con Fecha Mfto Aduana CL
+                      </p>
+                    </div>
                   </div>
 
                   {formData.referenciaId && (

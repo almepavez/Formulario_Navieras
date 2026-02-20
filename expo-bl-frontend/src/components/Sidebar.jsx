@@ -3,7 +3,6 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { 
   FileText, 
   Ship, 
-  Package,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -17,15 +16,11 @@ const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
-  // El sidebar está expandido si no está colapsado O si está en hover
   const isExpanded = !isCollapsed || isHovered;
 
   const handleLogout = () => {
-    // Limpiar token del localStorage
     localStorage.removeItem("token");
     localStorage.removeItem("usuario");
-    
-    // Redirigir al login
     navigate("/login");
   };
 
@@ -65,12 +60,9 @@ const Sidebar = () => {
               isActive ? "bg-white/15 text-white font-medium" : "text-slate-300 hover:bg-white/10 hover:text-white"
             }`
           }
-          title={!isExpanded ? "Manifiestos" : ""}
         >
           <FileText size={20} className="flex-shrink-0" />
           {isExpanded && <span className="text-sm">Manifiestos</span>}
-          
-          {/* Tooltip cuando está colapsado Y NO en hover */}
           {!isExpanded && (
             <div className="absolute left-full ml-2 px-3 py-2 bg-slate-800 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
               Manifiestos
@@ -79,53 +71,26 @@ const Sidebar = () => {
           )}
         </NavLink>
 
+        {/* ✅ BL's unificado (antes EXPO BL + IMPO BL) */}
         <NavLink
           to="/expo-bl"
           className={({ isActive }) =>
             `flex items-center gap-3 px-4 py-3 rounded-lg transition-all group relative ${
-              isActive || location.pathname.startsWith('/expo/') 
+              isActive || location.pathname.startsWith('/expo-bl/')
                 ? "bg-white/15 text-white font-medium" 
                 : "text-slate-300 hover:bg-white/10 hover:text-white"
             }`
           }
-          title={!isExpanded ? "EXPO BL" : ""}
         >
           <Ship size={20} className="flex-shrink-0" />
-          {isExpanded && <span className="text-sm">EXPO BL</span>}
-          
-          {/* Tooltip cuando está colapsado Y NO en hover */}
+          {isExpanded && <span className="text-sm">BL's</span>}
           {!isExpanded && (
             <div className="absolute left-full ml-2 px-3 py-2 bg-slate-800 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
-              EXPO BL
+              BL's
               <div className="absolute right-full top-1/2 -translate-y-1/2 border-8 border-transparent border-r-slate-800"></div>
             </div>
           )}
         </NavLink>
-
-        <div
-          className="flex items-center gap-3 px-4 py-3 rounded-lg opacity-50 cursor-not-allowed relative group"
-          title={!isExpanded ? "IMPO BL (Próximamente)" : "Próximamente"}
-        >
-          <Package size={20} className="flex-shrink-0" />
-          
-          {isExpanded && (
-            <>
-              <span className="text-sm">IMPO BL</span>
-              <span className="ml-auto text-xs bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded">
-                Próx.
-              </span>
-            </>
-          )}
-          
-          {/* Tooltip cuando está colapsado Y NO en hover */}
-          {!isExpanded && (
-            <div className="absolute left-full ml-2 px-3 py-2 bg-slate-800 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
-              IMPO BL
-              <span className="block text-xs text-yellow-300 mt-1">Próximamente</span>
-              <div className="absolute right-full top-1/2 -translate-y-1/2 border-8 border-transparent border-r-slate-800"></div>
-            </div>
-          )}
-        </div>
 
         <NavLink
           to="/mantenedores"
@@ -134,12 +99,9 @@ const Sidebar = () => {
               isActive ? "bg-white/15 text-white font-medium" : "text-slate-300 hover:bg-white/10 hover:text-white"
             }`
           }
-          title={!isExpanded ? "Mantenedores" : ""}
         >
           <Settings size={20} className="flex-shrink-0" />
           {isExpanded && <span className="text-sm">Mantenedores</span>}
-          
-          {/* Tooltip cuando está colapsado Y NO en hover */}
           {!isExpanded && (
             <div className="absolute left-full ml-2 px-3 py-2 bg-slate-800 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
               Mantenedores
@@ -154,12 +116,9 @@ const Sidebar = () => {
         <button
           onClick={handleLogout}
           className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all group relative w-full text-slate-300 hover:bg-red-500/20 hover:text-red-400"
-          title={!isExpanded ? "Cerrar Sesión" : ""}
         >
           <LogOut size={20} className="flex-shrink-0" />
           {isExpanded && <span className="text-sm">Cerrar Sesión</span>}
-          
-          {/* Tooltip cuando está colapsado */}
           {!isExpanded && (
             <div className="absolute left-full ml-2 px-3 py-2 bg-slate-800 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
               Cerrar Sesión

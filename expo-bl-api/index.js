@@ -3362,9 +3362,9 @@ function parsePmsTxt(content) {
         // ====== NUEVO (para poblar tablas nuevas, si quieres) ======
         contenedores, // [{ codigo,sigla,numero,digito,tipo_cnt,sellos:[] }]
         _tokensFaltantes: contenedores
-        .filter(c => c._tokenFaltante)
-        .map(c => c._tokenFaltante)
-        .filter((v, i, a) => a.indexOf(v) === i) // únicos
+          .filter(c => c._tokenFaltante)
+          .map(c => c._tokenFaltante)
+          .filter((v, i, a) => a.indexOf(v) === i) // únicos
       };
     })
     .filter(Boolean);
@@ -4481,6 +4481,8 @@ app.get("/bls", async (req, res) => {
         b.bl_number,
         b.manifiesto_id,
         m.viaje,
+        m.tipo_operacion,
+n.nombre AS nave,
         b.shipper,
         b.consignee,
         b.notify_party,
@@ -4515,6 +4517,7 @@ app.get("/bls", async (req, res) => {
 
       FROM bls b
       LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
+      LEFT JOIN naves n ON m.nave_id = n.id
       LEFT JOIN puertos le ON b.lugar_emision_id = le.id
       LEFT JOIN puertos pe ON b.puerto_embarque_id = pe.id
       LEFT JOIN puertos pd ON b.puerto_descarga_id = pd.id
@@ -4910,7 +4913,27 @@ app.patch('/bls/bulk-update', async (req, res) => {
 
   try {
     const { blNumbers, updates } = req.body;
+    // AGREGAR ESTO — mapear valores legacy al ENUM correcto
+    const STATUS_MAP = {
+      'ACTIVO': 'CREADO',
+      'INACTIVO': 'ANULADO',
+      'EN REVISION': 'VALIDADO',
+      'EN_REVISION': 'VALIDADO',
+    };
 
+     
+    if (updates.status && STATUS_MAP[updates.status]) {
+        updates.status = STATUS_MAP[updates.status];
+    }
+    
+    // Validar que el status sea un valor ENUM válido
+    const VALID_STATUS = ['CREADO', 'VALIDADO', 'ENVIADO', 'ANULADO'];
+    if (updates.status && !VALID_STATUS.includes(updates.status)) {
+        return res.status(400).json({ 
+            error: `Status inválido: '${updates.status}'. Valores permitidos: ${VALID_STATUS.join(', ')}` 
+        });
+    }
+    
     // Validaciones
     if (!blNumbers || !Array.isArray(blNumbers) || blNumbers.length === 0) {
       return res.status(400).json({ error: 'Debe proporcionar una lista de BL numbers' });
