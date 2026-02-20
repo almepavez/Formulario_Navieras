@@ -6286,7 +6286,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
                 cantidad: it.cantidad || 0,
                 'peso-bruto': it.peso_bruto || 0,
                 'unidad-peso': it.unidad_peso || 'KGM',
-                volumen: parseFloat(it.volumen) || 0,
+                volumen: parseFloat(it.volumen || 0).toFixed(2),
                 'unidad-volumen': it.unidad_volumen || 'MTQ',
                 'carga-cnt': 'N'
               };
@@ -6301,7 +6301,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
               cantidad: it.cantidad || 0,
               'peso-bruto': it.peso_bruto || 0,
               'unidad-peso': it.unidad_peso || 'KGM',
-              volumen: parseFloat(it.volumen) || 0,
+              volumen: parseFloat(it.volumen || 0).toFixed(2),
               'unidad-volumen': it.unidad_volumen || 'MTQ',
               'carga-cnt': {},
               Contenedores: contsDelItem.length > 0 ? {
@@ -6792,7 +6792,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
                   cantidad: it.cantidad || 0,
                   'peso-bruto': it.peso_bruto || 0,
                   'unidad-peso': it.unidad_peso || 'KGM',
-                  volumen: parseFloat(it.volumen) || 0,
+                  volumen: parseFloat(it.volumen || 0).toFixed(2),
                   'unidad-volumen': it.unidad_volumen || 'MTQ',
                   'carga-cnt': 'N'
                 };
@@ -6807,7 +6807,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
                 cantidad: it.cantidad || 0,
                 'peso-bruto': it.peso_bruto || 0,
                 'unidad-peso': it.unidad_peso || 'KGM',
-                volumen: parseFloat(it.volumen) || 0,
+                volumen: parseFloat(it.volumen || 0).toFixed(2),
                 'unidad-volumen': it.unidad_volumen || 'MTQ',
                 'carga-cnt': {},
                 Contenedores: contsDelItem.length > 0 ? {
