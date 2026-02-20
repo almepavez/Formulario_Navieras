@@ -110,13 +110,12 @@ const NuevoManifiesto = () => {
 
   // Sincronizar número de referencia con número de manifiesto de aduana
   useEffect(() => {
-    if (form.numeroManifiestoAduana.trim()) {
-      setReferencia(prev => ({
-        ...prev,
-        numeroReferencia: form.numeroManifiestoAduana
-      }));
-    }
-  }, [form.numeroManifiestoAduana]);
+    setReferencia(prev => ({
+      ...prev,
+      numeroReferencia: form.numeroManifiestoAduana,
+      fecha: form.fechaManifiestoAduana || prev.fecha,
+    }));
+  }, [form.numeroManifiestoAduana, form.fechaManifiestoAduana]);
 
   const onChange = (key) => (e) => {
     const value = e.target.value;
@@ -201,7 +200,7 @@ const NuevoManifiesto = () => {
     if (!form.representante.trim()) missing.push("Representante");
     if (!form.fechaManifiestoAduana) missing.push("Fecha Mfto Aduana CL");
     if (!form.numeroManifiestoAduana.trim()) missing.push("Nro Mfto Aduana CL");
-
+    if (!form.fecha_zarpe) missing.push("Fecha Zarpe");
     // Referencia es obligatoria
     if (!referencia.referenciaId) missing.push("Referencia: Emisor");
 
@@ -605,14 +604,14 @@ const NuevoManifiesto = () => {
             </Field>
 
             {/* 🆕 FECHA ZARPE */}
-            <Field label="Fecha Zarpe">
+            <Field label="Fecha Zarpe *">
               <input
                 type="datetime-local"
                 value={form.fecha_zarpe}
                 onChange={onChange("fecha_zarpe")}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
               />
-              <Hint text="Fecha y hora de zarpe del manifiesto (opcional)" />
+              <Hint text="Fecha y hora de zarpe del manifiesto" />
             </Field>
 
             <Field label="Status *">
@@ -767,14 +766,14 @@ const NuevoManifiesto = () => {
                   <Hint text={`RUT: ${referenciaSeleccionada.rut}`} />
                 )}
               </Field>
-
               <Field label="Fecha de Referencia">
                 <input
                   type="date"
                   value={referencia.fecha}
-                  onChange={(e) => updateReferencia("fecha", e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                  disabled
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-slate-50 text-slate-500"
                 />
+                <Hint text="Sincronizado con Fecha Mfto Aduana CL" />
               </Field>
             </div>
 
