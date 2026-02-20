@@ -29,7 +29,11 @@ const ExpoBLEdit = () => {
     const [tiposContenedor, setTiposContenedor] = useState([]);
     const [tipoCntTipoBulto, setTipoCntTipoBulto] = useState([]); // 🆕 NUEVO
     const [showCrearPuertoModal, setShowCrearPuertoModal] = useState(false);
-
+    const [emailErrors, setEmailErrors] = useState({
+        shipper: false,
+        consignee: false,
+        notify: false,
+    });
 
     useEffect(() => {
         fetch('http://localhost:4000/tipos-contenedor')  // ✅ CORRECTO
@@ -213,6 +217,11 @@ const ExpoBLEdit = () => {
 
     const updateField = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
+    };
+
+    const validarEmail = (email) => {
+        if (!email || email.trim() === "") return true;
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     };
 
     const updateItem = (itemId, field, value) => {
@@ -823,31 +832,71 @@ const ExpoBLEdit = () => {
                     return false;
                 }
 
-                // 🔥 VALIDAR QUE AL MENOS TENGAN TELÉFONO O EMAIL
-                if (!formData.shipper_telefono && !formData.shipper_email) {
+                // SHIPPER
+                if (!formData.shipper_telefono?.trim() && !formData.shipper_email?.trim()) {
                     Swal.fire({
-                        icon: "warning",
-                        title: "Datos de contacto faltantes",
-                        text: "El Shipper debe tener al menos teléfono o email",
-                        confirmButtonColor: "#0F2A44"
+                        icon: "warning", title: "Datos de contacto faltantes",
+                        text: "El Shipper debe tener al menos teléfono o email", confirmButtonColor: "#0F2A44"
                     });
                     return false;
                 }
-                if (!formData.consignee_telefono && !formData.consignee_email) {
+                if (formData.shipper_telefono?.trim() && formData.shipper_telefono.trim().length < 7) {
                     Swal.fire({
-                        icon: "warning",
-                        title: "Datos de contacto faltantes",
-                        text: "El Consignee debe tener al menos teléfono o email",
-                        confirmButtonColor: "#0F2A44"
+                        icon: "warning", title: "Teléfono inválido",
+                        text: "El teléfono del Shipper debe tener al menos 7 caracteres", confirmButtonColor: "#0F2A44"
                     });
                     return false;
                 }
-                if (!formData.notify_telefono && !formData.notify_email) {
+                if (formData.shipper_email?.trim() && !validarEmail(formData.shipper_email)) {
                     Swal.fire({
-                        icon: "warning",
-                        title: "Datos de contacto faltantes",
-                        text: "El Notify Party debe tener al menos teléfono o email",
-                        confirmButtonColor: "#0F2A44"
+                        icon: "warning", title: "Email inválido",
+                        text: "El email del Shipper no tiene un formato válido", confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
+                }
+
+                // CONSIGNEE
+                if (!formData.consignee_telefono?.trim() && !formData.consignee_email?.trim()) {
+                    Swal.fire({
+                        icon: "warning", title: "Datos de contacto faltantes",
+                        text: "El Consignee debe tener al menos teléfono o email", confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
+                }
+                if (formData.consignee_telefono?.trim() && formData.consignee_telefono.trim().length < 7) {
+                    Swal.fire({
+                        icon: "warning", title: "Teléfono inválido",
+                        text: "El teléfono del Consignee debe tener al menos 7 caracteres", confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
+                }
+                if (formData.consignee_email?.trim() && !validarEmail(formData.consignee_email)) {
+                    Swal.fire({
+                        icon: "warning", title: "Email inválido",
+                        text: "El email del Consignee no tiene un formato válido", confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
+                }
+
+                // NOTIFY
+                if (!formData.notify_telefono?.trim() && !formData.notify_email?.trim()) {
+                    Swal.fire({
+                        icon: "warning", title: "Datos de contacto faltantes",
+                        text: "El Notify Party debe tener al menos teléfono o email", confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
+                }
+                if (formData.notify_telefono?.trim() && formData.notify_telefono.trim().length < 7) {
+                    Swal.fire({
+                        icon: "warning", title: "Teléfono inválido",
+                        text: "El teléfono del Notify Party debe tener al menos 7 caracteres", confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
+                }
+                if (formData.notify_email?.trim() && !validarEmail(formData.notify_email)) {
+                    Swal.fire({
+                        icon: "warning", title: "Email inválido",
+                        text: "El email del Notify Party no tiene un formato válido", confirmButtonColor: "#0F2A44"
                     });
                     return false;
                 }
@@ -1913,7 +1962,10 @@ const ExpoBLEdit = () => {
                                         <input
                                             type="text"
                                             value={formData.shipper_telefono || ""}
-                                            onChange={(e) => updateField("shipper_telefono", e.target.value)}
+                                            onChange={(e) => {
+                                                const val = e.target.value.replace(/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/g, "");
+                                                updateField("shipper_telefono", val);
+                                            }}
                                             className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
                                             placeholder="+56 9 1234 5678"
                                         />
@@ -1927,10 +1979,25 @@ const ExpoBLEdit = () => {
                                         <input
                                             type="email"
                                             value={formData.shipper_email || ""}
-                                            onChange={(e) => updateField("shipper_email", e.target.value)}
-                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                                            onChange={(e) => {
+                                                updateField("shipper_email", e.target.value);
+                                                setEmailErrors(prev => ({ ...prev, shipper: false }));
+                                            }}
+                                            onBlur={(e) => {
+                                                setEmailErrors(prev => ({
+                                                    ...prev,
+                                                    shipper: !validarEmail(e.target.value)
+                                                }));
+                                            }}
+                                            className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:border-slate-500 focus:ring-slate-500 focus:outline-none transition-colors ${emailErrors.shipper
+                                                ? "border-red-400 bg-red-50 focus:ring-red-400"
+                                                : "border-slate-300"
+                                                }`}
                                             placeholder="correo@ejemplo.com"
                                         />
+                                        {emailErrors.shipper && (
+                                            <p className="text-xs text-red-600 mt-1">Formato de email inválido</p>
+                                        )}
                                     </div>
                                 </div>
 
@@ -1996,7 +2063,10 @@ const ExpoBLEdit = () => {
                                         <input
                                             type="text"
                                             value={formData.consignee_telefono || ""}
-                                            onChange={(e) => updateField("consignee_telefono", e.target.value)}
+                                            onChange={(e) => {
+                                                const val = e.target.value.replace(/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/g, "");
+                                                updateField("consignee_telefono", val);
+                                            }}
                                             className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
                                             placeholder="+56 9 1234 5678"
                                         />
@@ -2010,10 +2080,25 @@ const ExpoBLEdit = () => {
                                         <input
                                             type="email"
                                             value={formData.consignee_email || ""}
-                                            onChange={(e) => updateField("consignee_email", e.target.value)}
-                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                                            onChange={(e) => {
+                                                updateField("consignee_email", e.target.value);
+                                                setEmailErrors(prev => ({ ...prev, consignee: false }));
+                                            }}
+                                            onBlur={(e) => {
+                                                setEmailErrors(prev => ({
+                                                    ...prev,
+                                                    consignee: !validarEmail(e.target.value)
+                                                }));
+                                            }}
+                                            className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:border-slate-500 focus:ring-slate-500 focus:outline-none transition-colors ${emailErrors.consignee
+                                                ? "border-red-400 bg-red-50 focus:ring-red-400"
+                                                : "border-slate-300"
+                                                }`}
                                             placeholder="correo@ejemplo.com"
                                         />
+                                        {emailErrors.consignee && (
+                                            <p className="text-xs text-red-600 mt-1">Formato de email inválido</p>
+                                        )}
                                     </div>
                                 </div>
 
@@ -2079,7 +2164,10 @@ const ExpoBLEdit = () => {
                                         <input
                                             type="text"
                                             value={formData.notify_telefono || ""}
-                                            onChange={(e) => updateField("notify_telefono", e.target.value)}
+                                            onChange={(e) => {
+                                                const val = e.target.value.replace(/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/g, "");
+                                                updateField("notify_telefono", val);
+                                            }}
                                             className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
                                             placeholder="+56 9 1234 5678"
                                         />
@@ -2093,10 +2181,25 @@ const ExpoBLEdit = () => {
                                         <input
                                             type="email"
                                             value={formData.notify_email || ""}
-                                            onChange={(e) => updateField("notify_email", e.target.value)}
-                                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                                            onChange={(e) => {
+                                                updateField("notify_email", e.target.value);
+                                                setEmailErrors(prev => ({ ...prev, notify: false }));
+                                            }}
+                                            onBlur={(e) => {
+                                                setEmailErrors(prev => ({
+                                                    ...prev,
+                                                    notify: !validarEmail(e.target.value)
+                                                }));
+                                            }}
+                                            className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:border-slate-500 focus:ring-slate-500 focus:outline-none transition-colors ${emailErrors.notify
+                                                ? "border-red-400 bg-red-50 focus:ring-red-400"
+                                                : "border-slate-300"
+                                                }`}
                                             placeholder="correo@ejemplo.com"
                                         />
+                                        {emailErrors.notify && (
+                                            <p className="text-xs text-red-600 mt-1">Formato de email inválido</p>
+                                        )}
                                     </div>
                                 </div>
 

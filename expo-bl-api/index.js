@@ -4928,7 +4928,27 @@ app.patch('/bls/bulk-update', async (req, res) => {
 
   try {
     const { blNumbers, updates } = req.body;
+    // AGREGAR ESTO — mapear valores legacy al ENUM correcto
+    const STATUS_MAP = {
+      'ACTIVO': 'CREADO',
+      'INACTIVO': 'ANULADO',
+      'EN REVISION': 'VALIDADO',
+      'EN_REVISION': 'VALIDADO',
+    };
 
+     
+    if (updates.status && STATUS_MAP[updates.status]) {
+        updates.status = STATUS_MAP[updates.status];
+    }
+    
+    // Validar que el status sea un valor ENUM válido
+    const VALID_STATUS = ['CREADO', 'VALIDADO', 'ENVIADO', 'ANULADO'];
+    if (updates.status && !VALID_STATUS.includes(updates.status)) {
+        return res.status(400).json({ 
+            error: `Status inválido: '${updates.status}'. Valores permitidos: ${VALID_STATUS.join(', ')}` 
+        });
+    }
+    
     // Validaciones
     if (!blNumbers || !Array.isArray(blNumbers) || blNumbers.length === 0) {
       return res.status(400).json({ error: 'Debe proporcionar una lista de BL numbers' });

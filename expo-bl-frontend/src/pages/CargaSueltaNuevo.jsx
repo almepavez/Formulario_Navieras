@@ -39,6 +39,11 @@ const UNIDADES_VOLUMEN = [
     { value: "LTR", label: "LTR - Litros" }
 ];
 
+const validarEmail = (email) => {
+    if (!email || email.trim() === "") return true;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+};
+
 const CargaSueltaNuevo = () => {
     const { id } = useParams(); // manifiestoId
     const navigate = useNavigate();
@@ -339,77 +344,56 @@ const CargaSueltaNuevo = () => {
                 return true;
 
             case 2:
-                // Validar Step 2: Participantes
                 if (!formData.shipper || formData.shipper.trim().length < 3) {
-                    Swal.fire({
-                        title: "Campo requerido",
-                        text: "El Shipper/Embarcador debe tener al menos 3 caracteres",
-                        icon: "warning",
-                        confirmButtonColor: "#10b981"
-                    });
+                    Swal.fire({ title: "Campo requerido", text: "El Shipper/Embarcador debe tener al menos 3 caracteres", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
-                // Después de validar el nombre del shipper:
                 if (!formData.shipper_direccion?.trim()) {
-                    Swal.fire({
-                        title: "Campo requerido",
-                        text: "La dirección del Shipper es obligatoria",
-                        icon: "warning",
-                        confirmButtonColor: "#10b981"
-                    });
+                    Swal.fire({ title: "Campo requerido", text: "La dirección del Shipper es obligatoria", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
-
-                // Validar que Shipper tenga al menos teléfono o email
                 if (!formData.shipper_telefono?.trim() && !formData.shipper_email?.trim()) {
-                    Swal.fire({
-                        title: "Datos de contacto faltantes",
-                        text: "El Shipper debe tener al menos teléfono o email",
-                        icon: "warning",
-                        confirmButtonColor: "#10b981"
-                    });
+                    Swal.fire({ title: "Datos de contacto faltantes", text: "El Shipper debe tener al menos teléfono o email", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
-
+                if (formData.shipper_telefono?.trim() && formData.shipper_telefono.trim().length < 7) {
+                    Swal.fire({ title: "Teléfono inválido", text: "El teléfono del Shipper debe tener al menos 7 caracteres", icon: "warning", confirmButtonColor: "#10b981" });
+                    return false;
+                }
+                if (formData.shipper_email?.trim() && !validarEmail(formData.shipper_email)) {
+                    Swal.fire({ title: "Email inválido", text: "El email del Shipper no tiene formato válido", icon: "warning", confirmButtonColor: "#10b981" });
+                    return false;
+                }
                 if (!formData.consignee || formData.consignee.trim().length < 3) {
-                    Swal.fire({
-                        title: "Campo requerido",
-                        text: "El Consignee debe tener al menos 3 caracteres",
-                        icon: "warning",
-                        confirmButtonColor: "#10b981"
-                    });
+                    Swal.fire({ title: "Campo requerido", text: "El Consignee debe tener al menos 3 caracteres", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
-                // Después de validar el nombre del consignee:
                 if (!formData.consignee_direccion?.trim()) {
-                    Swal.fire({
-                        title: "Campo requerido",
-                        text: "La dirección del Consignee es obligatoria",
-                        icon: "warning",
-                        confirmButtonColor: "#10b981"
-                    });
+                    Swal.fire({ title: "Campo requerido", text: "La dirección del Consignee es obligatoria", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
-
-                // Validar que Consignee tenga al menos teléfono o email
                 if (!formData.consignee_telefono?.trim() && !formData.consignee_email?.trim()) {
-                    Swal.fire({
-                        title: "Datos de contacto faltantes",
-                        text: "El Consignee debe tener al menos teléfono o email",
-                        icon: "warning",
-                        confirmButtonColor: "#10b981"
-                    });
+                    Swal.fire({ title: "Datos de contacto faltantes", text: "El Consignee debe tener al menos teléfono o email", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
-
-                // Notify party y Almacenador NO son obligatorios, pero si se llenan, validar contacto
+                if (formData.consignee_telefono?.trim() && formData.consignee_telefono.trim().length < 7) {
+                    Swal.fire({ title: "Teléfono inválido", text: "El teléfono del Consignee debe tener al menos 7 caracteres", icon: "warning", confirmButtonColor: "#10b981" });
+                    return false;
+                }
+                if (formData.consignee_email?.trim() && !validarEmail(formData.consignee_email)) {
+                    Swal.fire({ title: "Email inválido", text: "El email del Consignee no tiene formato válido", icon: "warning", confirmButtonColor: "#10b981" });
+                    return false;
+                }
                 if (formData.notify_party?.trim() && !formData.notify_telefono?.trim() && !formData.notify_email?.trim()) {
-                    Swal.fire({
-                        title: "Datos de contacto faltantes",
-                        text: "Si ingresas Notify Party, debe tener al menos teléfono o email",
-                        icon: "warning",
-                        confirmButtonColor: "#10b981"
-                    });
+                    Swal.fire({ title: "Datos de contacto faltantes", text: "Si ingresas Notify Party, debe tener al menos teléfono o email", icon: "warning", confirmButtonColor: "#10b981" });
+                    return false;
+                }
+                if (formData.notify_telefono?.trim() && formData.notify_telefono.trim().length < 7) {
+                    Swal.fire({ title: "Teléfono inválido", text: "El teléfono del Notify Party debe tener al menos 7 caracteres", icon: "warning", confirmButtonColor: "#10b981" });
+                    return false;
+                }
+                if (formData.notify_email?.trim() && !validarEmail(formData.notify_email)) {
+                    Swal.fire({ title: "Email inválido", text: "El email del Notify Party no tiene formato válido", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
                 return true;
@@ -954,10 +938,11 @@ const Step1DatosBL = ({ formData, setFormData, manifiestoData, puertos }) => (
     </div>
 );
 const Step2Participantes = ({ formData, setFormData }) => {
+
     const updateField = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
-
+    const [emailErrors, setEmailErrors] = useState({ shipper: false, consignee: false, notify: false });
     const addObservacion = () => {
         setFormData({
             ...formData,
@@ -1027,7 +1012,7 @@ const Step2Participantes = ({ formData, setFormData }) => {
                     {/* Dirección */}
                     <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Dirección
+                            Dirección <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="text"
@@ -1043,13 +1028,10 @@ const Step2Participantes = ({ formData, setFormData }) => {
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                             Teléfono <span className="text-amber-500 text-xs">(requerido si no hay email)</span>
                         </label>
-                        <input
-                            type="text"
-                            value={formData.shipper_telefono || ""}
-                            onChange={(e) => updateField("shipper_telefono", e.target.value)}
+                        <input type="text" value={formData.shipper_telefono || ""}
+                            onChange={(e) => updateField("shipper_telefono", e.target.value.replace(/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/g, ""))}
                             className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                            placeholder="+56 9 1234 5678"
-                        />
+                            placeholder="+56 9 1234 5678" />
                     </div>
 
                     {/* Email */}
@@ -1057,13 +1039,11 @@ const Step2Participantes = ({ formData, setFormData }) => {
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                             Email <span className="text-amber-500 text-xs">(requerido si no hay teléfono)</span>
                         </label>
-                        <input
-                            type="email"
-                            value={formData.shipper_email || ""}
-                            onChange={(e) => updateField("shipper_email", e.target.value)}
-                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                            placeholder="correo@ejemplo.com"
-                        />
+                        <input type="email" value={formData.shipper_email || ""}
+                            onChange={(e) => { updateField("shipper_email", e.target.value); setEmailErrors(p => ({ ...p, shipper: false })); }}
+                            onBlur={(e) => setEmailErrors(p => ({ ...p, shipper: !validarEmail(e.target.value) }))}
+                            className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none transition-colors ${emailErrors.shipper ? "border-red-400 bg-red-50" : "border-slate-300"}`}
+                            placeholder="correo@ejemplo.com" />
                     </div>
                 </div>
             </div>
@@ -1103,7 +1083,7 @@ const Step2Participantes = ({ formData, setFormData }) => {
                     {/* Dirección */}
                     <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Dirección
+                            Dirección <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="text"
@@ -1119,13 +1099,10 @@ const Step2Participantes = ({ formData, setFormData }) => {
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                             Teléfono <span className="text-amber-500 text-xs">(requerido si no hay email)</span>
                         </label>
-                        <input
-                            type="text"
-                            value={formData.consignee_telefono || ""}
-                            onChange={(e) => updateField("consignee_telefono", e.target.value)}
+                        <input type="text" value={formData.consignee_telefono || ""}
+                            onChange={(e) => updateField("consignee_telefono", e.target.value.replace(/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/g, ""))}
                             className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                            placeholder="+56 9 1234 5678"
-                        />
+                            placeholder="+56 9 1234 5678" />
                     </div>
 
                     {/* Email */}
@@ -1133,13 +1110,13 @@ const Step2Participantes = ({ formData, setFormData }) => {
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                             Email <span className="text-amber-500 text-xs">(requerido si no hay teléfono)</span>
                         </label>
-                        <input
-                            type="email"
-                            value={formData.consignee_email || ""}
-                            onChange={(e) => updateField("consignee_email", e.target.value)}
-                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                            placeholder="correo@ejemplo.com"
-                        />
+                        <input type="email" value={formData.consignee_email || ""}
+                            onChange={(e) => { updateField("consignee_email", e.target.value); setEmailErrors(p => ({ ...p, consignee: false })); }}
+                            onBlur={(e) => setEmailErrors(p => ({ ...p, consignee: !validarEmail(e.target.value) }))}
+                            className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none transition-colors ${emailErrors.consignee ? "border-red-400 bg-red-50" : "border-slate-300"}`}
+                            placeholder="correo@ejemplo.com" />
+                        {emailErrors.consignee && <p className="text-xs text-red-600 mt-1">Formato de email inválido</p>}
+
                     </div>
                 </div>
             </div>
@@ -1195,13 +1172,10 @@ const Step2Participantes = ({ formData, setFormData }) => {
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                             Teléfono
                         </label>
-                        <input
-                            type="text"
-                            value={formData.notify_telefono || ""}
-                            onChange={(e) => updateField("notify_telefono", e.target.value)}
+                        <input type="text" value={formData.notify_telefono || ""}
+                            onChange={(e) => updateField("notify_telefono", e.target.value.replace(/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/g, ""))}
                             className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                            placeholder="+56 9 1234 5678"
-                        />
+                            placeholder="+56 9 1234 5678" />
                     </div>
 
                     {/* Email */}
@@ -1209,13 +1183,12 @@ const Step2Participantes = ({ formData, setFormData }) => {
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                             Email
                         </label>
-                        <input
-                            type="email"
-                            value={formData.notify_email || ""}
-                            onChange={(e) => updateField("notify_email", e.target.value)}
-                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                            placeholder="correo@ejemplo.com"
-                        />
+                        <input type="email" value={formData.notify_email || ""}
+                            onChange={(e) => { updateField("notify_email", e.target.value); setEmailErrors(p => ({ ...p, notify: false })); }}
+                            onBlur={(e) => setEmailErrors(p => ({ ...p, notify: !validarEmail(e.target.value) }))}
+                            className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none transition-colors ${emailErrors.notify ? "border-red-400 bg-red-50" : "border-slate-300"}`}
+                            placeholder="correo@ejemplo.com" />
+                        {emailErrors.notify && <p className="text-xs text-red-600 mt-1">Formato de email inválido</p>}
                     </div>
                 </div>
             </div>
