@@ -96,9 +96,9 @@ const GenerarXML = () => {
     }
 
     if (sortOrder === "recent") {
-      result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      result.sort((a, b) => a.bl_number.localeCompare(b.bl_number));
     } else {
-      result.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      result.sort((a, b) => b.bl_number.localeCompare(a.bl_number));
     }
 
     return result;
@@ -780,8 +780,8 @@ const GenerarXML = () => {
                   onChange={(e) => setSortOrder(e.target.value)}
                   className="px-4 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="recent">Más recientes primero</option>
-                  <option value="oldest">Más antiguos primero</option>
+                  <option value="recent">BL A → Z</option>
+                  <option value="oldest">BL Z → A</option>
                 </select>
 
                 <label className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 bg-white cursor-pointer hover:bg-slate-50">

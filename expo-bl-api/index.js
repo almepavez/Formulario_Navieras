@@ -2606,7 +2606,6 @@ function parseLine51(raw) {
   const unidad_peso = line.includes("KGM") ? "KGM" : null;
   const unidad_volumen = line.includes("MTQ") ? "MTQ" : null;
 
-  // 🔥 AGREGAR ESTA LÍNEA (la que faltaba):
   const carga_cnt = line.includes("FCL") ? "FCL" : line.includes("LCL") ? "LCL" : null;
 
   let peso = null;
@@ -2625,6 +2624,32 @@ function parseLine51(raw) {
     if (i !== -1) { token = tt; idx = i; break; }
   }
 
+  // 🔥 VALIDAR: Si no se encontró token, retornar con marcador
+  if (!token || idx === -1) {
+    // Intentar detectar qué token desconocido hay para informar al usuario
+    const mToken = line.match(/[A-Z]{4}\d{7}[A-Z0-9\s]+?([A-Z]{2,10})\s+\d{6}/);
+    const tokenDesconocido = mToken ? mToken[1] : 'DESCONOCIDO';
+
+    return {
+      itemNo,
+      seqNo,
+      codigo,
+      sigla,
+      numero,
+      digito,
+      tipo_cnt,
+      carga_cnt,
+      peso: null,
+      unidad_peso,
+      volumen: null,
+      unidad_volumen,
+      sellos: [],
+      _hasLinea56: false,
+      imo: [],
+      _tokenFaltante: tokenDesconocido  // 🔥 marcador para validación posterior
+    };
+  }
+
   // =========================================
   // 2) Peso/Volumen + TAIL (cola para sellos)
   // =========================================
@@ -2633,14 +2658,15 @@ function parseLine51(raw) {
   if (token && idx !== -1) {
     const after = line.slice(idx + token.length);
 
-    const mNums = after.match(/(\d{10})(\d{10})(\d{7,9})/);
+    // 🔥 FIX: primer grupo flexible para cubrir 9 o 10 dígitos
+    const mNums = after.match(/(\d{7,10})(\d{10})(\d{7,9})/);
 
     if (mNums) {
-      const w10 = mNums[1];
+      const w = mNums[1];
       const v = mNums[3];
 
-      peso = parseFloat(w10) / 10000;
-
+      // 🔥 FIX: divisor 1000 (006408700 / 1000 = 6408.7)
+      peso = parseFloat(w) / 1000;
       volumen = parseFloat((parseFloat(v) / 1000).toFixed(2));
 
       const pos = after.indexOf(mNums[0]);
@@ -2667,19 +2693,16 @@ function parseLine51(raw) {
     numero,
     digito,
     tipo_cnt,
-    carga_cnt,  // 🔥 Ahora está definido
+    carga_cnt,
     peso,
     unidad_peso,
     volumen,
     unidad_volumen,
     sellos,
-
-    // defaults seguridad
     _hasLinea56: false,
     imo: [],
   };
 }
-
 
 
 
@@ -3347,6 +3370,10 @@ function parsePmsTxt(content) {
         items,
         // ====== NUEVO (para poblar tablas nuevas, si quieres) ======
         contenedores, // [{ codigo,sigla,numero,digito,tipo_cnt,sellos:[] }]
+        _tokensFaltantes: contenedores
+        .filter(c => c._tokenFaltante)
+        .map(c => c._tokenFaltante)
+        .filter((v, i, a) => a.indexOf(v) === i) // únicos
       };
     })
     .filter(Boolean);
@@ -3525,6 +3552,17 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
       if (!blNumber) continue;
 
       const esEmpty = String(b.tipoServicioCod || "").trim().toUpperCase() === "MM";
+
+      // 🔥 VALIDAR TOKENS FALTANTES
+      for (const tokenFaltante of (b._tokensFaltantes || [])) {
+        pendingValidations.push({
+          nivel: "BL",
+          severidad: "ERROR",
+          campo: "token_bulto",
+          mensaje: `Token de bulto '${tokenFaltante}' no existe en el mantenedor. Agréguelo en Configuración > Tokens PMS antes de reprocesar.`,
+          valorCrudo: tokenFaltante
+        });
+      }
 
       // A) Si existe en el mismo manifiesto => reemplazar
       const existenteId = existentesMismoManifiesto.get(blNumber) || null;
@@ -7363,6 +7401,19 @@ async function revalidarBLCompleto(conn, blId) {
       vals.push({
         nivel: "CONTENEDOR", ref_id: refId, sec: itemNo, severidad: "ERROR", campo: "unidad_peso",
         mensaje: "Falta unidad_peso", valorCrudo: c.unidad_peso ?? null
+      });
+    }
+
+    // 🔥 VALIDAR TOKEN FALTANTE (peso y volumen nulos por token desconocido en PMS)
+    if (c.peso === null && c.volumen === null) {
+      vals.push({
+        nivel: "CONTENEDOR",
+        ref_id: refId,
+        sec: itemNo,
+        severidad: "ERROR",
+        campo: "token_bulto",
+        mensaje: `Contenedor ${c.codigo || '(SIN CODIGO)'} tiene peso y volumen nulos. Probablemente el token de bulto del PMS no existe en el mantenedor. Agréguelo en Configuración > Tokens PMS y reprocese el PMS.`,
+        valorCrudo: c.codigo || null
       });
     }
 
