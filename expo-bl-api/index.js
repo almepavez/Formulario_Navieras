@@ -6210,8 +6210,8 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
         'total-bultos': bl.bultos || 0,
         'total-peso': bl.peso_bruto || 0,
         'unidad-peso': bl.unidad_peso || 'KGM',
-        'total-volumen': bl.volumen || 0,
-        'unidad-volumen': bl.unidad_volumen || 'MTQ',
+        'total-volumen': bl.tipo_servicio_codigo === 'MM' ? undefined : (bl.volumen || 0),
+        'unidad-volumen': bl.tipo_servicio_codigo === 'MM' ? undefined : (bl.unidad_volumen || 'MTQ'),
         'total-item': items.length,
 
         OpTransporte: {
@@ -6286,8 +6286,8 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
               cantidad: it.cantidad || 0,
               'peso-bruto': it.peso_bruto || 0,
               'unidad-peso': it.unidad_peso || 'KGM',
-              volumen: parseFloat(it.volumen || 0).toFixed(2),
-              'unidad-volumen': it.unidad_volumen || 'MTQ',
+              volumen: bl.tipo_servicio_codigo === 'MM' ? undefined : parseFloat(it.volumen || 0).toFixed(2),
+              'unidad-volumen': bl.tipo_servicio_codigo === 'MM' ? undefined : (it.unidad_volumen || 'MTQ'),
               'carga-cnt': {},
               Contenedores: contsDelItem.length > 0 ? {
                 contenedor: contsDelItem.map(c => {
@@ -6720,8 +6720,8 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
           'total-bultos': bl.bultos || 0,
           'total-peso': bl.peso_bruto || 0,
           'unidad-peso': bl.unidad_peso || 'KGM',
-          'total-volumen': bl.volumen || 0,
-          'unidad-volumen': bl.unidad_volumen || 'MTQ',
+          'total-volumen': bl.tipo_servicio_codigo === 'MM' ? undefined : (bl.volumen || 0),
+          'unidad-volumen': bl.tipo_servicio_codigo === 'MM' ? undefined : (bl.unidad_volumen || 'MTQ'),
           'total-item': items.length,
 
           OpTransporte: {
@@ -6791,9 +6791,8 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
                 descripcion: it.descripcion || '',
                 cantidad: it.cantidad || 0,
                 'peso-bruto': it.peso_bruto || 0,
-                'unidad-peso': it.unidad_peso || 'KGM',
-                volumen: parseFloat(it.volumen || 0).toFixed(2),
-                'unidad-volumen': it.unidad_volumen || 'MTQ',
+                volumen: bl.tipo_servicio_codigo === 'MM' ? undefined : parseFloat(it.volumen || 0).toFixed(2),
+                'unidad-volumen': bl.tipo_servicio_codigo === 'MM' ? undefined : (it.unidad_volumen || 'MTQ'),
                 'carga-cnt': {},
                 Contenedores: contsDelItem.length > 0 ? {
                   contenedor: contsDelItem.map(c => {
