@@ -5930,8 +5930,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
       }
     }
 
-    // 🔥 DETECTAR SI ES CARGA SUELTA
-    const esCargaSuelta = bl.tipo_servicio_codigo === 'BB';
+
 
     // 🛡️ VALIDAR BL ANTES DE GENERAR XML
     const validation = validateBLForXML(bl);
@@ -5949,6 +5948,10 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
       WHERE bl_id = ?
       ORDER BY numero_item
     `, [bl.id]);
+
+    // 🔥 DETECTAR SI ES CARGA SUELTA
+    const esCargaSuelta = bl.tipo_servicio_codigo === 'BB';
+    const sinVolumen = !(bl.volumen > 0);
 
     // 3️⃣ Obtener contenedores con sellos E IMO (SOLO SI NO ES CARGA SUELTA)
     let contenedores = [];
@@ -6230,8 +6233,8 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
         'total-bultos': bl.bultos || 0,
         'total-peso': bl.peso_bruto || 0,
         'unidad-peso': bl.unidad_peso || 'KGM',
-        'total-volumen': bl.tipo_servicio_codigo === 'MM' ? undefined : (bl.volumen || 0),
-        'unidad-volumen': bl.tipo_servicio_codigo === 'MM' ? undefined : (bl.unidad_volumen || 'MTQ'),
+        'total-volumen': sinVolumen ? undefined : (bl.volumen || 0),
+        'unidad-volumen': sinVolumen ? undefined : (bl.unidad_volumen || 'MTQ'),
         'total-item': items.length,
 
         OpTransporte: {
@@ -6280,6 +6283,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
         Items: {
           item: items.map(it => {
             const contsDelItem = contenedores.filter(c => c.item_id === it.id);
+            const itemSinVolumen = !(parseFloat(it.volumen) > 0);
 
             if (esCargaSuelta) {
               return {
@@ -6291,8 +6295,8 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
                 cantidad: it.cantidad || 0,
                 'peso-bruto': it.peso_bruto || 0,
                 'unidad-peso': it.unidad_peso || 'KGM',
-                volumen: parseFloat(it.volumen || 0).toFixed(2),
-                'unidad-volumen': it.unidad_volumen || 'MTQ',
+                volumen: itemSinVolumen ? undefined : parseFloat(it.volumen || 0).toFixed(2),
+                'unidad-volumen': itemSinVolumen ? undefined : (it.unidad_volumen || 'MTQ'),
                 'carga-cnt': 'N'
               };
             }
@@ -6306,8 +6310,8 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
               cantidad: it.cantidad || 0,
               'peso-bruto': it.peso_bruto || 0,
               'unidad-peso': it.unidad_peso || 'KGM',
-              volumen: bl.tipo_servicio_codigo === 'MM' ? undefined : parseFloat(it.volumen || 0).toFixed(2),
-              'unidad-volumen': bl.tipo_servicio_codigo === 'MM' ? undefined : (it.unidad_volumen || 'MTQ'),
+              volumen: itemSinVolumen ? undefined : parseFloat(it.volumen || 0).toFixed(2),
+              'unidad-volumen': itemSinVolumen ? undefined : (it.unidad_volumen || 'MTQ'),
               'carga-cnt': {},
               Contenedores: contsDelItem.length > 0 ? {
                 contenedor: contsDelItem.map(c => {
@@ -6571,11 +6575,13 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
         catch (e) { bl.observaciones = null; }
       }
 
-      const esCargaSuelta = bl.tipo_servicio_codigo === 'BB';
 
       const [items] = await pool.query(`
         SELECT * FROM bl_items WHERE bl_id = ? ORDER BY numero_item
       `, [bl.id]);
+
+      const esCargaSuelta = bl.tipo_servicio_codigo === 'BB';
+      const sinVolumen = !(bl.volumen > 0);
 
       let contenedores = [];
 
@@ -6740,8 +6746,8 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
           'total-bultos': bl.bultos || 0,
           'total-peso': bl.peso_bruto || 0,
           'unidad-peso': bl.unidad_peso || 'KGM',
-          'total-volumen': bl.tipo_servicio_codigo === 'MM' ? undefined : (bl.volumen || 0),
-          'unidad-volumen': bl.tipo_servicio_codigo === 'MM' ? undefined : (bl.unidad_volumen || 'MTQ'),
+          'total-volumen': sinVolumen ? undefined : (bl.volumen || 0),
+          'unidad-volumen': sinVolumen ? undefined : (bl.unidad_volumen || 'MTQ'),
           'total-item': items.length,
 
           OpTransporte: {
@@ -6786,6 +6792,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
           Items: {
             item: items.map(it => {
               const contsDelItem = contenedores.filter(c => c.item_id === it.id);
+              const itemSinVolumen = !(parseFloat(it.volumen) > 0);
 
               if (esCargaSuelta) {
                 return {
@@ -6797,8 +6804,8 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
                   cantidad: it.cantidad || 0,
                   'peso-bruto': it.peso_bruto || 0,
                   'unidad-peso': it.unidad_peso || 'KGM',
-                  volumen: parseFloat(it.volumen || 0).toFixed(2),
-                  'unidad-volumen': it.unidad_volumen || 'MTQ',
+                  volumen: itemSinVolumen ? undefined : parseFloat(it.volumen || 0).toFixed(2),
+                  'unidad-volumen': itemSinVolumen ? undefined : (it.unidad_volumen || 'MTQ'),
                   'carga-cnt': 'N'
                 };
               }
@@ -6811,8 +6818,8 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
                 descripcion: it.descripcion || '',
                 cantidad: it.cantidad || 0,
                 'peso-bruto': it.peso_bruto || 0,
-                volumen: bl.tipo_servicio_codigo === 'MM' ? undefined : parseFloat(it.volumen || 0).toFixed(2),
-                'unidad-volumen': bl.tipo_servicio_codigo === 'MM' ? undefined : (it.unidad_volumen || 'MTQ'),
+                volumen: itemSinVolumen ? undefined : parseFloat(it.volumen || 0).toFixed(2),
+                'unidad-volumen': itemSinVolumen ? undefined : (it.unidad_volumen || 'MTQ'),
                 'carga-cnt': {},
                 Contenedores: contsDelItem.length > 0 ? {
                   contenedor: contsDelItem.map(c => {
