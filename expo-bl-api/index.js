@@ -2660,7 +2660,7 @@ function parseLine51(raw, esEmpty = false) {
   if (token && idx !== -1) {
     const after = line.slice(idx + token.length);
 
-    const mNums = after.match(/(\d{7,10})(\d{10})(\d{7,9})/);
+    const mNums = after.match(/(\d{9})(\d{10})(\d{7,9})/);
 
     if (mNums) {
       const w = mNums[1];
