@@ -3639,7 +3639,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
 
         pesoBrutoReal = pesoTotal > 0 ? pesoTotal : null;
       }
-      
+
       // Insertar BL
       const [blIns] = await conn.query(insertBlSql, [
         id,
@@ -4926,19 +4926,19 @@ app.patch('/bls/bulk-update', async (req, res) => {
       'EN_REVISION': 'VALIDADO',
     };
 
-     
+
     if (updates.status && STATUS_MAP[updates.status]) {
-        updates.status = STATUS_MAP[updates.status];
+      updates.status = STATUS_MAP[updates.status];
     }
-    
+
     // Validar que el status sea un valor ENUM válido
     const VALID_STATUS = ['CREADO', 'VALIDADO', 'ENVIADO', 'ANULADO'];
     if (updates.status && !VALID_STATUS.includes(updates.status)) {
-        return res.status(400).json({ 
-            error: `Status inválido: '${updates.status}'. Valores permitidos: ${VALID_STATUS.join(', ')}` 
-        });
+      return res.status(400).json({
+        error: `Status inválido: '${updates.status}'. Valores permitidos: ${VALID_STATUS.join(', ')}`
+      });
     }
-    
+
     // Validaciones
     if (!blNumbers || !Array.isArray(blNumbers) || blNumbers.length === 0) {
       return res.status(400).json({ error: 'Debe proporcionar una lista de BL numbers' });
@@ -4950,7 +4950,6 @@ app.patch('/bls/bulk-update', async (req, res) => {
 
     await connection.beginTransaction();
 
-    // Campos permitidos según tu esquema de base de datos
     // Campos permitidos según tu esquema de base de datos
     const validFields = [
       // ❌ ELIMINADOS: 'shipper', 'consignee', 'notify_party'
@@ -5821,6 +5820,7 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
 app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
   try {
     const { blNumber } = req.params;
+    const { tipoAccion = 'I' } = req.body;
 
     const [blRows] = await pool.query(`
     SELECT
@@ -6225,7 +6225,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
       Documento: {
         '@tipo': 'BL',
         '@version': '1.0',
-        'tipo-accion': 'M',
+        'tipo-accion': tipoAccion,
         'numero-referencia': bl.bl_number,
         'service': 'LINER',
         'tipo-servicio': esCargaSuelta ? 'BB' : mapTipoServicio(bl.tipo_servicio_codigo),
@@ -6395,7 +6395,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
 app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
   try {
     const { id } = req.params;
-    const { blNumbers } = req.body;
+    const { blNumbers, tipoAccion = 'I' } = req.body;
 
     if (!Array.isArray(blNumbers) || blNumbers.length === 0) {
       return res.status(400).json({ error: "Debe seleccionar al menos un BL" });
@@ -6738,7 +6738,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
         Documento: {
           '@tipo': 'BL',
           '@version': '1.0',
-          'tipo-accion': 'M',
+          'tipo-accion': tipoAccion,
           'numero-referencia': bl.bl_number,
           'service': 'LINER',
           'tipo-servicio': esCargaSuelta ? 'BB' : mapTipoServicio(bl.tipo_servicio_codigo),
