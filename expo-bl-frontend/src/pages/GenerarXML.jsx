@@ -894,17 +894,7 @@ const GenerarXML = () => {
                   />
                 </div>
 
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="px-4 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">Todos los status</option>
-                  <option value="CREADO">CREADO</option>
-                  <option value="VALIDADO">VALIDADO</option>
-                  <option value="ENVIADO">ENVIADO</option>
-                  <option value="ANULADO">ANULADO</option>
-                </select>
+          
 
                 <select
                   value={sortOrder}
