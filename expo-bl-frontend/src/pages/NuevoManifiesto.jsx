@@ -531,7 +531,7 @@ const NuevoManifiesto = () => {
               />
             </Field>
 
-            <Field label="Operador Nave *">
+            <Field label="Emisor (Agente que presenta el mensaje) *">
               <select
                 value={form.operadorNave}
                 onChange={onChange("operadorNave")}
@@ -749,7 +749,7 @@ const NuevoManifiesto = () => {
                 <Hint text="Sincronizado con N° Mfto Aduana CL" />
               </Field>
 
-              <Field label="Emisor / Agencia *">
+              <Field label="Operador Nave *">
                 <select
                   value={referencia.referenciaId}
                   onChange={(e) => updateReferencia("referenciaId", e.target.value)}

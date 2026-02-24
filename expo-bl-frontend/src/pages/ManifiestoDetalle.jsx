@@ -668,7 +668,7 @@ const ManifiestoDetalle = () => {
                   <>
                     <InfoReadOnly label="Status" value={m.status} />
                     <InfoReadOnly
-                      label="Operador nave"
+                      label="Emisor (Agente que presenta el mensaje)"
                       value={
                         operadorNaveSeleccionado
                           ? operadorNaveSeleccionado.nombre_emisor
@@ -720,7 +720,7 @@ const ManifiestoDetalle = () => {
                     />
 
                     <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
-                      <div className="text-xs font-medium text-slate-700">Operador nave</div>
+                      <div className="text-xs font-medium text-slate-700">Emisor (Agente que presenta el mensaje) </div>
                       <select
                         value={formData.operadorNave}
                         onChange={(e) => handleInputChange("operadorNave", e.target.value)}
@@ -989,7 +989,7 @@ const ManifiestoDetalle = () => {
                         value={m.numeroReferencia || "—"}
                       />
                       <InfoReadOnly
-                        label="Emisor / Agencia"
+                        label="Operador Nave"
                         value={`${referenciaManifiesto.match_code} - ${referenciaManifiesto.nombre_emisor}`}
                       />
                       <InfoReadOnly
@@ -1021,7 +1021,7 @@ const ManifiestoDetalle = () => {
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-4">
                     <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
-                      <div className="text-xs font-medium text-slate-700">Referencia</div>
+                      <div className="text-xs font-medium text-slate-700">Operador Nave</div>
                       <select
                         value={formData.referenciaId || ""}
                         onChange={(e) => {

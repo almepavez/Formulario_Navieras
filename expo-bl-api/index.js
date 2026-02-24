@@ -6412,7 +6412,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
       return rut.replace(/\./g, '').trim();
     };
 
-    const buildParticipacion = (nombre, participante, includeRUT = true, extraFields = {}) => {
+    const buildParticipacion = (nombre, participante, includeRUT = true, extraFields = {}, includeContactInfo = true) => {
       if (!participante || !participante.nombre) return null;
 
       const baseData = { nombre };
@@ -6425,15 +6425,17 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
 
       baseData['nombres'] = participante.nombre;
 
-      // REEMPLAZA los if simples por esto:
-      baseData['direccion'] = (participante.direccion && participante.direccion.trim() && participante.direccion.trim() !== '.')
-        ? participante.direccion.trim() : '.';
+      // ✅ Solo agregar contacto si se solicita explícitamente
+      if (includeContactInfo) {
+        baseData['direccion'] = (participante.direccion && participante.direccion.trim() && participante.direccion.trim() !== '.')
+          ? participante.direccion.trim() : '.';
 
-      baseData['telefono'] = (participante.telefono && participante.telefono.trim() && participante.telefono.trim() !== '.')
-        ? participante.telefono.trim() : '.';
+        baseData['telefono'] = (participante.telefono && participante.telefono.trim() && participante.telefono.trim() !== '.')
+          ? participante.telefono.trim() : '.';
 
-      baseData['correo-electronico'] = (participante.email && participante.email.trim() && participante.email.trim() !== '.')
-        ? participante.email.trim() : '.';
+        baseData['correo-electronico'] = (participante.email && participante.email.trim() && participante.email.trim() !== '.')
+          ? participante.email.trim() : '.';
+      }
 
       if (participante.ciudad && participante.ciudad.trim()) {
         baseData['comuna'] = participante.ciudad.trim();
@@ -6676,7 +6678,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
         }
 
         if (repData) {
-          const rep = buildParticipacion('REP', repData, true, {}, false);
+          const rep = buildParticipacion('REP', repData, true, { 'codigo-pais': repData.pais }, false);
           if (rep) participaciones.push(rep);
         }
 
@@ -6723,8 +6725,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
         }
 
         if (repData) {
-          const rep = buildParticipacion('REP', repData, true, {}, false);
-          if (rep) participaciones.push(rep);
+          const rep = buildParticipacion('REP', repData, true, { 'codigo-pais': repData.pais }, false); if (rep) participaciones.push(rep);
         }
 
         if (shipperData) {
@@ -6818,6 +6819,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
                 descripcion: it.descripcion || '',
                 cantidad: it.cantidad || 0,
                 'peso-bruto': it.peso_bruto || 0,
+                'unidad-peso': it.unidad_peso || 'KGM',  // ← AGREGAR
                 volumen: itemSinVolumen ? undefined : parseFloat(it.volumen || 0).toFixed(2),
                 'unidad-volumen': itemSinVolumen ? undefined : (it.unidad_volumen || 'MTQ'),
                 'carga-cnt': {},
