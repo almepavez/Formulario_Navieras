@@ -2625,7 +2625,7 @@ function parseLine51(raw, esEmpty = false) {
   if (!token || idx === -1) {
     // ✅ CASO EMPTY: extraer peso desde patrón numérico
     if (esEmpty) {
-      const mEmpty = line.match(/(\d{6})\s+(\d{15})(\d{12})/);
+      const mEmpty = line.match(/(?:(\d{6})\s+)?(\d{15})(\d{12})/);
       if (mEmpty) {
         peso = parseFloat(mEmpty[2]);
         volumen = parseFloat((parseFloat(mEmpty[3]) / 1000).toFixed(2));
@@ -3630,10 +3630,10 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         for (const c of (b.contenedores || [])) {
           // 🔥 Usar peso extraído del PMS si existe, si no fallback a tabla
           if (c.peso && c.peso > 0) {
-            pesoTotal += c.peso;
+            pesoTotal += parseFloat(c.peso) || 0;
           } else if (c.tipo_cnt) {
             const pesoTara = await getPesoTaraByTipoCnt(conn, c.tipo_cnt);
-            if (pesoTara) pesoTotal += pesoTara;
+            if (pesoTara) pesoTotal += parseFloat(pesoTara);
           }
         }
 
@@ -3813,7 +3813,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
 
         if (esEmpty) {
           const contsDelItem = conts.filter(c => Number(c.itemNo) === itemNum);
-          it.peso_bruto = contsDelItem.reduce((sum, c) => sum + (c.peso || 0), 0);
+          it.peso_bruto = contsDelItem.reduce((sum, c) => sum + (parseFloat(c.peso) || 0), 0);
         }
 
         const [itIns] = await conn.query(insertItemSql, [
@@ -3939,7 +3939,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
           itemId,
           c.codigo,
           c.sigla || null,
-          c.numero || null,
+          c.numero ? String(c.numero).padStart(6, '0') : null,
           c.digito || null,
           c.tipo_cnt || null,
           c.carga_cnt || null,
@@ -4733,8 +4733,8 @@ app.put("/bls/:blNumber/contenedores", async (req, res) => {
 
       return {
         sigla: codigo.substring(0, 4).toUpperCase(),
-        numero: parseInt(codigo.substring(4, 10)),
-        digito: parseInt(codigo.substring(10, 11))
+        numero: codigo.substring(4, 10),  // ✅ string, mantiene el cero
+        digito: codigo.substring(10, 11)  // ✅ string
       };
     }
 
