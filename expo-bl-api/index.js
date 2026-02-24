@@ -3293,6 +3293,20 @@ function parsePmsTxt(content) {
         c.imo = hits.map(h => ({ clase_imo: h.clase, numero_imo: h.un }));
       }
 
+      // ---------- 61: FLETE (BOF) ----------  👈 AGREGAR AQUÍ
+      const line61Bof = bLines.find(l =>
+        l.startsWith("61") && l.substring(7, 10) === "BOF"
+      );
+
+      let formaPagoFlete = null;
+      if (line61Bof) {
+        const pagoChar = line61Bof[86];
+        const descripcion = line61Bof.substring(87, 117).trim();
+        if (pagoChar === "P") formaPagoFlete = `PREPAID`;
+        else if (pagoChar === "C") formaPagoFlete = `COLLECT`;
+      }
+
+
       for (const it of items) {
         const itemNum = Number(it.numero_item);
 
@@ -3356,6 +3370,7 @@ function parsePmsTxt(content) {
         lugar_entrega_cod,
 
         transbordos,
+        forma_pago_flete: formaPagoFlete,
 
 
         items,
@@ -3499,7 +3514,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
          volumen, unidad_volumen,
          bultos, total_items,
          fecha_emision, fecha_presentacion, fecha_embarque, fecha_zarpe,
-         status)
+         status, forma_pago_flete)
       VALUES
         (?, ?, ?,
          ?, ?, ?, ?, ?, ?,
@@ -3514,7 +3529,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
          ?, ?,
          ?, ?,
          ?, ?, ?, ?,
-         'CREADO')
+         'CREADO', ?)
     `;
 
     const insertItemSql = `
@@ -3686,6 +3701,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         cleanMysqlDateTime(b.fecha_presentacion),
         cleanMysqlDateTime(b.fecha_embarque),
         cleanMysqlDateTime(b.fecha_zarpe),
+        b.forma_pago_flete || null,
       ]);
 
       const blId = blIns.insertId;
@@ -3711,6 +3727,18 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
       }
 
       if (isBlank(b.unidad_peso)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "unidad_peso", mensaje: "Falta unidad_peso (Linea 41)", valorCrudo: b.unidad_peso || null });
+
+      // 👇 AGREGAR AQUÍ
+      if (!b.forma_pago_flete) {
+        pendingValidations.push({
+          nivel: "BL",
+          severidad: "ERROR",
+          campo: "forma_pago_flete",
+          mensaje: "Falta forma de pago del flete (Linea 61 BOF). Debe ser PREPAID o COLLECT.",
+          valorCrudo: null
+        });
+      }
+
       if (num(b.bultos) < 1) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "bultos", mensaje: "bultos debe ser >= 1", valorCrudo: b.bultos });
       if (num(b.total_items) < 1) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "total_items", mensaje: "total_items debe ser >= 1", valorCrudo: b.total_items });
       if (isBlank(b.shipper)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "shipper", mensaje: "Falta shipper (Linea 16)", valorCrudo: b.shipper || null });
@@ -6245,10 +6273,10 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
         },
 
         // 🔥 FLETE VA AQUÍ (después de OpTransporte, antes de Fechas)
-        ...(esCargaSuelta && {
+        ...(bl.forma_pago_flete && {
           Flete: {
             'forma-pago-flete': {
-              tipo: bl.forma_pago_flete || 'PREPAID'
+              tipo: bl.forma_pago_flete
             }
           }
         }),
@@ -7190,6 +7218,17 @@ async function revalidarBLCompleto(conn, blId) {
 
 
   if (isBlank(bl.unidad_peso)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "unidad_peso", mensaje: "Falta unidad_peso (Linea 41)", valorCrudo: bl.unidad_peso || null });
+
+
+  // 👇 AGREGAR AQUÍ
+  if (isBlank(bl.forma_pago_flete)) {
+    vals.push({
+      nivel: "BL", severidad: "ERROR", campo: "forma_pago_flete",
+      mensaje: "Falta forma de pago del flete (Linea 61 BOF). Debe ser PREPAID o COLLECT.",
+      valorCrudo: bl.forma_pago_flete || null
+    });
+  }
+
 
   if (num(bl.bultos) < 1) vals.push({ nivel: "BL", severidad: "ERROR", campo: "bultos", mensaje: "bultos debe ser >= 1", valorCrudo: bl.bultos });
   if (num(bl.total_items) < 1) vals.push({ nivel: "BL", severidad: "ERROR", campo: "total_items", mensaje: "total_items debe ser >= 1", valorCrudo: bl.total_items });
