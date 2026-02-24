@@ -1,8 +1,161 @@
 import { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
-import { FileText, Download, Loader2, Search, AlertTriangle, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
+import { FileText, Download, Loader2, Search, AlertTriangle, CheckCircle2, XCircle, RefreshCw, ChevronDown } from "lucide-react";
 import Swal from "sweetalert2";
+
+// 🆕 Configuración de tipos de acción
+const TIPOS_ACCION = [
+  {
+    value: "I",
+    label: "Ingreso",
+    description: "Presentación inicial del BL ante Aduana",
+    color: "emerald",
+  },
+  {
+    value: "M",
+    label: "Modificación",
+    description: "Corrección de un documento ya aceptado",
+    color: "amber",
+  },
+  {
+    value: "A",
+    label: "Anulación",
+    description: "Eliminación de un documento previo",
+    color: "red",
+  },
+];
+
+// 🆕 Componente Selector de Tipo de Acción
+const TipoAccionSelector = ({ value, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const selected = TIPOS_ACCION.find((t) => t.value === value) || TIPOS_ACCION[0];
+
+  const colorMap = {
+    emerald: {
+      badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      dot: "bg-emerald-500",
+      activeBorder: "border-l-emerald-500",
+      activeRow: "bg-emerald-50/60",
+      hoverRow: "hover:bg-emerald-50/40",
+    },
+    amber: {
+      badge: "bg-amber-50 text-amber-700 border-amber-200",
+      dot: "bg-amber-500",
+      activeBorder: "border-l-amber-500",
+      activeRow: "bg-amber-50/60",
+      hoverRow: "hover:bg-amber-50/40",
+    },
+    red: {
+      badge: "bg-red-50 text-red-700 border-red-200",
+      dot: "bg-red-500",
+      activeBorder: "border-l-red-500",
+      activeRow: "bg-red-50/60",
+      hoverRow: "hover:bg-red-50/40",
+    },
+  };
+
+  const colors = colorMap[selected.color];
+
+  return (
+    <div className="relative">
+      {/* Trigger button */}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`
+          flex items-center gap-2 pl-3 pr-2.5 py-2 rounded-lg border text-sm font-medium
+          transition-all duration-150 select-none whitespace-nowrap
+          ${colors.badge}
+          focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400
+          shadow-sm
+        `}
+        title="Seleccionar tipo de acción para el XML"
+      >
+        <span className={`w-2 h-2 rounded-full ${colors.dot} flex-shrink-0`} />
+        <span className="font-mono font-bold">{selected.value}</span>
+        <span className="text-xs opacity-75 font-normal">— {selected.label}</span>
+        <ChevronDown
+          className={`w-3.5 h-3.5 ml-0.5 opacity-50 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <>
+          {/* Backdrop */}
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+
+          <div className="absolute left-0 top-full mt-2 z-50 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden">
+            {/* Header */}
+            <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                Tipo de Acción · 
+              </p>
+            </div>
+
+            {/* Options */}
+            <div className="py-1">
+              {TIPOS_ACCION.map((tipo) => {
+                const c = colorMap[tipo.color];
+                const isSelected = tipo.value === value;
+
+                return (
+                  <button
+                    key={tipo.value}
+                    type="button"
+                    onClick={() => {
+                      onChange(tipo.value);
+                      setOpen(false);
+                    }}
+                    className={`
+                      w-full flex items-start gap-3 px-4 py-3 text-left transition-colors
+                      border-l-4
+                      ${isSelected ? `${c.activeBorder} ${c.activeRow}` : `border-l-transparent ${c.hoverRow}`}
+                    `}
+                  >
+                    {/* Badge con la letra */}
+                    <span
+                      className={`
+                        flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center
+                        text-sm font-bold font-mono border
+                        ${c.badge}
+                      `}
+                    >
+                      {tipo.value}
+                    </span>
+
+                    {/* Textos */}
+                    <div className="flex-1 min-w-0 pt-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-slate-800">{tipo.label}</span>
+                        {isSelected && (
+                          <span className="text-[10px] bg-slate-200 text-slate-500 rounded px-1.5 py-0.5 font-medium">
+                            Activo
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                        {tipo.description}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Footer */}
+            <div className="px-4 py-2 bg-slate-50 border-t border-slate-200">
+              <p className="text-[11px] text-slate-400">
+                Se aplicará a todos los XMLs generados en esta sesión
+              </p>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 
 const GenerarXML = () => {
   const { id } = useParams();
@@ -18,6 +171,7 @@ const GenerarXML = () => {
   const [filterStatus, setFilterStatus] = useState("all");
   const [sortOrder, setSortOrder] = useState("recent");
   const [showOnlyErrors, setShowOnlyErrors] = useState(false);
+  const [tipoAccion, setTipoAccion] = useState("I"); // 🆕
 
 
   useEffect(() => {
@@ -28,7 +182,6 @@ const GenerarXML = () => {
     }
 
     fetchBLs();
-    // 🆕 Recargar cuando la ventana recupera el foco (vuelves desde otra pestaña/ventana)
     const handleFocus = () => {
       console.log('🔄 Ventana recuperó el foco - Recargando BLs...');
       fetchBLs();
@@ -71,7 +224,6 @@ const GenerarXML = () => {
     }
   };
 
-  // 🔍 Filtrado y búsqueda
   const filteredAndSortedBLs = useMemo(() => {
     let result = [...bls];
 
@@ -89,7 +241,6 @@ const GenerarXML = () => {
     }
 
     if (showOnlyErrors) {
-      // ✅ USAR DATOS DE LA BD
       result = result.filter(bl =>
         bl.valid_status === 'ERROR' || bl.valid_status === 'OBS'
       );
@@ -124,8 +275,6 @@ const GenerarXML = () => {
     }
   };
 
-
-  // 🆕 FUNCIÓN DE REVALIDACIÓN MASIVA
   const revalidarBLsSeleccionados = async () => {
     if (selectedBls.size === 0) {
       Swal.fire({
@@ -212,7 +361,7 @@ const GenerarXML = () => {
         });
       }
 
-      await fetchBLs(); // Recargar datos
+      await fetchBLs();
 
       if (fallidos === 0) {
         Swal.fire({
@@ -265,7 +414,6 @@ const GenerarXML = () => {
     }
   };
 
-  // 🔒 FUNCIÓN PRINCIPAL: Generar XMLs múltiples
   const generarXMLsMultiples = async () => {
     if (selectedBls.size === 0) {
       Swal.fire({
@@ -277,17 +425,13 @@ const GenerarXML = () => {
       return;
     }
 
-    // 🔥 MOVER ESTA LÍNEA AQUÍ (línea ~298)
     const selectedBlsArray = Array.from(selectedBls);
 
-    // ⚠️ VALIDAR BLs seleccionados
     const blsConErrores = bls.filter(bl =>
       selectedBlsArray.includes(bl.bl_number) &&
       bl.valid_status === 'ERROR'
     );
 
-    // ... resto del código (SIN volver a declarar la función)
-    // 🚫 SI HAY ERRORES CRÍTICOS, NO PERMITIR GENERAR
     if (blsConErrores.length > 0) {
       const erroresHTML = blsConErrores.map(bl =>
         `<div style="text-align: left; margin-bottom: 12px; padding: 12px; background: #FEE2E2; border-radius: 8px; border: 1px solid #FCA5A5;">
@@ -327,8 +471,6 @@ const GenerarXML = () => {
       return;
     }
 
-
-    // ⚠️ MOSTRAR ADVERTENCIAS (pero permitir continuar)
     const blsConWarnings = bls.filter(bl =>
       selectedBlsArray.includes(bl.bl_number) &&
       bl.valid_status === 'OBS'
@@ -339,7 +481,7 @@ const GenerarXML = () => {
         `<div style="text-align: left; margin-bottom: 10px;">
           <strong style="color: #F59E0B;">${item.blNumber}</strong><br/>
           <ul style="margin: 4px 0; padding-left: 20px; font-size: 13px; color: #92400E;">
-            ${item.validation.warnings.map(w => `<li>${w}</li>`).join('')}
+            ${item.validation?.warnings?.map(w => `<li>${w}</li>`).join('') || ''}
           </ul>
         </div>`
       ).join('');
@@ -368,16 +510,14 @@ const GenerarXML = () => {
     setGenerando(true);
 
     try {
+      // 🆕 Se envía tipoAccion al backend
       const res = await fetch(`http://localhost:4000/api/manifiestos/${id}/generar-xmls-multiples`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ blNumbers: selectedBlsArray })
+        body: JSON.stringify({ blNumbers: selectedBlsArray, tipoAccion })
       });
 
-
-      // 🚫 MANEJAR ERROR DEL BACKEND
       if (!res.ok) {
-
         const data = await res.json();
         if (data.bls_con_errores) {
           const erroresHTML = data.bls_con_errores.map(item =>
@@ -409,7 +549,6 @@ const GenerarXML = () => {
         throw new Error(data.error || "Error al generar XMLs");
       }
 
-      // ✅ DESCARGA EXITOSA
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -420,10 +559,17 @@ const GenerarXML = () => {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
 
+      const tipoLabel = TIPOS_ACCION.find(t => t.value === tipoAccion)?.label || tipoAccion;
+
       Swal.fire({
         icon: 'success',
         title: 'XMLs generados correctamente',
-        text: `Se descargaron ${selectedBlsArray.length} XMLs en formato ZIP`,
+        html: `
+          <p>Se descargaron <strong>${selectedBlsArray.length}</strong> XMLs en formato ZIP</p>
+          <p style="margin-top: 8px; font-size: 13px; color: #6B7280;">
+            Tipo de acción: <strong>${tipoAccion} — ${tipoLabel}</strong>
+          </p>
+        `,
         confirmButtonColor: '#10B981'
       });
     } catch (e) {
@@ -438,24 +584,18 @@ const GenerarXML = () => {
     }
   };
 
-  // 🆕 FUNCIÓN: Navegar al formulario de edición correcto
   const navegarAEdicion = (blNumber) => {
     const bl = bls.find(b => b.bl_number === blNumber);
-
-    // Si es carga suelta (BB), ir al formulario específico
     if (bl?.tipo_servicio === 'BB' || bl?.tipo_servicio_codigo === 'BB') {
       navigate(`/expo/${blNumber}/carga-suelta/edit?returnTo=xml-preview&manifestId=${id}`);
     } else {
-      // Si es contenedor (FF, MM, etc), ir al formulario normal
       navigate(`/expo/${blNumber}/edit?returnTo=xml-preview&manifestId=${id}`);
     }
   };
 
-  // 🔍 FUNCIÓN: Mostrar vista previa del XML
   const mostrarVistaPrevia = async (blNumber) => {
     const bl = bls.find(b => b.bl_number === blNumber);
 
-    // 🆕 Obtener validaciones reales de la BD
     let validacionesReales = [];
 
     if (bl.valid_status === 'ERROR' || bl.valid_status === 'OBS') {
@@ -469,11 +609,9 @@ const GenerarXML = () => {
       }
     }
 
-    // Separar errores y observaciones
     const errores = validacionesReales.filter(v => v.severidad === 'ERROR');
     const observaciones = validacionesReales.filter(v => v.severidad === 'OBS');
 
-    // 🚫 SI HAY ERRORES CRÍTICOS, MOSTRAR LOS REALES
     if (errores.length > 0) {
       const erroresHTML = errores.map(e => {
         let icono = '<span style="color: #DC2626;">●</span>';
@@ -531,10 +669,9 @@ const GenerarXML = () => {
         navegarAEdicion(blNumber);
       }
 
-      return; // 🛑 NO GENERAR PREVIEW DEL XML
+      return;
     }
 
-    // ✅ SI NO HAY ERRORES CRÍTICOS, GENERAR PREVIEW
     Swal.fire({
       title: 'Generando vista previa...',
       text: 'Por favor espera',
@@ -545,8 +682,11 @@ const GenerarXML = () => {
     });
 
     try {
+      // 🆕 Se pasa tipoAccion también al preview individual
       const res = await fetch(`http://localhost:4000/api/bls/${blNumber}/generar-xml`, {
-        method: "POST"
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipoAccion })
       });
 
       if (!res.ok) {
@@ -557,9 +697,7 @@ const GenerarXML = () => {
       const blob = await res.blob();
       const xmlText = await blob.text();
 
-      // 🎨 Formatear XML con indentación correcta
       const formatXML = (xml) => {
-        // Agregar declaración si falta
         if (!xml.trim().startsWith('<?xml')) {
           xml = '<?xml version="1.0" encoding="ISO-8859-1"?>\n' + xml;
         }
@@ -577,37 +715,25 @@ const GenerarXML = () => {
           const trimmed = part.trim();
           if (!trimmed) continue;
 
-          // Declaración XML
           if (trimmed.startsWith('<?')) {
             formatted += trimmed + '\n';
-          }
-          // Comentarios
-          else if (trimmed.startsWith('<!--')) {
+          } else if (trimmed.startsWith('<!--')) {
             formatted += INDENT.repeat(indent) + trimmed + '\n';
-          }
-          // Tag de cierre
-          else if (trimmed.startsWith('</')) {
+          } else if (trimmed.startsWith('</')) {
             indent = Math.max(0, indent - 1);
             formatted += INDENT.repeat(indent) + trimmed + '\n';
-          }
-          // Tag auto-cerrado
-          else if (trimmed.endsWith('/>')) {
+          } else if (trimmed.endsWith('/>')) {
             formatted += INDENT.repeat(indent) + trimmed + '\n';
-          }
-          // Tag de apertura
-          else if (trimmed.startsWith('<')) {
-            // Verificar si el siguiente elemento es contenido de texto
+          } else if (trimmed.startsWith('<')) {
             const nextPart = parts[i + 1];
             const nextTrimmed = nextPart ? nextPart.trim() : '';
             const afterNext = parts[i + 2];
             const afterNextTrimmed = afterNext ? afterNext.trim() : '';
 
-            // Si tiene texto seguido de un tag de cierre inmediato, es contenido inline
             if (nextTrimmed && !nextTrimmed.startsWith('<') && afterNextTrimmed.startsWith('</')) {
               formatted += INDENT.repeat(indent) + trimmed + nextTrimmed + afterNextTrimmed + '\n';
-              i += 2; // Saltar los próximos 2 elementos porque ya los procesamos
+              i += 2;
             } else {
-              // Es un elemento con hijos
               formatted += INDENT.repeat(indent) + trimmed + '\n';
               indent++;
             }
@@ -617,7 +743,6 @@ const GenerarXML = () => {
         return formatted;
       };
 
-      // 🔒 Escapar HTML para que se muestren las etiquetas XML
       const escapeHTML = (str) => {
         return str
           .replace(/&/g, '&amp;')
@@ -628,6 +753,7 @@ const GenerarXML = () => {
       };
 
       const formattedXML = escapeHTML(formatXML(xmlText));
+      const tipoLabel = TIPOS_ACCION.find(t => t.value === tipoAccion)?.label || tipoAccion;
 
       const obsHTML = observaciones.length > 0 ? `
       <div style="margin-bottom: 16px; padding: 12px; background: #FEF3C7; border-radius: 8px; text-align: left;">
@@ -648,6 +774,11 @@ const GenerarXML = () => {
       const result = await Swal.fire({
         title: `Vista Previa XML - ${blNumber}`,
         html: `
+        <div style="margin-bottom: 12px; padding: 8px 12px; background: #EFF6FF; border-radius: 8px; text-align: left; border: 1px solid #BFDBFE;">
+          <span style="font-size: 12px; color: #1D4ED8;">
+            <strong>Tipo de acción:</strong> ${tipoAccion} — ${tipoLabel}
+          </span>
+        </div>
         ${obsHTML}
         <div style="text-align: left;">
           <strong style="font-size: 14px;">Contenido del XML:</strong>
@@ -749,7 +880,7 @@ const GenerarXML = () => {
         {/* Acciones */}
         {!loading && bls.length > 0 && (
           <>
-            {/* 🔍 Barra de búsqueda y filtros */}
+            {/* Barra de búsqueda y filtros */}
             <div className="mb-4 bg-white rounded-xl shadow-sm border border-slate-200 p-4">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="relative">
@@ -801,7 +932,7 @@ const GenerarXML = () => {
             </div>
 
             {/* Botones de acción */}
-            <div className="mb-4 flex items-center gap-3">
+            <div className="mb-4 flex items-center gap-3 flex-wrap">
               <button
                 onClick={toggleAll}
                 className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm hover:bg-slate-50"
@@ -809,7 +940,7 @@ const GenerarXML = () => {
                 {selectedBls.size === filteredAndSortedBLs.length ? "Deseleccionar todos" : "Seleccionar todos"}
               </button>
 
-              {/* 🆕 BOTÓN DE REVALIDAR (AZUL) */}
+              {/* Botón Revalidar */}
               <button
                 onClick={revalidarBLsSeleccionados}
                 disabled={selectedBls.size === 0 || revalidando}
@@ -828,24 +959,32 @@ const GenerarXML = () => {
                 )}
               </button>
 
-              {/* BOTÓN EXISTENTE DE GENERAR XML (VERDE) */}
-              <button
-                onClick={generarXMLsMultiples}
-                disabled={selectedBls.size === 0 || generando}
-                className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {generando ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Generando...
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4" />
-                    Generar {selectedBls.size} XML{selectedBls.size !== 1 ? "s" : ""} (ZIP)
-                  </>
-                )}
-              </button>
+              {/* 🆕 GRUPO: Selector Tipo Acción + Botón Generar XML */}
+              <div className="flex items-stretch rounded-lg overflow-visible border border-emerald-300 shadow-sm">
+                {/* Selector de tipo-accion — lado izquierdo del grupo */}
+                <div className="flex items-center px-2 py-1.5 bg-slate-50 border-r border-emerald-300">
+                  <TipoAccionSelector value={tipoAccion} onChange={setTipoAccion} />
+                </div>
+
+                {/* Botón Generar XML ZIP — lado derecho del grupo */}
+                <button
+                  onClick={generarXMLsMultiples}
+                  disabled={selectedBls.size === 0 || generando}
+                  className="px-4 py-2 bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors rounded-r-lg"
+                >
+                  {generando ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Generando...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      Generar {selectedBls.size} XML{selectedBls.size !== 1 ? "s" : ""} (ZIP)
+                    </>
+                  )}
+                </button>
+              </div>
 
               <span className="text-sm text-slate-500">
                 {selectedBls.size} de {filteredAndSortedBLs.length} seleccionados
