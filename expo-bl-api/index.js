@@ -3751,8 +3751,8 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         if (!tieneContactoShipper) {
           pendingValidations.push({
             nivel: "BL", severidad: "ERROR", campo: "shipper_contacto",
-            mensaje: "Shipper debe tener al menos teléfono o correo electrónico (Linea 16B)",
-            valorCrudo: b.shipper || null
+            mensaje: `Shipper debe tener al menos teléfono o correo electrónico (Linea 16B) [Código PIL: ${b.shipper_codigo_pil || 'N/A'}]`,
+            valorCrudo: b.shipper_codigo_pil || null
           });
         }
       }
@@ -3763,8 +3763,8 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         if (!tieneContactoConsignee) {
           pendingValidations.push({
             nivel: "BL", severidad: "ERROR", campo: "consignee_contacto",
-            mensaje: "Consignee debe tener al menos teléfono o correo electrónico (Linea 21B)",
-            valorCrudo: b.consignee || null
+            mensaje: `Consignee debe tener al menos teléfono o correo electrónico (Linea 21B) [Código PIL: ${b.consignee_codigo_pil || 'N/A'}]`,
+            valorCrudo: b.consignee_codigo_pil || null
           });
         }
       }
@@ -3775,8 +3775,8 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         if (!tieneContactoNotify) {
           pendingValidations.push({
             nivel: "BL", severidad: "ERROR", campo: "notify_contacto",
-            mensaje: "Notify party debe tener al menos teléfono o correo electrónico (Linea 26B)",
-            valorCrudo: b.notify || null
+            mensaje: `Notify party debe tener al menos teléfono o correo electrónico (Linea 26B) [Código PIL: ${b.notify_codigo_pil || 'N/A'}]`,
+            valorCrudo: b.notify_codigo_pil || null
           });
         }
       }
@@ -7243,8 +7243,8 @@ async function revalidarBLCompleto(conn, blId) {
     if (!tieneContactoShipper) {
       vals.push({
         nivel: "BL", severidad: "ERROR", campo: "shipper_contacto",
-        mensaje: "Shipper debe tener al menos teléfono o correo electrónico (Linea 16B)",
-        valorCrudo: bl.shipper || null
+        mensaje: `Shipper debe tener al menos teléfono o correo electrónico (Linea 16B) [Código PIL: ${bl.shipper_codigo_pil || 'N/A'}]`,
+        valorCrudo: bl.shipper_codigo_pil || null
       });
     }
   }
@@ -7255,8 +7255,8 @@ async function revalidarBLCompleto(conn, blId) {
     if (!tieneContactoConsignee) {
       vals.push({
         nivel: "BL", severidad: "ERROR", campo: "consignee_contacto",
-        mensaje: "Consignee debe tener al menos teléfono o correo electrónico (Linea 21B)",
-        valorCrudo: bl.consignee || null
+        mensaje: `Consignee debe tener al menos teléfono o correo electrónico (Linea 21B) [Código PIL: ${bl.consignee_codigo_pil || 'N/A'}]`,
+        valorCrudo: bl.consignee_codigo_pil || null
       });
     }
   }
@@ -7267,8 +7267,8 @@ async function revalidarBLCompleto(conn, blId) {
     if (!tieneContactoNotify) {
       vals.push({
         nivel: "BL", severidad: "ERROR", campo: "notify_contacto",
-        mensaje: "Notify party debe tener al menos teléfono o correo electrónico (Linea 26B)",
-        valorCrudo: bl.notify_party || null
+        mensaje: `Notify party debe tener al menos teléfono o correo electrónico (Linea 26B) [Código PIL: ${bl.notify_codigo_pil || 'N/A'}]`,
+        valorCrudo: bl.notify_codigo_pil || null
       });
     }
   }
