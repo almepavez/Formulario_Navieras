@@ -6080,10 +6080,6 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
 
         baseData['direccion'] = (participante.direccion && participante.direccion.trim() && participante.direccion.trim() !== '.')
           ? participante.direccion.trim() : '.';
-
-        if (participante.ciudad && participante.ciudad.trim()) {
-          baseData['comuna'] = participante.ciudad.trim();
-        }
       }
 
       if (includeRUT && participante.rut && participante.pais) {
@@ -6455,14 +6451,14 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
 
       // ✅ Solo agregar contacto si se solicita explícitamente
       if (includeContactInfo) {
-        baseData['direccion'] = (participante.direccion && participante.direccion.trim() && participante.direccion.trim() !== '.')
-          ? participante.direccion.trim() : '.';
-
         baseData['telefono'] = (participante.telefono && participante.telefono.trim() && participante.telefono.trim() !== '.')
           ? participante.telefono.trim() : '.';
 
         baseData['correo-electronico'] = (participante.email && participante.email.trim() && participante.email.trim() !== '.')
           ? participante.email.trim() : '.';
+
+        baseData['direccion'] = (participante.direccion && participante.direccion.trim() && participante.direccion.trim() !== '.')
+          ? participante.direccion.trim() : '.';
       }
 
       if (participante.ciudad && participante.ciudad.trim()) {
@@ -6786,10 +6782,10 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
             }
           },
 
-          ...(esCargaSuelta && {
+          ...(bl.forma_pago_flete && {
             Flete: {
               'forma-pago-flete': {
-                tipo: bl.forma_pago_flete || 'PREPAID'
+                tipo: bl.forma_pago_flete
               }
             }
           }),
