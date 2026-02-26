@@ -3195,6 +3195,15 @@ function parsePmsTxt(content) {
   return blocks
     .map((bLines) => {
       const l12 = pickFirst(bLines, "12");
+      const mapRDType = (char) => {
+        if (char === 'Y') return 'P';
+        if (char === 'D') return 'H';
+        return null;
+      };
+
+      const r1 = mapRDType(l12?.[81]);
+      const r2 = mapRDType(l12?.[82]);
+      const condTransporte = (r1 && r2) ? r1 + r2 : null;
       const blNumber = extractBLNumber(l12);
       if (!blNumber) return null;
 
@@ -3372,6 +3381,7 @@ function parsePmsTxt(content) {
 
         transbordos,
         forma_pago_flete: formaPagoFlete,
+        cond_transporte: condTransporte,
 
 
         items,
@@ -3515,7 +3525,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
          volumen, unidad_volumen,
          bultos, total_items,
          fecha_emision, fecha_presentacion, fecha_embarque, fecha_zarpe,
-         status, forma_pago_flete)
+         status, forma_pago_flete, cond_transporte)
       VALUES
         (?, ?, ?,
          ?, ?, ?, ?, ?, ?,
@@ -3530,7 +3540,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
          ?, ?,
          ?, ?,
          ?, ?, ?, ?,
-         'CREADO', ?)
+         'CREADO', ?, ?)
     `;
 
     const insertItemSql = `
@@ -3703,6 +3713,7 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
         cleanMysqlDateTime(b.fecha_embarque),
         cleanMysqlDateTime(b.fecha_zarpe),
         b.forma_pago_flete || null,
+        b.cond_transporte || null,
       ]);
 
       const blId = blIns.insertId;
@@ -3737,6 +3748,15 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
           campo: "forma_pago_flete",
           mensaje: "Falta forma de pago del flete (Linea 61 BOF). Debe ser PREPAID o COLLECT.",
           valorCrudo: null
+        });
+      }
+
+      const COND_TRANSPORTE_VALIDOS = ['PP', 'HH', 'PH', 'HP'];
+      if (!b.cond_transporte || !COND_TRANSPORTE_VALIDOS.includes(b.cond_transporte)) {
+        pendingValidations.push({
+          nivel: "BL", severidad: "ERROR", campo: "cond_transporte",
+          mensaje: `Condición de transporte inválida o ausente (Linea 12). Valores válidos: ${COND_TRANSPORTE_VALIDOS.join(', ')}`,
+          valorCrudo: b.cond_transporte || null
         });
       }
 
@@ -6251,7 +6271,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
         'numero-referencia': bl.bl_number,
         'service': 'LINER',
         'tipo-servicio': esCargaSuelta ? 'BB' : mapTipoServicio(bl.tipo_servicio_codigo),
-        'cond-transporte': bl.cond_transporte || 'HH',
+        'cond-transporte': bl.cond_transporte,
         'total-bultos': bl.bultos || 0,
         'total-peso': bl.peso_bruto || 0,
         'unidad-peso': bl.unidad_peso || 'KGM',
@@ -6765,7 +6785,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
           'numero-referencia': bl.bl_number,
           'service': 'LINER',
           'tipo-servicio': esCargaSuelta ? 'BB' : mapTipoServicio(bl.tipo_servicio_codigo),
-          'cond-transporte': bl.cond_transporte || 'HH',
+          'cond-transporte': bl.cond_transporte,
           'total-bultos': bl.bultos || 0,
           'total-peso': bl.peso_bruto || 0,
           'unidad-peso': bl.unidad_peso || 'KGM',
@@ -7220,6 +7240,15 @@ async function revalidarBLCompleto(conn, blId) {
       nivel: "BL", severidad: "ERROR", campo: "forma_pago_flete",
       mensaje: "Falta forma de pago del flete (Linea 61 BOF). Debe ser PREPAID o COLLECT.",
       valorCrudo: bl.forma_pago_flete || null
+    });
+  }
+
+  const COND_TRANSPORTE_VALIDOS = ['PP', 'HH', 'PH', 'HP'];
+  if (!bl.cond_transporte || !COND_TRANSPORTE_VALIDOS.includes(bl.cond_transporte)) {
+    vals.push({
+      nivel: "BL", severidad: "ERROR", campo: "cond_transporte",
+      mensaje: `Condición de transporte inválida o ausente (Linea 12). Valores válidos: ${COND_TRANSPORTE_VALIDOS.join(', ')}`,
+      valorCrudo: bl.cond_transporte || null
     });
   }
 
