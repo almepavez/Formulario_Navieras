@@ -6121,7 +6121,6 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
       nacion_id: bl.rep_nacion_id || 'CL'
     } : null;
 
-    // 🔥 Datos del shipper (para EMB) - DIRECTOS DE BLS
     const shipperData = bl.shipper ? {
       nombre: bl.shipper,
       direccion: bl.shipper_direccion || '.',
@@ -6129,7 +6128,6 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
       email: bl.shipper_email || null
     } : null;
 
-    // 🔥 Datos del consignee (para CONS) - DIRECTOS DE BLS
     const consigneeData = bl.consignee ? {
       nombre: bl.consignee,
       direccion: bl.consignee_direccion || '.',
@@ -6137,7 +6135,6 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
       email: bl.consignee_email || null
     } : null;
 
-    // 🔥 Datos del notify (para NOTI) - DIRECTOS DE BLS
     const notifyData = bl.notify_party ? {
       nombre: bl.notify_party,
       direccion: bl.notify_direccion || '.',
@@ -7242,7 +7239,7 @@ async function revalidarBLCompleto(conn, blId) {
     const tieneContactoShipper = (!isBlank(bl.shipper_telefono)) || (!isBlank(bl.shipper_email));
     if (!tieneContactoShipper) {
       vals.push({
-        nivel: "BL", severidad: "ERROR", campo: "shipper_contacto",
+        nivel: "BL", severidad: "OBS", campo: "shipper_contacto",
         mensaje: `Shipper debe tener al menos teléfono o correo electrónico (Linea 16B) [Código PIL: ${bl.shipper_codigo_pil || 'N/A'}]`,
         valorCrudo: bl.shipper_codigo_pil || null
       });
@@ -7254,7 +7251,7 @@ async function revalidarBLCompleto(conn, blId) {
     const tieneContactoConsignee = (!isBlank(bl.consignee_telefono)) || (!isBlank(bl.consignee_email));
     if (!tieneContactoConsignee) {
       vals.push({
-        nivel: "BL", severidad: "ERROR", campo: "consignee_contacto",
+        nivel: "BL", severidad: "OBS", campo: "consignee_contacto",
         mensaje: `Consignee debe tener al menos teléfono o correo electrónico (Linea 21B) [Código PIL: ${bl.consignee_codigo_pil || 'N/A'}]`,
         valorCrudo: bl.consignee_codigo_pil || null
       });
@@ -7266,7 +7263,7 @@ async function revalidarBLCompleto(conn, blId) {
     const tieneContactoNotify = (!isBlank(bl.notify_telefono)) || (!isBlank(bl.notify_email));
     if (!tieneContactoNotify) {
       vals.push({
-        nivel: "BL", severidad: "ERROR", campo: "notify_contacto",
+        nivel: "BL", severidad: "OBS", campo: "notify_contacto",
         mensaje: `Notify party debe tener al menos teléfono o correo electrónico (Linea 26B) [Código PIL: ${bl.notify_codigo_pil || 'N/A'}]`,
         valorCrudo: bl.notify_codigo_pil || null
       });
