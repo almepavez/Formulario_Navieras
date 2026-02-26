@@ -142,12 +142,12 @@ const ExpoBLEdit = () => {
                     bl_number: dataBL.bl_number || "",
                     viaje: dataBL.viaje || "",
                     tipo_servicio: dataBL.tipo_servicio_id === 1 ? "FF" :
-                    dataBL.tipo_servicio_id === 2 ? "MM" : "",
+                        dataBL.tipo_servicio_id === 2 ? "MM" : "",
                     fecha_emision: formatDate(dataBL.fecha_emision),
                     fecha_presentacion: formatDateTime(dataBL.fecha_presentacion),
                     fecha_zarpe: formatDateTime(dataBL.fecha_zarpe),
                     fecha_embarque: formatDateTime(dataBL.fecha_embarque),
-                    forma_pago_flete: dataBL.forma_pago_flete || "",  
+                    forma_pago_flete: dataBL.forma_pago_flete || "",
                     lugar_emision: dataBL.lugar_emision_cod || "",
                     puerto_embarque: dataBL.puerto_embarque_cod || "",
                     puerto_descarga: dataBL.puerto_descarga_cod || "",
@@ -741,7 +741,7 @@ const ExpoBLEdit = () => {
                     });
                     return false;
                 }
-                if (!formData.forma_pago_flete) {
+                if (!formData.forma_pago_flete && formData.tipo_servicio !== "MM") {
                     Swal.fire({
                         icon: "warning",
                         title: "Campo requerido",
@@ -1626,7 +1626,12 @@ const ExpoBLEdit = () => {
                                 </label>
                                 <select
                                     value={formData.tipo_servicio}
-                                    onChange={(e) => updateField("tipo_servicio", e.target.value)}
+                                    onChange={(e) => {
+                                        updateField("tipo_servicio", e.target.value);
+                                        if (e.target.value === "MM") {
+                                            updateField("forma_pago_flete", "");
+                                        }
+                                    }}
                                     className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
                                 >
                                     <option value="">Seleccionar tipo de servicio...</option> {/* 👈 AGREGAR */}
@@ -1686,17 +1691,24 @@ const ExpoBLEdit = () => {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                                    Forma de Pago Flete <span className="text-red-500">*</span>
+                                    Forma de Pago Flete {formData.tipo_servicio !== "MM" && <span className="text-red-500">*</span>}
                                 </label>
                                 <select
                                     value={formData.forma_pago_flete}
                                     onChange={(e) => updateField("forma_pago_flete", e.target.value)}
-                                    className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
+                                    disabled={formData.tipo_servicio === "MM"}
+                                    className={`w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 ${formData.tipo_servicio === "MM"
+                                        ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                                        : ""
+                                        }`}
                                 >
                                     <option value="">Seleccionar forma de pago...</option>
                                     <option value="PREPAID">Prepaid</option>
                                     <option value="COLLECT">Collect</option>
                                 </select>
+                                {formData.tipo_servicio === "MM" && (
+                                    <p className="text-xs text-slate-500 mt-1">No aplica para tipo EMPTY</p>
+                                )}
                             </div>
                         </div>
                     )}
