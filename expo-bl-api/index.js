@@ -6000,6 +6000,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
 
     // 🔥 DETECTAR SI ES CARGA SUELTA
     const esCargaSuelta = bl.tipo_servicio_codigo === 'BB';
+    const esEmpty = bl.tipo_servicio_codigo === 'MM';
     const sinVolumen = !(bl.volumen > 0);
 
     // 3️⃣ Obtener contenedores con sellos E IMO (SOLO SI NO ES CARGA SUELTA)
@@ -6096,8 +6097,9 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
         baseData['telefono'] = (participante.telefono && participante.telefono.trim() && participante.telefono.trim() !== '.')
           ? participante.telefono.trim() : '.';
 
-        baseData['correo-electronico'] = (participante.email && participante.email.trim() && participante.email.trim() !== '.')
-          ? participante.email.trim() : '.';
+        if (participante.email && participante.email.trim() && participante.email.trim() !== '.') {
+          baseData['correo-electronico'] = participante.email.trim();
+        }
 
         baseData['direccion'] = (participante.direccion && participante.direccion.trim() && participante.direccion.trim() !== '.')
           ? participante.direccion.trim() : '.';
@@ -6472,8 +6474,9 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
         baseData['telefono'] = (participante.telefono && participante.telefono.trim() && participante.telefono.trim() !== '.')
           ? participante.telefono.trim() : '.';
 
-        baseData['correo-electronico'] = (participante.email && participante.email.trim() && participante.email.trim() !== '.')
-          ? participante.email.trim() : '.';
+        if (participante.email && participante.email.trim() && participante.email.trim() !== '.') {
+          baseData['correo-electronico'] = participante.email.trim();
+        }
 
         baseData['direccion'] = (participante.direccion && participante.direccion.trim() && participante.direccion.trim() !== '.')
           ? participante.direccion.trim() : '.';
@@ -6625,6 +6628,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
       `, [bl.id]);
 
       const esCargaSuelta = bl.tipo_servicio_codigo === 'BB';
+      const esEmpty = bl.tipo_servicio_codigo === 'MM';
       const sinVolumen = !(bl.volumen > 0);
 
       let contenedores = [];
