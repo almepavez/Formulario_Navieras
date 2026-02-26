@@ -52,6 +52,7 @@ const ExpoBLEdit = () => {
         fecha_zarpe: "",
         fecha_embarque: "",
         lugar_emision: "",
+        forma_pago_flete: "",
         puerto_embarque: "",
         puerto_descarga: "",
         lugar_destino: "",
@@ -141,11 +142,12 @@ const ExpoBLEdit = () => {
                     bl_number: dataBL.bl_number || "",
                     viaje: dataBL.viaje || "",
                     tipo_servicio: dataBL.tipo_servicio_id === 1 ? "FF" :
-                        dataBL.tipo_servicio_id === 2 ? "MM" : "",
+                    dataBL.tipo_servicio_id === 2 ? "MM" : "",
                     fecha_emision: formatDate(dataBL.fecha_emision),
                     fecha_presentacion: formatDateTime(dataBL.fecha_presentacion),
                     fecha_zarpe: formatDateTime(dataBL.fecha_zarpe),
                     fecha_embarque: formatDateTime(dataBL.fecha_embarque),
+                    forma_pago_flete: dataBL.forma_pago_flete || "",  
                     lugar_emision: dataBL.lugar_emision_cod || "",
                     puerto_embarque: dataBL.puerto_embarque_cod || "",
                     puerto_descarga: dataBL.puerto_descarga_cod || "",
@@ -739,6 +741,16 @@ const ExpoBLEdit = () => {
                     });
                     return false;
                 }
+                if (!formData.forma_pago_flete) {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "Campo requerido",
+                        text: "La forma de pago del flete es obligatoria",
+                        confirmButtonColor: "#0F2A44"
+                    });
+                    return false;
+
+                }
                 break;
 
             case 2: // Rutas
@@ -1146,6 +1158,9 @@ const ExpoBLEdit = () => {
     };
 
     const handleSave = async () => {
+        for (let step = 1; step <= steps.length - 1; step++) {
+            if (!validateStep(step)) return;
+        }
         const result = await Swal.fire({
             title: "¿Guardar cambios?",
             html: `
@@ -1178,6 +1193,7 @@ const ExpoBLEdit = () => {
                 fecha_presentacion: formatToMysql(formData.fecha_presentacion),
                 fecha_zarpe: formatToMysql(formData.fecha_zarpe),
                 fecha_embarque: formatToMysql(formData.fecha_embarque),
+                forma_pago_flete: formData.forma_pago_flete || null,  // 🔥 AGREGAR ESTO
                 puerto_embarque: formData.puerto_embarque || null,
                 puerto_descarga: formData.puerto_descarga || null,
                 lugar_emision: formData.lugar_emision || null,
@@ -1667,6 +1683,20 @@ const ExpoBLEdit = () => {
                                     onChange={(e) => updateField("fecha_embarque", e.target.value)}
                                     className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
                                 />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">
+                                    Forma de Pago Flete <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                    value={formData.forma_pago_flete}
+                                    onChange={(e) => updateField("forma_pago_flete", e.target.value)}
+                                    className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
+                                >
+                                    <option value="">Seleccionar forma de pago...</option>
+                                    <option value="PREPAID">Prepaid</option>
+                                    <option value="COLLECT">Collect</option>
+                                </select>
                             </div>
                         </div>
                     )}

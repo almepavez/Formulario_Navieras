@@ -95,7 +95,8 @@ const EMAILS_PERMITIDOS = {
   'inunez@broomgroup.com': 'admin',
   'apavez@broomgroup.com': 'admin',
   'iriffo@broomgroup.com': 'admin',
-  'iriffo@broomgroup.cl': 'operador',
+  'driquelme.sai@broomchile.com': 'admin',   
+  'mdiaz.sai@broomchile.com': 'admin',        
 };
 
 // 🔒 FUNCIÓN AUXILIAR: Verificar email autorizado
