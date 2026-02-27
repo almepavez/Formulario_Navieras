@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Check, AlertCircle, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 
-const API_BASE = "http://localhost:4000";
+const API_BASE = import.meta.env.VITE_API_URL;
 
 const formatDateCL = (iso) => {
     if (!iso) return "—";

@@ -4,6 +4,8 @@ import Sidebar from "../components/Sidebar";
 import { FileText, Download, Loader2, Search, AlertTriangle, CheckCircle2, XCircle, RefreshCw, ChevronDown } from "lucide-react";
 import Swal from "sweetalert2";
 
+const API_BASE = import.meta.env.VITE_API_URL;
+
 // 🆕 Configuración de tipos de acción
 const TIPOS_ACCION = [
   {
@@ -199,7 +201,7 @@ const GenerarXML = () => {
     setError("");
 
     try {
-      const res = await fetch(`http://localhost:4000/api/manifiestos/${id}/bls-para-xml`);
+      const res = await fetch(`${API_BASE}/api/manifiestos/${id}/bls-para-xml`);
 
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
@@ -333,7 +335,7 @@ const GenerarXML = () => {
 
         try {
           const res = await fetch(
-            `http://localhost:4000/api/bls/${blNumber}/revalidar`,
+            `${API_BASE}/api/bls/${blNumber}/revalidar`,
             { method: 'POST' }
           );
 
@@ -511,7 +513,7 @@ const GenerarXML = () => {
 
     try {
       // 🆕 Se envía tipoAccion al backend
-      const res = await fetch(`http://localhost:4000/api/manifiestos/${id}/generar-xmls-multiples`, {
+      const res = await fetch(`${API_BASE}/api/manifiestos/${id}/generar-xmls-multiples`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ blNumbers: selectedBlsArray, tipoAccion })
@@ -600,7 +602,7 @@ const GenerarXML = () => {
 
     if (bl.valid_status === 'ERROR' || bl.valid_status === 'OBS') {
       try {
-        const res = await fetch(`http://localhost:4000/bls/${blNumber}/validaciones`);
+        const res = await fetch(`${API_BASE}/bls/${blNumber}/validaciones`);
         if (res.ok) {
           validacionesReales = await res.json();
         }
@@ -683,7 +685,7 @@ const GenerarXML = () => {
 
     try {
       // 🆕 Se pasa tipoAccion también al preview individual
-      const res = await fetch(`http://localhost:4000/api/bls/${blNumber}/generar-xml`, {
+      const res = await fetch(`${API_BASE}/api/bls/${blNumber}/generar-xml`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tipoAccion })

@@ -3,6 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import { AlertCircle, Ship, AlertTriangle, RefreshCw } from "lucide-react";
 
+const API_BASE = import.meta.env.VITE_API_URL;
+
 const estadoStyles = {
     "CREADO": "bg-blue-100 text-blue-800 ring-blue-200",
     "VALIDADO": "bg-green-100 text-green-800 ring-green-200",
@@ -44,13 +46,13 @@ const ExpoBLDetail = () => {
         setError("");
         try {
             // Fetch BL básico (AHORA revalida automáticamente en el backend)
-            const res = await fetch(`http://localhost:4000/bls/${blNumber}`);
+            const res = await fetch(`${API_BASE}/bls/${blNumber}`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             setBl(data);
 
             // Fetch items y contenedores
-            const resItems = await fetch(`http://localhost:4000/bls/${blNumber}/items-contenedores`);
+            const resItems = await fetch(`${API_BASE}/bls/${blNumber}/items-contenedores`);
             if (resItems.ok) {
                 const dataItems = await resItems.json();
                 setItems(dataItems.items || []);
@@ -58,14 +60,14 @@ const ExpoBLDetail = () => {
             }
 
             // Fetch transbordos
-            const resTransbordos = await fetch(`http://localhost:4000/bls/${blNumber}/transbordos`);
+            const resTransbordos = await fetch(`${API_BASE}/bls/${blNumber}/transbordos`);
             if (resTransbordos.ok) {
                 const dataTransbordos = await resTransbordos.json();
                 setTransbordos(dataTransbordos || []);
             }
 
             // Fetch validaciones (ya actualizadas por el backend)
-            const resValidaciones = await fetch(`http://localhost:4000/bls/${blNumber}/validaciones`);
+            const resValidaciones = await fetch(`${API_BASE}/bls/${blNumber}/validaciones`);
             if (resValidaciones.ok) {
                 const dataValidaciones = await resValidaciones.json();
                 setValidaciones(dataValidaciones || []);
