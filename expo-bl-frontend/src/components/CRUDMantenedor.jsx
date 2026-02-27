@@ -68,9 +68,8 @@ const CRUDMantenedor = () => {
       color: "teal",
       fields: [
         { key: "codigo", label: "Código", type: "text", required: true, placeholder: "CLVAP, CNHKG" },
-        { key: "codigo_sidemar", label: "Código Sidemar", type: "text", required: false, placeholder: "Ej: 001, 045" },
+        { key: "codigo_sidemar", label: "Código Sidemar", type: "text", required: false, placeholder: "CNNBO" },
         { key: "nombre", label: "Nombre", type: "text", required: true, placeholder: "VALPARAISO" },
-        { key: "codigo_sidemar", label: "Código Sidemar", type: "text", required: false, placeholder: "CNSHA" },
       ],
     },
     servicios: {
