@@ -479,14 +479,14 @@ const GenerarXML = () => {
     );
 
     if (blsConWarnings.length > 0) {
-      const warningsHTML = blsConWarnings.map(item =>
-        `<div style="text-align: left; margin-bottom: 10px;">
-          <strong style="color: #F59E0B;">${item.blNumber}</strong><br/>
-          <ul style="margin: 4px 0; padding-left: 20px; font-size: 13px; color: #92400E;">
-            ${item.validation?.warnings?.map(w => `<li>${w}</li>`).join('') || ''}
-          </ul>
-        </div>`
-      ).join('');
+    const warningsHTML = blsConWarnings.map(bl =>
+  `<div style="text-align: left; margin-bottom: 10px; padding: 10px; background: #FEF3C7; border-radius: 6px; border: 1px solid #FCD34D;">
+    <strong style="color: #92400E;">${bl.bl_number}</strong>
+    <p style="margin: 4px 0; font-size: 13px; color: #92400E;">
+      ${bl.valid_count_obs} observación(es) — haz clic en Preview para ver el detalle.
+    </p>
+  </div>`
+).join('');
 
       const result = await Swal.fire({
         icon: 'warning',
