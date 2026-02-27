@@ -4,6 +4,8 @@ import Swal from "sweetalert2";
 import Sidebar from "../components/Sidebar";
 import { FileText, Trash2 } from "lucide-react";
 
+const API_BASE = import.meta.env.VITE_API_URL;
+
 const estadoStyles = {
   "Activo": "bg-emerald-100 text-emerald-800 ring-emerald-200",
   "Inactivo": "bg-red-100 text-red-800 ring-red-200",
@@ -30,7 +32,7 @@ const Manifiestos = () => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("http://localhost:4000/manifiestos");
+      const res = await fetch(`${API_BASE}/manifiestos`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setManifiestos(Array.isArray(data) ? data : []);
@@ -95,7 +97,7 @@ const Manifiestos = () => {
     if (!result.isConfirmed) return;
 
     try {
-      const res = await fetch("http://localhost:4000/manifiestos/eliminar-multiples", {
+      const res = await fetch(`${API_BASE}/manifiestos/eliminar-multiples`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: Array.from(selected) }),

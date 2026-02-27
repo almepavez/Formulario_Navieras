@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Search, Edit2, Plus, X, Save } from 'lucide-react';
 import Swal from 'sweetalert2';
 
+const API_BASE = import.meta.env.VITE_API_URL;
+
 const ParticipanteSelector = ({ label, tipo, value, displayValue, onChange, required }) => {
     const [participantes, setParticipantes] = useState([]);
     const [filteredParticipantes, setFilteredParticipantes] = useState([]);
@@ -23,7 +25,7 @@ const ParticipanteSelector = ({ label, tipo, value, displayValue, onChange, requ
 const fetchParticipantes = async () => {
     try {
         // 👇 AGREGAR EL PARÁMETRO tipo SI VIENE DEL PROP
-        let url = 'http://localhost:4000/api/mantenedores/participantes';
+        let url = `${API_BASE}/api/mantenedores/participantes`;
         if (tipo === 'almacenador') {
             url += '?tipo=almacenador';
         }
@@ -241,8 +243,8 @@ const fetchParticipantes = async () => {
         setLoading(true);
         try {
             const url = modalMode === 'new'
-                ? 'http://localhost:4000/api/mantenedores/participantes'
-                : `http://localhost:4000/api/mantenedores/participantes/${selectedParticipante.id}`;
+                ? `${API_BASE}/api/mantenedores/participantes`
+                : `${API_BASE}/api/mantenedores/participantes/${selectedParticipante.id}`;
 
             const method = modalMode === 'new' ? 'POST' : 'PUT';
 
@@ -272,7 +274,7 @@ const fetchParticipantes = async () => {
                 try {
                     const participanteId = savedParticipante.id || selectedParticipante.id;
 
-                    await fetch('http://localhost:4000/api/mantenedores/traductor-pil-bms/sync-participante', {
+                    await fetch(`${API_BASE}/api/mantenedores/traductor-pil-bms/sync-participante`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({

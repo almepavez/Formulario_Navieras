@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import { Edit3, ArrowUpRight, ArrowDownLeft, X } from "lucide-react";
 
+const API_BASE = import.meta.env.VITE_API_URL;
+
 const estadoStyles = {
     "ACTIVO": "bg-emerald-100 text-emerald-800 ring-emerald-200",
     "INACTIVO": "bg-slate-100 text-slate-600 ring-slate-200",
@@ -42,7 +44,7 @@ const ExpoBL = () => {
         setLoading(true);
         setError("");
         try {
-            const res = await fetch("http://localhost:4000/bls");
+            const res = await fetch(`${API_BASE}/bls`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             setBls(Array.isArray(data) ? data : []);

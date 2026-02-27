@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import logoBroom from "../img/SGA Logo Oscuro.png";
 import Naviera from "../img/naviera.jpg";
 
+const API_BASE = import.meta.env.VITE_API_URL;
+
 const Login = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -22,7 +24,7 @@ const Login = () => {
       localStorage.setItem('token', token);
 
       // Obtener datos del usuario
-      fetch('http://sga.broomgroup.com/api/auth/verificar', {
+      fetch(`${API_BASE}/api/auth/verificar`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -50,7 +52,7 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const response = await fetch("http://sga.broomgroup.com/api/auth/login", {
+      const response = await fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -76,8 +78,7 @@ const Login = () => {
   };
 
   const handleGoogleLogin = () => {
-    // Redirigir a la ruta de Google OAuth en el backend
-    window.location.href = 'http://sga.broomgroup.com/api/auth/google';
+    window.location.href = `${API_BASE}/api/auth/google`;
   };
 
   return (

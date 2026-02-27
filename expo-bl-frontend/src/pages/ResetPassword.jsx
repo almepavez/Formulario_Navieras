@@ -3,6 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import logoBroom from "../img/SGA Logo Oscuro.png";
 import { useSearchParams } from "react-router-dom";
 
+const API_BASE = import.meta.env.VITE_API_URL;
+
 const ResetPassword = () => {
   const navigate = useNavigate();
   
@@ -28,7 +30,7 @@ const [email, setEmail] = useState(emailFromUrl);
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:4000/api/auth/forgot-password", {
+      const response = await fetch(`${API_BASE}/api/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
@@ -69,7 +71,7 @@ const [email, setEmail] = useState(emailFromUrl);
     try {
       console.log('Enviando:', { email, code }); // Debug
 
-      const response = await fetch("http://localhost:4000/api/auth/verify-code", {
+      const response = await fetch(`${API_BASE}/api/auth/verify-code`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, code }),
@@ -109,7 +111,7 @@ const [email, setEmail] = useState(emailFromUrl);
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:4000/api/auth/reset-password", {
+      const response = await fetch(`${API_BASE}/api/auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, code, newPassword }),

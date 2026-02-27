@@ -1,6 +1,8 @@
 // src/components/CrearPuertoModal.jsx
 import { useState } from 'react';
 
+const API_BASE = import.meta.env.VITE_API_URL;
+
 export default function CrearPuertoModal({ isOpen, onClose, onPuertoCreado }) {
     const [formData, setFormData] = useState({
         codigo: '',
@@ -18,7 +20,7 @@ export default function CrearPuertoModal({ isOpen, onClose, onPuertoCreado }) {
 
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch('http://localhost:4000/api/mantenedores/puertos', {
+            const response = await fetch(`${API_BASE}/api/mantenedores/puertos`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

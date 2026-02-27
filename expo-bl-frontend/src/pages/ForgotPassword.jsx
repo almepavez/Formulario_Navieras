@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import logoBroom from "../img/SGA Logo Oscuro.png";
 
+const API_BASE = import.meta.env.VITE_API_URL;
+
 const ForgotPassword = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -15,7 +17,7 @@ const ForgotPassword = () => {
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:4000/api/auth/forgot-password", {
+      const response = await fetch(`${API_BASE}/api/auth/forgot-password`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

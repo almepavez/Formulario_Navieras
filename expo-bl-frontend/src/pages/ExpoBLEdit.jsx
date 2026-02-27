@@ -4,6 +4,8 @@ import Swal from "sweetalert2";
 import Sidebar from "../components/Sidebar";
 import CrearPuertoModal from "../components/CrearPuertoModal";  // 🔥 AGREGAR ESTE IMPORT
 
+const API_BASE = import.meta.env.VITE_API_URL;
+
 const steps = [
     { id: 1, name: "General", description: "Información básica del BL" },
     { id: 2, name: "Rutas", description: "" },
@@ -36,7 +38,7 @@ const ExpoBLEdit = () => {
     });
 
     useEffect(() => {
-        fetch('http://localhost:4000/tipos-contenedor')  // ✅ CORRECTO
+        fetch('${API_BASE}/tipos-contenedor')  // ✅ CORRECTO
             .then(res => res.json())
             .then(data => setTiposContenedor(data))
             .catch(err => console.error('Error:', err));
@@ -95,33 +97,33 @@ const ExpoBLEdit = () => {
             setError("");
             try {
                 // 🆕 Cargar BL
-                const resBL = await fetch(`http://localhost:4000/bls/${blNumber}`);
+                const resBL = await fetch(`${API_BASE}/bls/${blNumber}`);
                 if (!resBL.ok) {
                     throw new Error(`Error ${resBL.status}: No se pudo cargar el BL`);
                 }
                 const dataBL = await resBL.json();
 
                 // 🆕 Cargar lista de puertos
-                const resPuertos = await fetch(`http://localhost:4000/puertos`);
+                const resPuertos = await fetch(`${API_BASE}/puertos`);
                 if (resPuertos.ok) {
                     const dataPuertos = await resPuertos.json();
                     setPuertos(dataPuertos);
                 }
                 // 🆕 AGREGAR ESTAS LÍNEAS 👇
-                const resTiposBulto = await fetch(`http://localhost:4000/tipos-bulto`);
+                const resTiposBulto = await fetch(`${API_BASE}/tipos-bulto`);
                 if (resTiposBulto.ok) {
                     const dataTiposBulto = await resTiposBulto.json();
                     setTiposBulto(dataTiposBulto);
                 }
                 // AGREGAR INMEDIATAMENTE DESPUÉS:
                 // 🆕 Cargar tipos de contenedor
-                const resTiposContenedor = await fetch(`http://localhost:4000/tipos-contenedor`);
+                const resTiposContenedor = await fetch(`${API_BASE}/tipos-contenedor`);
                 if (resTiposContenedor.ok) {
                     const dataTiposContenedor = await resTiposContenedor.json();
                     setTiposContenedor(dataTiposContenedor);
                 }
                 // 🆕 Cargar mapeo tipo_cnt <-> tipo_bulto
-                const resMapeo = await fetch(`http://localhost:4000/tipo-cnt-tipo-bulto`);
+                const resMapeo = await fetch(`${API_BASE}/tipo-cnt-tipo-bulto`);
                 if (resMapeo.ok) {
                     const dataMapeo = await resMapeo.json();
                     setTipoCntTipoBulto(dataMapeo);
@@ -185,14 +187,14 @@ const ExpoBLEdit = () => {
                 });
 
                 // 🆕 Cargar items y contenedores
-                const resItems = await fetch(`http://localhost:4000/bls/${blNumber}/items-contenedores`);
+                const resItems = await fetch(`${API_BASE}/bls/${blNumber}/items-contenedores`);
                 if (resItems.ok) {
                     const dataItems = await resItems.json();
                     setItems(dataItems.items || []);
                     setContenedores(dataItems.contenedores || []);
                 }
                 // 🆕 Cargar transbordos
-                const resTransbordos = await fetch(`http://localhost:4000/bls/${blNumber}/transbordos`);
+                const resTransbordos = await fetch(`${API_BASE}/bls/${blNumber}/transbordos`);
                 if (resTransbordos.ok) {
                     const dataTransbordos = await resTransbordos.json();
                     setTransbordos(dataTransbordos || []);
@@ -1235,7 +1237,7 @@ const ExpoBLEdit = () => {
             console.log('dataToSend COMPLETO:', dataToSend);
             console.log('═══════════════════════════════════');
 
-            const res = await fetch(`http://localhost:4000/api/bls/${blNumber}`, {
+            const res = await fetch(`${API_BASE}/api/bls/${blNumber}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(dataToSend)
@@ -1247,7 +1249,7 @@ const ExpoBLEdit = () => {
             }
             // 🆕 Guardar items si fueron modificados
             if (items.length > 0) {
-                const resItems = await fetch(`http://localhost:4000/bls/${blNumber}/items`, {
+                const resItems = await fetch(`${API_BASE}/bls/${blNumber}/items`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ items })
@@ -1259,7 +1261,7 @@ const ExpoBLEdit = () => {
             }
             // 🆕 Guardar transbordos
             if (transbordos.length > 0) {
-                const resTransbordos = await fetch(`http://localhost:4000/bls/${blNumber}/transbordos`, {
+                const resTransbordos = await fetch(`${API_BASE}/bls/${blNumber}/transbordos`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ transbordos })
@@ -1275,7 +1277,7 @@ const ExpoBLEdit = () => {
             if (contenedores.length > 0) {
                 console.log('🚀 ENVIANDO CONTENEDORES AL BACKEND:', JSON.stringify(contenedores, null, 2));
 
-                const resContenedores = await fetch(`http://localhost:4000/bls/${blNumber}/contenedores`, {
+                const resContenedores = await fetch(`${API_BASE}/bls/${blNumber}/contenedores`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
