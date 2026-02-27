@@ -22,7 +22,7 @@ const Login = () => {
       localStorage.setItem('token', token);
 
       // Obtener datos del usuario
-      fetch('http://localhost:4000/api/auth/verificar', {
+      fetch('http://sga.broomgroup.com/api/auth/verificar', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -50,7 +50,7 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:4000/api/auth/login", {
+      const response = await fetch("http://sga.broomgroup.com/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -77,7 +77,7 @@ const Login = () => {
 
   const handleGoogleLogin = () => {
     // Redirigir a la ruta de Google OAuth en el backend
-    window.location.href = 'http://localhost:4000/api/auth/google';
+    window.location.href = 'http://sga.broomgroup.com/api/auth/google';
   };
 
   return (
