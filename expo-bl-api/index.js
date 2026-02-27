@@ -983,8 +983,7 @@ app.get("/api/manifiestos/siguiente-numero-referencia", async (req, res) => {
 app.get("/api/mantenedores/puertos", async (_req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT id, codigo, nombre, created_at, updated_at FROM puertos ORDER BY codigo"
-    );
+"SELECT id, codigo, codigo_sidemar, nombre, created_at, updated_at FROM puertos ORDER BY codigo"    );
     res.json(rows);
   } catch (error) {
     console.error("Error al obtener puertos:", error);
@@ -995,7 +994,7 @@ app.get("/api/mantenedores/puertos", async (_req, res) => {
 app.get("/api/mantenedores/puertos/:id", async (req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT id, codigo, nombre, created_at, updated_at FROM puertos WHERE id = ?",
+"SELECT id, codigo, codigo_sidemar, nombre, created_at, updated_at FROM puertos WHERE id = ?",
       [req.params.id]
     );
     if (rows.length === 0) return res.status(404).json({ error: "Puerto no encontrado" });
@@ -1012,7 +1011,7 @@ app.post("/api/mantenedores/puertos", async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    const { codigo, nombre } = req.body;
+const { codigo, nombre, codigo_sidemar } = req.body;
 
     if (!codigo || !nombre) {
       return res.status(400).json({ error: "codigo y nombre son obligatorios" });
@@ -1022,9 +1021,9 @@ app.post("/api/mantenedores/puertos", async (req, res) => {
 
     // 1️⃣ Insertar el puerto
     const [result] = await conn.query(
-      "INSERT INTO puertos (codigo, nombre) VALUES (?, ?)",
-      [codigoUpper, nombre.trim()]
-    );
+  "INSERT INTO puertos (codigo, codigo_sidemar, nombre) VALUES (?, ?, ?)",
+  [codigoUpper, (codigo_sidemar?.trim() || null), nombre.trim()]
+);
 
     const puertoId = result.insertId;
 
@@ -1086,6 +1085,7 @@ app.post("/api/mantenedores/puertos", async (req, res) => {
     res.status(201).json({
       id: puertoId,
       codigo: codigoUpper,
+      codigo_sidemar: codigo_sidemar?.trim() || null,
       nombre: nombre.trim(),
       bls_actualizados: totalActualizados,
       bls_revalidados: blsAfectados.length,
@@ -1113,7 +1113,7 @@ app.put("/api/mantenedores/puertos/:id", async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    const { codigo, nombre } = req.body;
+const { codigo, nombre, codigo_sidemar } = req.body;
     const { id } = req.params;
 
     if (!codigo || !nombre) {
@@ -1124,9 +1124,9 @@ app.put("/api/mantenedores/puertos/:id", async (req, res) => {
 
     // 1️⃣ Actualizar el puerto
     const [result] = await conn.query(
-      "UPDATE puertos SET codigo = ?, nombre = ? WHERE id = ?",
-      [codigoUpper, nombre.trim(), id]
-    );
+  "UPDATE puertos SET codigo = ?, codigo_sidemar = ?, nombre = ? WHERE id = ?",
+  [codigoUpper, (codigo_sidemar?.trim() || null), nombre.trim(), id]
+);
 
     if (result.affectedRows === 0) {
       await conn.rollback();

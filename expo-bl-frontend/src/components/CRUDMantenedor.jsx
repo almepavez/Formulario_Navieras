@@ -69,6 +69,7 @@ const CRUDMantenedor = () => {
       fields: [
         { key: "codigo", label: "Código", type: "text", required: true, placeholder: "CLVAP, CNHKG" },
         { key: "nombre", label: "Nombre", type: "text", required: true, placeholder: "VALPARAISO" },
+        { key: "codigo_sidemar", label: "Código Sidemar", type: "text", required: false, placeholder: "CNSHA" },
       ],
     },
     servicios: {
@@ -520,7 +521,7 @@ const CRUDMantenedor = () => {
                       <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                         {tableFields.map((field) => (
                           <td key={field.key} className="px-6 py-4 text-sm text-slate-700">
-                            {field.key === "codigo" || field.key === "tipo_cnt" || field.key === "tipo_bulto" || field.key === "token" ? (
+                            {field.key === "codigo" || field.key === "codigo_sidemar" || field.key === "tipo_cnt" || field.key === "tipo_bulto" || field.key === "token" ? (
                               <span className="font-mono font-semibold text-[#0F2A44]">{item[field.key]}</span>
                             ) : field.key === "activo" ? (
                               <span className={`px-3 py-1 rounded-full text-xs font-medium ${item[field.key] === 1 || item[field.key] === "1"
