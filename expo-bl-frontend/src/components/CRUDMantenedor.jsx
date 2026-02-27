@@ -68,6 +68,7 @@ const CRUDMantenedor = () => {
       color: "teal",
       fields: [
         { key: "codigo", label: "Código", type: "text", required: true, placeholder: "CLVAP, CNHKG" },
+        { key: "codigo_sidemar", label: "Código Sidemar", type: "text", required: false, placeholder: "Ej: 001, 045" },
         { key: "nombre", label: "Nombre", type: "text", required: true, placeholder: "VALPARAISO" },
         { key: "codigo_sidemar", label: "Código Sidemar", type: "text", required: false, placeholder: "CNSHA" },
       ],
@@ -525,8 +526,8 @@ const CRUDMantenedor = () => {
                               <span className="font-mono font-semibold text-[#0F2A44]">{item[field.key]}</span>
                             ) : field.key === "activo" ? (
                               <span className={`px-3 py-1 rounded-full text-xs font-medium ${item[field.key] === 1 || item[field.key] === "1"
-                                  ? "bg-green-100 text-green-700"
-                                  : "bg-red-100 text-red-700"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-red-100 text-red-700"
                                 }`}>
                                 {item[field.key] === 1 || item[field.key] === "1" ? "Activo" : "Inactivo"}
                               </span>
