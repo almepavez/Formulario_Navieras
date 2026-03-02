@@ -110,7 +110,7 @@ function esEmailAutorizado(email) {
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  callbackURL: "http://sga.broomgroup.com/api/auth/google/callback"
+  callbackURL: "https://sga.broomgroup.com/api/auth/google/callback"
 },
   async function (accessToken, refreshToken, profile, cb) {
     try {
@@ -308,7 +308,7 @@ app.get('/api/auth/google',
 );
 
 app.get('/api/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: 'http://localhost:5173/login?error=auth_failed' }),
+  passport.authenticate('google', { failureRedirect: 'https://sga.broomgroup.com/login?error=auth_failed' }),
   async (req, res) => {
     try {
       const token = jwt.sign(
@@ -322,10 +322,10 @@ app.get('/api/auth/google/callback',
         { expiresIn: JWT_EXPIRES }
       );
 
-      res.redirect(`http://localhost:5173/auth/callback?token=${token}`);
+      res.redirect(`https://sga.broomgroup.com/auth/callback?token=${token}`);
     } catch (error) {
       console.error('Error en callback de Google:', error);
-      res.redirect('http://localhost:5173/login?error=auth_failed');
+      res.redirect('https://sga.broomgroup.com/login?error=auth_failed');
     }
   }
 );
