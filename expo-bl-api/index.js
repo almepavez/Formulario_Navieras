@@ -2402,8 +2402,8 @@ function extractWeightVolumeFrom41(line41) {
   let peso = null;
   if (y && y[1]) {
     const digits = y[1];
-    const last9 = digits.slice(-9); // peso * 1000 con padding
-    const n = Number(last9);
+    const last10 = digits.slice(-10); // peso * 1000 con padding (10 dígitos)
+    const n = Number(last10);
     if (Number.isFinite(n)) peso = n / 1000;
   }
 
@@ -3736,6 +3736,21 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
           mensaje: "peso_bruto debe ser > 0",
           valorCrudo: b.peso_bruto
         });
+      }
+
+      // BL: peso total debe coincidir con suma de items
+      if (!esEmpty && Array.isArray(b.items) && b.items.length > 0) {
+        const sumaPesosItems = b.items.reduce((acc, it) => acc + (parseFloat(it.peso_bruto) || 0), 0);
+        const pesoBL = parseFloat(b.peso_bruto) || 0;
+        const diferencia = Math.abs(pesoBL - sumaPesosItems);
+
+        if (diferencia > 1) {
+          pendingValidations.push({
+            nivel: "BL", severidad: "ERROR", campo: "peso_bruto",
+            mensaje: `El peso_bruto del BL (${pesoBL.toFixed(3)}) no coincide con la suma de los items (${sumaPesosItems.toFixed(3)}). Diferencia: ${diferencia.toFixed(3)}. Posible error de parseo en línea 41.`,
+            valorCrudo: b.peso_bruto
+          });
+        }
       }
 
       if (isBlank(b.unidad_peso)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "unidad_peso", mensaje: "Falta unidad_peso (Linea 41)", valorCrudo: b.unidad_peso || null });
@@ -7234,6 +7249,20 @@ async function revalidarBLCompleto(conn, blId) {
     vals.push({ nivel: "BL", severidad: "ERROR", campo: "peso_bruto", mensaje: "peso_bruto debe ser > 0", valorCrudo: bl.peso_bruto });
   }
 
+  // BL: peso total debe coincidir con suma de items
+  if (!esEmpty && items.length > 0) {
+    const sumaPesosItems = items.reduce((acc, it) => acc + (parseFloat(it.peso_bruto) || 0), 0);
+    const pesoBL = parseFloat(bl.peso_bruto) || 0;
+    const diferencia = Math.abs(pesoBL - sumaPesosItems);
+
+    if (diferencia > 1) {
+      vals.push({
+        nivel: "BL", severidad: "ERROR", campo: "peso_bruto",
+        mensaje: `El peso_bruto del BL (${pesoBL.toFixed(3)}) no coincide con la suma de los items (${sumaPesosItems.toFixed(3)}). Diferencia: ${diferencia.toFixed(3)}. Posible error de parseo en línea 41.`,
+        valorCrudo: bl.peso_bruto
+      });
+    }
+  }
 
   if (isBlank(bl.unidad_peso)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "unidad_peso", mensaje: "Falta unidad_peso (Linea 41)", valorCrudo: bl.unidad_peso || null });
 
