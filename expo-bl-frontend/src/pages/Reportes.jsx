@@ -199,6 +199,90 @@ export default function Reportes() {
   const manifiestosTipo = allManifiestos.filter(
     (m) => (m.tipoOperacion ?? m.tipo_operacion ?? "").toString().trim().toUpperCase() === TIPO_OP_MAP[tipoOp]
   );
+  const handleExportAll = async () => {
+    if (!rows.length) { showToast("error", "No hay datos para exportar"); return; }
+
+    const isEmpty = (val) => !val || val.toString().trim() === "" || val.toString().trim() === "—";
+
+    const colsConVacios = COLUMNS
+      .map((col) => ({
+        label: col.label,
+        count: rows.filter(r => isEmpty(r[col.key])).length,
+      }))
+      .filter(({ count }) => count > 0);
+
+    if (colsConVacios.length > 0) {
+      const result = await Swal.fire({
+        title: "Datos incompletos",
+        html: `
+        <p style="color:#64748b; margin-bottom:12px; font-size:14px;">Algunas filas no tienen datos completos:</p>
+        <ul style="text-align:left; padding-left:20px; margin-bottom:8px;">
+          ${colsConVacios.map(({ label, count }) =>
+          `<li style="color:#dc2626; font-size:13px; margin-bottom:4px;">• <strong>${label}</strong>: ${count} fila(s) vacía(s)</li>`
+        ).join("")}
+        </ul>
+        <p style="color:#64748b; font-size:13px;">¿Exportar de todas formas?</p>
+      `,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#0F2A44",
+        cancelButtonColor: "#ef4444",
+        confirmButtonText: "Sí, exportar igual",
+        cancelButtonText: "Cancelar",
+        width: "480px",
+      });
+      if (!result.isConfirmed) return;
+    }
+
+    const nave = selectedInfo?.nombre_nave || selectedInfo?.nave || "nave";
+    const viaje = selectedInfo?.viaje || "viaje";
+    exportToExcel(rows, `Reporte_${nave}_${viaje}_${today()}.xlsx`);
+    showToast("success", "Excel exportado");
+  };
+
+  const handleExportTATC = async () => {
+    if (!rows.length) { showToast("error", "No hay datos para exportar"); return; }
+
+    const nombresLegibles = {
+      nombre_nave: "Nave",
+      viaje: "Viaje",
+      codigo_nave: "Lloyd / IMO",
+      n_contenedor: "Nro Contenedor",
+      tipo_contenedor: "Tipo Contenedor",
+      almacen: "Almacén",
+      deposito: "Depósito",
+    };
+
+    const camposVacios = Object.keys(nombresLegibles).filter(
+      (campo) => rows.every((r) => !r[campo])
+    );
+
+    if (camposVacios.length > 0) {
+      const result = await Swal.fire({
+        title: "Columnas sin datos",
+        html: `
+        <p style="color:#64748b; margin-bottom:12px; font-size:14px;">Las siguientes columnas están completamente vacías:</p>
+        <ul style="text-align:left; padding-left:20px; margin-bottom:8px;">
+          ${camposVacios.map(c => `<li style="color:#dc2626; font-size:13px; margin-bottom:4px;">• <strong>${nombresLegibles[c]}</strong></li>`).join("")}
+        </ul>
+        <p style="color:#64748b; font-size:13px;">¿Exportar la plantilla TATC de todas formas?</p>
+      `,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#F97316",
+        cancelButtonColor: "#ef4444",
+        confirmButtonText: "Sí, exportar igual",
+        cancelButtonText: "Cancelar",
+        width: "480px",
+      });
+      if (!result.isConfirmed) return;
+    }
+
+    const nave = selectedInfo?.nombre_nave || selectedInfo?.nave || "nave";
+    const viaje = selectedInfo?.viaje || "viaje";
+    exportTATC(rows, `TATC_${nave}_${viaje}_${today()}.xlsx`);
+    showToast("success", "Plantilla TATC exportada");
+  };
 
   // ── Cerrar combo al click fuera ──
   useEffect(() => {
@@ -361,6 +445,8 @@ export default function Reportes() {
     }
   };
 
+
+
   // ── Verificar columnas vacías antes de exportar ──
   const checkEmptyColumns = async (rowsToCheck, columnsToCheck) => {
     const emptyLabels = columnsToCheck
@@ -392,60 +478,12 @@ export default function Reportes() {
     return result.isConfirmed;
   };
 
-  const handleExportAll = () => {
-    if (!rows.length) { showToast("error", "No hay datos para exportar"); return; }
-    const nave = selectedInfo?.nombre_nave || selectedInfo?.nave || "nave";
-    const viaje = selectedInfo?.viaje || "viaje";
-    exportToExcel(rows, `Reporte_${nave}_${viaje}_${today()}.xlsx`);
-    showToast("success", "Excel exportado (todos los BLs)");
-  };
-
   const handleExportSingleBL = (row) => {
     exportToExcel([row], `BL_${row.bl || "bl"}_${row.nombre_nave || "nave"}_${today()}.xlsx`);
     showToast("success", `Excel exportado para BL ${row.bl}`);
   };
 
-  const handleExportTATC = () => {
-    if (!rows.length) { showToast("error", "No hay datos para exportar"); return; }
 
-    // Columnas que esperamos tener datos (las que mapeamos)
-    const camposEsperados = ["nombre_nave", "viaje", "codigo_nave", "n_contenedor", "tipo_contenedor", "almacen", "deposito"];
-    const camposVacios = camposEsperados.filter(
-      (campo) => rows.some((r) => !r[campo])
-    );
-
-    const doExport = () => {
-      const nave = selectedInfo?.nombre_nave || selectedInfo?.nave || "nave";
-      const viaje = selectedInfo?.viaje || "viaje";
-      exportTATC(rows, `TATC_${nave}_${viaje}_${today()}.xlsx`);
-      showToast("success", "Plantilla TATC exportada");
-    };
-
-    if (camposVacios.length > 0) {
-      // Mapear keys a nombres legibles
-      const nombresLegibles = {
-        nombre_nave: "Nave",
-        viaje: "Viaje",
-        codigo_nave: "Lloyd / IMO",
-        n_contenedor: "Nro Contenedor",
-        tipo_contenedor: "Tipo Contenedor",
-        almacen: "Almacén",
-        deposito: "Depósito",
-      };
-
-      const lista = camposVacios.map((c) => nombresLegibles[c] || c).join(", ");
-
-      // Warning pero deja exportar igual
-      setToast({
-        type: "warning",
-        msg: `Faltan datos en: ${lista} — exportando de todas formas`,
-      });
-      setTimeout(() => setToast(null), 5000);
-      setTimeout(doExport, 300); // pequeño delay para que el toast se vea primero
-    } else {
-      doExport();
-    }
-  };
 
   // ── Importar Excel con depósito/almacén ──
   const handleFileUpload = (e) => {
@@ -584,7 +622,8 @@ export default function Reportes() {
               </button>
               <button
                 onClick={handleExportTATC}
-                className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 transition-colors"
+                disabled
+                className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white text-sm rounded-lg opacity-50 cursor-not-allowed"
               >
                 <Download size={15} /> Plantilla TATC
               </button>
@@ -770,111 +809,111 @@ export default function Reportes() {
                     </div>
                   </div>
 
-{/* Aviso IMO */}
-<div className="px-5 py-2 bg-blue-50 border-b border-blue-100 flex items-center gap-2">
-  <AlertCircle size={13} className="text-blue-400 shrink-0" />
-  <span className="text-[11px] text-blue-600">
-    Si el <strong>Lloyd / IMO</strong> de una nave no aparece o está incorrecto, puedes editarlo en{" "}
-    <a href="/mantenedores/naves" className="font-semibold underline hover:text-blue-800" target="_blank" rel="noreferrer">Mantenedores → Naves</a>
-  </span>
-</div>
+                  {/* Aviso IMO */}
+                  <div className="px-5 py-2 bg-blue-50 border-b border-blue-100 flex items-center gap-2">
+                    <AlertCircle size={13} className="text-blue-400 shrink-0" />
+                    <span className="text-[11px] text-blue-600">
+                      Si el <strong>Lloyd / IMO</strong> de una nave no aparece o está incorrecto, puedes editarlo en{" "}
+                      <a href="/mantenedores/naves" className="font-semibold underline hover:text-blue-800" target="_blank" rel="noreferrer">Mantenedores → Naves</a>
+                    </span>
+                  </div>
                   {/* Tabla */}
-              {filteredRows.length === 0 ? (
-                <div className="text-center py-16 text-slate-400 text-sm">
-                  <Search size={32} className="mx-auto mb-3 opacity-30" />
-                  <p>No hay resultados para "<strong>{tableSearch}</strong>"</p>
-                  <button onClick={() => { setTableSearch(""); setTableFilter("todos"); }} className="mt-2 text-xs text-[#0F2A44] hover:underline">Limpiar búsqueda</button>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="bg-[#0F2A44] text-white">
-                        <th className="px-3 py-3 w-10"></th>
-                        {COLUMNS.map((c) => (
-                          <th key={c.key} className="px-3 py-3 text-left font-semibold whitespace-nowrap">
-                            {c.label}
-                            {c.key === "deposito" && <span className="ml-1 text-yellow-300 text-[10px]">(manual)</span>}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredRows.map((row, i) => {
-                        const highlightCell = (text) => {
-                          if (!tableSearch || !text) return text || "—";
-                          const str = String(text);
-                          const q = tableSearch.toLowerCase();
-                          const idx = str.toLowerCase().indexOf(q);
-                          if (idx === -1) return str;
-                          return <>{str.slice(0, idx)}<mark className="bg-yellow-200 text-slate-900 rounded-sm px-0.5">{str.slice(idx, idx + q.length)}</mark>{str.slice(idx + q.length)}</>;
-                        };
-
-                        return (
-                          <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                            <td className="px-3 py-2 border-b border-slate-100">
-                              <button
-                                onClick={() => handleExportSingleBL(row)}
-                                title={`Exportar Excel solo BL ${row.bl || i + 1}`}
-                                className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
-                              >
-                                <Download size={13} />
-                              </button>
-                            </td>
+                  {filteredRows.length === 0 ? (
+                    <div className="text-center py-16 text-slate-400 text-sm">
+                      <Search size={32} className="mx-auto mb-3 opacity-30" />
+                      <p>No hay resultados para "<strong>{tableSearch}</strong>"</p>
+                      <button onClick={() => { setTableSearch(""); setTableFilter("todos"); }} className="mt-2 text-xs text-[#0F2A44] hover:underline">Limpiar búsqueda</button>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-[#0F2A44] text-white">
+                            <th className="px-3 py-3 w-10"></th>
                             {COLUMNS.map((c) => (
-                              <td key={c.key} className="px-3 py-2 border-b border-slate-100 whitespace-nowrap">
-                                {c.key === "deposito" ? (
-                                  <input
-                                    value={row[c.key] ?? ""}
-                                    onChange={(e) => {
-                                      const realIdx = rows.findIndex(r => r.bl === row.bl && r.n_contenedor === row.n_contenedor);
-                                      if (realIdx !== -1) handleCellEdit(realIdx, c.key, e.target.value);
-                                    }}
-                                    className="w-full min-w-[130px] bg-yellow-50 border border-yellow-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-yellow-300"
-                                    placeholder="Ingresa depósito..."
-                                  />
-                                ) : c.key === "almacen" ? (
-                                  <input
-                                    value={row[c.key] ?? ""}
-                                    onChange={(e) => {
-                                      const realIdx = rows.findIndex(r => r.bl === row.bl && r.n_contenedor === row.n_contenedor);
-                                      if (realIdx !== -1) handleCellEdit(realIdx, c.key, e.target.value);
-                                    }}
-                                    className="w-full min-w-[130px] bg-blue-50 border border-blue-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300"
-                                    placeholder="Almacén..."
-                                  />
-                                ) : (
-                                  <span className="text-slate-700">{highlightCell(row[c.key])}</span>
-                                )}
-                              </td>
+                              <th key={c.key} className="px-3 py-3 text-left font-semibold whitespace-nowrap">
+                                {c.label}
+                                {c.key === "deposito" && <span className="ml-1 text-yellow-300 text-[10px]">(manual)</span>}
+                              </th>
                             ))}
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                        </thead>
+                        <tbody>
+                          {filteredRows.map((row, i) => {
+                            const highlightCell = (text) => {
+                              if (!tableSearch || !text) return text || "—";
+                              const str = String(text);
+                              const q = tableSearch.toLowerCase();
+                              const idx = str.toLowerCase().indexOf(q);
+                              if (idx === -1) return str;
+                              return <>{str.slice(0, idx)}<mark className="bg-yellow-200 text-slate-900 rounded-sm px-0.5">{str.slice(idx, idx + q.length)}</mark>{str.slice(idx + q.length)}</>;
+                            };
+
+                            return (
+                              <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                                <td className="px-3 py-2 border-b border-slate-100">
+                                  <button
+                                    onClick={() => handleExportSingleBL(row)}
+                                    title={`Exportar Excel solo BL ${row.bl || i + 1}`}
+                                    className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                                  >
+                                    <Download size={13} />
+                                  </button>
+                                </td>
+                                {COLUMNS.map((c) => (
+                                  <td key={c.key} className="px-3 py-2 border-b border-slate-100 whitespace-nowrap">
+                                    {c.key === "deposito" ? (
+                                      <input
+                                        value={row[c.key] ?? ""}
+                                        onChange={(e) => {
+                                          const realIdx = rows.findIndex(r => r.bl === row.bl && r.n_contenedor === row.n_contenedor);
+                                          if (realIdx !== -1) handleCellEdit(realIdx, c.key, e.target.value);
+                                        }}
+                                        className="w-full min-w-[130px] bg-yellow-50 border border-yellow-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-yellow-300"
+                                        placeholder="Ingresa depósito..."
+                                      />
+                                    ) : c.key === "almacen" ? (
+                                      <input
+                                        value={row[c.key] ?? ""}
+                                        onChange={(e) => {
+                                          const realIdx = rows.findIndex(r => r.bl === row.bl && r.n_contenedor === row.n_contenedor);
+                                          if (realIdx !== -1) handleCellEdit(realIdx, c.key, e.target.value);
+                                        }}
+                                        className="w-full min-w-[130px] bg-blue-50 border border-blue-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                        placeholder="Almacén..."
+                                      />
+                                    ) : (
+                                      <span className="text-slate-700">{highlightCell(row[c.key])}</span>
+                                    )}
+                                  </td>
+                                ))}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-              )}
-        </>
+            </>
           )}
+        </div>
       </div>
-    </div>
 
       {
-    toast && (
-      <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg text-sm text-white z-50 ${toast.type === "success" ? "bg-emerald-600"
-        : toast.type === "warning" ? "bg-orange-500"
-          : "bg-red-500"
-        }`}>
-        {toast.type === "success" ? <CheckCircle size={18} />
-          : toast.type === "warning" ? <AlertCircle size={18} />
-            : <AlertCircle size={18} />}
-        {toast.msg}
-      </div>
-    )
-  }
+        toast && (
+          <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg text-sm text-white z-50 ${toast.type === "success" ? "bg-emerald-600"
+            : toast.type === "warning" ? "bg-orange-500"
+              : "bg-red-500"
+            }`}>
+            {toast.type === "success" ? <CheckCircle size={18} />
+              : toast.type === "warning" ? <AlertCircle size={18} />
+                : <AlertCircle size={18} />}
+            {toast.msg}
+          </div>
+        )
+      }
     </div >
-  );
-}
+  )
+};
