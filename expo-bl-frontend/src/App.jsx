@@ -16,6 +16,7 @@ import GenerarXML from "./pages/GenerarXML";
 import BulkEditBL from "./pages/BulkEditBL";
 import CargaSueltaNuevo from "./pages/CargaSueltaNuevo";
 import CargaSueltaEdit from "./pages/CargaSueltaEdit";
+import Reportes from "./pages/Reportes";
 import ParticipanteSelector from "./components/ParticipanteSelector";
 
 
@@ -93,7 +94,7 @@ function App() {
             </ProtectedRoute>
           }
         />
-        
+
 
         {/* 🔥 RUTA DE EDICIÓN MASIVA - Debe ir ANTES de /expo/:blNumber */}
         <Route
@@ -159,6 +160,14 @@ function App() {
           element={
             <ProtectedRoute>
               <CRUDMantenedor />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reportes"
+          element={
+            <ProtectedRoute>
+              <Reportes />
             </ProtectedRoute>
           }
         />
