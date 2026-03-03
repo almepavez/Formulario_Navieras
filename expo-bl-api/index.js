@@ -95,8 +95,8 @@ const EMAILS_PERMITIDOS = {
   'inunez@broomgroup.com': 'admin',
   'apavez@broomgroup.com': 'admin',
   'iriffo@broomgroup.com': 'admin',
-  'driquelme.sai@broomchile.com': 'admin',   
-  'mdiaz.sai@broomchile.com': 'admin',        
+  'driquelme.sai@broomchile.com': 'admin',
+  'mdiaz.sai@broomchile.com': 'admin',
 };
 
 // 🔒 FUNCIÓN AUXILIAR: Verificar email autorizado
@@ -817,6 +817,9 @@ app.get("/manifiestos", async (_req, res) => {
           m.id,
           s.codigo AS servicio,
           n.nombre AS nave,
+          n.nombre AS nombre_nave,
+          n.codigo AS codigo_nave,
+          n.imo AS imo, 
           m.viaje,
           pc.nombre AS puertoCentral,
           m.tipo_operacion AS tipoOperacion,
@@ -841,6 +844,80 @@ app.get("/manifiestos", async (_req, res) => {
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err?.message || "Error listando manifiestos" });
+  }
+});
+
+
+app.get("/manifiestos/:id/bls", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+   // REEMPLAZA toda la query del endpoint app.get("/manifiestos/:id/bls"
+const query = `
+  SELECT
+    b.*,
+    ts.nombre AS tipo_servicio,
+    le.nombre AS lugar_emision,
+    pe.nombre AS puerto_embarque,
+    pd.nombre AS puerto_descarga,
+    ld.nombre AS lugar_destino,
+    len.nombre AS lugar_entrega,
+    lr.nombre AS lugar_recepcion,
+    nv.codigo AS codigo_nave,
+    nv.imo AS imo_nave, 
+    ref_emi.nombre_emisor AS operador_nave,
+
+
+    (SELECT COUNT(*)
+     FROM bl_contenedores bc
+     WHERE bc.bl_id = b.id
+    ) AS total_contenedores,
+
+    (SELECT JSON_ARRAYAGG(
+       JSON_OBJECT(
+         'codigo', CONCAT(bc.sigla, ' ', bc.numero, '-', bc.digito),
+         'tipo_cnt', bc.tipo_cnt
+       )
+     )
+     FROM bl_contenedores bc
+     WHERE bc.bl_id = b.id
+    ) AS contenedores_json
+
+  FROM bls b
+  LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
+  LEFT JOIN puertos le  ON b.lugar_emision_id    = le.id
+  LEFT JOIN puertos pe  ON b.puerto_embarque_id  = pe.id
+  LEFT JOIN puertos pd  ON b.puerto_descarga_id  = pd.id
+  LEFT JOIN puertos ld  ON b.lugar_destino_id    = ld.id
+  LEFT JOIN puertos len ON b.lugar_entrega_id    = len.id
+  LEFT JOIN puertos lr  ON b.lugar_recepcion_id  = lr.id
+  LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
+  LEFT JOIN naves nv ON m.nave_id = nv.id
+  LEFT JOIN referencias ref_emi ON m.operador_nave = ref_emi.customer_id
+
+
+  WHERE b.manifiesto_id = ?
+  ORDER BY b.bl_number
+`;
+
+const [rows] = await pool.query(query, [id]);
+
+const parsed = rows.map((bl) => ({
+  ...bl,
+  contenedores: (() => {
+    const raw = bl.contenedores_json;
+    if (!raw) return [];
+    if (typeof raw === "string") {
+      try { return JSON.parse(raw); } catch { return []; }
+    }
+    return Array.isArray(raw) ? raw : [];
+  })(),
+}));
+
+res.json(parsed);
+  } catch (error) {
+    console.error("Error al obtener BLs del manifiesto:", error);
+    res.status(500).json({ error: "Error al obtener BLs del manifiesto" });
   }
 });
 
@@ -983,7 +1060,7 @@ app.get("/api/manifiestos/siguiente-numero-referencia", async (req, res) => {
 app.get("/api/mantenedores/puertos", async (_req, res) => {
   try {
     const [rows] = await pool.query(
-"SELECT id, codigo, codigo_sidemar, nombre, created_at, updated_at FROM puertos ORDER BY codigo"    );
+      "SELECT id, codigo, codigo_sidemar, nombre, created_at, updated_at FROM puertos ORDER BY codigo");
     res.json(rows);
   } catch (error) {
     console.error("Error al obtener puertos:", error);
@@ -994,7 +1071,7 @@ app.get("/api/mantenedores/puertos", async (_req, res) => {
 app.get("/api/mantenedores/puertos/:id", async (req, res) => {
   try {
     const [rows] = await pool.query(
-"SELECT id, codigo, codigo_sidemar, nombre, created_at, updated_at FROM puertos WHERE id = ?",
+      "SELECT id, codigo, codigo_sidemar, nombre, created_at, updated_at FROM puertos WHERE id = ?",
       [req.params.id]
     );
     if (rows.length === 0) return res.status(404).json({ error: "Puerto no encontrado" });
@@ -1011,7 +1088,7 @@ app.post("/api/mantenedores/puertos", async (req, res) => {
   try {
     await conn.beginTransaction();
 
-const { codigo, nombre, codigo_sidemar } = req.body;
+    const { codigo, nombre, codigo_sidemar } = req.body;
 
     if (!codigo || !nombre) {
       return res.status(400).json({ error: "codigo y nombre son obligatorios" });
@@ -1021,9 +1098,9 @@ const { codigo, nombre, codigo_sidemar } = req.body;
 
     // 1️⃣ Insertar el puerto
     const [result] = await conn.query(
-  "INSERT INTO puertos (codigo, codigo_sidemar, nombre) VALUES (?, ?, ?)",
-  [codigoUpper, (codigo_sidemar?.trim() || null), nombre.trim()]
-);
+      "INSERT INTO puertos (codigo, codigo_sidemar, nombre) VALUES (?, ?, ?)",
+      [codigoUpper, (codigo_sidemar?.trim() || null), nombre.trim()]
+    );
 
     const puertoId = result.insertId;
 
@@ -1113,7 +1190,7 @@ app.put("/api/mantenedores/puertos/:id", async (req, res) => {
   try {
     await conn.beginTransaction();
 
-const { codigo, nombre, codigo_sidemar } = req.body;
+    const { codigo, nombre, codigo_sidemar } = req.body;
     const { id } = req.params;
 
     if (!codigo || !nombre) {
@@ -1124,9 +1201,9 @@ const { codigo, nombre, codigo_sidemar } = req.body;
 
     // 1️⃣ Actualizar el puerto
     const [result] = await conn.query(
-  "UPDATE puertos SET codigo = ?, codigo_sidemar = ?, nombre = ? WHERE id = ?",
-  [codigoUpper, (codigo_sidemar?.trim() || null), nombre.trim(), id]
-);
+      "UPDATE puertos SET codigo = ?, codigo_sidemar = ?, nombre = ? WHERE id = ?",
+      [codigoUpper, (codigo_sidemar?.trim() || null), nombre.trim(), id]
+    );
 
     if (result.affectedRows === 0) {
       await conn.rollback();
@@ -1383,7 +1460,7 @@ app.delete("/api/mantenedores/servicios/:id", async (req, res) => {
 app.get("/api/mantenedores/naves", async (_req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT id, codigo, nombre, created_at, updated_at FROM naves ORDER BY nombre"
+      "SELECT id, codigo, nombre, imo, created_at, updated_at FROM naves ORDER BY nombre"
     );
     res.json(rows);
   } catch (error) {
@@ -1395,7 +1472,7 @@ app.get("/api/mantenedores/naves", async (_req, res) => {
 app.get("/api/mantenedores/naves/:id", async (req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT id, codigo, nombre, created_at, updated_at FROM naves WHERE id = ?",
+      "SELECT id, codigo, nombre, imo, created_at, updated_at FROM naves WHERE id = ?",
       [req.params.id]
     );
     if (rows.length === 0) return res.status(404).json({ error: "Nave no encontrada" });
@@ -1408,21 +1485,22 @@ app.get("/api/mantenedores/naves/:id", async (req, res) => {
 
 app.post("/api/mantenedores/naves", async (req, res) => {
   try {
-    const { codigo, nombre } = req.body;
+    const { codigo, nombre, imo } = req.body;
 
     if (!codigo || !nombre) {
       return res.status(400).json({ error: "codigo y nombre son obligatorios" });
     }
 
     const [result] = await pool.query(
-      "INSERT INTO naves (codigo, nombre) VALUES (?, ?)",
-      [codigo.trim(), nombre.trim()]
+      "INSERT INTO naves (codigo, nombre, imo) VALUES (?, ?, ?)",
+      [codigo.trim(), nombre.trim(), imo?.trim() || null]
     );
 
     res.status(201).json({
       id: result.insertId,
       codigo: codigo.trim(),
       nombre: nombre.trim(),
+      imo: imo?.trim() || null,
     });
   } catch (error) {
     console.error("Error al crear nave:", error);
@@ -1432,7 +1510,7 @@ app.post("/api/mantenedores/naves", async (req, res) => {
 
 app.put("/api/mantenedores/naves/:id", async (req, res) => {
   try {
-    const { codigo, nombre } = req.body;
+    const { codigo, nombre, imo } = req.body;
     const { id } = req.params;
 
     if (!codigo || !nombre) {
@@ -1440,8 +1518,8 @@ app.put("/api/mantenedores/naves/:id", async (req, res) => {
     }
 
     const [result] = await pool.query(
-      "UPDATE naves SET codigo = ?, nombre = ? WHERE id = ?",
-      [codigo.trim(), nombre.trim(), id]
+      "UPDATE naves SET codigo = ?, nombre = ?, imo = ? WHERE id = ?",
+      [codigo.trim(), nombre.trim(), imo?.trim() || null, id]
     );
 
     if (result.affectedRows === 0) return res.status(404).json({ error: "Nave no encontrada" });
@@ -1450,21 +1528,11 @@ app.put("/api/mantenedores/naves/:id", async (req, res) => {
       id: Number(id),
       codigo: codigo.trim(),
       nombre: nombre.trim(),
+      imo: imo?.trim() || null,
     });
   } catch (error) {
     console.error("Error al actualizar nave:", error);
     res.status(500).json({ error: "Error al actualizar nave" });
-  }
-});
-
-app.delete("/api/mantenedores/naves/:id", async (req, res) => {
-  try {
-    const [result] = await pool.query("DELETE FROM naves WHERE id = ?", [req.params.id]);
-    if (result.affectedRows === 0) return res.status(404).json({ error: "Nave no encontrada" });
-    res.json({ message: "Nave eliminada correctamente" });
-  } catch (error) {
-    console.error("Error al eliminar nave:", error);
-    res.status(500).json({ error: "Error al eliminar nave" });
   }
 });
 
@@ -5253,43 +5321,7 @@ app.patch('/bls/:blNumber', async (req, res) => {
   }
 });
 
-app.get("/manifiestos/:id/bls", async (req, res) => {
-  try {
-    const { id } = req.params;
 
-    const query = `
-      SELECT
-        b.*,
-        ts.nombre AS tipo_servicio,
-
-        le.nombre AS lugar_emision,
-        pe.nombre AS puerto_embarque,
-        pd.nombre AS puerto_descarga,
-        ld.nombre AS lugar_destino,
-        len.nombre AS lugar_entrega,
-        lr.nombre AS lugar_recepcion
-
-      FROM bls b
-      LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
-
-      LEFT JOIN puertos le  ON b.lugar_emision_id    = le.id
-      LEFT JOIN puertos pe  ON b.puerto_embarque_id  = pe.id
-      LEFT JOIN puertos pd  ON b.puerto_descarga_id  = pd.id
-      LEFT JOIN puertos ld  ON b.lugar_destino_id    = ld.id
-      LEFT JOIN puertos len ON b.lugar_entrega_id    = len.id
-      LEFT JOIN puertos lr  ON b.lugar_recepcion_id  = lr.id
-
-      WHERE b.manifiesto_id = ?
-      ORDER BY b.bl_number
-    `;
-
-    const [rows] = await pool.query(query, [id]);
-    res.json(rows);
-  } catch (error) {
-    console.error("Error al obtener BLs del manifiesto:", error);
-    res.status(500).json({ error: "Error al obtener BLs del manifiesto" });
-  }
-});
 
 
 // 🔥 AGREGAR/ACTUALIZAR ENDPOINT EN EL BACKEND
@@ -8395,6 +8427,71 @@ app.get("/bls/:id/validar-tipo", async (req, res) => {
   }
 });
 
+// GET /manifiestos/:id/depositos
+app.get("/manifiestos/:id/depositos", async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT bl, n_contenedor, deposito, almacen
+       FROM reportes
+       WHERE manifiesto_id = ?`,
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al obtener depósitos" });
+  }
+});
+
+// PUT /manifiestos/:id/depositos
+app.put("/manifiestos/:id/depositos", async (req, res) => {
+  const { bl, n_contenedor = "", deposito = "", almacen = "" } = req.body;
+  if (!bl) return res.status(400).json({ error: "bl es requerido" });
+  try {
+    await pool.query(
+      `INSERT INTO reportes (manifiesto_id, bl, n_contenedor, deposito, almacen)
+       VALUES (?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         deposito   = VALUES(deposito),
+         almacen    = VALUES(almacen),
+         updated_at = CURRENT_TIMESTAMP`,
+      [req.params.id, bl, n_contenedor, deposito, almacen]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al guardar" });
+  }
+});
+
+// PUT /manifiestos/:id/depositos/bulk
+app.put("/manifiestos/:id/depositos/bulk", async (req, res) => {
+  const filas = req.body;
+  if (!Array.isArray(filas) || filas.length === 0)
+    return res.status(400).json({ error: "Se esperaba un array de filas" });
+  try {
+    const values = filas.map((f) => [
+      req.params.id,
+      f.bl || "",
+      f.n_contenedor || "",
+      f.deposito || "",
+      f.almacen || "",
+    ]);
+    await pool.query(
+      `INSERT INTO reportes (manifiesto_id, bl, n_contenedor, deposito, almacen)
+       VALUES ?
+       ON DUPLICATE KEY UPDATE
+         deposito   = VALUES(deposito),
+         almacen    = VALUES(almacen),
+         updated_at = CURRENT_TIMESTAMP`,
+      [values]
+    );
+    res.json({ ok: true, actualizadas: filas.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al guardar en bulk" });
+  }
+});
 // GET /tipos-contenedor
 app.get('/tipos-contenedor', async (req, res) => {
   try {

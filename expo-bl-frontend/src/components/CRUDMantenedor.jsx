@@ -91,6 +91,7 @@ const CRUDMantenedor = () => {
       fields: [
         { key: "codigo", label: "Código", type: "text", required: true, placeholder: "EVERFEAT" },
         { key: "nombre", label: "Nombre", type: "text", required: true, placeholder: "EVER FEAT" },
+        { key: "imo", label: "Lloyd / IMO", type: "text", required: false, placeholder: "Ej: 9876543" },
       ],
     },
     "tipo-bulto": {

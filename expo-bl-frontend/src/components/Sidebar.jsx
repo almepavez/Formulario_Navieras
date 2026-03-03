@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { 
-  FileText, 
-  Ship, 
+import { BarChart2 } from "lucide-react";
+
+import {
+  FileText,
+  Ship,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -25,10 +27,9 @@ const Sidebar = () => {
   };
 
   return (
-    <aside 
-      className={`bg-[#0F2A44] text-white flex flex-col transition-all duration-300 ease-in-out ${
-        isExpanded ? "w-64" : "w-20"
-      }`}
+    <aside
+      className={`bg-[#0F2A44] text-white flex flex-col transition-all duration-300 ease-in-out ${isExpanded ? "w-64" : "w-20"
+        }`}
       onMouseEnter={() => isCollapsed && setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -41,7 +42,7 @@ const Sidebar = () => {
             <img src={logo} alt="Broom Group" className="h-20 w-15 object-contain" />
           )}
         </div>
-        
+
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="absolute top-4 right-4 p-2 rounded-lg hover:bg-white/10 transition-colors"
@@ -56,8 +57,7 @@ const Sidebar = () => {
         <NavLink
           to="/manifiestos"
           className={({ isActive }) =>
-            `flex items-center gap-3 px-4 py-3 rounded-lg transition-all group relative ${
-              isActive ? "bg-white/15 text-white font-medium" : "text-slate-300 hover:bg-white/10 hover:text-white"
+            `flex items-center gap-3 px-4 py-3 rounded-lg transition-all group relative ${isActive ? "bg-white/15 text-white font-medium" : "text-slate-300 hover:bg-white/10 hover:text-white"
             }`
           }
         >
@@ -75,10 +75,9 @@ const Sidebar = () => {
         <NavLink
           to="/expo-bl"
           className={({ isActive }) =>
-            `flex items-center gap-3 px-4 py-3 rounded-lg transition-all group relative ${
-              isActive || location.pathname.startsWith('/expo-bl/')
-                ? "bg-white/15 text-white font-medium" 
-                : "text-slate-300 hover:bg-white/10 hover:text-white"
+            `flex items-center gap-3 px-4 py-3 rounded-lg transition-all group relative ${isActive || location.pathname.startsWith('/expo-bl/')
+              ? "bg-white/15 text-white font-medium"
+              : "text-slate-300 hover:bg-white/10 hover:text-white"
             }`
           }
         >
@@ -95,8 +94,7 @@ const Sidebar = () => {
         <NavLink
           to="/mantenedores"
           className={({ isActive }) =>
-            `flex items-center gap-3 px-4 py-3 rounded-lg transition-all group relative ${
-              isActive ? "bg-white/15 text-white font-medium" : "text-slate-300 hover:bg-white/10 hover:text-white"
+            `flex items-center gap-3 px-4 py-3 rounded-lg transition-all group relative ${isActive ? "bg-white/15 text-white font-medium" : "text-slate-300 hover:bg-white/10 hover:text-white"
             }`
           }
         >
@@ -105,6 +103,25 @@ const Sidebar = () => {
           {!isExpanded && (
             <div className="absolute left-full ml-2 px-3 py-2 bg-slate-800 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
               Mantenedores
+              <div className="absolute right-full top-1/2 -translate-y-1/2 border-8 border-transparent border-r-slate-800"></div>
+            </div>
+          )}
+        </NavLink>
+
+        <NavLink
+          to="/reportes"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-4 py-3 rounded-lg transition-all group relative ${isActive || location.pathname.startsWith('/reportes')
+              ? "bg-white/15 text-white font-medium"
+              : "text-slate-300 hover:bg-white/10 hover:text-white"
+            }`
+          }
+        >
+          <BarChart2 size={20} className="flex-shrink-0" />
+          {isExpanded && <span className="text-sm">Reportes</span>}
+          {!isExpanded && (
+            <div className="absolute left-full ml-2 px-3 py-2 bg-slate-800 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
+              Reportes
               <div className="absolute right-full top-1/2 -translate-y-1/2 border-8 border-transparent border-r-slate-800"></div>
             </div>
           )}
