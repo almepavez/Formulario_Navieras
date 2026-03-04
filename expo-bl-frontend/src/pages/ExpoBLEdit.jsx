@@ -38,7 +38,7 @@ const ExpoBLEdit = () => {
     });
 
     useEffect(() => {
-        fetch('${API_BASE}/tipos-contenedor')  // ✅ CORRECTO
+        fetch(`${API_BASE}/tipos-contenedor`) // ✅ CORRECTO
             .then(res => res.json())
             .then(data => setTiposContenedor(data))
             .catch(err => console.error('Error:', err));
