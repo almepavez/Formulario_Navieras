@@ -197,6 +197,11 @@ const AlmacenadorSelector = ({ value, displayValue, onChange, onClear }) => {
     );
 };
 
+const validarEmail = (email) => {
+    if (!email || email.trim() === "") return true;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+};
+
 // ==================== MAIN COMPONENT ====================
 const CargaSueltaEdit = () => {
     const { blNumber } = useParams();
@@ -850,13 +855,9 @@ const Step1DatosBL = ({ formData, setFormData, manifiestoData, puertos }) => (
 );
 
 const Step2Participantes = ({ formData, setFormData }) => {
+    
     const updateField = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
-    // AGREGAR ESTO
     const [emailErrors, setEmailErrors] = useState({ shipper: false, consignee: false, notify: false });
-    const validarEmail = (email) => {
-        if (!email || email.trim() === "") return true;
-        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    };
     const addObservacion = () => setFormData({ ...formData, observaciones: [...formData.observaciones, { nombre: 'GRAL', contenido: '' }] });
     const removeObservacion = (index) => setFormData({ ...formData, observaciones: formData.observaciones.filter((_, idx) => idx !== index) });
     const updateObservacion = (index, field, value) => {
