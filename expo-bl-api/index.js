@@ -852,14 +852,18 @@ app.get("/manifiestos/:id/bls", async (req, res) => {
   try {
     const { id } = req.params;
 
-   // REEMPLAZA toda la query del endpoint app.get("/manifiestos/:id/bls"
-const query = `
+    // REEMPLAZA toda la query del endpoint app.get("/manifiestos/:id/bls"
+    const query = `
   SELECT
     b.*,
     ts.nombre AS tipo_servicio,
     le.nombre AS lugar_emision,
     pe.nombre AS puerto_embarque,
+    pe.codigo AS codigo_puerto_embarque,
     pd.nombre AS puerto_descarga,
+    pd.codigo AS codigo_puerto_descarga,
+    pd.codigo_aduana AS aduana_descarga,
+    pe.codigo_aduana AS aduana_embarque,
     ld.nombre AS lugar_destino,
     len.nombre AS lugar_entrega,
     lr.nombre AS lugar_recepcion,
@@ -873,13 +877,18 @@ const query = `
      WHERE bc.bl_id = b.id
     ) AS total_contenedores,
 
-    (SELECT JSON_ARRAYAGG(
+(SELECT JSON_ARRAYAGG(
        JSON_OBJECT(
          'codigo', CONCAT(bc.sigla, ' ', bc.numero, '-', bc.digito),
-         'tipo_cnt', bc.tipo_cnt
+         'codigo_raw', bc.codigo,
+         'tipo_cnt', bc.tipo_cnt,
+         'tam_contenedor', tcb.tam_contenedor,
+         'tipo_cnt_sna', tcb.tipo_cnt_sna,
+        'tipo_bulto', tcb.tipo_bulto
        )
      )
      FROM bl_contenedores bc
+     LEFT JOIN tipo_cnt_tipo_bulto tcb ON bc.tipo_cnt = tcb.tipo_cnt
      WHERE bc.bl_id = b.id
     ) AS contenedores_json
 
@@ -900,21 +909,21 @@ const query = `
   ORDER BY b.bl_number
 `;
 
-const [rows] = await pool.query(query, [id]);
+    const [rows] = await pool.query(query, [id]);
 
-const parsed = rows.map((bl) => ({
-  ...bl,
-  contenedores: (() => {
-    const raw = bl.contenedores_json;
-    if (!raw) return [];
-    if (typeof raw === "string") {
-      try { return JSON.parse(raw); } catch { return []; }
-    }
-    return Array.isArray(raw) ? raw : [];
-  })(),
-}));
+    const parsed = rows.map((bl) => ({
+      ...bl,
+      contenedores: (() => {
+        const raw = bl.contenedores_json;
+        if (!raw) return [];
+        if (typeof raw === "string") {
+          try { return JSON.parse(raw); } catch { return []; }
+        }
+        return Array.isArray(raw) ? raw : [];
+      })(),
+    }));
 
-res.json(parsed);
+    res.json(parsed);
   } catch (error) {
     console.error("Error al obtener BLs del manifiesto:", error);
     res.status(500).json({ error: "Error al obtener BLs del manifiesto" });
@@ -1548,8 +1557,7 @@ app.put("/api/mantenedores/naves/:id", async (req, res) => {
 app.get('/api/mantenedores/tipo-bulto', async (req, res) => {
   try {
     const [rows] = await pool.query(
-      'SELECT id, tipo_cnt, tipo_bulto, activo FROM tipo_cnt_tipo_bulto ORDER BY tipo_cnt'
-    );
+      'SELECT id, tipo_cnt, tipo_bulto, tam_contenedor, tipo_contenedor, tipo_cnt_sna, activo FROM tipo_cnt_tipo_bulto ORDER BY tipo_cnt');
     res.json(rows);
   } catch (error) {
     console.error('Error al obtener tipos de bulto:', error);
@@ -1561,7 +1569,7 @@ app.get('/api/mantenedores/tipo-bulto', async (req, res) => {
 app.get('/api/mantenedores/tipo-bulto/:id', async (req, res) => {
   try {
     const [rows] = await pool.query(
-      'SELECT id, tipo_cnt, tipo_bulto, activo FROM tipo_cnt_tipo_bulto WHERE id = ?',
+      'SELECT id, tipo_cnt, tipo_bulto, tam_contenedor, tipo_contenedor, tipo_cnt_sna, activo FROM tipo_cnt_tipo_bulto WHERE id = ?',
       [req.params.id]
     );
 
@@ -1578,22 +1586,24 @@ app.get('/api/mantenedores/tipo-bulto/:id', async (req, res) => {
 
 // POST - Crear tipo de bulto
 app.post('/api/mantenedores/tipo-bulto', async (req, res) => {
-  const { tipo_cnt, tipo_bulto, activo } = req.body;
-
+  const { tipo_cnt, tipo_bulto, tam_contenedor, tipo_contenedor, tipo_cnt_sna, activo } = req.body;
   try {
     if (!tipo_cnt || !tipo_bulto) {
       return res.status(400).json({ error: 'tipo_cnt y tipo_bulto son obligatorios' });
     }
 
     const [result] = await pool.query(
-      'INSERT INTO tipo_cnt_tipo_bulto (tipo_cnt, tipo_bulto, activo) VALUES (?, ?, ?)',
-      [tipo_cnt, tipo_bulto, activo ?? 1]
+      'INSERT INTO tipo_cnt_tipo_bulto (tipo_cnt, tipo_bulto, tam_contenedor, tipo_contenedor, tipo_cnt_sna, activo) VALUES (?, ?, ?, ?, ?, ?)',
+      [tipo_cnt, tipo_bulto, tam_contenedor ?? null, tipo_contenedor ?? null, tipo_cnt_sna ?? null, activo ?? 1]
     );
 
     res.status(201).json({
       id: result.insertId,
       tipo_cnt,
       tipo_bulto,
+      tam_contenedor: tam_contenedor ?? null,
+      tipo_contenedor: tipo_contenedor ?? null,
+      tipo_cnt_sna: tipo_cnt_sna ?? null,
       activo: activo ?? 1
     });
   } catch (error) {
@@ -1610,8 +1620,7 @@ app.post('/api/mantenedores/tipo-bulto', async (req, res) => {
 // PUT - Actualizar tipo de bulto
 app.put('/api/mantenedores/tipo-bulto/:id', async (req, res) => {
   const { id } = req.params;
-  const { tipo_cnt, tipo_bulto, activo } = req.body;
-
+  const { tipo_cnt, tipo_bulto, tam_contenedor, tipo_contenedor, tipo_cnt_sna, activo } = req.body;
   console.log('🔧 PUT tipo-bulto recibido:', { id, body: req.body });
 
   try {
@@ -1639,8 +1648,8 @@ app.put('/api/mantenedores/tipo-bulto/:id', async (req, res) => {
     }
 
     const [result] = await pool.query(
-      'UPDATE tipo_cnt_tipo_bulto SET tipo_cnt = ?, tipo_bulto = ?, activo = ? WHERE id = ?',
-      [tipo_cnt.trim(), tipo_bulto.trim(), activoValue, idNum]
+      'UPDATE tipo_cnt_tipo_bulto SET tipo_cnt = ?, tipo_bulto = ?, tam_contenedor = ?, tipo_contenedor = ?, tipo_cnt_sna = ?, activo = ? WHERE id = ?',
+      [tipo_cnt.trim(), tipo_bulto.trim(), tam_contenedor ?? null, tipo_contenedor ?? null, tipo_cnt_sna ?? null, activoValue, idNum]
     );
 
     console.log('✅ Tipo de bulto actualizado:', {
@@ -1655,6 +1664,9 @@ app.put('/api/mantenedores/tipo-bulto/:id', async (req, res) => {
       id: idNum,
       tipo_cnt: tipo_cnt.trim(),
       tipo_bulto: tipo_bulto.trim(),
+      tam_contenedor: tam_contenedor ?? null,
+      tipo_contenedor: tipo_contenedor ?? null,
+      tipo_cnt_sna: tipo_cnt_sna ?? null,
       activo: activoValue
     });
   } catch (error) {
@@ -4677,7 +4689,6 @@ n.nombre AS nave,
 });
 
 // GET un BL específico por número
-// REEMPLAZA tu GET /bls/:blNumber actual por este:
 // REEMPLAZA tu GET /bls/:blNumber (línea ~2570) por este:
 app.get("/bls/:blNumber", async (req, res) => {
   const conn = await pool.getConnection();
@@ -5789,7 +5800,6 @@ function validateBLForXML(bl) {
   };
 }
 
-// ... resto del código existente
 // Función helper para formatear fechas DD-MM-YYYY HH:MM
 function formatDateTimeCL(isoDate) {
   if (!isoDate) return null;
@@ -6481,7 +6491,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
     res.status(500).json({ error: "Error al generar XML", details: error.message });
   }
 });
-// POST /api/manifiestos/:id/generar-xmls-multiples
+
 // Genera múltiples XMLs y los devuelve en un ZIP
 app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
   try {
@@ -6986,7 +6996,6 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
   }
 });
 
-// 🆕 GET /bls/:blNumber/transbordos
 // Obtener transbordos de un BL específico
 app.get("/bls/:blNumber/transbordos", async (req, res) => {
   try {
@@ -7027,7 +7036,6 @@ app.get("/bls/:blNumber/transbordos", async (req, res) => {
 });
 
 
-// 🆕 PUT /bls/:blNumber/transbordos
 // Actualizar transbordos de un BL
 app.put("/bls/:blNumber/transbordos", async (req, res) => {
   const { blNumber } = req.params;
