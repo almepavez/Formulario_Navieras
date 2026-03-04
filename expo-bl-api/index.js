@@ -852,8 +852,8 @@ app.get("/manifiestos/:id/bls", async (req, res) => {
   try {
     const { id } = req.params;
 
-   // REEMPLAZA toda la query del endpoint app.get("/manifiestos/:id/bls"
-const query = `
+    // REEMPLAZA toda la query del endpoint app.get("/manifiestos/:id/bls"
+    const query = `
   SELECT
     b.*,
     ts.nombre AS tipo_servicio,
@@ -900,21 +900,21 @@ const query = `
   ORDER BY b.bl_number
 `;
 
-const [rows] = await pool.query(query, [id]);
+    const [rows] = await pool.query(query, [id]);
 
-const parsed = rows.map((bl) => ({
-  ...bl,
-  contenedores: (() => {
-    const raw = bl.contenedores_json;
-    if (!raw) return [];
-    if (typeof raw === "string") {
-      try { return JSON.parse(raw); } catch { return []; }
-    }
-    return Array.isArray(raw) ? raw : [];
-  })(),
-}));
+    const parsed = rows.map((bl) => ({
+      ...bl,
+      contenedores: (() => {
+        const raw = bl.contenedores_json;
+        if (!raw) return [];
+        if (typeof raw === "string") {
+          try { return JSON.parse(raw); } catch { return []; }
+        }
+        return Array.isArray(raw) ? raw : [];
+      })(),
+    }));
 
-res.json(parsed);
+    res.json(parsed);
   } catch (error) {
     console.error("Error al obtener BLs del manifiesto:", error);
     res.status(500).json({ error: "Error al obtener BLs del manifiesto" });
@@ -8134,6 +8134,20 @@ app.post("/manifiestos/:id/carga-suelta", async (req, res) => {
     consignee,
     notify_party,
     almacenador,
+    shipper_direccion,
+    shipper_telefono,
+    shipper_email,
+    shipper_codigo_pil,
+
+    consignee_direccion,
+    consignee_telefono,
+    consignee_email,
+    consignee_codigo_pil,
+
+    notify_direccion,
+    notify_telefono,
+    notify_email,
+    notify_codigo_pil,
 
     items,
     observaciones
@@ -8297,10 +8311,13 @@ app.post("/manifiestos/:id/carga-suelta", async (req, res) => {
 
     // 🔥 INSERTAR BL CON IDs DE PARTICIPANTES
     const [blResult] = await connection.query(
-      `INSERT INTO bls (
+  `INSERT INTO bls (
     manifiesto_id, bl_number, tipo_servicio_id, forma_pago_flete, cond_transporte,
     shipper_id, consignee_id, notify_id, almacenador_id,
-    shipper, consignee, notify_party, almacenador,
+    shipper, shipper_direccion, shipper_telefono, shipper_email, shipper_codigo_pil,
+    consignee, consignee_direccion, consignee_telefono, consignee_email, consignee_codigo_pil,
+    notify_party, notify_direccion, notify_telefono, notify_email, notify_codigo_pil,
+    almacenador,
     fecha_emision, fecha_presentacion, fecha_embarque, fecha_zarpe,
     puerto_embarque_id, puerto_embarque_cod,
     puerto_descarga_id, puerto_descarga_cod,
@@ -8311,29 +8328,43 @@ app.post("/manifiestos/:id/carga-suelta", async (req, res) => {
     peso_bruto, unidad_peso, volumen, unidad_volumen, bultos, total_items,
     observaciones, status, valid_status
   ) VALUES (
-    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?,
+    ?, ?, ?, ?,
+    ?, ?, ?, ?, ?,
+    ?, ?, ?, ?, ?,
+    ?, ?, ?, ?, ?,
+    ?,
+    ?, ?, ?, ?,
+    ?, ?,
+    ?, ?,
+    ?, ?,
+    ?, ?,
+    ?, ?,
+    ?, ?,
+    ?, ?, ?, ?, ?, ?,
+    ?, ?, ?
   )`,
-      [
-        manifiestoId, bl_number, tipo_servicio_id,
-        forma_pago_flete || 'PREPAID', cond_transporte || 'HH',
-        shipper_id || null, consignee_id || null, notify_id || null, almacenador_id || null,
-        shipperNombre, consigneeNombre, notifyNombre, almacenadorNombre,
-        fecha_emision || null, fecha_presentacion || null,
-        fecha_embarque || null, fecha_zarpe || null,
-        puertoEmbarque.id, puertoEmbarque.codigo,
-        puertoDescarga.id, puertoDescarga.codigo,
-        lugarDestino.id, lugarDestino.codigo,
-        lugarEmision.id, lugarEmision.codigo,
-        lugarEntrega.id, lugarEntrega.codigo,
-        lugarRecepcion.id, lugarRecepcion.codigo,
-        peso_bruto_total, 'KGM', volumen_total, 'MTQ', bultos_total, items.length,
-        observaciones && observaciones.length > 0 ? JSON.stringify(observaciones) : null,
-        'CREADO', 'OK'
-      ]
-    );
-
+  [
+    manifiestoId, bl_number, tipo_servicio_id,
+    forma_pago_flete || 'PREPAID', cond_transporte || 'HH',
+    shipper_id || null, consignee_id || null, notify_id || null, almacenador_id || null,
+    shipperNombre, shipper_direccion || null, shipper_telefono || null, shipper_email || null, shipper_codigo_pil || null,
+    consigneeNombre, consignee_direccion || null, consignee_telefono || null, consignee_email || null, consignee_codigo_pil || null,
+    notifyNombre, notify_direccion || null, notify_telefono || null, notify_email || null, notify_codigo_pil || null,
+    almacenadorNombre,
+    fecha_emision || null, fecha_presentacion || null,
+    fecha_embarque || null, fecha_zarpe || null,
+    puertoEmbarque.id, puertoEmbarque.codigo,
+    puertoDescarga.id, puertoDescarga.codigo,
+    lugarDestino.id, lugarDestino.codigo,
+    lugarEmision.id, lugarEmision.codigo,
+    lugarEntrega.id, lugarEntrega.codigo,
+    lugarRecepcion.id, lugarRecepcion.codigo,
+    peso_bruto_total, 'KGM', volumen_total, 'MTQ', bultos_total, items.length,
+    observaciones?.length > 0 ? JSON.stringify(observaciones) : null,
+    'CREADO', 'OK'
+  ]
+);
     const bl_id = blResult.insertId;
 
     // Insertar items (sin cambios)
