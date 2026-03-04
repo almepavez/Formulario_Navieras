@@ -1319,6 +1319,19 @@ app.get("/puertos", async (_req, res) => {
   }
 });
 
+// GET /api/puertos
+app.get("/api/puertos", async (_req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT id, codigo, nombre, pais FROM puertos ORDER BY nombre"
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error("Error al obtener puertos:", error);
+    res.status(500).json({ error: "Error al obtener puertos" });
+  }
+});
+
 // GET - Obtener tipos de bulto para selectores (SIN /api/mantenedores)
 app.get("/tipos-bulto", async (_req, res) => {
   try {
@@ -1332,8 +1345,37 @@ app.get("/tipos-bulto", async (_req, res) => {
   }
 });
 
+// GET /api/tipos-bulto
+app.get("/api/tipos-bulto", async (_req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT DISTINCT tipo_bulto FROM tipo_cnt_tipo_bulto WHERE activo = 1 ORDER BY tipo_bulto"
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error("Error al obtener tipos de bulto:", error);
+    res.status(500).json({ error: "Error al obtener tipos de bulto" });
+  }
+});
+
 // GET endpoint para obtener el mapeo tipo_cnt <-> tipo_bulto
 app.get("/tipo-cnt-tipo-bulto", async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT * FROM tipo_cnt_tipo_bulto WHERE activo = 1'
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('Error al obtener mapeo tipo_cnt-tipo_bulto:', error);
+    res.status(500).json({
+      error: 'Error al obtener datos',
+      details: error.message
+    });
+  }
+});
+
+// GET /api/tipo-cnt-tipo-bulto
+app.get("/api/tipo-cnt-tipo-bulto", async (req, res) => {
   try {
     const [rows] = await pool.query(
       'SELECT * FROM tipo_cnt_tipo_bulto WHERE activo = 1'
@@ -4688,6 +4730,67 @@ n.nombre AS nave,
   }
 });
 
+// GET /api/bls
+app.get("/api/bls", async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        b.id,
+        b.bl_number,
+        b.manifiesto_id,
+        m.viaje,
+        m.tipo_operacion,
+        n.nombre AS nave,
+        b.shipper,
+        b.consignee,
+        b.notify_party,
+        b.lugar_emision_cod,
+        b.puerto_embarque_cod,
+        b.puerto_descarga_cod,
+        b.lugar_recepcion_cod,
+        b.lugar_entrega_cod,
+        b.lugar_destino_cod,
+        le.nombre  AS lugar_emision,
+        pe.nombre  AS puerto_embarque,
+        pd.nombre  AS puerto_descarga,
+        b.fecha_emision,
+        b.fecha_presentacion,
+        b.fecha_embarque,
+        b.fecha_zarpe,
+        b.descripcion_carga,
+        b.peso_bruto,
+        b.unidad_peso,
+        b.volumen,
+        b.unidad_volumen,
+        b.bultos,
+        b.total_items,
+        b.status,
+        b.created_at,
+        b.updated_at,
+        ts.nombre as tipo_servicio
+      FROM bls b
+      LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
+      LEFT JOIN naves n ON m.nave_id = n.id
+      LEFT JOIN puertos le ON b.lugar_emision_id = le.id
+      LEFT JOIN puertos pe ON b.puerto_embarque_id = pe.id
+      LEFT JOIN puertos pd ON b.puerto_descarga_id = pd.id
+      LEFT JOIN puertos lr ON b.lugar_recepcion_id = lr.id
+      LEFT JOIN puertos lem ON b.lugar_entrega_id = lem.id
+      LEFT JOIN puertos ld ON b.lugar_destino_id = ld.id
+      LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
+      ORDER BY b.created_at DESC
+    `;
+    const [rows] = await pool.query(query);
+    res.json(rows);
+  } catch (error) {
+    console.error("Error al obtener BLs:", error);
+    res.status(500).json({
+      error: "Error al obtener BLs",
+      details: error.message
+    });
+  }
+});
+
 // GET un BL específico por número
 // REEMPLAZA tu GET /bls/:blNumber (línea ~2570) por este:
 app.get("/bls/:blNumber", async (req, res) => {
@@ -4733,6 +4836,49 @@ app.get("/bls/:blNumber", async (req, res) => {
     // Recargar datos actualizados
     const [updatedRows] = await conn.query(query, [blNumber]);
 
+    res.json(updatedRows[0]);
+  } catch (error) {
+    console.error("Error al obtener BL:", error);
+    res.status(500).json({ error: "Error al obtener BL", details: error.message });
+  } finally {
+    conn.release();
+  }
+});
+
+// GET /api/bls/:blNumber
+app.get("/api/bls/:blNumber", async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const { blNumber } = req.params;
+    const query = `
+      SELECT
+        b.*,
+        m.viaje,
+        m.tipo_operacion,
+        ts.codigo AS tipo_servicio_codigo,
+        ts.nombre AS tipo_servicio,
+        le.codigo AS lugar_emision_cod,
+        le.nombre AS lugar_emision,
+        pe.codigo AS puerto_embarque_cod,
+        pe.nombre AS puerto_embarque,
+        pd.codigo AS puerto_descarga_cod,
+        pd.nombre AS puerto_descarga,
+        n.nombre AS nave_nombre
+      FROM bls b
+      LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
+      LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
+      LEFT JOIN puertos le ON b.lugar_emision_id   = le.id
+      LEFT JOIN puertos pe ON b.puerto_embarque_id = pe.id
+      LEFT JOIN puertos pd ON b.puerto_descarga_id = pd.id
+      LEFT JOIN naves n ON m.nave_id = n.id
+      WHERE b.bl_number = ?
+      LIMIT 1
+    `;
+    const [rows] = await conn.query(query, [blNumber]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "BL no encontrado" });
+    }
+    const [updatedRows] = await conn.query(query, [blNumber]);
     res.json(updatedRows[0]);
   } catch (error) {
     console.error("Error al obtener BL:", error);
@@ -4832,6 +4978,73 @@ app.put("/bls/:blNumber/items", async (req, res) => {
       );
     }
 
+    await conn.commit();
+    res.json({ success: true, message: "Items actualizados correctamente" });
+  } catch (error) {
+    await conn.rollback();
+    console.error("Error al actualizar items:", error);
+    res.status(500).json({ error: "Error al actualizar items" });
+  } finally {
+    conn.release();
+  }
+});
+
+// PUT /api/bls/:blNumber/items
+app.put("/api/bls/:blNumber/items", async (req, res) => {
+  const { blNumber } = req.params;
+  const { items } = req.body;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [blRows] = await conn.query(
+      `SELECT b.id, ts.codigo AS tipo_servicio_codigo
+       FROM bls b
+       LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
+       WHERE b.bl_number = ? LIMIT 1`,
+      [blNumber]
+    );
+    if (blRows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: "BL no encontrado" });
+    }
+    const blId = blRows[0].id;
+    const esEmpty = String(blRows[0].tipo_servicio_codigo || "").trim().toUpperCase() === "MM";
+    for (const item of items) {
+      if (!item.id) continue;
+      const cantidad = parseInt(item.cantidad);
+      if (isNaN(cantidad) || cantidad < 1) {
+        await conn.rollback();
+        return res.status(400).json({ error: `Item ${item.numero_item}: Cantidad debe ser al menos 1` });
+      }
+      const peso = parseFloat(item.peso_bruto);
+      if (esEmpty) {
+        if (isNaN(peso) || peso < 0) {
+          await conn.rollback();
+          return res.status(400).json({ error: `Item ${item.numero_item}: Peso no puede ser negativo` });
+        }
+      } else {
+        if (isNaN(peso) || peso <= 0) {
+          await conn.rollback();
+          return res.status(400).json({ error: `Item ${item.numero_item}: Peso debe ser mayor a 0` });
+        }
+      }
+      const volumen = parseFloat(item.volumen);
+      if (isNaN(volumen) || volumen < 0) {
+        await conn.rollback();
+        return res.status(400).json({ error: `Item ${item.numero_item}: Volumen no puede ser negativo` });
+      }
+      await conn.query(
+        `UPDATE bl_items 
+         SET descripcion = ?, marcas = ?, tipo_bulto = ?, cantidad = ?,
+             peso_bruto = ?, unidad_peso = ?, volumen = ?, unidad_volumen = ?
+         WHERE id = ? AND bl_id = ?`,
+        [
+          item.descripcion || null, item.marcas || null, item.tipo_bulto || null,
+          item.cantidad || null, item.peso_bruto, item.unidad_peso || null,
+          item.volumen, item.unidad_volumen || null, item.id, blId
+        ]
+      );
+    }
     await conn.commit();
     res.json({ success: true, message: "Items actualizados correctamente" });
   } catch (error) {
@@ -4997,6 +5210,85 @@ app.put("/bls/:blNumber/contenedores", async (req, res) => {
   }
 });
 
+// PUT /api/bls/:blNumber/contenedores
+app.put("/api/bls/:blNumber/contenedores", async (req, res) => {
+  const { blNumber } = req.params;
+  const { contenedores } = req.body;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [blRows] = await conn.query("SELECT id FROM bls WHERE bl_number = ?", [blNumber]);
+    if (blRows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: "BL no encontrado" });
+    }
+    const blId = blRows[0].id;
+    function parseCodigoContenedor(codigo) {
+      if (!codigo || codigo.length !== 11) return { sigla: null, numero: null, digito: null };
+      return {
+        sigla: codigo.substring(0, 4).toUpperCase(),
+        numero: codigo.substring(4, 10),
+        digito: codigo.substring(10, 11)
+      };
+    }
+    for (const cont of contenedores) {
+      const { sigla, numero, digito } = parseCodigoContenedor(cont.codigo);
+      if (cont._isNew) {
+        const [insertResult] = await conn.query(
+          `INSERT INTO bl_contenedores 
+          (bl_id, item_id, codigo, sigla, numero, digito, tipo_cnt, carga_cnt,
+           peso, unidad_peso, volumen, unidad_volumen) 
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [blId, cont.item_id, cont.codigo, sigla, numero, digito,
+           cont.tipo_cnt, cont.carga_cnt || 'S', cont.peso || null,
+           cont.unidad_peso || 'KGM', cont.volumen ?? null, cont.unidad_volumen || 'MTQ']
+        );
+        const newContId = insertResult.insertId;
+        if (cont.sellos && cont.sellos.length > 0) {
+          for (const sello of cont.sellos) {
+            await conn.query("INSERT INTO bl_contenedor_sellos (contenedor_id, sello) VALUES (?, ?)", [newContId, sello]);
+          }
+        }
+        if (cont.imos && cont.imos.length > 0) {
+          for (const imo of cont.imos) {
+            await conn.query("INSERT INTO bl_contenedor_imo (contenedor_id, clase_imo, numero_imo) VALUES (?, ?, ?)", [newContId, imo.clase, imo.numero]);
+          }
+        }
+      } else {
+        await conn.query(
+          `UPDATE bl_contenedores 
+          SET codigo = ?, sigla = ?, numero = ?, digito = ?, tipo_cnt = ?,
+              peso = ?, unidad_peso = ?, volumen = ?, unidad_volumen = ?
+          WHERE id = ?`,
+          [cont.codigo, sigla, numero, digito, cont.tipo_cnt,
+           cont.peso || null, cont.unidad_peso || 'KGM',
+           cont.volumen || null, cont.unidad_volumen || 'MTQ', cont.id]
+        );
+        await conn.query("DELETE FROM bl_contenedor_sellos WHERE contenedor_id = ?", [cont.id]);
+        if (cont.sellos && cont.sellos.length > 0) {
+          for (const sello of cont.sellos) {
+            await conn.query("INSERT INTO bl_contenedor_sellos (contenedor_id, sello) VALUES (?, ?)", [cont.id, sello]);
+          }
+        }
+        await conn.query("DELETE FROM bl_contenedor_imo WHERE contenedor_id = ?", [cont.id]);
+        if (cont.imos && cont.imos.length > 0) {
+          for (const imo of cont.imos) {
+            await conn.query("INSERT INTO bl_contenedor_imo (contenedor_id, clase_imo, numero_imo) VALUES (?, ?, ?)", [cont.id, imo.clase, imo.numero]);
+          }
+        }
+      }
+    }
+    await conn.commit();
+    res.json({ success: true, message: "Contenedores actualizados correctamente" });
+  } catch (error) {
+    await conn.rollback();
+    console.error("❌ Error al actualizar contenedores:", error);
+    res.status(500).json({ error: "Error al actualizar contenedores", details: error.message });
+  } finally {
+    conn.release();
+  }
+});
+
 // GET items y contenedores de un BL específico
 app.get('/bls/:blNumber/items-contenedores', async (req, res) => {
   const { blNumber } = req.params;
@@ -5052,6 +5344,33 @@ app.get('/bls/:blNumber/items-contenedores', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener datos' });
   }
 });
+
+// GET /api/bls/:blNumber/items-contenedores
+app.get('/api/bls/:blNumber/items-contenedores', async (req, res) => {
+  const { blNumber } = req.params;
+  try {
+    const [blRows] = await pool.query('SELECT id FROM bls WHERE bl_number = ?', [blNumber]);
+    if (blRows.length === 0) return res.status(404).json({ error: 'BL no encontrado' });
+    const bl_id = blRows[0].id;
+    const [items] = await pool.query('SELECT * FROM bl_items WHERE bl_id = ? ORDER BY numero_item', [bl_id]);
+    const [contenedores] = await pool.query('SELECT * FROM bl_contenedores WHERE bl_id = ? ORDER BY id', [bl_id]);
+    for (const cont of contenedores) {
+      const [sellos] = await pool.query('SELECT sello FROM bl_contenedor_sellos WHERE contenedor_id = ?', [cont.id]);
+      cont.sellos = sellos.map(s => s.sello) || [];
+      const [imos] = await pool.query('SELECT clase_imo as clase, numero_imo as numero FROM bl_contenedor_imo WHERE contenedor_id = ?', [cont.id]);
+      cont.imos = imos || [];
+    }
+    for (const item of items) {
+      const itemContenedores = contenedores.filter(c => c.item_id === item.id);
+      item.contenedores = itemContenedores.map(c => ({ codigo: c.codigo }));
+    }
+    res.json({ items, contenedores });
+  } catch (error) {
+    console.error('❌ Error al obtener items y contenedores:', error);
+    res.status(500).json({ error: 'Error al obtener datos' });
+  }
+});
+
 
 // ============================================
 // ACTUALIZACIÓN MASIVA DE BLs
@@ -5180,6 +5499,60 @@ app.patch('/bls/bulk-update', async (req, res) => {
     connection.release();
   }
 });
+
+// PATCH /api/bls/bulk-update
+app.patch('/api/bls/bulk-update', async (req, res) => {
+  const connection = await pool.getConnection();
+  try {
+    const { blNumbers, updates } = req.body;
+    const STATUS_MAP = {
+      'ACTIVO': 'CREADO', 'INACTIVO': 'ANULADO',
+      'EN REVISION': 'VALIDADO', 'EN_REVISION': 'VALIDADO',
+    };
+    if (updates.status && STATUS_MAP[updates.status]) updates.status = STATUS_MAP[updates.status];
+    const VALID_STATUS = ['CREADO', 'VALIDADO', 'ENVIADO', 'ANULADO'];
+    if (updates.status && !VALID_STATUS.includes(updates.status)) {
+      return res.status(400).json({ error: `Status inválido: '${updates.status}'. Valores permitidos: ${VALID_STATUS.join(', ')}` });
+    }
+    if (!blNumbers || !Array.isArray(blNumbers) || blNumbers.length === 0) {
+      return res.status(400).json({ error: 'Debe proporcionar una lista de BL numbers' });
+    }
+    if (!updates || Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'Debe proporcionar campos a actualizar' });
+    }
+    await connection.beginTransaction();
+    const validFields = [
+      'shipper_id', 'consignee_id', 'notify_id', 'descripcion_carga', 'bultos',
+      'peso_bruto', 'volumen', 'status', 'fecha_embarque', 'fecha_zarpe',
+      'fecha_emision', 'observaciones', 'lugar_recepcion_cod', 'puerto_embarque_cod',
+      'puerto_descarga_cod', 'lugar_entrega_cod', 'lugar_destino_cod', 'lugar_emision_cod',
+      'forma_pago_flete', 'cond_transporte', 'almacenador'
+    ];
+    const setClauses = [];
+    const values = [];
+    Object.keys(updates).forEach(field => {
+      if (validFields.includes(field)) { setClauses.push(`${field} = ?`); values.push(updates[field]); }
+    });
+    if (setClauses.length === 0) {
+      await connection.rollback();
+      return res.status(400).json({ error: 'No hay campos válidos para actualizar' });
+    }
+    setClauses.push('updated_at = NOW()');
+    values.push(...blNumbers);
+    const placeholders = blNumbers.map(() => '?').join(',');
+    const query = `UPDATE bls SET ${setClauses.join(', ')} WHERE bl_number IN (${placeholders})`;
+    const [result] = await connection.query(query, values);
+    await connection.commit();
+    res.json({ success: true, message: `${result.affectedRows} BL(s) actualizados correctamente`, affectedRows: result.affectedRows, blNumbers });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error en actualización masiva:', error);
+    res.status(500).json({ error: 'Error al actualizar BLs', details: error.message });
+  } finally {
+    connection.release();
+  }
+});
+
 
 // ============================================
 // ACTUALIZAR UN BL INDIVIDUAL (para puertos)
@@ -5347,7 +5720,71 @@ app.patch('/bls/:blNumber', async (req, res) => {
   }
 });
 
-
+// PATCH /api/bls/:blNumber
+app.patch('/api/bls/:blNumber', async (req, res) => {
+  const connection = await pool.getConnection();
+  try {
+    const { blNumber } = req.params;
+    const updates = req.body;
+    await connection.beginTransaction();
+    const [blRows] = await connection.query('SELECT id FROM bls WHERE bl_number = ?', [blNumber]);
+    if (blRows.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ error: 'BL no encontrado' });
+    }
+    const blId = blRows[0].id;
+    const setClauses = [];
+    const values = [];
+    const validFields = [
+      'shipper_id', 'consignee_id', 'notify_id', 'descripcion_carga', 'bultos',
+      'peso_bruto', 'volumen', 'status', 'fecha_embarque', 'fecha_zarpe',
+      'fecha_emision', 'observaciones', 'lugar_recepcion_cod', 'puerto_embarque_cod',
+      'puerto_descarga_cod', 'lugar_entrega_cod', 'lugar_destino_cod', 'lugar_emision_cod',
+      'forma_pago_flete', 'cond_transporte', 'almacenador'
+    ];
+    const puertoFields = ['lugar_recepcion_cod', 'puerto_embarque_cod', 'puerto_descarga_cod', 'lugar_entrega_cod', 'lugar_destino_cod', 'lugar_emision_cod'];
+    for (const field of Object.keys(updates)) {
+      const value = updates[field];
+      if (puertoFields.includes(field)) {
+        if (!value) {
+          const idField = field.replace('_cod', '_id');
+          setClauses.push(`${field} = NULL`, `${idField} = NULL`);
+          continue;
+        }
+        const [puertoRows] = await connection.query('SELECT id FROM puertos WHERE codigo = ?', [value]);
+        const puertoId = puertoRows.length > 0 ? puertoRows[0].id : null;
+        const idField = field.replace('_cod', '_id');
+        setClauses.push(`${field} = ?`, `${idField} = ?`);
+        values.push(value, puertoId);
+      } else if (field === 'observaciones') {
+        setClauses.push(`${field} = ?`);
+        values.push(Array.isArray(value) ? JSON.stringify(value) : value);
+      } else if (validFields.includes(field)) {
+        setClauses.push(`${field} = ?`);
+        values.push(value);
+      }
+    }
+    if (setClauses.length === 0) {
+      await connection.rollback();
+      return res.status(400).json({ error: 'No hay campos válidos para actualizar' });
+    }
+    setClauses.push('updated_at = NOW()');
+    values.push(blNumber);
+    const [result] = await connection.query(`UPDATE bls SET ${setClauses.join(', ')} WHERE bl_number = ?`, values);
+    if (result.affectedRows === 0) {
+      await connection.rollback();
+      return res.status(404).json({ error: 'BL no encontrado' });
+    }
+    await connection.commit();
+    res.json({ success: true, message: 'BL actualizado exitosamente', bl_number: blNumber });
+  } catch (error) {
+    await connection.rollback();
+    console.error('❌ Error al actualizar BL:', error);
+    res.status(500).json({ error: 'Error al actualizar BL', details: error.message });
+  } finally {
+    connection.release();
+  }
+});
 
 
 // 🔥 AGREGAR/ACTUALIZAR ENDPOINT EN EL BACKEND
@@ -5548,6 +5985,74 @@ notify_email = ?,
   }
 });
 
+// PUT /api/bls/:blNumber/carga-suelta
+app.put("/api/bls/:blNumber/carga-suelta", async (req, res) => {
+  const { blNumber } = req.params;
+  const {
+    forma_pago_flete, cond_transporte, fecha_emision, fecha_presentacion,
+    fecha_embarque, fecha_zarpe, lugar_emision, lugar_recepcion, puerto_embarque,
+    puerto_descarga, lugar_destino, lugar_entrega, shipper_id, consignee_id,
+    notify_id, almacenador_id, shipper, consignee, notify_party, almacenador,
+    shipper_direccion, shipper_telefono, shipper_email,
+    consignee_direccion, consignee_telefono, consignee_email,
+    notify_direccion, notify_telefono, notify_email, items, observaciones
+  } = req.body;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [blRows] = await conn.query("SELECT id FROM bls WHERE bl_number = ? LIMIT 1", [blNumber]);
+    if (blRows.length === 0) { await conn.rollback(); return res.status(404).json({ error: "BL no encontrado" }); }
+    const blId = blRows[0].id;
+    const resolvePortId = async (codigo) => {
+      if (!codigo) return null;
+      const [rows] = await conn.query("SELECT id FROM puertos WHERE codigo = ? LIMIT 1", [codigo]);
+      return rows.length > 0 ? rows[0].id : null;
+    };
+    const lugar_emision_id = await resolvePortId(lugar_emision);
+    const lugar_recepcion_id = await resolvePortId(lugar_recepcion);
+    const puerto_embarque_id = await resolvePortId(puerto_embarque);
+    const puerto_descarga_id = await resolvePortId(puerto_descarga);
+    const lugar_destino_id = await resolvePortId(lugar_destino);
+    const lugar_entrega_id = await resolvePortId(lugar_entrega);
+    await conn.query(`
+      UPDATE bls SET forma_pago_flete=?, cond_transporte=?, fecha_emision=?, fecha_presentacion=?,
+        fecha_embarque=?, fecha_zarpe=?, lugar_emision_id=?, lugar_recepcion_id=?, puerto_embarque_id=?,
+        puerto_descarga_id=?, lugar_destino_id=?, lugar_entrega_id=?, shipper_id=?, consignee_id=?,
+        notify_id=?, almacenador_id=?, shipper=?, consignee=?, notify_party=?, almacenador=?,
+        shipper_direccion=?, shipper_telefono=?, shipper_email=?, consignee_direccion=?,
+        consignee_telefono=?, consignee_email=?, notify_direccion=?, notify_telefono=?, notify_email=?,
+        observaciones=?, updated_at=NOW() WHERE id=?
+    `, [
+      forma_pago_flete, cond_transporte, fecha_emision, fecha_presentacion, fecha_embarque, fecha_zarpe,
+      lugar_emision_id, lugar_recepcion_id, puerto_embarque_id, puerto_descarga_id, lugar_destino_id, lugar_entrega_id,
+      shipper_id, consignee_id, notify_id, almacenador_id, shipper, consignee, notify_party, almacenador,
+      shipper_direccion||null, shipper_telefono||null, shipper_email||null,
+      consignee_direccion||null, consignee_telefono||null, consignee_email||null,
+      notify_direccion||null, notify_telefono||null, notify_email||null,
+      observaciones ? JSON.stringify(observaciones) : null, blId
+    ]);
+    await conn.query("DELETE FROM bl_items WHERE bl_id = ?", [blId]);
+    if (Array.isArray(items) && items.length > 0) {
+      for (const item of items) {
+        await conn.query(`INSERT INTO bl_items (bl_id, numero_item, marcas, tipo_bulto, descripcion, cantidad, peso_bruto, unidad_peso, volumen, unidad_volumen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [blId, item.numero_item, item.marcas||'N/M', item.tipo_bulto, item.descripcion, item.cantidad, item.peso_bruto, item.unidad_peso, item.volumen||0, item.unidad_volumen]);
+      }
+    }
+    const totalPeso = items.reduce((sum, i) => sum + parseFloat(i.peso_bruto||0), 0);
+    const totalVolumen = items.reduce((sum, i) => sum + parseFloat(i.volumen||0), 0);
+    const totalBultos = items.reduce((sum, i) => sum + parseInt(i.cantidad||0), 0);
+    await conn.query(`UPDATE bls SET bultos=?, peso_bruto=?, volumen=? WHERE id=?`, [totalBultos, totalPeso, totalVolumen, blId]);
+    await conn.commit();
+    res.json({ success: true, bl_number: blNumber, total_items: items.length, bultos: totalBultos, peso_bruto: totalPeso, volumen: totalVolumen });
+  } catch (error) {
+    await conn.rollback();
+    console.error("Error actualizando carga suelta:", error);
+    res.status(500).json({ error: "Error al actualizar carga suelta", details: error.message });
+  } finally {
+    conn.release();
+  }
+});
+
 // ============================================
 // ENDPOINTS PARA EDICIÓN DE BLs
 // ============================================
@@ -5709,6 +6214,74 @@ notify_email = COALESCE(?, notify_email),
   }
 });
 
+// PUT /api/bls/:blNumber
+app.put("/api/bls/:blNumber", async (req, res) => {
+  const { blNumber } = req.params;
+  const {
+    tipo_servicio, fecha_emision, fecha_presentacion, fecha_zarpe, fecha_embarque,
+    lugar_emision, puerto_embarque, puerto_descarga, lugar_destino, lugar_entrega, lugar_recepcion,
+    unidad_peso, unidad_volumen, shipper, shipper_direccion, shipper_telefono, shipper_email,
+    consignee, consignee_direccion, consignee_telefono, consignee_email,
+    notify_party, notify_direccion, notify_telefono, notify_email,
+    descripcion_carga, peso_bruto, volumen, bultos
+  } = req.body;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    let tipo_servicio_id = null;
+    if (tipo_servicio) {
+      const [tsRows] = await conn.query("SELECT id FROM tipos_servicio WHERE codigo = ?", [tipo_servicio]);
+      if (tsRows.length > 0) tipo_servicio_id = tsRows[0].id;
+    }
+    const resolveId = async (cod) => cod ? ((await conn.query("SELECT id FROM puertos WHERE codigo = ?", [cod]))[0]?.[0]?.id || null) : null;
+    const lugarEmisionId = await resolveId(lugar_emision);
+    const puertoEmbarqueId = await resolveId(puerto_embarque);
+    const puertoDescargaId = await resolveId(puerto_descarga);
+    const lugarDestinoId = await resolveId(lugar_destino);
+    const lugarEntregaId = await resolveId(lugar_entrega);
+    const lugarRecepcionId = await resolveId(lugar_recepcion);
+    await conn.query(`
+      UPDATE bls SET
+        tipo_servicio_id=COALESCE(?,tipo_servicio_id), fecha_emision=COALESCE(?,fecha_emision),
+        fecha_presentacion=COALESCE(?,fecha_presentacion), fecha_zarpe=COALESCE(?,fecha_zarpe),
+        fecha_embarque=COALESCE(?,fecha_embarque),
+        lugar_emision_id=COALESCE(?,lugar_emision_id), lugar_emision_cod=COALESCE(?,lugar_emision_cod),
+        puerto_embarque_id=COALESCE(?,puerto_embarque_id), puerto_embarque_cod=COALESCE(?,puerto_embarque_cod),
+        puerto_descarga_id=COALESCE(?,puerto_descarga_id), puerto_descarga_cod=COALESCE(?,puerto_descarga_cod),
+        lugar_destino_id=COALESCE(?,lugar_destino_id), lugar_destino_cod=COALESCE(?,lugar_destino_cod),
+        lugar_entrega_id=COALESCE(?,lugar_entrega_id), lugar_entrega_cod=COALESCE(?,lugar_entrega_cod),
+        lugar_recepcion_id=COALESCE(?,lugar_recepcion_id), lugar_recepcion_cod=COALESCE(?,lugar_recepcion_cod),
+        shipper=COALESCE(?,shipper), shipper_direccion=COALESCE(?,shipper_direccion),
+        shipper_telefono=COALESCE(?,shipper_telefono), shipper_email=COALESCE(?,shipper_email),
+        consignee=COALESCE(?,consignee), consignee_direccion=COALESCE(?,consignee_direccion),
+        consignee_telefono=COALESCE(?,consignee_telefono), consignee_email=COALESCE(?,consignee_email),
+        notify_party=COALESCE(?,notify_party), notify_direccion=COALESCE(?,notify_direccion),
+        notify_telefono=COALESCE(?,notify_telefono), notify_email=COALESCE(?,notify_email),
+        descripcion_carga=?, peso_bruto=COALESCE(?,peso_bruto), unidad_volumen=?, unidad_peso=?,
+        volumen=COALESCE(?,volumen), bultos=COALESCE(?,bultos), updated_at=NOW()
+      WHERE bl_number=?
+    `, [
+      tipo_servicio_id, fecha_emision, fecha_presentacion, fecha_zarpe, fecha_embarque,
+      lugarEmisionId, lugar_emision, puertoEmbarqueId, puerto_embarque,
+      puertoDescargaId, puerto_descarga, lugarDestinoId, lugar_destino,
+      lugarEntregaId, lugar_entrega, lugarRecepcionId, lugar_recepcion,
+      shipper, shipper_direccion, shipper_telefono, shipper_email,
+      consignee, consignee_direccion, consignee_telefono, consignee_email,
+      notify_party, notify_direccion, notify_telefono, notify_email,
+      descripcion_carga, peso_bruto, unidad_volumen, unidad_peso, volumen, bultos, blNumber
+    ]);
+    await conn.commit();
+    res.json({ message: "BL actualizado correctamente" });
+  } catch (error) {
+    await conn.rollback();
+    console.error("Error al actualizar BL:", error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    conn.release();
+  }
+});
+
+
 // PATCH - Actualizar solo el status del BL
 app.patch("/bls/:blNumber/status", async (req, res) => {
   const { blNumber } = req.params;
@@ -5736,6 +6309,24 @@ app.patch("/bls/:blNumber/status", async (req, res) => {
       message: "Status actualizado exitosamente",
       status
     });
+  } catch (error) {
+    console.error("Error al actualizar status:", error);
+    res.status(500).json({ error: "Error al actualizar status" });
+  }
+});
+
+// PATCH /api/bls/:blNumber/status
+app.patch("/api/bls/:blNumber/status", async (req, res) => {
+  const { blNumber } = req.params;
+  const { status } = req.body;
+  const validStatuses = ['CREADO', 'VALIDADO', 'ENVIADO', 'ANULADO'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ error: "Status inválido. Debe ser: CREADO, VALIDADO, ENVIADO o ANULADO" });
+  }
+  try {
+    const [result] = await pool.query("UPDATE bls SET status = ?, updated_at = NOW() WHERE bl_number = ?", [status, blNumber]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: "BL no encontrado" });
+    res.json({ message: "Status actualizado exitosamente", status });
   } catch (error) {
     console.error("Error al actualizar status:", error);
     res.status(500).json({ error: "Error al actualizar status" });
@@ -7035,6 +7626,27 @@ app.get("/bls/:blNumber/transbordos", async (req, res) => {
   }
 });
 
+// GET /api/bls/:blNumber/transbordos
+app.get("/api/bls/:blNumber/transbordos", async (req, res) => {
+  try {
+    const { blNumber } = req.params;
+    const [blRows] = await pool.query("SELECT id FROM bls WHERE bl_number = ? LIMIT 1", [blNumber]);
+    if (blRows.length === 0) return res.status(404).json({ error: "BL no encontrado" });
+    const blId = blRows[0].id;
+    const [transbordos] = await pool.query(`
+      SELECT t.id, t.sec, t.puerto_cod, t.puerto_id, p.nombre AS puerto_nombre, p.pais AS puerto_pais
+      FROM bl_transbordos t
+      LEFT JOIN puertos p ON t.puerto_id = p.id
+      WHERE t.bl_id = ?
+      ORDER BY t.sec ASC
+    `, [blId]);
+    res.json(transbordos);
+  } catch (error) {
+    console.error("Error al obtener transbordos:", error);
+    res.status(500).json({ error: "Error al obtener transbordos" });
+  }
+});
+
 
 // Actualizar transbordos de un BL
 app.put("/bls/:blNumber/transbordos", async (req, res) => {
@@ -7092,6 +7704,42 @@ app.put("/bls/:blNumber/transbordos", async (req, res) => {
   }
 });
 
+// PUT /api/bls/:blNumber/transbordos
+app.put("/api/bls/:blNumber/transbordos", async (req, res) => {
+  const { blNumber } = req.params;
+  const { transbordos } = req.body;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [blRows] = await conn.query("SELECT id FROM bls WHERE bl_number = ? LIMIT 1", [blNumber]);
+    if (blRows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: "BL no encontrado" });
+    }
+    const blId = blRows[0].id;
+    await conn.query("DELETE FROM bl_transbordos WHERE bl_id = ?", [blId]);
+    if (Array.isArray(transbordos) && transbordos.length > 0) {
+      for (const tb of transbordos) {
+        if (!tb.puerto_cod) continue;
+        const [puertoRows] = await conn.query("SELECT id FROM puertos WHERE codigo = ? LIMIT 1", [tb.puerto_cod]);
+        const puertoId = puertoRows.length > 0 ? puertoRows[0].id : null;
+        await conn.query(
+          `INSERT INTO bl_transbordos (bl_id, sec, puerto_cod, puerto_id) VALUES (?, ?, ?, ?)`,
+          [blId, tb.sec, tb.puerto_cod, puertoId]
+        );
+      }
+    }
+    await conn.commit();
+    res.json({ success: true, message: "Transbordos actualizados correctamente" });
+  } catch (error) {
+    await conn.rollback();
+    console.error("Error al actualizar transbordos:", error);
+    res.status(500).json({ error: "Error al actualizar transbordos" });
+  } finally {
+    conn.release();
+  }
+});
+
 // 🆕 GET /bls/:blNumber/validaciones
 app.get("/bls/:blNumber/validaciones", async (req, res) => {
   try {
@@ -7119,6 +7767,29 @@ app.get("/bls/:blNumber/validaciones", async (req, res) => {
         sec ASC
     `, [blId]);
 
+    res.json(validaciones);
+  } catch (error) {
+    console.error("Error al obtener validaciones:", error);
+    res.status(500).json({ error: "Error al obtener validaciones" });
+  }
+});
+
+// GET /api/bls/:blNumber/validaciones
+app.get("/api/bls/:blNumber/validaciones", async (req, res) => {
+  try {
+    const { blNumber } = req.params;
+    const [blRows] = await pool.query("SELECT id FROM bls WHERE bl_number = ? LIMIT 1", [blNumber]);
+    if (blRows.length === 0) return res.status(404).json({ error: "BL no encontrado" });
+    const blId = blRows[0].id;
+    const [validaciones] = await pool.query(`
+      SELECT id, nivel, ref_id, sec, severidad, campo, mensaje, valor_crudo, created_at
+      FROM bl_validaciones
+      WHERE bl_id = ?
+      ORDER BY 
+        FIELD(nivel, 'BL', 'ITEM', 'CONTENEDOR', 'TRANSBORDO'),
+        FIELD(severidad, 'ERROR', 'OBS'),
+        sec ASC
+    `, [blId]);
     res.json(validaciones);
   } catch (error) {
     console.error("Error al obtener validaciones:", error);
@@ -8082,8 +8753,36 @@ app.get('/bls/by-viaje/:viaje', async (req, res) => {
   }
 });
 
+// GET /api/bls/by-viaje/:viaje
+app.get('/api/bls/by-viaje/:viaje', async (req, res) => {
+  try {
+    const { viaje } = req.params;
+    const [rows] = await pool.query(
+      'SELECT * FROM bls WHERE viaje = ? ORDER BY bl_number',
+      [viaje]
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('Error al obtener BLs por viaje:', error);
+    res.status(500).json({ error: 'Error al obtener BLs' });
+  }
+});
+
 // Obtener lista de viajes únicos
 app.get('/bls/viajes/list', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT DISTINCT viaje FROM bls WHERE viaje IS NOT NULL ORDER BY viaje'
+    );
+    res.json(rows.map(row => row.viaje));
+  } catch (error) {
+    console.error('Error al obtener viajes:', error);
+    res.status(500).json({ error: 'Error al obtener viajes' });
+  }
+});
+
+// GET /api/bls/viajes/list
+app.get('/api/bls/viajes/list', async (req, res) => {
   try {
     const [rows] = await pool.query(
       'SELECT DISTINCT viaje FROM bls WHERE viaje IS NOT NULL ORDER BY viaje'
@@ -8495,6 +9194,38 @@ app.get("/bls/:id/validar-tipo", async (req, res) => {
   }
 });
 
+// GET /api/bls/:id/validar-tipo
+app.get("/api/bls/:id/validar-tipo", async (req, res) => {
+  const { id: bl_id } = req.params;
+  try {
+    const connection = await pool.getConnection();
+    const [bls] = await connection.query(
+      `SELECT 
+        b.id, b.bl_number, ts.codigo as tipo_servicio, ts.nombre as tipo_servicio_nombre,
+        COUNT(c.id) as total_contenedores, b.total_items, b.peso_bruto, b.bultos
+      FROM bls b
+      JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
+      LEFT JOIN bl_contenedores c ON b.id = c.bl_id
+      WHERE b.id = ?
+      GROUP BY b.id`,
+      [bl_id]
+    );
+    connection.release();
+    if (bls.length === 0) return res.status(404).json({ error: 'BL no encontrado' });
+    const bl = bls[0];
+    const errores = [];
+    if (bl.tipo_servicio === 'BB') {
+      if (bl.total_contenedores > 0) errores.push(`Un BL de carga suelta (BB) no puede tener contenedores (encontrados: ${bl.total_contenedores})`);
+      if (bl.total_items === 0) errores.push('Un BL de carga suelta debe tener al menos 1 item');
+    } else if (bl.tipo_servicio === 'FF' || bl.tipo_servicio === 'MM') {
+      if (bl.total_contenedores === 0) errores.push(`Un BL de tipo ${bl.tipo_servicio} debe tener al menos 1 contenedor`);
+    }
+    res.json({ success: errores.length === 0, bl, errores, es_carga_suelta: bl.tipo_servicio === 'BB' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // GET /manifiestos/:id/depositos
 app.get("/manifiestos/:id/depositos", async (req, res) => {
   try {
@@ -8562,6 +9293,23 @@ app.put("/manifiestos/:id/depositos/bulk", async (req, res) => {
 });
 // GET /tipos-contenedor
 app.get('/tipos-contenedor', async (req, res) => {
+  try {
+    const query = `
+            SELECT DISTINCT tipo_cnt 
+            FROM bl_contenedores 
+            WHERE tipo_cnt IS NOT NULL 
+            ORDER BY tipo_cnt
+        `;
+    const [rows] = await pool.query(query);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error al obtener tipos de contenedor:', error);
+    res.status(500).json({ error: 'Error al obtener tipos de contenedor' });
+  }
+});
+
+// GET /api/tipos-contenedor (nueva ruta con prefijo /api/)
+app.get('/api/tipos-contenedor', async (req, res) => {
   try {
     const query = `
             SELECT DISTINCT tipo_cnt 
