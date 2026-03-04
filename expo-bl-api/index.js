@@ -859,7 +859,11 @@ app.get("/manifiestos/:id/bls", async (req, res) => {
     ts.nombre AS tipo_servicio,
     le.nombre AS lugar_emision,
     pe.nombre AS puerto_embarque,
+    pe.codigo AS codigo_puerto_embarque,
     pd.nombre AS puerto_descarga,
+    pd.codigo AS codigo_puerto_descarga,
+    pd.codigo_aduana AS aduana_descarga,
+    pe.codigo_aduana AS aduana_embarque,
     ld.nombre AS lugar_destino,
     len.nombre AS lugar_entrega,
     lr.nombre AS lugar_recepcion,
@@ -873,13 +877,18 @@ app.get("/manifiestos/:id/bls", async (req, res) => {
      WHERE bc.bl_id = b.id
     ) AS total_contenedores,
 
-    (SELECT JSON_ARRAYAGG(
+(SELECT JSON_ARRAYAGG(
        JSON_OBJECT(
          'codigo', CONCAT(bc.sigla, ' ', bc.numero, '-', bc.digito),
-         'tipo_cnt', bc.tipo_cnt
+         'codigo_raw', bc.codigo,
+         'tipo_cnt', bc.tipo_cnt,
+         'tam_contenedor', tcb.tam_contenedor,
+         'tipo_cnt_sna', tcb.tipo_cnt_sna,
+        'tipo_bulto', tcb.tipo_bulto
        )
      )
      FROM bl_contenedores bc
+     LEFT JOIN tipo_cnt_tipo_bulto tcb ON bc.tipo_cnt = tcb.tipo_cnt
      WHERE bc.bl_id = b.id
     ) AS contenedores_json
 
@@ -4680,7 +4689,6 @@ n.nombre AS nave,
 });
 
 // GET un BL específico por número
-// REEMPLAZA tu GET /bls/:blNumber actual por este:
 // REEMPLAZA tu GET /bls/:blNumber (línea ~2570) por este:
 app.get("/bls/:blNumber", async (req, res) => {
   const conn = await pool.getConnection();
@@ -5792,7 +5800,6 @@ function validateBLForXML(bl) {
   };
 }
 
-// ... resto del código existente
 // Función helper para formatear fechas DD-MM-YYYY HH:MM
 function formatDateTimeCL(isoDate) {
   if (!isoDate) return null;
@@ -6484,7 +6491,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
     res.status(500).json({ error: "Error al generar XML", details: error.message });
   }
 });
-// POST /api/manifiestos/:id/generar-xmls-multiples
+
 // Genera múltiples XMLs y los devuelve en un ZIP
 app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
   try {
@@ -6989,7 +6996,6 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
   }
 });
 
-// 🆕 GET /bls/:blNumber/transbordos
 // Obtener transbordos de un BL específico
 app.get("/bls/:blNumber/transbordos", async (req, res) => {
   try {
@@ -7030,7 +7036,6 @@ app.get("/bls/:blNumber/transbordos", async (req, res) => {
 });
 
 
-// 🆕 PUT /bls/:blNumber/transbordos
 // Actualizar transbordos de un BL
 app.put("/bls/:blNumber/transbordos", async (req, res) => {
   const { blNumber } = req.params;
