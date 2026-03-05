@@ -38,7 +38,7 @@ const ExpoBLEdit = () => {
     });
 
     useEffect(() => {
-        fetch(`${API_BASE}/tipos-contenedor`) // ✅ CORRECTO
+        fetch(`${API_BASE}/api/tipos-contenedor`) // ✅ CORRECTO
             .then(res => res.json())
             .then(data => setTiposContenedor(data))
             .catch(err => console.error('Error:', err));
@@ -97,33 +97,33 @@ const ExpoBLEdit = () => {
             setError("");
             try {
                 // 🆕 Cargar BL
-                const resBL = await fetch(`${API_BASE}/bls/${blNumber}`);
+                const resBL = await fetch(`${API_BASE}/api/bls/${blNumber}`);
                 if (!resBL.ok) {
                     throw new Error(`Error ${resBL.status}: No se pudo cargar el BL`);
                 }
                 const dataBL = await resBL.json();
 
                 // 🆕 Cargar lista de puertos
-                const resPuertos = await fetch(`${API_BASE}/puertos`);
+                const resPuertos = await fetch(`${API_BASE}/api/puertos`);
                 if (resPuertos.ok) {
                     const dataPuertos = await resPuertos.json();
                     setPuertos(dataPuertos);
                 }
                 // 🆕 AGREGAR ESTAS LÍNEAS 👇
-                const resTiposBulto = await fetch(`${API_BASE}/tipos-bulto`);
+                const resTiposBulto = await fetch(`${API_BASE}/api/tipos-bulto`);
                 if (resTiposBulto.ok) {
                     const dataTiposBulto = await resTiposBulto.json();
                     setTiposBulto(dataTiposBulto);
                 }
                 // AGREGAR INMEDIATAMENTE DESPUÉS:
                 // 🆕 Cargar tipos de contenedor
-                const resTiposContenedor = await fetch(`${API_BASE}/tipos-contenedor`);
+                const resTiposContenedor = await fetch(`${API_BASE}/api/tipos-contenedor`);
                 if (resTiposContenedor.ok) {
                     const dataTiposContenedor = await resTiposContenedor.json();
                     setTiposContenedor(dataTiposContenedor);
                 }
                 // 🆕 Cargar mapeo tipo_cnt <-> tipo_bulto
-                const resMapeo = await fetch(`${API_BASE}/tipo-cnt-tipo-bulto`);
+                const resMapeo = await fetch(`${API_BASE}/api/tipo-cnt-tipo-bulto`);
                 if (resMapeo.ok) {
                     const dataMapeo = await resMapeo.json();
                     setTipoCntTipoBulto(dataMapeo);
@@ -187,14 +187,14 @@ const ExpoBLEdit = () => {
                 });
 
                 // 🆕 Cargar items y contenedores
-                const resItems = await fetch(`${API_BASE}/bls/${blNumber}/items-contenedores`);
+                const resItems = await fetch(`${API_BASE}/api/bls/${blNumber}/items-contenedores`);
                 if (resItems.ok) {
                     const dataItems = await resItems.json();
                     setItems(dataItems.items || []);
                     setContenedores(dataItems.contenedores || []);
                 }
                 // 🆕 Cargar transbordos
-                const resTransbordos = await fetch(`${API_BASE}/bls/${blNumber}/transbordos`);
+                const resTransbordos = await fetch(`${API_BASE}/api/bls/${blNumber}/transbordos`);
                 if (resTransbordos.ok) {
                     const dataTransbordos = await resTransbordos.json();
                     setTransbordos(dataTransbordos || []);
@@ -1249,7 +1249,7 @@ const ExpoBLEdit = () => {
             }
             // 🆕 Guardar items si fueron modificados
             if (items.length > 0) {
-                const resItems = await fetch(`${API_BASE}/bls/${blNumber}/items`, {
+                const resItems = await fetch(`${API_BASE}/api/bls/${blNumber}/items`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ items })
@@ -1261,7 +1261,7 @@ const ExpoBLEdit = () => {
             }
             // 🆕 Guardar transbordos
             if (transbordos.length > 0) {
-                const resTransbordos = await fetch(`${API_BASE}/bls/${blNumber}/transbordos`, {
+                const resTransbordos = await fetch(`${API_BASE}/api/bls/${blNumber}/transbordos`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ transbordos })
@@ -1277,7 +1277,7 @@ const ExpoBLEdit = () => {
             if (contenedores.length > 0) {
                 console.log('🚀 ENVIANDO CONTENEDORES AL BACKEND:', JSON.stringify(contenedores, null, 2));
 
-                const resContenedores = await fetch(`${API_BASE}/bls/${blNumber}/contenedores`, {
+                const resContenedores = await fetch(`${API_BASE}/api/bls/${blNumber}/contenedores`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
