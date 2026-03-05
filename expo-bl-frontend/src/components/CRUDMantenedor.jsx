@@ -115,6 +115,36 @@ const CRUDMantenedor = () => {
           placeholder: "Ej: 76, 73, 78"
         },
         {
+          key: "tam_contenedor",
+          label: "Tamaño Contenedor",
+          type: "text",
+          required: false,
+          placeholder: "Ej: 20, 40"
+        },
+        {
+          key: "tipo_contenedor",
+          label: "Tipo Contenedor ISO",
+          type: "text",
+          required: false,
+          placeholder: "Ej: DC, HC, RF, OT, FR, TK"
+        },
+        {
+  key: "tipo_cnt_sna",
+  label: "Clasificación Aduana (SNA)",
+  type: "select",
+  required: false,
+  options: [
+    { value: "", label: "— Sin clasificar —" },
+    { value: "DRY", label: "DRY" },
+    { value: "HC", label: "HC" },
+    { value: "RHC", label: "RHC" },
+    { value: "REE", label: "REE" },
+    { value: "OT", label: "OT" },
+    { value: "FR", label: "FR" },
+    { value: "TNK", label: "TNK" },
+  ]
+},
+        {
           key: "activo",
           label: "Estado",
           type: "select",
@@ -251,9 +281,12 @@ const CRUDMantenedor = () => {
 
   const handleEdit = (item) => {
     setEditingItem(item);
-    const clean = config.fields.reduce((acc, f) => {
+   const clean = config.fields.reduce((acc, f) => {
       if (f.key === "activo") {
         return { ...acc, [f.key]: Number(item[f.key] ?? 0) };
+      }
+      if (f.key === "tipo_cnt_sna") {
+        return { ...acc, [f.key]: item[f.key] ?? "" };
       }
       return { ...acc, [f.key]: item[f.key] ?? "" };
     }, {});
@@ -658,8 +691,10 @@ const CRUDMantenedor = () => {
                         ) : field.type === "select" ? (
                           <select
                             value={formData[field.key] ?? ""}
-                            onChange={(e) => setFormData({ ...formData, [field.key]: Number(e.target.value) })}
-                            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0F2A44] focus:border-transparent transition"
+                            onChange={(e) => {
+                              const val = field.key === "activo" ? Number(e.target.value) : e.target.value;
+                              setFormData({ ...formData, [field.key]: val });
+                            }}
                           >
                             <option value="">Seleccione...</option>
                             {field.options?.map((opt) => (

@@ -61,19 +61,19 @@ function exportToExcel(rowsToExport, filename) {
 
 // ── Columnas plantilla TATC ──
 const TATC_COLUMNS = [
-  { key: "nombre_nave", label: "Nave" },
+  { key: "nave_codigo", label: "Nave" },
   { key: "viaje", label: "Viaje" },
-  { key: "codigo_nave", label: "Lloyd" },
-  { key: "n_contenedor", label: "Nro Contenedor" },
+  { key: "imo_nave", label: "Lloyd" },      // ya tenía esto — NO tocar
+  { key: "n_contenedor_tatc", label: "Nro Contenedor" },  // antes n_contenedor
   { key: "tipo_bulto", label: "Tipo Bulto" },
-  { key: "tam_contenedor", label: "Tamaño Contenedor" },
-  { key: "tipo_contenedor", label: "Tipo Contenedor" },
+  { key: "tam_contenedor", label: "Tamaño Contenedor" },  // antes tam_contenedor vacío
+  { key: "tipo_cnt_sna", label: "Tipo Contenedor" },      // antes tipo_contenedor
   { key: "cod_iso", label: "Código ISO Contenedor" },
   { key: "estado_cnt", label: "Estado Contenedor" },
   { key: "tara", label: "Tara Contenedor" },
   { key: "anio_fab", label: "Año Fabricación Contenedor" },
   { key: "pais_fab", label: "País Fabricación Contenedor" },
-  { key: "estado_emb", label: "Estado Embarque" },
+  { key: "estado_emb", label: "Estado Embarque" },        // ahora con valor real
   { key: "num_reserva", label: "Número Reserva Armador" },
   { key: "almacen", label: "Almacén" },
   { key: "deposito", label: "Deposito Devolución" },
@@ -105,10 +105,19 @@ function exportTATC(rowsToExport, filename) {
   ws["!rows"] = [{ hpt: 22 }];
 
   // Aplicar estilo naranja al encabezado
-  TATC_COLUMNS.forEach((_, colIdx) => {
+  const grayKeys = ["tipo_bulto", "estado_cnt", "tara", "anio_fab", "pais_fab", "fecha_ingreso_pais", "fecha_ingreso_dep", "fecha_emision_tatc", "eir", "ingreso_doc"];
+
+  const grayStyle = {
+    fill: { patternType: "solid", fgColor: { rgb: "808080" } },
+    font: { bold: true, color: { rgb: "FFFFFF" } },
+    alignment: { horizontal: "center", vertical: "center" },
+    border: { bottom: { style: "thin", color: { rgb: "FFFFFF" } } },
+  };
+
+  TATC_COLUMNS.forEach((col, colIdx) => {
     const cellAddr = XLSX.utils.encode_cell({ r: 0, c: colIdx });
     if (!ws[cellAddr]) return;
-    ws[cellAddr].s = headerStyle;
+    ws[cellAddr].s = grayKeys.includes(col.key) ? grayStyle : headerStyle;
   });
 
   const wb = XLSX.utils.book_new();
@@ -334,8 +343,6 @@ export default function Reportes() {
         depositoMap[`${d.bl}||${d.n_contenedor ?? ""}`] = d;
       });
 
-      const codigoNave = manifiesto.imo || "—";
-
       const mapped = bls.flatMap((bl) => {
         const contenedores = bl.contenedores ?? [];
 
@@ -344,14 +351,21 @@ export default function Reportes() {
           const saved = depositoMap[key] || {};
           return [{
             nombre_nave: manifiesto.nave || manifiesto.nombre_nave || "",
-            codigo_nave: codigoNave || bl.codigo_nave || "",
+            codigo_nave: manifiesto.imo || "",
+            nave_codigo: manifiesto.codigo_nave || "",
+            imo_nave: manifiesto.imo || "",
             viaje: manifiesto.viaje || "",
-            puerto_embarque: bl.puerto_embarque || "",
-            puerto_desembarque: bl.puerto_descarga || "",
+            puerto_embarque: bl.codigo_puerto_embarque || "",
+            puerto_desembarque: bl.codigo_puerto_descarga || "",
             bl: bl.bl_number || "",
             total_contenedores: 0,
             n_contenedor: "",
+            n_contenedor_tatc: "",
             tipo_contenedor: "",
+            tam_contenedor: "",
+            tipo_cnt_sna: "",
+            estado_emb: bl.tipo_servicio || "",
+            aduana: bl.aduana_embarque || "",
             almacen: saved.almacen ?? bl.almacenador ?? "",
             deposito: saved.deposito ?? "",
             operador: bl.operador_nave || "",
@@ -365,14 +379,22 @@ export default function Reportes() {
           const saved = depositoMap[key] || {};
           return {
             nombre_nave: manifiesto.nave || manifiesto.nombre_nave || "",
-            codigo_nave: codigoNave || bl.codigo_nave || "",
+            codigo_nave: manifiesto.imo || "",
+            nave_codigo: manifiesto.codigo_nave || "",
+            imo_nave: manifiesto.imo || "",
             viaje: manifiesto.viaje || "",
-            puerto_embarque: bl.puerto_embarque || "",
-            puerto_desembarque: bl.puerto_descarga || "",
+            puerto_embarque: bl.codigo_puerto_embarque || "",
+            puerto_desembarque: bl.codigo_puerto_descarga || "",
             bl: bl.bl_number || "",
             total_contenedores: bl.total_contenedores ?? contenedores.length,
             n_contenedor: nCnt,
+            n_contenedor_tatc: cnt.codigo_raw || "",
             tipo_contenedor: formatTipoCnt(cnt.tipo_cnt),
+            tam_contenedor: cnt.tam_contenedor || "",
+            tipo_cnt_sna: cnt.tipo_cnt_sna || "",
+            tipo_bulto: cnt.tipo_bulto || "",
+            estado_emb: bl.tipo_servicio || "",
+            aduana: bl.aduana_embarque || "",
             almacen: saved.almacen ?? bl.almacenador ?? "",
             deposito: saved.deposito ?? "",
             operador: bl.operador_nave || "",
@@ -389,6 +411,7 @@ export default function Reportes() {
     } finally {
       setLoadingBLs(false);
     }
+    console.log("manifiesto:", manifiesto);
   };
 
   // ── Auto-save con debounce de 800ms ──
@@ -622,8 +645,8 @@ export default function Reportes() {
               </button>
               <button
                 onClick={handleExportTATC}
-                disabled
-                className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white text-sm rounded-lg opacity-50 cursor-not-allowed"
+
+                className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white text-sm rounded-lg opacity-100 "
               >
                 <Download size={15} /> Plantilla TATC
               </button>
