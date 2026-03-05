@@ -44,7 +44,7 @@ const ExpoBL = () => {
         setLoading(true);
         setError("");
         try {
-            const res = await fetch(`${API_BASE}/bls`);
+            const res = await fetch(`${API_BASE}/api/bls`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             setBls(Array.isArray(data) ? data : []);
