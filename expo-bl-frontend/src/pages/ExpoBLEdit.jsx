@@ -345,12 +345,10 @@ const ExpoBLEdit = () => {
                 break;
             case 3:
                 if (!formData.shipper || formData.shipper.trim().length < 3) return err("Datos incompletos", "El Shipper no tiene datos válidos del archivo PMS");
-                if (!formData.shipper_telefono?.trim() && !formData.shipper_email?.trim()) return warn("El Shipper debe tener al menos teléfono o email");
                 if (formData.shipper_telefono?.trim() && formData.shipper_telefono.trim().length < 7) return warn("El teléfono del Shipper debe tener al menos 7 caracteres");
                 if (formData.shipper_email?.trim() && !validarEmail(formData.shipper_email)) return err("Email inválido", "El email del Shipper no tiene un formato válido");
                 if (!formData.consignee || formData.consignee.trim().length < 3) return err("Datos incompletos", "El Consignee no tiene datos válidos del archivo PMS");
                 if (esImpo && !formData.consignee_rut?.trim()) return warn("El Consignee debe tener RUT/ID en importación");
-                if (!formData.consignee_telefono?.trim() && !formData.consignee_email?.trim()) return warn("El Consignee debe tener al menos teléfono o email");
                 if (formData.consignee_telefono?.trim() && formData.consignee_telefono.trim().length < 7) return warn("El teléfono del Consignee debe tener al menos 7 caracteres");
                 if (formData.consignee_email?.trim() && !validarEmail(formData.consignee_email)) return err("Email inválido", "El email del Consignee no tiene un formato válido");
                 if (!formData.notify_party || formData.notify_party.trim().length < 3) return err("Datos incompletos", "El Notify Party no tiene datos válidos del archivo PMS");
@@ -864,9 +862,9 @@ const ExpoBLEdit = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-2">Nombre / Razón Social <span className="text-red-500">*</span></label><input type="text" value={formData.shipper || ""} onChange={e => updateField("shipper", e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500" /></div>
                                     <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-2">Dirección</label><input type="text" value={formData.shipper_direccion || ""} onChange={e => updateField("shipper_direccion", e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500" /></div>
-                                    <div><label className="block text-sm font-medium text-slate-700 mb-2">Teléfono <span className="text-amber-500 text-xs">(requerido si no hay email)</span></label><input type="text" value={formData.shipper_telefono || ""} onChange={e => updateField("shipper_telefono", e.target.value.replace(/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/g, ""))} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500" /></div>
+                                    <div><label className="block text-sm font-medium text-slate-700 mb-2">Teléfono</label><input type="text" value={formData.shipper_telefono || ""} onChange={e => updateField("shipper_telefono", e.target.value.replace(/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/g, ""))} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500" /></div>
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-2">Email <span className="text-amber-500 text-xs">(requerido si no hay teléfono)</span></label>
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
                                         <input type="email" value={formData.shipper_email || ""} onChange={e => { updateField("shipper_email", e.target.value); setEmailErrors(p => ({ ...p, shipper: false })); }} onBlur={e => setEmailErrors(p => ({ ...p, shipper: !validarEmail(e.target.value) }))} className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-slate-500 ${emailErrors.shipper ? "border-red-400 bg-red-50" : "border-slate-300"}`} />
                                         {emailErrors.shipper && <p className="text-xs text-red-600 mt-1">Formato de email inválido</p>}
                                     </div>
