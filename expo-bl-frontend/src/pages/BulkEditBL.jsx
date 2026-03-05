@@ -194,7 +194,7 @@ const BulkEditBL = () => {
     const fetchBLs = async () => {
         setLoading(true);
         try {
-            const res  = await fetch(`${API_BASE}/bls`);
+            const res  = await fetch(`${API_BASE}/api/bls`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             setAllBLs(Array.isArray(data) ? data : []);
@@ -203,7 +203,7 @@ const BulkEditBL = () => {
 
     const fetchPuertos = async () => {
         try {
-            const res  = await fetch(`${API_BASE}/mantenedores/puertos`);
+            const res  = await fetch(`${API_BASE}/api/mantenedores/puertos`);
             const data = await res.json();
             setPuertosDisponibles(Array.isArray(data) ? data : []);
         } catch { setPuertosDisponibles([]); }
@@ -309,7 +309,7 @@ const BulkEditBL = () => {
             });
 
             if (Object.keys(updates).length > 0) {
-                const res = await fetch(`${API_BASE}/bls/bulk-update`, {
+                const res = await fetch(`${API_BASE}/api/bls/bulk-update`, {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ blNumbers: selectedBLs, updates }),
@@ -320,7 +320,7 @@ const BulkEditBL = () => {
             // Puertos masivos
             if (editarPuertosMasivo) {
                 await Promise.all(selectedBLs.map(num =>
-                    fetch(`${API_BASE}/bls/${num}`, {
+                    fetch(`${API_BASE}/api/bls/${num}`, {
                         method: "PATCH",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(puertosMasivos),
@@ -331,7 +331,7 @@ const BulkEditBL = () => {
             // Puertos individuales
             if (editarPuertos) {
                 await Promise.all(selectedBLs.map(num =>
-                    fetch(`${API_BASE}/bls/${num}`, {
+                    fetch(`${API_BASE}/api/bls/${num}`, {
                         method: "PATCH",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(puertosIndividuales[num]),
