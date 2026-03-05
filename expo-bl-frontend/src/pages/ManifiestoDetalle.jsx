@@ -151,7 +151,7 @@ const ManifiestoDetalle = () => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}/manifiestos/${id}`);
+      const res = await fetch(`${API_BASE}/api/manifiestos/${id}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       setData(json);
@@ -330,7 +330,7 @@ const ManifiestoDetalle = () => {
       console.log("📦 Payload a enviar:", payload);
       console.log("🏝️ Puerto Central ID en payload:", payload.puertoCentral);
 
-      const res = await fetch(`${API_BASE}/manifiestos/${id}`, {
+      const res = await fetch(`${API_BASE}/api/manifiestos/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -414,7 +414,7 @@ const ManifiestoDetalle = () => {
       const formDataUpload = new FormData();
       formDataUpload.append('pms', pmsFile);
 
-      const res = await fetch(`${API_BASE}/manifiestos/${id}/pms/procesar-directo`, {
+      const res = await fetch(`${API_BASE}/api/manifiestos/${id}/pms/procesar-directo`, {
         method: "POST",
         body: formDataUpload,
       });

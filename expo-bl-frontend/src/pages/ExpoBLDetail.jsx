@@ -46,13 +46,13 @@ const ExpoBLDetail = () => {
         setError("");
         try {
             // Fetch BL básico (AHORA revalida automáticamente en el backend)
-            const res = await fetch(`${API_BASE}/bls/${blNumber}`);
+            const res = await fetch(`${API_BASE}/api/bls/${blNumber}`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             setBl(data);
 
             // Fetch items y contenedores
-            const resItems = await fetch(`${API_BASE}/bls/${blNumber}/items-contenedores`);
+            const resItems = await fetch(`${API_BASE}/api/bls/${blNumber}/items-contenedores`);
             if (resItems.ok) {
                 const dataItems = await resItems.json();
                 setItems(dataItems.items || []);
@@ -60,14 +60,14 @@ const ExpoBLDetail = () => {
             }
 
             // Fetch transbordos
-            const resTransbordos = await fetch(`${API_BASE}/bls/${blNumber}/transbordos`);
+            const resTransbordos = await fetch(`${API_BASE}/api/bls/${blNumber}/transbordos`);
             if (resTransbordos.ok) {
                 const dataTransbordos = await resTransbordos.json();
                 setTransbordos(dataTransbordos || []);
             }
 
             // Fetch validaciones (ya actualizadas por el backend)
-            const resValidaciones = await fetch(`${API_BASE}/bls/${blNumber}/validaciones`);
+            const resValidaciones = await fetch(`${API_BASE}/api/bls/${blNumber}/validaciones`);
             if (resValidaciones.ok) {
                 const dataValidaciones = await resValidaciones.json();
                 setValidaciones(dataValidaciones || []);

@@ -32,7 +32,7 @@ const Manifiestos = () => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}/manifiestos`);
+      const res = await fetch(`${API_BASE}/api/manifiestos`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setManifiestos(Array.isArray(data) ? data : []);
@@ -97,7 +97,7 @@ const Manifiestos = () => {
     if (!result.isConfirmed) return;
 
     try {
-      const res = await fetch(`${API_BASE}/manifiestos/eliminar-multiples`, {
+      const res = await fetch(`${API_BASE}/api/manifiestos/eliminar-multiples`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: Array.from(selected) }),
