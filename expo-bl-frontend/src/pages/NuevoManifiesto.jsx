@@ -228,17 +228,17 @@ const NuevoManifiesto = () => {
 
     const referenciaHtml = referenciaSeleccionada
       ? `<span style="display:block; padding: 4px 0; border-bottom: 1px solid #e2e8f0;">
-          <strong>REF / MFTO</strong> &nbsp;
-          N°: ${referencia.numeroReferencia} &nbsp;
-          Fecha: ${referencia.fecha} &nbsp;
-          Emisor: ${referenciaSeleccionada.nombre_emisor} &nbsp;
-          RUT: ${referenciaSeleccionada.rut}
-        </span>`
+    <strong>REF / MFTO</strong> &nbsp;
+   <strong>N°:</strong> ${referencia.numeroReferencia} &nbsp;
+<strong>Fecha:</strong> ${referencia.fecha} &nbsp;
+<strong>Operador Nave:</strong> ${referenciaSeleccionada.nombre_emisor} &nbsp;
+<strong>RUT:</strong> ${referenciaSeleccionada.rut}
+</span>`
       : '<span style="color: #ef4444;">No seleccionada</span>';
 
-    const emisorHtml = emisorSeleccionado
-      ? `${form.emisorDocumento} (${emisorSeleccionado.nombre_emisor})`
-      : form.emisorDocumento;
+   const emisorHtml = emisorSeleccionado
+    ? emisorSeleccionado.nombre_emisor
+    : form.emisorDocumento;
 
     const representanteHtml = representanteSeleccionado
       ? `${form.representante} (${representanteSeleccionado.nombre_emisor})`
@@ -250,9 +250,9 @@ const NuevoManifiesto = () => {
         <p><strong>Nave:</strong> ${form.nave}${naveObj ? ` - ${naveObj.nombre}` : ""}</p>
         <p><strong>Viaje:</strong> ${form.viaje}</p>
         <p><strong>Puerto Central:</strong> ${form.puertoCentral}${puertoCentralObj ? ` - ${puertoCentralObj.nombre}` : ""}</p>
-        <p><strong>Operación:</strong> ${form.tipoOperacion}</p>
-        <p><strong>Operador Nave:</strong> ${form.operadorNave}</p>
-        <p><strong>Emisor Documento:</strong> ${emisorHtml}</p>
+        <p><strong>Operación:</strong> ${form.tipoOperacion}</p>   
+<p><strong>Emisor (Agente que presenta el mensaje):</strong> ${operadorNaveSeleccionado ? operadorNaveSeleccionado.nombre_emisor : form.operadorNave}</p>
+<p><strong>Emisor Doc:</strong> ${emisorHtml}</p>
         <p><strong>Representante:</strong> ${representanteHtml}</p>
         <p><strong>Fecha Mfto Aduana:</strong> ${form.fechaManifiestoAduana}</p>
         <p><strong>N° Mfto Aduana:</strong> ${form.numeroManifiestoAduana}</p>

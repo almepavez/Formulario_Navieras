@@ -296,19 +296,32 @@ const ExpoBLDetail = () => {
 
                 {/* Puertos y Rutas */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
-                    <h2 className="text-lg font-semibold text-[#0F2A44] mb-4">
-                        Puertos y Rutas
-                    </h2>
+                    <h2 className="text-lg font-semibold text-[#0F2A44] mb-4">Puertos y Rutas</h2>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div>
-                            <p className="text-xs text-slate-500 mb-1">Puerto Origen</p>
-                            <p className="text-sm font-medium text-slate-900">{bl.puerto_embarque || "—"}</p>
+                            <p className="text-xs text-slate-500 mb-1">Lugar Emisión</p>
+                            <p className="text-sm font-medium text-slate-900">{bl.lugar_emision_cod ? `${bl.lugar_emision_cod} — ${bl.lugar_emision_nombre || ""}` : "—"}</p>
                         </div>
-
                         <div>
-                            <p className="text-xs text-slate-500 mb-1">Puerto Destino</p>
-                            <p className="text-sm font-medium text-slate-900">{bl.puerto_descarga || "—"}</p>
+                            <p className="text-xs text-slate-500 mb-1">Puerto Embarque</p>
+                            <p className="text-sm font-medium text-slate-900">{bl.puerto_embarque_cod ? `${bl.puerto_embarque_cod} — ${bl.puerto_embarque_nombre || ""}` : "—"}</p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-slate-500 mb-1">Puerto Descarga</p>
+                            <p className="text-sm font-medium text-slate-900">{bl.puerto_descarga_cod ? `${bl.puerto_descarga_cod} — ${bl.puerto_descarga_nombre || ""}` : "—"}</p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-slate-500 mb-1">Lugar Destino</p>
+                            <p className="text-sm font-medium text-slate-900">{bl.lugar_destino_cod ? `${bl.lugar_destino_cod} — ${bl.lugar_destino_nombre || ""}` : "—"}</p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-slate-500 mb-1">Lugar Entrega</p>
+                            <p className="text-sm font-medium text-slate-900">{bl.lugar_entrega_cod ? `${bl.lugar_entrega_cod} — ${bl.lugar_entrega_nombre || ""}` : "—"}</p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-slate-500 mb-1">Lugar Recepción</p>
+                            <p className="text-sm font-medium text-slate-900">{bl.lugar_recepcion_cod ? `${bl.lugar_recepcion_cod} — ${bl.lugar_recepcion_nombre || ""}` : "—"}</p>
                         </div>
                     </div>
                 </div>
@@ -377,9 +390,9 @@ const ExpoBLDetail = () => {
 
                         {/* Ruta completa */}
                         <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                            <p className="text-xs text-blue-700">
-                                <strong>Ruta completa:</strong> {bl.puerto_embarque || "—"} → {transbordos.map(t => t.puerto_cod).join(" → ")} → {bl.puerto_descarga || "—"}
-                            </p>
+                           <p className="text-xs text-blue-700">
+    <strong>Ruta completa:</strong> {bl.puerto_embarque_cod || bl.puerto_embarque || "—"} → {transbordos.map(t => t.puerto_cod).join(" → ")} → {bl.puerto_descarga_cod || bl.puerto_descarga || "—"}
+</p>
                         </div>
                     </div>
                 )}
