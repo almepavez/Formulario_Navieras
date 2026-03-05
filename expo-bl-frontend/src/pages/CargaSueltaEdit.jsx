@@ -273,7 +273,7 @@ const CargaSueltaEdit = () => {
         try {
             setLoading(true);
 
-            const res = await fetch(`${API_BASE}/bls/${blNumber}`);
+            const res = await fetch(`${API_BASE}/api/bls/${blNumber}`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const bl = await res.json();
 
@@ -288,7 +288,7 @@ const CargaSueltaEdit = () => {
                 return;
             }
 
-            const resItems = await fetch(`${API_BASE}/bls/${blNumber}/items-contenedores`);
+            const resItems = await fetch(`${API_BASE}/api/bls/${blNumber}/items-contenedores`);
             if (!resItems.ok) throw new Error(`HTTP ${resItems.status}`);
             const dataItems = await resItems.json();
 
@@ -371,7 +371,7 @@ const CargaSueltaEdit = () => {
             });
 
             if (bl.manifiesto_id) {
-                const resManifiesto = await fetch(`${API_BASE}/manifiestos/${bl.manifiesto_id}`);
+                const resManifiesto = await fetch(`${API_BASE}/api/manifiestos/${bl.manifiesto_id}`);
                 if (resManifiesto.ok) {
                     const jsonManifiesto = await resManifiesto.json();
                     setManifiestoData(jsonManifiesto.manifiesto);
@@ -394,7 +394,7 @@ const CargaSueltaEdit = () => {
 
     const fetchPuertos = async () => {
         try {
-            const res = await fetch(`${API_BASE}/puertos`);
+            const res = await fetch(`${API_BASE}/api/puertos`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const json = await res.json();
             setPuertos(json || []);
@@ -613,7 +613,7 @@ const CargaSueltaEdit = () => {
         setIsSubmitting(true);
 
         try {
-            const res = await fetch(`${API_BASE}/bls/${blNumber}/carga-suelta`, {
+            const res = await fetch(`${API_BASE}/api/bls/${blNumber}/carga-suelta`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(formData)

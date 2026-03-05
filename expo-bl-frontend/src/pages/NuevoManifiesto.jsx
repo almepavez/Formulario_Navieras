@@ -327,7 +327,7 @@ const NuevoManifiesto = () => {
     try {
       setSaving(true);
 
-      const res = await fetch(`${API_BASE_URL}/manifiestos`, {
+      const res = await fetch(`${API_BASE_URL}/api/manifiestos`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

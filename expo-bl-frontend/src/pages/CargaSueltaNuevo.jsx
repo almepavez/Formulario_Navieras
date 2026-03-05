@@ -130,7 +130,7 @@ const CargaSueltaNuevo = () => {
 
     const fetchManifiestoData = async () => {
         try {
-            const res = await fetch(`${API_BASE}/manifiestos/${id}`);
+            const res = await fetch(`${API_BASE}/api/manifiestos/${id}`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const json = await res.json();
             setManifiestoData(json.manifiesto);
@@ -158,7 +158,7 @@ const CargaSueltaNuevo = () => {
     const fetchPuertos = async () => {
         try {
             console.log('🔄 Cargando puertos...');
-            const res = await fetch(`${API_BASE}/puertos`);
+            const res = await fetch(`${API_BASE}/api/puertos`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const json = await res.json();
 
@@ -556,7 +556,7 @@ const CargaSueltaNuevo = () => {
         setIsSubmitting(true);
 
         try {
-            const res = await fetch(`${API_BASE}/manifiestos/${id}/carga-suelta`, {
+            const res = await fetch(`${API_BASE}/api/manifiestos/${id}/carga-suelta`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(formData)

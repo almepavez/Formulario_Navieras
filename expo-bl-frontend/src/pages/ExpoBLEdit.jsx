@@ -34,7 +34,18 @@ const ExpoBLEdit = () => {
     const [tiposContenedor, setTiposContenedor] = useState([]);
     const [tipoCntTipoBulto, setTipoCntTipoBulto] = useState([]);
     const [showCrearPuertoModal, setShowCrearPuertoModal] = useState(false);
-    const [emailErrors, setEmailErrors] = useState({ shipper: false, consignee: false, notify: false });
+    const [emailErrors, setEmailErrors] = useState({
+        shipper: false,
+        consignee: false,
+        notify: false,
+    });
+
+    useEffect(() => {
+        fetch(`${API_BASE}/api/tipos-contenedor`) // ✅ CORRECTO
+            .then(res => res.json())
+            .then(data => setTiposContenedor(data))
+            .catch(err => console.error('Error:', err));
+    }, []);
 
     const esImpo = tipoOperacion === "I" || tipoOperacion === "TR" || tipoOperacion === "TRB";
     const esExpo = tipoOperacion === "S";
@@ -61,18 +72,20 @@ const ExpoBLEdit = () => {
             setLoading(true);
             setError("");
             try {
-                const resBL = await fetch(`${API_BASE}/bls/${blNumber}`);
-                if (!resBL.ok) throw new Error(`Error ${resBL.status}: No se pudo cargar el BL`);
+                // 🆕 Cargar BL
+                const resBL = await fetch(`${API_BASE}/api/bls/${blNumber}`);
+                if (!resBL.ok) {
+                    throw new Error(`Error ${resBL.status}: No se pudo cargar el BL`);
+                }
                 const dataBL = await resBL.json();
-
                 const opType = dataBL.tipo_operacion || "S";
                 setTipoOperacion(opType);
 
                 const [resPuertos, resTiposBulto, resTiposCnt, resMapeo] = await Promise.all([
-                    fetch(`${API_BASE}/puertos`),
-                    fetch(`${API_BASE}/tipos-bulto`),
-                    fetch(`${API_BASE}/tipos-contenedor`),
-                    fetch(`${API_BASE}/tipo-cnt-tipo-bulto`)
+                    fetch(`${API_BASE}/api/puertos`),
+                    fetch(`${API_BASE}/api/tipos-bulto`),
+                    fetch(`${API_BASE}/api/tipos-contenedor`),
+                    fetch(`${API_BASE}/api/tipo-cnt-tipo-bulto`)
                 ]);
 
                 if (resPuertos.ok) setPuertos(await resPuertos.json());
@@ -125,7 +138,7 @@ const ExpoBLEdit = () => {
                         : [],
                 });
 
-                const resIC = await fetch(`${API_BASE}/bls/${blNumber}/items-contenedores`);
+                const resIC = await fetch(`${API_BASE}/api/bls/${blNumber}/items-contenedores`);
                 if (resIC.ok) {
                     const d = await resIC.json();
                     setItems(d.items || []);
@@ -139,7 +152,7 @@ const ExpoBLEdit = () => {
                     })));
                 }
 
-                const resTB = await fetch(`${API_BASE}/bls/${blNumber}/transbordos`);
+                const resTB = await fetch(`${API_BASE}/api/bls/${blNumber}/transbordos`);
                 if (resTB.ok) {
                     const data = await resTB.json();
                     setTransbordos(data.map(tb => ({ ...tb, fecha_arribo: formatDateTime(tb.fecha_arribo) })));
@@ -475,13 +488,29 @@ const ExpoBLEdit = () => {
             };
             const res = await fetch(`${API_BASE}/api/bls/${blNumber}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(dataToSend) });
             if (!res.ok) { const e = await res.json(); throw new Error(e.error || "Error al guardar"); }
-            if (items.length > 0) await fetch(`${API_BASE}/bls/${blNumber}/items`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items }) });
-            if (esImpo || transbordos.length > 0) {
-                await fetch(`${API_BASE}/bls/${blNumber}/transbordos`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ transbordos: transbordos.map(tb => ({ ...tb, fecha_arribo: fmtDT(tb.fecha_arribo) })) }) });
+
+            if (items.length > 0) {
+                const resItems = await fetch(`${API_BASE}/api/bls/${blNumber}/items`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ items })
+                });
+                if (!resItems.ok) console.warn("Error al actualizar items (no crítico)");
             }
+
+            if (esImpo || transbordos.length > 0) {
+                await fetch(`${API_BASE}/api/bls/${blNumber}/transbordos`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ transbordos: transbordos.map(tb => ({ ...tb, fecha_arribo: fmtDT(tb.fecha_arribo) })) })
+                });
+            }
+
             if (contenedores.length > 0) {
-                await fetch(`${API_BASE}/bls/${blNumber}/contenedores`, {
-                    method: "PUT", headers: { "Content-Type": "application/json" },
+                console.log('🚀 ENVIANDO CONTENEDORES AL BACKEND:', JSON.stringify(contenedores, null, 2));
+                const resContenedores = await fetch(`${API_BASE}/api/bls/${blNumber}/contenedores`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         contenedores: contenedores.map(c => ({
                             id: c.id, item_id: c.item_id, codigo: c.es_soc ? "" : c.codigo,
