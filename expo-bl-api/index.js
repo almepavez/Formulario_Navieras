@@ -6401,34 +6401,54 @@ app.put("/bls/:blNumber/contenedores", async (req, res) => {
 app.put("/api/bls/:blNumber/contenedores", async (req, res) => {
   const { blNumber } = req.params;
   const { contenedores } = req.body;
+
+  console.log('🚀 RECIBIENDO contenedores para BL:', blNumber);
+  console.log('📦 Total contenedores:', contenedores?.length);
+
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
+
     const [blRows] = await conn.query("SELECT id FROM bls WHERE bl_number = ?", [blNumber]);
     if (blRows.length === 0) {
       await conn.rollback();
       return res.status(404).json({ error: "BL no encontrado" });
     }
+
     const blId = blRows[0].id;
-    function parseCodigoContenedor(codigo) {
-      if (!codigo || codigo.length !== 11) return { sigla: null, numero: null, digito: null };
+
+    function parseCodigoContenedor(codigo, esSoc) {
+      if (esSoc || !codigo || codigo.length !== 11) {
+        return { sigla: null, numero: null, digito: null };
+      }
       return {
         sigla: codigo.substring(0, 4).toUpperCase(),
         numero: codigo.substring(4, 10),
         digito: codigo.substring(10, 11)
       };
     }
+
     for (const cont of contenedores) {
-      const { sigla, numero, digito } = parseCodigoContenedor(cont.codigo);
+      const esSoc = !!cont.es_soc;
+      const { sigla, numero, digito } = parseCodigoContenedor(cont.codigo, esSoc);
+
       if (cont._isNew) {
         const [insertResult] = await conn.query(
           `INSERT INTO bl_contenedores 
           (bl_id, item_id, codigo, sigla, numero, digito, tipo_cnt, carga_cnt,
+           es_soc, cnt_so_numero,
            peso, unidad_peso, volumen, unidad_volumen) 
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [blId, cont.item_id, cont.codigo, sigla, numero, digito,
-           cont.tipo_cnt, cont.carga_cnt || 'S', cont.peso || null,
-           cont.unidad_peso || 'KGM', cont.volumen ?? null, cont.unidad_volumen || 'MTQ']
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            blId, cont.item_id,
+            esSoc ? '' : (cont.codigo || ''),
+            sigla, numero, digito,
+            cont.tipo_cnt, cont.carga_cnt || 'S',
+            esSoc ? 1 : 0,
+            esSoc ? (cont.cnt_so_numero || '') : null,
+            cont.peso || null, cont.unidad_peso || 'KGM',
+            cont.volumen ?? null, cont.unidad_volumen || 'MTQ'
+          ]
         );
         const newContId = insertResult.insertId;
         if (cont.sellos && cont.sellos.length > 0) {
@@ -6445,11 +6465,18 @@ app.put("/api/bls/:blNumber/contenedores", async (req, res) => {
         await conn.query(
           `UPDATE bl_contenedores 
           SET codigo = ?, sigla = ?, numero = ?, digito = ?, tipo_cnt = ?,
+              es_soc = ?, cnt_so_numero = ?,
               peso = ?, unidad_peso = ?, volumen = ?, unidad_volumen = ?
           WHERE id = ?`,
-          [cont.codigo, sigla, numero, digito, cont.tipo_cnt,
-           cont.peso || null, cont.unidad_peso || 'KGM',
-           cont.volumen || null, cont.unidad_volumen || 'MTQ', cont.id]
+          [
+            esSoc ? '' : (cont.codigo || ''),
+            sigla, numero, digito, cont.tipo_cnt,
+            esSoc ? 1 : 0,
+            esSoc ? (cont.cnt_so_numero || '') : null,
+            cont.peso || null, cont.unidad_peso || 'KGM',
+            cont.volumen || null, cont.unidad_volumen || 'MTQ',
+            cont.id
+          ]
         );
         await conn.query("DELETE FROM bl_contenedor_sellos WHERE contenedor_id = ?", [cont.id]);
         if (cont.sellos && cont.sellos.length > 0) {
@@ -6465,6 +6492,7 @@ app.put("/api/bls/:blNumber/contenedores", async (req, res) => {
         }
       }
     }
+
     await conn.commit();
     res.json({ success: true, message: "Contenedores actualizados correctamente" });
   } catch (error) {
