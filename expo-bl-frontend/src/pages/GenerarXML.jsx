@@ -602,7 +602,7 @@ const GenerarXML = () => {
 
     if (bl.valid_status === 'ERROR' || bl.valid_status === 'OBS') {
       try {
-        const res = await fetch(`${API_BASE}/bls/${blNumber}/validaciones`);
+        const res = await fetch(`${API_BASE}/api/bls/${blNumber}/validaciones`);
         if (res.ok) {
           validacionesReales = await res.json();
         }
