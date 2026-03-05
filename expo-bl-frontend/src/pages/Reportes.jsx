@@ -313,7 +313,7 @@ export default function Reportes() {
       setLoadingAll(true);
       try {
         const token = localStorage.getItem("token");
-        const res = await fetch(`${API_URL}/manifiestos`, { headers: { Authorization: `Bearer ${token}` } });
+        const res = await fetch(`${API_URL}/api/manifiestos`, { headers: { Authorization: `Bearer ${token}` } });
         const data = await res.json();
         setAllManifiestos(Array.isArray(data) ? data : data.data ?? []);
       } catch { /* silencioso */ }
@@ -331,8 +331,8 @@ export default function Reportes() {
     try {
       const token = localStorage.getItem("token");
       const [resBls, resDepositos] = await Promise.all([
-        fetch(`${API_URL}/manifiestos/${manifiesto.id}/bls`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API_URL}/manifiestos/${manifiesto.id}/depositos`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/api/manifiestos/${manifiesto.id}/bls`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/api/manifiestos/${manifiesto.id}/depositos`, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
       const bls = await resBls.json();
       const depositosGuardados = resDepositos.ok ? await resDepositos.json() : [];
@@ -427,7 +427,7 @@ export default function Reportes() {
         const row = prev[rowIdx];
         if (!row) return prev;
         const token = localStorage.getItem("token");
-        fetch(`${API_URL}/manifiestos/${selectedId}/depositos`, {
+        fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos`, {
           method: "PUT",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({
@@ -454,7 +454,7 @@ export default function Reportes() {
         deposito: r.deposito ?? "",
         almacen: r.almacen ?? "",
       }));
-      const res = await fetch(`${API_URL}/manifiestos/${selectedId}/depositos/bulk`, {
+      const res = await fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos/bulk`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload),
@@ -563,7 +563,7 @@ export default function Reportes() {
                   deposito: r.deposito ?? "",
                   almacen: r.almacen ?? "",
                 }));
-                fetch(`${API_URL}/manifiestos/${selectedId}/depositos/bulk`, {
+                fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos/bulk`, {
                   method: "PUT",
                   headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                   body: JSON.stringify(payload),
