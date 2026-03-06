@@ -533,7 +533,7 @@ const getContenedoresQuery = () => `
 
 const getTransbordosQuery = () => `
   SELECT t.sec, t.puerto_cod, t.fecha_arribo, p.nombre AS puerto_nombre
-  FROM transbordos t
+  FROM bl_transbordos t
   LEFT JOIN puertos p ON t.puerto_id = p.id
   WHERE t.bl_id = ?
   ORDER BY t.sec ASC

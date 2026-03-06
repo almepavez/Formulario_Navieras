@@ -2856,13 +2856,13 @@ function extractFZARPEFrom14(line14) {
 }
 
 function extractUnitsFrom41(line41) {
-  // En tus ejemplos termina con "...KGMMTQY"
   const s = String(line41 || "");
-  const m = s.match(/([A-Z]{3})([A-Z]{3})Y\s*$/);
+
+  // Cambia Y fijo → [A-Z] para cubrir S, Y, u cualquier otra letra
+  const m = s.match(/([A-Z]{3})([A-Z]{3})[A-Z]\s*$/);
   if (!m) return { unidadPeso: null, unidadVolumen: null };
   return { unidadPeso: m[1], unidadVolumen: m[2] };
 }
-
 function extractWeightVolumeFrom41(line41) {
   // Ejemplo:
   // 41 001 Y000001000100011646000 00000179200000017920....KGMMTQY
@@ -3069,7 +3069,7 @@ function parseLine51(raw, esEmpty = false) {
   const numero = codigo.slice(4, 10);
   const digito = codigo.slice(10, 11);
 
-  const mTipo = line.match(/N(\d{2}[A-Z]\d)[EF]/);
+  const mTipo = line.match(/[A-Z]{4}\d{7}[A-Z0-9](\d{2}[A-Z]\d)[EF]/);
   const tipo_cnt = mTipo ? mTipo[1] : null;
 
   const unidad_peso = line.includes("KGM") ? "KGM" : null;
@@ -3153,8 +3153,8 @@ function parseLine51(raw, esEmpty = false) {
   // ===========================
   const sellos = [];
   if (tail) {
-    const mSeal = tail.match(/\b(?:CL|BZ|JG)[0-9A-Z]{5,}\b|\b\d{5,10}\b/g);
-    if (mSeal) for (const s of mSeal) if (!sellos.includes(s)) sellos.push(s);
+// MÁS SEGURO: ampliar prefijos conocidos
+const mSeal = tail.match(/\b(?:CL|BZ|JG|CX|SL|TR|CR)[0-9A-Z]{5,}\b|\b\d{5,10}\b/g);    if (mSeal) for (const s of mSeal) if (!sellos.includes(s)) sellos.push(s);
   }
 
   return {
@@ -3349,19 +3349,22 @@ function countItemsFrom41(lines41) {
  * Contamos contenedores únicos por código: ABCD1234567 (o ABCD1234560 etc)
  */
 function extractContainerCodeFrom51(line51) {
-  // Ej: "51   002003BSIU8004381N45G1F..."
-  // Buscamos: 4 letras + 7 dígitos (formato estándar contenedor)
-  const m = String(line51).match(/\b([A-Z]{4}\d{7})\b/);
-  return m ? m[1] : "";
+  // Captura: 4 letras + 7 dígitos + check digit + 4 chars tipo_cnt
+  // Ej: TCNU7297920Y45G1 → containerId: TCNU7297920, tipoCnt: 45G1
+  const m = String(line51).match(/([A-Z]{4}\d{7})[A-Z0-9]([A-Z0-9]{4})/);
+  if (!m) return { containerId: "", tipoCnt: "" };
+  return {
+    containerId: m[1],
+    tipoCnt: m[2]
+  };
 }
 
 function countContainersFrom51(lines51) {
   const set = new Set();
   for (const l of lines51) {
-    const code = extractContainerCodeFrom51(l);
-    if (code) set.add(code);
+    const { containerId } = extractContainerCodeFrom51(l); // ← destructura
+    if (containerId) set.add(containerId);                 // ← usa containerId
   }
-  // Si por algún motivo no matchea el patrón, fallback a "cantidad de líneas 51"
   if (set.size > 0) return set.size;
   return lines51.length || null;
 }
@@ -3773,6 +3776,21 @@ function parsePmsTxt(content) {
 
         c.imo = hits.map(h => ({ clase_imo: h.clase, numero_imo: h.un }));
       }
+      // Detectar SOC desde líneas 47
+      const lines47 = pickAll(bLines, "47");
+      const textoLineas47 = lines47.join(" ");
+      const esSOC = /SHIPPER[\s.]{0,5}OWNER[\s.]{0,5}CONTAINER|SHIPPER'?S[\s.]{0,5}OWN[\s.]{0,5}CONTAINER|\bSOC\b/i.test(textoLineas47);
+
+      // Pegar es_soc y cnt_so_numero a cada contenedor
+      for (const c of contenedores) {
+        c.es_soc = esSOC;
+        if (esSOC) {
+          // TCNU7297920 → "TCNU 729792-0"
+          c.cnt_so_numero = `${c.sigla} ${c.numero}-${c.digito}`;
+        } else {
+          c.cnt_so_numero = null;
+        }
+      }
 
       // ---------- 61: FLETE (BOF) ----------  👈 AGREGAR AQUÍ
       const line61Bof = bLines.find(l =>
@@ -4022,11 +4040,12 @@ app.post("/manifiestos/:id/pms/procesar-directo", upload.single("pms"), async (r
     `;
 
     const insertContSql = `
-      INSERT INTO bl_contenedores
-        (bl_id, item_id, codigo, sigla, numero, digito,
-         tipo_cnt, carga_cnt, peso, unidad_peso, volumen, unidad_volumen)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
+  INSERT INTO bl_contenedores
+    (bl_id, item_id, codigo, sigla, numero, digito,
+     tipo_cnt, carga_cnt, peso, unidad_peso, volumen, unidad_volumen,
+     es_soc, cnt_so_numero)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`;
 
     // ============================
     // CARGA_REAL
@@ -4750,11 +4769,12 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
     `;
 
     const insertContSql = `
-      INSERT INTO bl_contenedores
-        (bl_id, item_id, codigo, sigla, numero, digito,
-         tipo_cnt, carga_cnt, peso, unidad_peso, volumen, unidad_volumen)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
+  INSERT INTO bl_contenedores
+    (bl_id, item_id, codigo, sigla, numero, digito,
+     tipo_cnt, carga_cnt, peso, unidad_peso, volumen, unidad_volumen,
+     es_soc, cnt_so_numero)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`;
 
     // ============================
     // CARGA_REAL
@@ -5206,10 +5226,12 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
           c.digito || null,
           c.tipo_cnt || null,
           c.carga_cnt || null,
-          pesoContenedor,  // 🔥 PESO CORREGIDO CON TARA
+          pesoContenedor,
           c.unidad_peso || null,
           c.volumen ?? null,
           c.unidad_volumen || null,
+          c.es_soc ? 1 : 0,         // ← NUEVO
+          c.cnt_so_numero || null,   // ← NUEVO
         ]);
 
         const contenedorId = cIns.insertId;
@@ -7241,21 +7263,21 @@ app.put("/api/bls/:blNumber/carga-suelta", async (req, res) => {
       forma_pago_flete, cond_transporte, fecha_emision, fecha_presentacion, fecha_embarque, fecha_zarpe,
       lugar_emision_id, lugar_recepcion_id, puerto_embarque_id, puerto_descarga_id, lugar_destino_id, lugar_entrega_id,
       shipper_id, consignee_id, notify_id, almacenador_id, shipper, consignee, notify_party, almacenador,
-      shipper_direccion||null, shipper_telefono||null, shipper_email||null,
-      consignee_direccion||null, consignee_telefono||null, consignee_email||null,
-      notify_direccion||null, notify_telefono||null, notify_email||null,
+      shipper_direccion || null, shipper_telefono || null, shipper_email || null,
+      consignee_direccion || null, consignee_telefono || null, consignee_email || null,
+      notify_direccion || null, notify_telefono || null, notify_email || null,
       observaciones ? JSON.stringify(observaciones) : null, blId
     ]);
     await conn.query("DELETE FROM bl_items WHERE bl_id = ?", [blId]);
     if (Array.isArray(items) && items.length > 0) {
       for (const item of items) {
         await conn.query(`INSERT INTO bl_items (bl_id, numero_item, marcas, tipo_bulto, descripcion, cantidad, peso_bruto, unidad_peso, volumen, unidad_volumen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [blId, item.numero_item, item.marcas||'N/M', item.tipo_bulto, item.descripcion, item.cantidad, item.peso_bruto, item.unidad_peso, item.volumen||0, item.unidad_volumen]);
+          [blId, item.numero_item, item.marcas || 'N/M', item.tipo_bulto, item.descripcion, item.cantidad, item.peso_bruto, item.unidad_peso, item.volumen || 0, item.unidad_volumen]);
       }
     }
-    const totalPeso = items.reduce((sum, i) => sum + parseFloat(i.peso_bruto||0), 0);
-    const totalVolumen = items.reduce((sum, i) => sum + parseFloat(i.volumen||0), 0);
-    const totalBultos = items.reduce((sum, i) => sum + parseInt(i.cantidad||0), 0);
+    const totalPeso = items.reduce((sum, i) => sum + parseFloat(i.peso_bruto || 0), 0);
+    const totalVolumen = items.reduce((sum, i) => sum + parseFloat(i.volumen || 0), 0);
+    const totalBultos = items.reduce((sum, i) => sum + parseInt(i.cantidad || 0), 0);
     await conn.query(`UPDATE bls SET bultos=?, peso_bruto=?, volumen=? WHERE id=?`, [totalBultos, totalPeso, totalVolumen, blId]);
     await conn.commit();
     res.json({ success: true, bl_number: blNumber, total_items: items.length, bultos: totalBultos, peso_bruto: totalPeso, volumen: totalVolumen });
@@ -7689,9 +7711,9 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
     }
 
     const [items] = await pool.query(
-  `SELECT * FROM bl_items WHERE bl_id = ? ORDER BY numero_item`, [bl.id]
-);
-console.log('ITEM volumen:', items[0]?.volumen, typeof items[0]?.volumen);
+      `SELECT * FROM bl_items WHERE bl_id = ? ORDER BY numero_item`, [bl.id]
+    );
+    console.log('ITEM volumen:', items[0]?.volumen, typeof items[0]?.volumen);
 
     const esCargaSuelta = bl.tipo_servicio_codigo === 'BB';
     let contenedores = [];
@@ -7857,7 +7879,8 @@ app.get("/api/bls/:blNumber/transbordos", async (req, res) => {
     if (blRows.length === 0) return res.status(404).json({ error: "BL no encontrado" });
     const blId = blRows[0].id;
     const [transbordos] = await pool.query(`
-      SELECT t.id, t.sec, t.puerto_cod, t.puerto_id, p.nombre AS puerto_nombre, p.pais AS puerto_pais
+      SELECT t.id, t.sec, t.puerto_cod, t.puerto_id, t.fecha_arribo,
+             p.nombre AS puerto_nombre, p.pais AS puerto_pais
       FROM bl_transbordos t
       LEFT JOIN puertos p ON t.puerto_id = p.id
       WHERE t.bl_id = ?
@@ -7867,69 +7890,6 @@ app.get("/api/bls/:blNumber/transbordos", async (req, res) => {
   } catch (error) {
     console.error("Error al obtener transbordos:", error);
     res.status(500).json({ error: "Error al obtener transbordos" });
-  }
-});
-
-
-// Actualizar transbordos de un BL
-app.put("/bls/:blNumber/transbordos", async (req, res) => {
-  const { blNumber } = req.params;
-  const { transbordos } = req.body;
-
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-
-    // 1) Obtener bl_id
-    const [blRows] = await conn.query(
-      "SELECT id FROM bls WHERE bl_number = ? LIMIT 1",
-      [blNumber]
-    );
-
-    if (blRows.length === 0) {
-      await conn.rollback();
-      return res.status(404).json({ error: "BL no encontrado" });
-    }
-
-    const blId = blRows[0].id;
-
-    // 2) Eliminar transbordos existentes
-    await conn.query("DELETE FROM transbordos WHERE bl_id = ?", [blId]); // ← corregido
-
-    // 3) Insertar nuevos transbordos
-    if (Array.isArray(transbordos) && transbordos.length > 0) {
-      for (const tb of transbordos) {
-        if (!tb.puerto_cod) continue;
-
-        const [puertoRows] = await conn.query(
-          "SELECT id FROM puertos WHERE codigo = ? LIMIT 1",
-          [tb.puerto_cod]
-        );
-
-        const puertoId = puertoRows.length > 0 ? puertoRows[0].id : null;
-
-        const fechaArribo = tb.fecha_arribo
-          ? tb.fecha_arribo.substring(0, 16).replace("T", " ") + ":00"
-          : null;
-
-        console.log("fecha_arribo recibida del frontend:", tb.fecha_arribo); // ← adentro del for
-
-        await conn.query(
-          `INSERT INTO transbordos (bl_id, sec, puerto_cod, puerto_id, fecha_arribo)
-           VALUES (?, ?, ?, ?, ?)`,
-          [blId, tb.sec, tb.puerto_cod, puertoId, fechaArribo]
-        );
-      }
-    }
-
-    await conn.commit();
-    res.json({ success: true, message: "Transbordos actualizados correctamente" });
-  } catch (error) {
-    await conn.rollback();
-    console.error("Error al actualizar transbordos:", error);
-    res.status(500).json({ error: "Error al actualizar transbordos" });
-  } finally {
-    conn.release();
   }
 });
 
@@ -7952,9 +7912,12 @@ app.put("/api/bls/:blNumber/transbordos", async (req, res) => {
         if (!tb.puerto_cod) continue;
         const [puertoRows] = await conn.query("SELECT id FROM puertos WHERE codigo = ? LIMIT 1", [tb.puerto_cod]);
         const puertoId = puertoRows.length > 0 ? puertoRows[0].id : null;
+        const fechaArribo = tb.fecha_arribo
+          ? tb.fecha_arribo.substring(0, 16).replace("T", " ") + ":00"
+          : null;
         await conn.query(
-          `INSERT INTO bl_transbordos (bl_id, sec, puerto_cod, puerto_id) VALUES (?, ?, ?, ?)`,
-          [blId, tb.sec, tb.puerto_cod, puertoId]
+          `INSERT INTO bl_transbordos (bl_id, sec, puerto_cod, puerto_id, fecha_arribo) VALUES (?, ?, ?, ?, ?)`,
+          [blId, tb.sec, tb.puerto_cod, puertoId, fechaArribo]
         );
       }
     }
@@ -9544,7 +9507,7 @@ app.post("/api/manifiestos/:id/carga-suelta", async (req, res) => {
 
     // 🔥 INSERTAR BL CON IDs DE PARTICIPANTES
     const [blResult] = await connection.query(
-  `INSERT INTO bls (
+      `INSERT INTO bls (
     manifiesto_id, bl_number, tipo_servicio_id, forma_pago_flete, cond_transporte,
     shipper_id, consignee_id, notify_id, almacenador_id,
     shipper, shipper_direccion, shipper_telefono, shipper_email, shipper_codigo_pil,
@@ -9577,27 +9540,27 @@ app.post("/api/manifiestos/:id/carga-suelta", async (req, res) => {
     ?, ?, ?, ?, ?, ?,
     ?, ?, ?
   )`,
-  [
-    manifiestoId, bl_number, tipo_servicio_id,
-    forma_pago_flete || 'PREPAID', cond_transporte || 'HH',
-    shipper_id || null, consignee_id || null, notify_id || null, almacenador_id || null,
-    shipperNombre, shipper_direccion || null, shipper_telefono || null, shipper_email || null, shipper_codigo_pil || null,
-    consigneeNombre, consignee_direccion || null, consignee_telefono || null, consignee_email || null, consignee_codigo_pil || null,
-    notifyNombre, notify_direccion || null, notify_telefono || null, notify_email || null, notify_codigo_pil || null,
-    almacenadorNombre,
-    fecha_emision || null, fecha_presentacion || null,
-    fecha_embarque || null, fecha_zarpe || null,
-    puertoEmbarque.id, puertoEmbarque.codigo,
-    puertoDescarga.id, puertoDescarga.codigo,
-    lugarDestino.id, lugarDestino.codigo,
-    lugarEmision.id, lugarEmision.codigo,
-    lugarEntrega.id, lugarEntrega.codigo,
-    lugarRecepcion.id, lugarRecepcion.codigo,
-    peso_bruto_total, 'KGM', volumen_total, 'MTQ', bultos_total, items.length,
-    observaciones?.length > 0 ? JSON.stringify(observaciones) : null,
-    'CREADO', 'OK'
-  ]
-);
+      [
+        manifiestoId, bl_number, tipo_servicio_id,
+        forma_pago_flete || 'PREPAID', cond_transporte || 'HH',
+        shipper_id || null, consignee_id || null, notify_id || null, almacenador_id || null,
+        shipperNombre, shipper_direccion || null, shipper_telefono || null, shipper_email || null, shipper_codigo_pil || null,
+        consigneeNombre, consignee_direccion || null, consignee_telefono || null, consignee_email || null, consignee_codigo_pil || null,
+        notifyNombre, notify_direccion || null, notify_telefono || null, notify_email || null, notify_codigo_pil || null,
+        almacenadorNombre,
+        fecha_emision || null, fecha_presentacion || null,
+        fecha_embarque || null, fecha_zarpe || null,
+        puertoEmbarque.id, puertoEmbarque.codigo,
+        puertoDescarga.id, puertoDescarga.codigo,
+        lugarDestino.id, lugarDestino.codigo,
+        lugarEmision.id, lugarEmision.codigo,
+        lugarEntrega.id, lugarEntrega.codigo,
+        lugarRecepcion.id, lugarRecepcion.codigo,
+        peso_bruto_total, 'KGM', volumen_total, 'MTQ', bultos_total, items.length,
+        observaciones?.length > 0 ? JSON.stringify(observaciones) : null,
+        'CREADO', 'OK'
+      ]
+    );
     const bl_id = blResult.insertId;
 
     // Insertar items (sin cambios)
