@@ -547,5 +547,7 @@ module.exports = {
   formatDateCL,
   formatDateTimeCL,
   cleanRUT,
-  generarReferencias
+  generarReferencias,
+  detectarTipo,
+  generarObservaciones, 
 };

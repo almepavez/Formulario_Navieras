@@ -16,7 +16,10 @@ const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const { create } = require('xmlbuilder2');
 const archiver = require('archiver');
-const { buildXML, getBLQuery, getContenedoresQuery, getTransbordosQuery } = require('./xmlBuilder'); // 👈 AGREGAR ESTA LÍNEA
+const { 
+  buildXML, getBLQuery, getContenedoresQuery, getTransbordosQuery,
+  detectarTipo, generarObservaciones  // ← NUEVO
+} = require('./xmlBuilder');
 
 dotenv.config();
 
@@ -143,7 +146,7 @@ passport.use(new GoogleStrategy({
         usuario = usuarios[0];
 
         if (!usuario.activo) {
-          console.log(`⚠️ Usuario desactivado: ${email}`);
+          console.log(`Usuario desactivado: ${email}`);
           return cb(null, false, {
             message: 'Tu cuenta ha sido desactivada. Contacta al administrador.'
           });
@@ -8883,7 +8886,7 @@ app.put('/bls/:blNumber/contenedores', async (req, res) => {
       // 4. Eliminar IMOs actuales y reinsertar
       await conn.query('DELETE FROM bl_contenedor_imo WHERE contenedor_id = ?', [contenedorId]);
       if (cont.imos && cont.imos.length > 0) {
-        console.log(`⚠️ Insertando ${cont.imos.length} IMOs para contenedor ${contenedorId}`);
+        console.log(`Insertando ${cont.imos.length} IMOs para contenedor ${contenedorId}`);
         for (const imo of cont.imos) {
           if (imo.clase && imo.numero) {
             await conn.query(
@@ -9858,6 +9861,30 @@ app.get('/tipos-contenedor', async (req, res) => {
   } catch (error) {
     console.error('Error al obtener tipos de contenedor:', error);
     res.status(500).json({ error: 'Error al obtener tipos de contenedor' });
+  }
+});
+
+app.get("/api/bls/:blNumber/observaciones", async (req, res) => {
+  try {
+    const { blNumber } = req.params;
+
+    const [blRows] = await pool.query(getBLQuery(), [blNumber]);
+    if (blRows.length === 0) return res.status(404).json({ error: "BL no encontrado" });
+
+    const bl = blRows[0];
+    const tipo = detectarTipo(bl);
+
+    const [transbordos] = await pool.query(getTransbordosQuery(), [bl.id]);
+
+    const observaciones = generarObservaciones(bl, transbordos, tipo);
+
+    // generarObservaciones retorna { observacion: [...] } o undefined
+    const lista = observaciones?.observacion || [];
+
+    res.json(lista);
+  } catch (err) {
+    console.error("Error al obtener observaciones:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 

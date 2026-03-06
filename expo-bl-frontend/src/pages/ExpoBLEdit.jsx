@@ -1016,7 +1016,7 @@ return (
                     <div className="space-y-6">
                         {contenedores.some(c => !esContenedorCargaPeligrosa(c) && c.imos?.length > 0) && (
                             <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 flex items-start justify-between gap-4">
-                                <div><p className="text-sm font-medium text-amber-900">⚠️ Datos IMO innecesarios detectados</p><p className="text-xs text-amber-700 mt-1">Contenedores sin carga peligrosa tienen datos IMO.</p></div>
+                                <div><p className="text-sm font-medium text-amber-900"> Datos IMO innecesarios detectados</p><p className="text-xs text-amber-700 mt-1">Contenedores sin carga peligrosa tienen datos IMO.</p></div>
                                 <button type="button" onClick={() => { Swal.fire({ title: "¿Limpiar datos IMO?", icon: "question", showCancelButton: true, confirmButtonText: "Sí, limpiar", cancelButtonText: "Cancelar", confirmButtonColor: "#f59e0b" }).then(r => { if (r.isConfirmed) setContenedores(prev => prev.map(c => esContenedorCargaPeligrosa(c) ? c : { ...c, imos: [] })); }); }} className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm font-medium whitespace-nowrap">Limpiar IMOs</button>
                             </div>
                         )}
@@ -1052,7 +1052,7 @@ return (
                                                             const nuevoValor = e.target.checked;
                                                             if (nuevoValor && esContenedorCargaPeligrosa(cont) && (cont.imos || []).length > 0) {
                                                                 Swal.fire({
-                                                                    title: "⚠️ Contenedor con carga peligrosa",
+                                                                    title: "Contenedor con carga peligrosa",
                                                                     text: "Al marcar como SOC se perderán los datos IMO asociados. ¿Deseas continuar?",
                                                                     icon: "warning",
                                                                     showCancelButton: true,
@@ -1108,10 +1108,10 @@ return (
                                                 {esPeligrosa && (
                                                     <div className="md:col-span-2 border-t-2 border-red-300 pt-4">
                                                         <div className="flex items-center justify-between mb-3">
-                                                            <label className="block text-sm font-medium text-red-800">⚠️ Datos IMO (Obligatorio) — {(cont.imos || []).length} registrado(s)</label>
+                                                            <label className="block text-sm font-medium text-red-800">Datos IMO (Obligatorio) — {(cont.imos || []).length} registrado(s)</label>
                                                             <button type="button" onClick={() => addImoToContenedor(cont.id, cont)} className="text-sm bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors font-medium">+ Agregar IMO</button>
                                                         </div>
-                                                        {(cont.imos || []).length === 0 && <div className="mb-3 p-3 bg-red-100 border border-red-300 rounded-lg"><p className="text-sm text-red-800 font-medium">⚠️ Este contenedor tiene carga peligrosa y debe tener al menos un dato IMO</p></div>}
+                                                        {(cont.imos || []).length === 0 && <div className="mb-3 p-3 bg-red-100 border border-red-300 rounded-lg"><p className="text-sm text-red-800 font-medium">Este contenedor tiene carga peligrosa y debe tener al menos un dato IMO</p></div>}
                                                         <div className="space-y-2">
                                                             {(cont.imos || []).map((imo, i) => (
                                                                 <div key={i} className="flex items-center gap-3 p-4 bg-white border-2 border-orange-300 rounded-lg shadow-sm">
