@@ -364,7 +364,6 @@ const ExpoBLEdit = () => {
                 if (formData.consignee_telefono?.trim() && formData.consignee_telefono.trim().length < 7) return warn("El teléfono del Consignee debe tener al menos 7 caracteres");
                 if (formData.consignee_email?.trim() && !validarEmail(formData.consignee_email)) return err("Email inválido", "El email del Consignee no tiene un formato válido");
                 if (!formData.notify_party || formData.notify_party.trim().length < 3) return err("Datos incompletos", "El Notify Party no tiene datos válidos del archivo PMS");
-                if (!formData.notify_telefono?.trim() && !formData.notify_email?.trim()) return warn("El Notify Party debe tener al menos teléfono o email");
                 if (formData.notify_email?.trim() && !validarEmail(formData.notify_email)) return err("Email inválido", "El email del Notify Party no tiene un formato válido");
                 if (esImpo) {
                     if (!formData.almacenista_nombre?.trim()) return warn("El Almacenista es obligatorio en importación");
