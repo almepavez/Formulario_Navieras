@@ -63,7 +63,6 @@ const ManifiestoDetalle = () => {
 
   });
 
-  const [itinerario, setItinerario] = useState([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const [pmsFile, setPmsFile] = useState(null);
@@ -178,16 +177,6 @@ const ManifiestoDetalle = () => {
         fechaZarpe: toInputDatetime(m.fechaZarpe),   // ← ASÍ
       });
 
-      // ✅ NO seteamos puertoSearch aquí — lo hace el useEffect de sincronización
-      // para garantizar que el array "puertos" ya esté cargado
-
-      setItinerario(
-        (json.itinerario || []).map((it) => ({
-          ...it,
-          eta: toInputDatetime(it.eta),
-          ets: toInputDatetime(it.ets),
-        }))
-      );
 
       setHasUnsavedChanges(false);
     } catch (e) {
@@ -230,14 +219,6 @@ const ManifiestoDetalle = () => {
     setHasUnsavedChanges(true);
   };
 
-  const handleItinerarioChange = (index, field, value) => {
-    setItinerario((prev) => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
-      return updated;
-    });
-    setHasUnsavedChanges(true);
-  };
 
   const handleEdit = () => {
     setIsEditing(true);
@@ -316,15 +297,6 @@ const ManifiestoDetalle = () => {
         fechaZarpe: formData.fechaZarpe
           ? formData.fechaZarpe.replace("T", " ") + ":00"
           : null,
-
-        itinerario: itinerario.map((it) => ({
-          id: it.id,
-          port: it.port,
-          portType: it.portType,
-          eta: it.eta || null,
-          ets: it.ets || null,
-          orden: it.orden,
-        })),
       };
 
       console.log("📦 Payload a enviar:", payload);
@@ -889,76 +861,6 @@ const ManifiestoDetalle = () => {
                   Este manifiesto tiene <span className="font-semibold">{blCount} BL(s)</span> cargados
                 </div>
               )}
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-slate-700">
-                  Itinerario
-                </h2>
-                <span className="text-xs text-slate-500">
-                  Filas: {itinerario.length}
-                </span>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-slate-600">
-                    <tr>
-                      <th className="text-left px-6 py-3 font-semibold">Orden</th>
-                      <th className="text-left px-6 py-3 font-semibold">PORT</th>
-                      <th className="text-left px-6 py-3 font-semibold">TYPE</th>
-                      <th className="text-left px-6 py-3 font-semibold">ETA</th>
-                      <th className="text-left px-6 py-3 font-semibold">ETS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {itinerario.map((r, idx) => (
-                      <tr key={r.id} className="border-t">
-                        <td className="px-6 py-4">{r.orden}</td>
-                        <td className="px-6 py-4">{r.port}</td>
-                        <td className="px-6 py-4">{r.portType}</td>
-                        <td className="px-6 py-4">
-                          {!isEditing ? (
-                            formatDTCL(r.eta)
-                          ) : (
-                            <input
-                              type="datetime-local"
-                              value={r.eta || ""}
-                              onChange={(e) =>
-                                handleItinerarioChange(idx, "eta", e.target.value)
-                              }
-                              className="px-2 py-1 border border-slate-300 rounded text-sm"
-                            />
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          {!isEditing ? (
-                            formatDTCL(r.ets)
-                          ) : (
-                            <input
-                              type="datetime-local"
-                              value={r.ets || ""}
-                              onChange={(e) =>
-                                handleItinerarioChange(idx, "ets", e.target.value)
-                              }
-                              className="px-2 py-1 border border-slate-300 rounded text-sm"
-                            />
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-
-                    {itinerario.length === 0 && (
-                      <tr>
-                        <td className="px-6 py-10 text-slate-500" colSpan={5}>
-                          No hay itinerario guardado para este manifiesto.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
             </div>
 
             {/* Sección de Referencia */}
