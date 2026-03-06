@@ -60,11 +60,12 @@ const buildParticipacion = (nombre, participante, includeRUT = true, extraFields
   const p = { nombre };
 
   if (includeRUT && participante.rut) {
-    p['tipo-id'] = participante.tipo_id || 'RUT';
-    p['valor-id'] = cleanRUT(participante.rut);
-    p['nacion-id'] = participante.nacion_id || participante.pais || 'CL';
-  }
-
+      p['tipo-id'] = participante.tipo_id || 'RUT';
+      p['valor-id'] = cleanRUT(participante.rut);
+      p['nacion-id'] = 'CL';  // RUT siempre es chileno
+    } else if (participante.nacion_id) {
+      p['nacion-id'] = participante.nacion_id;  // extranjero sin RUT
+    }
   p['nombres'] = participante.nombre;
 
   if (includeContacto) {
@@ -101,18 +102,18 @@ const buildParticipaciones = (bl, tipo) => {
   const shipperData = bl.shipper ? { nombre: bl.shipper, direccion: bl.shipper_direccion || '.', telefono: bl.shipper_telefono || '.', email: bl.shipper_email || null } : null;
   const consigneeData = bl.consignee ? {
     nombre: bl.consignee, direccion: bl.consignee_direccion || '.', telefono: bl.consignee_telefono || '.', email: bl.consignee_email || null,
-    rut: bl.consignee_rut || null, nacion_id: bl.consignee_nacion_id || 'CL'
+    rut: bl.consignee_rut || null, nacion_id: bl.consignee_nacion_id
   } : null;
   const notifyData = bl.notify_party ? {
     nombre: bl.notify_party, direccion: bl.notify_direccion || '.', telefono: bl.notify_telefono || '.', email: bl.notify_email || null,
-    rut: bl.notify_rut || null, nacion_id: bl.notify_nacion_id || 'CL'
+    rut: bl.notify_rut || null, nacion_id: bl.notify_nacion_id
   } : null;
 
   // Almacenador — existe en bls para IMPO y carga suelta
   const almData = bl.almacenador_id ? {
     nombre: bl.almacenador_nombre,
     rut: bl.almacenador_rut,
-    pais: bl.almacenador_pais || 'CL',
+    pais: bl.almacenador_pais,
     tipo_id: 'RUT',
     nacion_id: 'CL'
   } : null;

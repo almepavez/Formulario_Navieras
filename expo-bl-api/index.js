@@ -8327,18 +8327,18 @@ async function revalidarBLCompleto(conn, blId) {
       });
     }
 
-    // Nación del consignee y notify (obligatorio en importación)
+    // Nación del consignee y notify (recomendado en importación)
     if (isBlank(bl.consignee_nacion_id)) {
       vals.push({
-        nivel: "BL", severidad: "ERROR", campo: "consignee_nacion_id",
-        mensaje: `Falta código de país del consignee (obligatorio en importación) [Código PIL: ${bl.consignee_codigo_pil || 'N/A'}]`,
+        nivel: "BL", severidad: "OBS", campo: "consignee_nacion_id",
+        mensaje: `Falta código de país del consignee (recomendado en importación) [Código PIL: ${bl.consignee_codigo_pil || 'N/A'}]`,
         valorCrudo: bl.consignee_codigo_pil || null
       });
     }
     if (isBlank(bl.notify_nacion_id)) {
       vals.push({
-        nivel: "BL", severidad: "ERROR", campo: "notify_nacion_id",
-        mensaje: `Falta código de país del notify (obligatorio en importación) [Código PIL: ${bl.notify_codigo_pil || 'N/A'}]`,
+        nivel: "BL", severidad: "OBS", campo: "notify_nacion_id",
+        mensaje: `Falta código de país del notify (recomendado en importación) [Código PIL: ${bl.notify_codigo_pil || 'N/A'}]`,
         valorCrudo: bl.notify_codigo_pil || null
       });
     }
