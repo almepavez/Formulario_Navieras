@@ -5013,7 +5013,7 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
         const tieneContactoShipper = (!isBlank(b.shipper_telefono)) || (!isBlank(b.shipper_email));
         if (!tieneContactoShipper) {
           pendingValidations.push({
-            nivel: "BL", severidad: "ERROR", campo: "shipper_contacto",
+            nivel: "BL", severidad: "OBS", campo: "shipper_contacto",
             mensaje: `Shipper debe tener al menos teléfono o correo electrónico (Linea 16B) [Código PIL: ${b.shipper_codigo_pil || 'N/A'}]`,
             valorCrudo: b.shipper_codigo_pil || null
           });
@@ -8140,7 +8140,13 @@ async function revalidarBLCompleto(conn, blId) {
   if (isBlank(bl.fecha_embarque)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_embarque", mensaje: "Falta fecha_embarque (Linea 14)", valorCrudo: bl.fecha_embarque || null });
   if (isBlank(bl.fecha_zarpe)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_zarpe", mensaje: "Falta fecha_zarpe (Linea 14)", valorCrudo: bl.fecha_zarpe || null });
 
-  const esImpoValidacion = bl.tipo_operacion === 'I' || bl.tipo_operacion === 'TR' || bl.tipo_operacion === 'TRB';
+
+  const [[manifiesto]] = await conn.query(
+    "SELECT fecha_zarpe, tipo_operacion FROM manifiestos WHERE id = ? LIMIT 1",
+    [bl.manifiesto_id]
+  );
+
+  const esImpoValidacion = manifiesto?.tipo_operacion !== 'S';
   if (esImpoValidacion && isBlank(bl.fecha_recepcion_bl)) {
     vals.push({
       nivel: "BL", severidad: "ERROR", campo: "fecha_recepcion_bl",
@@ -8148,11 +8154,6 @@ async function revalidarBLCompleto(conn, blId) {
       valorCrudo: null
     });
   }
-
-  const [[manifiesto]] = await conn.query(
-    "SELECT fecha_zarpe, tipo_operacion FROM manifiestos WHERE id = ? LIMIT 1",
-    [bl.manifiesto_id]
-  );
 
   if (!manifiesto || !manifiesto.fecha_zarpe) {
     vals.push({
@@ -8254,9 +8255,7 @@ async function revalidarBLCompleto(conn, blId) {
     }
   }
 
-  // ALMACENISTA (obligatorio en importación)
-  const esImportacion = manifiesto?.tipo_operacion !== 'S';
-  if (esImportacion) {
+  if (esImpoValidacion) {
     if (!bl.almacenador_id) {
       vals.push({
         nivel: "BL", severidad: "ERROR", campo: "almacenador_id",
@@ -8317,9 +8316,6 @@ async function revalidarBLCompleto(conn, blId) {
     const itemId = c.item_id ? Number(c.item_id) : null;
     if (!itemId) continue;
     contCountByItemId.set(itemId, (contCountByItemId.get(itemId) || 0) + 1);
-
-    const labelCodigo = c.es_soc ? (c.cnt_so_numero || "(SOC SIN NÚMERO)") : (c.codigo || "(SIN CODIGO)");
-
   }
 
 
