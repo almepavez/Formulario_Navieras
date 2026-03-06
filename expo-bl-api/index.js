@@ -8184,7 +8184,7 @@ async function revalidarBLCompleto(conn, blId) {
   }
 
   const [[manifiesto]] = await conn.query(
-    "SELECT fecha_zarpe FROM manifiestos WHERE id = ? LIMIT 1",
+    "SELECT fecha_zarpe, tipo_operacion FROM manifiestos WHERE id = ? LIMIT 1",
     [bl.manifiesto_id]
   );
 
@@ -8283,6 +8283,62 @@ async function revalidarBLCompleto(conn, blId) {
       vals.push({
         nivel: "BL", severidad: "OBS", campo: "notify_contacto",
         mensaje: `Notify party debe tener al menos teléfono o correo electrónico (Linea 26B) [Código PIL: ${bl.notify_codigo_pil || 'N/A'}]`,
+        valorCrudo: bl.notify_codigo_pil || null
+      });
+    }
+  }
+
+  // ALMACENISTA (obligatorio en importación)
+  const esImportacion = manifiesto?.tipo_operacion !== 'S';
+  if (esImportacion) {
+    if (!bl.almacenador_id) {
+      vals.push({
+        nivel: "BL", severidad: "ERROR", campo: "almacenador_id",
+        mensaje: "Falta almacenador (obligatorio en importación)",
+        valorCrudo: null
+      });
+    }
+    if (isBlank(bl.almacenista_nombre)) {
+      vals.push({
+        nivel: "BL", severidad: "ERROR", campo: "almacenista_nombre",
+        mensaje: "Falta nombre del almacenista (obligatorio en importación)",
+        valorCrudo: bl.almacenista_nombre || null
+      });
+    }
+    if (isBlank(bl.almacenista_rut)) {
+      vals.push({
+        nivel: "BL", severidad: "ERROR", campo: "almacenista_rut",
+        mensaje: "Falta RUT del almacenista (obligatorio en importación)",
+        valorCrudo: bl.almacenista_rut || null
+      });
+    }
+    if (isBlank(bl.almacenista_nacion_id)) {
+      vals.push({
+        nivel: "BL", severidad: "ERROR", campo: "almacenista_nacion_id",
+        mensaje: "Falta nación del almacenista (obligatorio en importación)",
+        valorCrudo: bl.almacenista_nacion_id || null
+      });
+    }
+    if (isBlank(bl.almacenista_codigo_almacen)) {
+      vals.push({
+        nivel: "BL", severidad: "ERROR", campo: "almacenista_codigo_almacen",
+        mensaje: "Falta código de almacén (obligatorio en importación)",
+        valorCrudo: bl.almacenista_codigo_almacen || null
+      });
+    }
+
+    // Nación del consignee y notify (obligatorio en importación)
+    if (isBlank(bl.consignee_nacion_id)) {
+      vals.push({
+        nivel: "BL", severidad: "ERROR", campo: "consignee_nacion_id",
+        mensaje: `Falta código de país del consignee (obligatorio en importación) [Código PIL: ${bl.consignee_codigo_pil || 'N/A'}]`,
+        valorCrudo: bl.consignee_codigo_pil || null
+      });
+    }
+    if (isBlank(bl.notify_nacion_id)) {
+      vals.push({
+        nivel: "BL", severidad: "ERROR", campo: "notify_nacion_id",
+        mensaje: `Falta código de país del notify (obligatorio en importación) [Código PIL: ${bl.notify_codigo_pil || 'N/A'}]`,
         valorCrudo: bl.notify_codigo_pil || null
       });
     }
