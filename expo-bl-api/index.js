@@ -8086,7 +8086,7 @@ async function revalidarBLCompleto(conn, blId) {
   const esImpoValidacion = manifiesto?.tipo_operacion !== 'S';
   if (esImpoValidacion && isBlank(bl.fecha_recepcion_bl)) {
     vals.push({
-      nivel: "BL", severidad: "ERROR", campo: "fecha_recepcion_bl",
+      nivel: "BL", severidad: "OBS", campo: "fecha_recepcion_bl",
       mensaje: "Falta fecha de recepción BL (obligatoria en importación)",
       valorCrudo: null
     });
