@@ -3235,7 +3235,7 @@ function extractPartyName(rawLine) {
 // Agregar después de la línea 2139 (después de extractPartyName)
 // ============================================
 function extractPartyCodeAndName(rawLine) {
-  if (!rawLine) return { codigo_pil: null, nombre: null, direccion: null };
+  if (!rawLine) return { codigo_pil: null, nombre: null, direccion: null, pais: null };
 
   const s = String(rawLine).trim();
 
@@ -3244,7 +3244,7 @@ function extractPartyCodeAndName(rawLine) {
   const match = s.match(/^\s*(\d{2})\s+(\S+)\s+(.+)$/);
 
   if (!match) {
-    return { codigo_pil: null, nombre: null, direccion: null };
+    return { codigo_pil: null, nombre: null, direccion: null, pais: null };
   }
 
   const tipoLinea = match[1];  // "16", "21", "26"
@@ -3270,7 +3270,8 @@ function extractPartyCodeAndName(rawLine) {
   return {
     codigo_pil: normalizeStr(codigoPil),
     nombre: nombre,
-    direccion: direccion ? normalizeStr(direccion) : null
+    direccion: direccion ? normalizeStr(direccion) : null,
+    pais: codigoPil && codigoPil.length >= 2 ? codigoPil.substring(0, 2).toUpperCase() : null
   };
 }
 
@@ -3820,12 +3821,14 @@ function parsePmsTxt(content) {
         consignee_telefono: consigneeContact.telefono,
         consignee_email: consigneeContact.email,
         consignee_codigo_pil: consigneeData.codigo_pil,
+        consignee_nacion_id: consigneeData.pais,
 
         notify,
         notify_direccion: notifyData.direccion,
         notify_telefono: notifyContact.telefono,
         notify_email: notifyContact.email,
         notify_codigo_pil: notifyData.codigo_pil,
+        notify_nacion_id: notifyData.pais,
 
         descripcion_carga: null,
 
@@ -4713,8 +4716,8 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
       INSERT INTO bls
         (manifiesto_id, bl_number, tipo_servicio_id,
          shipper, shipper_direccion, shipper_telefono, shipper_email, shipper_codigo_pil, shipper_id,
-         consignee, consignee_direccion, consignee_telefono, consignee_email, consignee_codigo_pil, consignee_id,
-         notify_party, notify_direccion, notify_telefono, notify_email, notify_codigo_pil, notify_id,
+         consignee, consignee_direccion, consignee_telefono, consignee_email, consignee_codigo_pil, consignee_nacion_id, consignee_id,
+         notify_party, notify_direccion, notify_telefono, notify_email, notify_codigo_pil, notify_nacion_id, notify_id,
          lugar_emision_id, puerto_embarque_id, puerto_descarga_id,
          lugar_destino_id, lugar_entrega_id, lugar_recepcion_id,
          lugar_emision_cod, puerto_embarque_cod, puerto_descarga_cod,
@@ -4728,8 +4731,8 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
       VALUES
         (?, ?, ?,
          ?, ?, ?, ?, ?, ?,
-         ?, ?, ?, ?, ?, ?,
-         ?, ?, ?, ?, ?, ?,
+         ?, ?, ?, ?, ?, ?, ?,
+         ?, ?, ?, ?, ?, ?, ?,
          ?, ?, ?,
          ?, ?, ?,
          ?, ?, ?,
@@ -4881,12 +4884,14 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
         b.consignee_telefono || null,
         b.consignee_email || null,
         b.consignee_codigo_pil || null,
+        b.consignee_nacion_id || null,
         consigneeId || null,
         b.notify || null,
         b.notify_direccion || null,
         b.notify_telefono || null,
         b.notify_email || null,
         b.notify_codigo_pil || null,
+        b.notify_nacion_id || null,
         notifyId || null,
         lugarEmisionId,
         puertoEmbarqueId,
