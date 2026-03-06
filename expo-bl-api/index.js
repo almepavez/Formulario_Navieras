@@ -126,14 +126,14 @@ passport.use(new GoogleStrategy({
       const googleId = profile.id;
 
       if (!EMAILS_PERMITIDOS[email]) {
-        console.log(`❌ Acceso denegado: ${email}`);
+        console.log(`Acceso denegado: ${email}`);
         return cb(null, false, {
           message: 'No tienes autorización para acceder a este sistema'
         });
       }
 
       const rolAsignado = EMAILS_PERMITIDOS[email];
-      console.log(`✅ Acceso permitido: ${email} (${rolAsignado})`);
+      console.log(`Acceso permitido: ${email} (${rolAsignado})`);
 
       const [usuarios] = await pool.query(
         'SELECT * FROM usuarios WHERE email = ?',
@@ -165,7 +165,7 @@ passport.use(new GoogleStrategy({
         usuario.foto_perfil = foto;
         usuario.rol = rolAsignado;
       } else {
-        console.log(`🆕 Creando nuevo usuario: ${email}`);
+        console.log(`Creando nuevo usuario: ${email}`);
 
         const [result] = await pool.query(
           `INSERT INTO usuarios 
@@ -220,10 +220,10 @@ async function enviarEmail(to, subject, html) {
       subject,
       html,
     });
-    console.log('✅ Email enviado:', info.messageId);
+    console.log('Email enviado:', info.messageId);
     return true;
   } catch (error) {
-    console.error('❌ Error enviando email:', error);
+    console.error('Error enviando email:', error);
     return false;
   }
 }
@@ -526,7 +526,7 @@ app.post("/api/auth/reset-password", async (req, res) => {
       [hashedPassword, usuario.id]
     );
 
-    console.log(`✅ Contraseña restablecida para: ${emailLower}`);
+    console.log(`Contraseña restablecida para: ${emailLower}`);
 
     res.json({
       success: true,
@@ -1465,7 +1465,6 @@ app.post("/api/mantenedores/puertos", async (req, res) => {
 
     const puertoId = result.insertId;
 
-    console.log(`🆕 Puerto '${codigoUpper}' creado con ID ${puertoId}`);
 
     // 2️⃣ ACTUALIZAR BLs que tienen este código en _cod pero NO tienen el _id
     const blsActualizados = [];
@@ -1481,7 +1480,6 @@ app.post("/api/mantenedores/puertos", async (req, res) => {
       );
 
       if (result.affectedRows > 0) {
-        console.log(`   ✅ ${result.affectedRows} BL(s) actualizados en ${campoId}`);
         return result.affectedRows;
       }
       return 0;
@@ -1510,12 +1508,10 @@ app.post("/api/mantenedores/puertos", async (req, res) => {
          OR lugar_recepcion_cod = ?
     `, [codigoUpper, codigoUpper, codigoUpper, codigoUpper, codigoUpper, codigoUpper]);
 
-    console.log(`🔄 Re-validando ${blsAfectados.length} BL(s) afectados...`);
 
     // 4️⃣ Re-validar cada BL afectado
     for (const bl of blsAfectados) {
       await revalidarBLCompleto(conn, bl.id);
-      console.log(`   ✅ BL ID ${bl.id} re-validado`);
     }
 
     await conn.commit();
@@ -1571,7 +1567,7 @@ app.put("/api/mantenedores/puertos/:id", async (req, res) => {
       return res.status(404).json({ error: "Puerto no encontrado" });
     }
 
-    console.log(`📝 Puerto ID ${id} actualizado a '${codigoUpper}'`);
+
 
     // 2️⃣ ACTUALIZAR BLs que tienen este código en _cod pero NO tienen el _id correcto
     const actualizarCampoPuerto = async (campoCod, campoId) => {
@@ -1584,7 +1580,7 @@ app.put("/api/mantenedores/puertos/:id", async (req, res) => {
       );
 
       if (result.affectedRows > 0) {
-        console.log(`   ✅ ${result.affectedRows} BL(s) actualizados en ${campoId}`);
+
         return result.affectedRows;
       }
       return 0;
@@ -1613,12 +1609,10 @@ app.put("/api/mantenedores/puertos/:id", async (req, res) => {
          OR lugar_recepcion_cod = ?
     `, [codigoUpper, codigoUpper, codigoUpper, codigoUpper, codigoUpper, codigoUpper]);
 
-    console.log(`🔄 Re-validando ${blsAfectados.length} BL(s) afectados...`);
 
     // 4️⃣ Re-validar BLs afectados
     for (const bl of blsAfectados) {
       await revalidarBLCompleto(conn, bl.id);
-      console.log(`   ✅ BL ID ${bl.id} re-validado`);
     }
 
     await conn.commit();
@@ -2015,8 +2009,6 @@ app.post('/api/mantenedores/tipo-bulto', async (req, res) => {
 app.put('/api/mantenedores/tipo-bulto/:id', async (req, res) => {
   const { id } = req.params;
   const { tipo_cnt, tipo_bulto, tam_contenedor, tipo_contenedor, tipo_cnt_sna, activo } = req.body;
-  console.log('🔧 PUT tipo-bulto recibido:', { id, body: req.body });
-
   try {
     if (!tipo_cnt || !tipo_bulto) {
       return res.status(400).json({ error: 'tipo_cnt y tipo_bulto son obligatorios' });
@@ -2045,14 +2037,6 @@ app.put('/api/mantenedores/tipo-bulto/:id', async (req, res) => {
       'UPDATE tipo_cnt_tipo_bulto SET tipo_cnt = ?, tipo_bulto = ?, tam_contenedor = ?, tipo_contenedor = ?, tipo_cnt_sna = ?, activo = ? WHERE id = ?',
       [tipo_cnt.trim(), tipo_bulto.trim(), tam_contenedor ?? null, tipo_contenedor ?? null, tipo_cnt_sna ?? null, activoValue, idNum]
     );
-
-    console.log('✅ Tipo de bulto actualizado:', {
-      id: idNum,
-      tipo_cnt,
-      tipo_bulto,
-      activo: activoValue,
-      affectedRows: result.affectedRows
-    });
 
     res.json({
       id: idNum,
@@ -2175,7 +2159,7 @@ app.put('/api/mantenedores/empaque-contenedores/:id', async (req, res) => {
   const { id } = req.params;
   const { token, activo } = req.body;
 
-  console.log('🔧 PUT empaque-contenedores recibido:', { id, body: req.body });
+
 
   try {
     if (!token) {
@@ -2210,13 +2194,6 @@ app.put('/api/mantenedores/empaque-contenedores/:id', async (req, res) => {
 
     // 🔄 Recargar tokens en memoria
     await loadPms51Tokens();
-
-    console.log('✅ Token actualizado:', {
-      id: idNum,
-      token: tokenUpper,
-      activo: activoValue,
-      affectedRows: result.affectedRows
-    });
 
     res.json({
       id: idNum,
@@ -2451,7 +2428,7 @@ app.put('/api/mantenedores/participantes/:id', async (req, res) => {
     email, telefono, contacto, matchcode, codigo_almacen
   } = req.body;
 
-  console.log('🔧 PUT participante recibido:', { id, body: req.body });
+
 
   try {
     if (!codigo_bms || !nombre) {
@@ -2499,14 +2476,6 @@ app.put('/api/mantenedores/participantes/:id', async (req, res) => {
         idNum,
       ]
     );
-
-    console.log('✅ Participante actualizado:', {
-      id: idNum,
-      codigo_bms,
-      nombre,
-      tiene_contacto_valido,  // 🔥 Mostrar en log
-      affectedRows: result.affectedRows
-    });
 
     res.json({
       id: idNum,
@@ -2659,7 +2628,6 @@ app.put('/api/mantenedores/traductor-pil-bms/:id', async (req, res) => {
   const { id } = req.params;
   const { codigo_pil, codigo_bms, participante_id, activo } = req.body;
 
-  console.log('🔧 PUT traductor-pil-bms recibido:', { id, body: req.body });
 
   try {
     if (!codigo_pil || !codigo_bms) {
@@ -2699,15 +2667,6 @@ app.put('/api/mantenedores/traductor-pil-bms/:id', async (req, res) => {
         idNum
       ]
     );
-
-    console.log('✅ Traducción actualizada:', {
-      id: idNum,
-      codigo_pil,
-      codigo_bms,
-      participante_id: participanteIdValue,
-      activo: activoValue,
-      affectedRows: result.affectedRows
-    });
 
     res.json({
       id: idNum,
@@ -6287,9 +6246,6 @@ app.put("/bls/:blNumber/contenedores", async (req, res) => {
   const { blNumber } = req.params;
   const { contenedores } = req.body;
 
-  console.log('🚀 RECIBIENDO contenedores para BL:', blNumber);
-  console.log('📦 Total contenedores:', contenedores?.length);
-
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
@@ -6318,9 +6274,6 @@ app.put("/bls/:blNumber/contenedores", async (req, res) => {
       const esSoc = !!cont.es_soc;
       const { sigla, numero, digito } = parseCodigoContenedor(cont.codigo, esSoc);
 
-      console.log(`📦 Procesando contenedor ${esSoc ? cont.cnt_so_numero : cont.codigo}:`, {
-        esSoc, sigla, numero, digito, peso: cont.peso, volumen: cont.volumen
-      });
 
       if (cont._isNew) {
         const [insertResult] = await conn.query(
@@ -6348,7 +6301,6 @@ app.put("/bls/:blNumber/contenedores", async (req, res) => {
         );
 
         const newContId = insertResult.insertId;
-        console.log(`✅ Contenedor insertado con ID: ${newContId}`);
 
         if (cont.sellos && cont.sellos.length > 0) {
           for (const sello of cont.sellos) {
@@ -6391,7 +6343,6 @@ app.put("/bls/:blNumber/contenedores", async (req, res) => {
           ]
         );
 
-        console.log(`✅ Contenedor ${cont.id} actualizado`);
 
         await conn.query("DELETE FROM bl_contenedor_sellos WHERE contenedor_id = ?", [cont.id]);
         if (cont.sellos && cont.sellos.length > 0) {
@@ -6431,9 +6382,6 @@ app.put("/bls/:blNumber/contenedores", async (req, res) => {
 app.put("/api/bls/:blNumber/contenedores", async (req, res) => {
   const { blNumber } = req.params;
   const { contenedores } = req.body;
-
-  console.log('🚀 RECIBIENDO contenedores para BL:', blNumber);
-  console.log('📦 Total contenedores:', contenedores?.length);
 
   const conn = await pool.getConnection();
   try {
@@ -6719,8 +6667,6 @@ app.patch('/bls/bulk-update', async (req, res) => {
       WHERE bl_number IN (${placeholders})
     `;
 
-    console.log('Query:', query);
-    console.log('Values:', values);
 
     const [result] = await connection.query(query, values);
 
@@ -6809,10 +6755,6 @@ app.patch('/bls/:blNumber', async (req, res) => {
     const { blNumber } = req.params;
     const updates = req.body;
 
-    console.log('═══════════════════════════════════');
-    console.log('📥 PATCH recibido para BL:', blNumber);
-    console.log('📦 Body completo:', JSON.stringify(updates, null, 2));
-    console.log('═══════════════════════════════════');
 
     await connection.beginTransaction();
 
@@ -6899,7 +6841,6 @@ app.patch('/bls/:blNumber', async (req, res) => {
         setClauses.push(`${field} = ?`, `${idField} = ?`);
         values.push(codigo, puertoId);
 
-        console.log(`🔄 Puerto ${field}: ${codigo} → ID: ${puertoId}`);
       }
       // 🔥 PROCESAMIENTO ESPECIAL PARA OBSERVACIONES
       else if (field === 'observaciones') {
@@ -6934,9 +6875,6 @@ app.patch('/bls/:blNumber', async (req, res) => {
       WHERE bl_number = ?
     `;
 
-    console.log('📝 Query:', query);
-    console.log('📝 Values:', values);
-
     const [result] = await connection.query(query, values);
 
     if (result.affectedRows === 0) {
@@ -6946,7 +6884,6 @@ app.patch('/bls/:blNumber', async (req, res) => {
 
     await connection.commit();
 
-    console.log(`✅ BL ${blNumber} actualizado - ${result.affectedRows} fila(s)`);
 
     res.json({
       success: true,
@@ -7721,7 +7658,7 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
     const [items] = await pool.query(
       `SELECT * FROM bl_items WHERE bl_id = ? ORDER BY numero_item`, [bl.id]
     );
-    console.log('ITEM volumen:', items[0]?.volumen, typeof items[0]?.volumen);
+
 
     const esCargaSuelta = bl.tipo_servicio_codigo === 'BB';
     let contenedores = [];
@@ -8149,7 +8086,7 @@ async function revalidarBLCompleto(conn, blId) {
   const esImpoValidacion = manifiesto?.tipo_operacion !== 'S';
   if (esImpoValidacion && isBlank(bl.fecha_recepcion_bl)) {
     vals.push({
-      nivel: "BL", severidad: "ERROR", campo: "fecha_recepcion_bl",
+      nivel: "BL", severidad: "OBS", campo: "fecha_recepcion_bl",
       mensaje: "Falta fecha de recepción BL (obligatoria en importación)",
       valorCrudo: null
     });
@@ -8660,7 +8597,6 @@ app.put("/api/bls/:blNumber", async (req, res) => {
       if (tipoServicioId) {
         setClauses.push('tipo_servicio_id = ?');
         values.push(tipoServicioId);
-        console.log(`🔄 Tipo servicio: ${updates.tipo_servicio} → ID: ${tipoServicioId}`);
       }
       delete updates.tipo_servicio;
     }
@@ -8717,7 +8653,6 @@ app.put("/api/bls/:blNumber", async (req, res) => {
 
         setClauses.push(`${codField} = ?`, `${idField} = ?`);
         values.push(codigo, puertoId);
-        console.log(`🔄 Puerto ${field}: ${codigo} → ID: ${puertoId}`);
 
       } else if (field === 'observaciones') {
         setClauses.push(`${field} = ?`);
@@ -8761,8 +8696,7 @@ app.put("/api/bls/:blNumber", async (req, res) => {
     // 4️⃣ Ejecutar UPDATE
     const query = `UPDATE bls SET ${setClauses.join(', ')} WHERE bl_number = ?`;
 
-    console.log('📝 Query:', query);
-    console.log('📝 Values:', values);
+
 
     const [result] = await connection.query(query, values);
 
@@ -8772,7 +8706,7 @@ app.put("/api/bls/:blNumber", async (req, res) => {
     }
 
     await connection.commit();
-    console.log(`✅ BL ${blNumber} actualizado - ${result.affectedRows} fila(s)`);
+
 
     res.json({ success: true, message: 'BL actualizado exitosamente', bl_number: blNumber });
 
@@ -8861,9 +8795,6 @@ app.put('/bls/:blNumber/contenedores', async (req, res) => {
     const { blNumber } = req.params;
     const { contenedores } = req.body;
 
-    console.log('=== DEBUG CONTENEDORES ===');
-    console.log('BL Number:', blNumber);
-    console.log('Total contenedores:', contenedores.length);
 
     await conn.beginTransaction();
 
@@ -8881,7 +8812,7 @@ app.put('/bls/:blNumber/contenedores', async (req, res) => {
 
       // 🆕 Si es un contenedor nuevo, insertarlo primero
       if (cont._isNew && typeof cont.id === 'string' && cont.id.startsWith('new_')) {
-        console.log('🆕 Insertando contenedor nuevo:', cont.codigo, 'Item ID:', cont.item_id);
+
 
         // 🔥 VALIDAR DATOS ANTES DE INSERTAR
         if (!cont.codigo || cont.codigo.length !== 11) {
@@ -8905,11 +8836,11 @@ app.put('/bls/:blNumber/contenedores', async (req, res) => {
         );
         contenedorId = result.insertId;
 
-        console.log('✅ Contenedor insertado con ID:', contenedorId);
+
 
       } else {
         // 🔥 ACTUALIZAR CONTENEDOR EXISTENTE - SOLO CAMPOS EDITABLES
-        console.log('📝 Actualizando contenedor existente:', cont.codigo, 'ID:', contenedorId);
+
 
         // 🔥 VALIDAR CÓDIGO
         if (!cont.codigo || cont.codigo.length !== 11) {
@@ -8929,7 +8860,7 @@ app.put('/bls/:blNumber/contenedores', async (req, res) => {
       // 3. Eliminar sellos actuales y reinsertar
       await conn.query('DELETE FROM bl_contenedor_sellos WHERE contenedor_id = ?', [contenedorId]);
       if (cont.sellos && cont.sellos.length > 0) {
-        console.log(`📌 Insertando ${cont.sellos.length} sellos para contenedor ${contenedorId}`);
+        
         for (const sello of cont.sellos) {
           if (sello && sello.trim().length > 0) {
             await conn.query(
@@ -8943,7 +8874,7 @@ app.put('/bls/:blNumber/contenedores', async (req, res) => {
       // 4. Eliminar IMOs actuales y reinsertar
       await conn.query('DELETE FROM bl_contenedor_imo WHERE contenedor_id = ?', [contenedorId]);
       if (cont.imos && cont.imos.length > 0) {
-        console.log(`Insertando ${cont.imos.length} IMOs para contenedor ${contenedorId}`);
+        
         for (const imo of cont.imos) {
           if (imo.clase && imo.numero) {
             await conn.query(
@@ -8956,7 +8887,7 @@ app.put('/bls/:blNumber/contenedores', async (req, res) => {
     }
 
     await conn.commit();
-    console.log('✅ Todos los contenedores actualizados correctamente');
+   
     res.json({ success: true, message: 'Contenedores actualizados correctamente' });
 
   } catch (error) {
