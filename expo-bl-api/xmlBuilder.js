@@ -111,11 +111,11 @@ const buildParticipaciones = (bl, tipo) => {
 
   // Almacenador — existe en bls para IMPO y carga suelta
   const almData = bl.almacenador_id ? {
-    nombre: bl.almacenador_nombre,
-    rut: bl.almacenador_rut,
-    pais: bl.almacenador_pais,
-    tipo_id: 'RUT',
-    nacion_id: 'CL'
+      nombre: bl.almacenador_nombre,
+      rut: bl.almacenador_rut,
+      pais: bl.almacenador_pais || 'CL',
+      tipo_id: 'RUT',
+      nacion_id: bl.almacenador_pais || 'CL'
   } : null;
 
   if (esCargaSuelta) {
@@ -433,7 +433,7 @@ const buildXML = (bl, items, contenedores, transbordos, tipoAccion = 'I') => {
       ...(transbordos.length > 0 && {
         Transbordos: {
           transbordo: transbordos.map(t => ({
-            'cod-lugar': t.puerto_cod,
+            'cod-lugar': t.puerto_codigo_sidemar || t.puerto_cod,
             'descripcion-lugar': t.puerto_nombre || t.puerto_cod,
             'fecha-arribo': t.fecha_arribo ? formatDateTimeCL(t.fecha_arribo) : undefined
           }))
@@ -533,7 +533,8 @@ const getContenedoresQuery = () => `
 `;
 
 const getTransbordosQuery = () => `
-  SELECT t.sec, t.puerto_cod, t.fecha_arribo, p.nombre AS puerto_nombre
+  SELECT t.sec, t.puerto_cod, t.fecha_arribo, p.nombre AS puerto_nombre,
+    COALESCE(p.codigo_sidemar, p.codigo) AS puerto_codigo_sidemar
   FROM bl_transbordos t
   LEFT JOIN puertos p ON t.puerto_id = p.id
   WHERE t.bl_id = ?
