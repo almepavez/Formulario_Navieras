@@ -4661,7 +4661,7 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
             sec: itemNo,
             severidad: "OBS",
             campo: "sellos",
-            mensaje: `Contenedor ${c.codigo || '(SIN CODIGO)'} sin sellos en PMS (no siempre aplica)`,
+            mensaje: `Contenedor ${c.codigo || '(SIN CODIGO)'} sin sellos`,
             valorCrudo: c.codigo || null
           };
           await addValidacion(conn, payload);
@@ -7983,7 +7983,7 @@ if (esImpoValidacion) {
         sec: itemNo,
         severidad: esEmpty ? "OBS" : "ERROR",
         campo: "sellos",
-        mensaje: `Contenedor ${labelCodigo || '(SIN CODIGO)'} sin sellos en PMS (no siempre aplica)`,
+        mensaje: `Contenedor ${labelCodigo || '(SIN CODIGO)'} sin sellos`,
         valorCrudo: c.codigo || null
       });
     }
