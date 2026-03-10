@@ -156,6 +156,159 @@ function formatTipoCnt(isoCod) {
 // BD: tipo_operacion "I" = IMPO, "S" = EXPO
 const TIPO_OP_MAP = { IMPO: "I", EXPO: "S" };
 
+// ↓↓↓ PEGA AQUÍ ↓↓↓
+const AlmacenSelect = ({ value, onChange, onSave }) => {
+  const [query, setQuery] = useState(value || "");
+  const [resultados, setResultados] = useState([]);
+  const [buscando, setBuscando] = useState(false);
+  const [mostrar, setMostrar] = useState(false);
+  const [noEncontrado, setNoEncontrado] = useState(false);
+  const ref = useRef(null);
+  const debounceRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setMostrar(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  useEffect(() => { setQuery(value || ""); }, [value]);
+
+  const buscar = (q) => {
+    clearTimeout(debounceRef.current);
+    setQuery(q);
+    onChange(q);
+    setNoEncontrado(false);
+    if (q.trim().length < 2) { setResultados([]); setMostrar(false); return; }
+    debounceRef.current = setTimeout(async () => {
+      setBuscando(true);
+      try {
+        const res = await fetch(`${API_URL}/api/mantenedores/almacenistas`);
+        if (res.ok) {
+          const data = await res.json();
+          const filtrados = data.filter(a => a.nombre.toLowerCase().includes(q.toLowerCase())).slice(0, 8);
+          setResultados(filtrados);
+          setMostrar(true);
+          setNoEncontrado(filtrados.length === 0);
+        }
+      } catch { setResultados([]); }
+      finally { setBuscando(false); }
+    }, 300);
+  };
+
+  const seleccionar = (almacenista) => {
+    setQuery(almacenista.nombre);
+    onChange(almacenista.nombre);
+    setMostrar(false);
+    setNoEncontrado(false);
+    onSave?.();
+  };
+
+  const crearNuevo = async () => {
+    setMostrar(false);
+    const result = await Swal.fire({
+      title: "Almacenista no encontrado",
+      html: `
+        <p style="color:#64748b; font-size:14px; margin-bottom:16px;">
+          "<strong>${query}</strong>" no existe en el Mantenedor de Almacenistas.<br/>
+          ¿Deseas agregarlo como nuevo almacenista?
+        </p>
+        <div style="text-align:left; display:grid; gap:10px;">
+          <div>
+            <label style="font-size:12px; font-weight:600; color:#374151;">RUT *</label>
+            <input id="alm-rut" class="swal2-input" style="margin:4px 0 0 0; width:100%;" placeholder="Ej: 76451351-7">
+          </div>
+          <div>
+            <label style="font-size:12px; font-weight:600; color:#374151;">Código Almacén *</label>
+            <input id="alm-codigo" class="swal2-input" style="margin:4px 0 0 0; width:100%;" placeholder="Ej: A-84">
+          </div>
+          <div>
+            <label style="font-size:12px; font-weight:600; color:#374151;">Nación ID</label>
+            <input id="alm-nacion" class="swal2-input" style="margin:4px 0 0 0; width:100%;" placeholder="CL" maxlength="2">
+          </div>
+        </div>
+      `,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Sí, crear",
+      cancelButtonText: "No, solo guardar el nombre",
+      confirmButtonColor: "#0F2A44",
+      cancelButtonColor: "#64748b",
+      width: "480px",
+      preConfirm: () => {
+        const rut = document.getElementById("alm-rut")?.value?.trim();
+        const codigo = document.getElementById("alm-codigo")?.value?.trim();
+        const nacion = document.getElementById("alm-nacion")?.value?.trim().toUpperCase() || "CL";
+        if (!rut) { Swal.showValidationMessage("El RUT es obligatorio"); return null; }
+        if (!codigo) { Swal.showValidationMessage("El Código Almacén es obligatorio"); return null; }
+        return { rut, codigo_almacen: codigo, nacion_id: nacion };
+      }
+    });
+
+    if (result.isConfirmed && result.value) {
+      try {
+        const res = await fetch(`${API_URL}/api/mantenedores/almacenistas`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nombre: query.trim(),
+            rut: result.value.rut,
+            nacion_id: result.value.nacion_id,
+            codigo_almacen: result.value.codigo_almacen,
+          }),
+        });
+        if (res.ok) {
+          await Swal.fire({ icon: "success", title: "Almacenista creado", text: `"${query}" fue agregado al mantenedor`, timer: 2000, showConfirmButton: false });
+          onSave?.();
+        } else {
+          throw new Error("Error al crear");
+        }
+      } catch {
+        Swal.fire({ icon: "error", title: "Error", text: "No se pudo crear el almacenista", confirmButtonColor: "#0F2A44" });
+      }
+    } else if (result.isDismissed && result.dismiss === Swal.DismissReason.cancel) {
+      onSave?.();
+    }
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <div className="relative">
+        <input
+          value={query}
+          onChange={e => buscar(e.target.value)}
+          onFocus={() => query.length >= 2 && setMostrar(true)}
+          className="w-full min-w-[160px] bg-blue-50 border border-blue-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300"
+          placeholder="Buscar almacenista..."
+        />
+        {buscando && <div className="absolute right-2 top-1/2 -translate-y-1/2"><RefreshCw size={10} className="animate-spin text-blue-400" /></div>}
+      </div>
+      {mostrar && resultados.length > 0 && (
+        <div className="absolute z-50 w-64 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          {resultados.map(a => (
+            <button key={a.id} type="button" onClick={() => seleccionar(a)} className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-0 transition-colors">
+              <p className="text-xs font-medium text-slate-800 truncate">{a.nombre}</p>
+              <p className="text-[10px] text-slate-500">
+                {a.codigo_almacen && <span className="font-mono">ALM: {a.codigo_almacen}</span>}
+                {a.rut && <span className="ml-2">RUT: {a.rut}</span>}
+              </p>
+            </button>
+          ))}
+        </div>
+      )}
+      {mostrar && noEncontrado && query.trim().length >= 2 && (
+        <div className="absolute z-50 w-64 mt-1 bg-white border border-orange-200 rounded-lg shadow-lg">
+          <div className="px-3 py-2 text-xs text-slate-500 border-b border-slate-100">No existe "<strong>{query}</strong>" en el mantenedor</div>
+          <button type="button" onClick={crearNuevo} className="w-full text-left px-3 py-2 text-xs text-orange-700 font-semibold hover:bg-orange-50 transition-colors">
+            + Agregar como nuevo almacenista
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+// ↑↑↑ FIN AlmacenSelect ↑↑↑
+
 export default function Reportes() {
   const [allManifiestos, setAllManifiestos] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -415,57 +568,124 @@ export default function Reportes() {
 
   // ── Auto-save con debounce de 800ms ──
   const autoSaveTimers = useRef({});
-  const handleCellEdit = (rowIdx, key, value) => {
-    setRows((prev) => prev.map((r, i) => (i === rowIdx ? { ...r, [key]: value } : r)));
-    if (!selectedId) return;
 
-    clearTimeout(autoSaveTimers.current[rowIdx]);
-    autoSaveTimers.current[rowIdx] = setTimeout(async () => {
-      // Leer fila actualizada del estado más reciente
-      setRows((prev) => {
-        const row = prev[rowIdx];
-        if (!row) return prev;
-        const token = localStorage.getItem("token");
-        fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            bl: row.bl,
-            n_contenedor: row.n_contenedor ?? "",
-            deposito: row.deposito ?? "",
-            almacen: row.almacen ?? "",
-          }),
-        }).catch(() => { });
-        return prev;
-      });
-    }, 800);
-  };
+  const latestRows = useRef(rows);
 
-  // ── Guardar todo de una vez ──
-  const handleSaveAll = async () => {
-    if (!selectedId || !rows.length) return;
-    setSaving(true);
-    try {
+  useEffect(() => {
+  latestRows.current = rows;
+}, [rows]);
+
+ const handleCellEdit = (rowIdx, key, value) => {
+  setRows((prev) => prev.map((r, i) => (i === rowIdx ? { ...r, [key]: value } : r)));
+  if (!selectedId) return;
+
+  clearTimeout(autoSaveTimers.current[rowIdx]);
+  autoSaveTimers.current[rowIdx] = setTimeout(async () => {
+    setRows((prev) => {
+      const row = prev[rowIdx];
+      if (!row) return prev;
       const token = localStorage.getItem("token");
-      const payload = rows.map((r) => ({
-        bl: r.bl,
-        n_contenedor: r.n_contenedor ?? "",
-        deposito: r.deposito ?? "",
-        almacen: r.almacen ?? "",
-      }));
-      const res = await fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos/bulk`, {
+
+      // Guardar en tabla reportes (ya existía)
+      fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      showToast("success", `${data.actualizadas ?? rows.length} filas guardadas`);
-    } catch {
-      showToast("error", "Error al guardar");
-    } finally {
-      setSaving(false);
-    }
-  };
+        body: JSON.stringify({
+          bl: row.bl,
+          n_contenedor: row.n_contenedor ?? "",
+          deposito: row.deposito ?? "",
+          almacen: row.almacen ?? "",
+        }),
+      }).catch(() => {});
+
+      // ── Si cambió el almacén, actualizar el BL también ──
+      if (key === "almacen" && value && row.bl) {
+        (async () => {
+          try {
+            const resAlm = await fetch(`${API_URL}/api/mantenedores/almacenistas`);
+            if (!resAlm.ok) return;
+            const almacenistas = await resAlm.json();
+            const encontrado = almacenistas.find(
+              a => a.nombre.toLowerCase() === value.toLowerCase()
+            );
+
+            await fetch(`${API_URL}/api/bls/${row.bl}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(encontrado ? {
+                almacenista_id: encontrado.id,
+                almacenista_nombre: encontrado.nombre,
+                almacenista_rut: encontrado.rut,
+                almacenista_nacion_id: encontrado.nacion_id,
+                almacenista_codigo_almacen: encontrado.codigo_almacen,
+              } : {
+                almacenista_nombre: value,
+              }),
+            });
+          } catch (err) {
+            console.warn("No se pudo actualizar el almacenista en el BL:", err);
+          }
+        })();
+      }
+
+      return prev;
+    });
+  }, 800);
+};
+
+  // ── Guardar todo de una vez ──
+const handleSaveAll = async () => {
+  if (!selectedId || !latestRows.current.length) return;
+  setSaving(true);
+  try {
+    const token = localStorage.getItem("token");
+    const currentRows = latestRows.current;
+
+    const payload = currentRows.map((r) => ({
+      bl: r.bl,
+      n_contenedor: r.n_contenedor ?? "",
+      deposito: r.deposito ?? "",
+      almacen: r.almacen ?? "",
+    }));
+
+    const res = await fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos/bulk`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    const almacenistas = await fetch(`${API_URL}/api/mantenedores/almacenistas`)
+      .then(r => r.ok ? r.json() : [])
+      .catch(() => []);
+
+    const blsConAlmacen = currentRows.filter(r => r.almacen && r.bl);
+    await Promise.all(blsConAlmacen.map(async (row) => {
+      const encontrado = almacenistas.find(
+        a => a.nombre.toLowerCase() === row.almacen.toLowerCase()
+      );
+      await fetch(`${API_URL}/api/bls/${row.bl}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(encontrado ? {
+          almacenista_id: encontrado.id,
+          almacenista_nombre: encontrado.nombre,
+          almacenista_rut: encontrado.rut,
+          almacenista_nacion_id: encontrado.nacion_id,
+          almacenista_codigo_almacen: encontrado.codigo_almacen,
+        } : {
+          almacenista_nombre: row.almacen,
+        }),
+      }).catch(() => {});
+    }));
+
+    showToast("success", `${data.actualizadas ?? currentRows.length} filas guardadas y BLs actualizados`);
+  } catch {
+    showToast("error", "Error al guardar");
+  } finally {
+    setSaving(false);
+  }
+};
 
 
 
@@ -508,81 +728,94 @@ export default function Reportes() {
 
 
   // ── Importar Excel con depósito/almacén ──
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+const handleFileUpload = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  // Convertir FileReader a Promise
+  const readFile = (file) => new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const wb = XLSX.read(evt.target.result, { type: "binary" });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
-        if (data.length < 2) { showToast("error", "El archivo está vacío"); return; }
-
-        const headers = data[0].map((h) => String(h).trim());
-        const findCol = (label) => headers.findIndex((h) => h.toLowerCase() === label.toLowerCase());
-        const blIdx = findCol("BL");
-        const contenedorIdx = findCol("N° Contenedor");
-        const depositoIdx = findCol("Depósito");
-        const almacenIdx = findCol("Almacén");
-
-        if (blIdx === -1) { showToast("error", "El Excel no tiene columna 'BL'"); return; }
-
-        const updates = {};
-        data.slice(1).forEach((row) => {
-          const blVal = String(row[blIdx] ?? "").trim();
-          const cntVal = contenedorIdx !== -1 ? String(row[contenedorIdx] ?? "").trim() : "";
-          if (!blVal) return;
-          updates[`${blVal}||${cntVal}`] = {
-            ...(depositoIdx !== -1 ? { deposito: String(row[depositoIdx] ?? "").trim() } : {}),
-            ...(almacenIdx !== -1 ? { almacen: String(row[almacenIdx] ?? "").trim() } : {}),
-          };
-        });
-
-        let actualizadas = 0;
-        setRows((prev) =>
-          prev.map((r) => {
-            const upd = updates[`${String(r.bl ?? "").trim()}||${String(r.n_contenedor ?? "").trim()}`];
-            if (!upd) return r;
-            actualizadas++;
-            return { ...r, ...upd };
-          })
-        );
-        setTimeout(async () => {
-          showToast("success", `${actualizadas} fila(s) actualizadas desde Excel · guardando...`);
-          // Auto-guardar en BD inmediatamente después de importar el Excel
-          if (selectedId) {
-            try {
-              const token = localStorage.getItem("token");
-              // Leer el estado más reciente de rows via setRows
-              setRows((prev) => {
-                const payload = prev.map((r) => ({
-                  bl: r.bl,
-                  n_contenedor: r.n_contenedor ?? "",
-                  deposito: r.deposito ?? "",
-                  almacen: r.almacen ?? "",
-                }));
-                fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos/bulk`, {
-                  method: "PUT",
-                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                  body: JSON.stringify(payload),
-                })
-                  .then(() => showToast("success", `${actualizadas} fila(s) guardadas correctamente`))
-                  .catch(() => showToast("error", "Error al guardar en BD — usa el botón 'Guardar todo'"));
-                return prev;
-              });
-            } catch {
-              showToast("error", "Error al guardar — usa el botón 'Guardar todo'");
-            }
-          }
-        }, 100);
-      } catch {
-        showToast("error", "No se pudo leer el archivo");
-      }
-    };
+    reader.onload = (evt) => resolve(evt.target.result);
+    reader.onerror = () => reject(new Error("No se pudo leer el archivo"));
     reader.readAsBinaryString(file);
-    e.target.value = "";
-  };
+  });
+
+  try {
+    const result = await readFile(file);
+    const wb = XLSX.read(result, { type: "binary" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
+    if (data.length < 2) { showToast("error", "El archivo está vacío"); return; }
+
+    const headers = data[0].map((h) => String(h).trim());
+    const findCol = (label) => headers.findIndex((h) => h.toLowerCase() === label.toLowerCase());
+    const blIdx = findCol("BL");
+    const contenedorIdx = findCol("N° Contenedor");
+    const depositoIdx = findCol("Depósito");
+    const almacenIdx = findCol("Almacén");
+
+    if (blIdx === -1) { showToast("error", "El Excel no tiene columna 'BL'"); return; }
+
+    const updates = {};
+    data.slice(1).forEach((row) => {
+      const blVal = String(row[blIdx] ?? "").trim();
+      const cntVal = contenedorIdx !== -1 ? String(row[contenedorIdx] ?? "").trim() : "";
+      if (!blVal) return;
+      updates[`${blVal}||${cntVal}`] = {
+        ...(depositoIdx !== -1 ? { deposito: String(row[depositoIdx] ?? "").trim() } : {}),
+        ...(almacenIdx !== -1 ? { almacen: String(row[almacenIdx] ?? "").trim() } : {}),
+      };
+    });
+
+    // ── Verificar almacenes contra mantenedor ──
+    const nombresDelExcel = [...new Set(Object.values(updates).map(u => u.almacen).filter(Boolean))];
+    if (nombresDelExcel.length > 0) {
+      const resAlm = await fetch(`${API_URL}/api/mantenedores/almacenistas`);
+      if (resAlm.ok) {
+        const almacenistasExistentes = await resAlm.json();
+        const nombresExistentes = almacenistasExistentes.map(a => a.nombre.toLowerCase());
+        const noExisten = nombresDelExcel.filter(n => !nombresExistentes.includes(n.toLowerCase()));
+        if (noExisten.length > 0) {
+          await Swal.fire({
+            title: "Almacenistas no registrados",
+            html: `
+              <p style="color:#64748b; font-size:13px; margin-bottom:12px;">
+                Los siguientes almacenes del Excel <strong>no existen</strong> en el mantenedor:
+              </p>
+              <ul style="text-align:left; padding-left:20px;">
+                ${noExisten.map(n => `<li style="color:#d97706; font-size:13px; margin-bottom:4px;">• ${n}</li>`).join("")}
+              </ul>
+              <p style="color:#64748b; font-size:13px; margin-top:12px;">
+                Se importarán igual, pero puedes crearlos editando la celda de Almacén.
+              </p>
+            `,
+            icon: "warning",
+            confirmButtonColor: "#0F2A44",
+            confirmButtonText: "Entendido, importar igual",
+          });
+        }
+      }
+    }
+
+    let actualizadas = 0;
+    setRows((prev) =>
+      prev.map((r) => {
+        const upd = updates[`${String(r.bl ?? "").trim()}||${String(r.n_contenedor ?? "").trim()}`];
+        if (!upd) return r;
+        actualizadas++;
+        return { ...r, ...upd };
+      })
+    );
+
+    showToast("success", `${actualizadas} fila(s) actualizadas desde Excel · guardando...`);
+    setTimeout(() => handleSaveAll(), 150);
+
+  } catch {
+    showToast("error", "No se pudo leer el archivo");
+  }
+
+  e.target.value = "";
+};
 
   return (
     <div className="flex min-h-screen bg-slate-100">
