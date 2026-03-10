@@ -7908,12 +7908,35 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
       );
 
       const esCargaSuelta = bl.tipo_servicio_codigo === 'BB';
-      let contenedores = [];
+let contenedores = [];
 
-      if (!esCargaSuelta) {
-        const [contRows] = await pool.query(getContenedoresQuery(), [bl.id]);
-        contenedores = contRows;
-      }
+if (!esCargaSuelta) {
+  const [contRows] = await pool.query(getContenedoresQuery(), [bl.id]);
+  contenedores = contRows;
+
+  const erroresIMO = [];
+  for (const item of items) {
+    if (String(item.carga_peligrosa || '').toUpperCase() === 'S') {
+      contenedores
+        .filter(c => c.item_id === item.id)
+        .forEach(c => {
+          if (!c.imo_data)
+            erroresIMO.push({
+              bl_number: blNumber,
+              item: item.numero_item,
+              contenedor: c.codigo,
+              mensaje: "Contenedor sin datos IMO"
+            });
+        });
+    }
+  }
+  if (erroresIMO.length > 0) {
+    return res.status(400).json({
+      error: "Contenedores de carga peligrosa sin datos IMO",
+      details: erroresIMO
+    });
+  }
+}
 
       const [transbordos] = await pool.query(getTransbordosQuery(), [bl.id]);
 
