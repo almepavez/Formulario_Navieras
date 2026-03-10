@@ -413,7 +413,7 @@ const buildXML = (bl, items, contenedores, transbordos, tipoAccion = 'I') => {
         locacion: [
           !esCargaSuelta && bl.lugar_emision_codigo && { nombre: 'LE', codigo: bl.lugar_emision_codigo, descripcion: bl.lugar_emision_nombre },
           (() => {
-            const ultimoTransbordo = transbordos.length > 0 ? transbordos[transbordos.length - 1] : null;
+            const ultimoTransbordo = esImpo && transbordos.length > 0 ? transbordos[transbordos.length - 1] : null;
             const peCodigo = ultimoTransbordo ? (ultimoTransbordo.puerto_codigo_sidemar || ultimoTransbordo.puerto_cod) : bl.puerto_embarque_codigo;
             const peNombre = ultimoTransbordo ? (ultimoTransbordo.puerto_nombre || peCodigo) : bl.puerto_embarque_nombre;
             return peCodigo ? { nombre: 'PE', codigo: peCodigo, descripcion: peNombre } : null;
