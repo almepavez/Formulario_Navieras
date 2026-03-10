@@ -3181,7 +3181,11 @@ function parseLegs14(lines14) {
     const m = s.match(/^14\s+\d{2}SH([A-Z]{5})([A-Z]{5})/);
     if (!m) continue;
 
-    legs.push({ step, from: m[1], to: m[2] });
+    const mDates = s.match(/(\d{12})\s*(\d{12})/);
+    const fechaEmb  = mDates ? parseYYYYMMDDHHMM(mDates[1]) : null;
+    const fechaZarpe = mDates ? parseYYYYMMDDHHMM(mDates[2]) : null;
+
+    legs.push({ step, from: m[1], to: m[2], fechaEmb, fechaZarpe });
   }
 
   legs.sort((a, b) => a.step - b.step);
@@ -3190,7 +3194,10 @@ function parseLegs14(lines14) {
 
 function extractTransbordos(legs) {
   if (!Array.isArray(legs) || legs.length <= 1) return [];
-  return legs.slice(0, -1).map(l => l.to); // intermedios
+  return legs.slice(0, -1).map(l => ({
+    puerto_cod: l.to,
+    fecha_arribo: l.fechaZarpe || null  // zarpe del leg = arribo al transbordo
+  }));
 }
 
 function extractLugarEmisionFrom00(l00) {
@@ -3243,11 +3250,6 @@ function parsePmsTxt(content) {
   const header11 = pickFirst(lines, "11");
 
   const fechaPresentacionGlobal = extractFPRESFrom00(header00); // FPRES (datetime)
-  const fechaEmisionGlobal = extractFEMFrom11(header11);        // FEM (date)
-
-  // LE global desde 74
-
-  const lugarEmisionCodGlobal = pickLugarEmisionCod(lines, header00);
 
   return blocks
     .map((bLines) => {
@@ -3263,6 +3265,11 @@ function parsePmsTxt(content) {
       const condTransporte = (r1 && r2) ? r1 + r2 : null;
       const blNumber = extractBLNumber(l12);
       if (!blNumber) return null;
+
+      // ✅ fecha_emision y lugar_emision_cod por BL (desde su propia línea 74)
+      const l74 = pickFirst(bLines, "74");
+      const fechaEmision = l74 ? parseYYYYMMDD(l74.substring(10, 18).trim()) : extractFEMFrom11(header11);
+      const lugarEmisionCod = l74 ? l74.substring(5, 10).trim() : null;
 
       const tipoServicioCod = extractServiceCodeFrom12(l12);
 
@@ -3317,13 +3324,12 @@ function parsePmsTxt(content) {
       const lines14 = pickAll(bLines, "14");
 
       const legs14 = parseLegs14(lines14);
-      const transbordos = extractTransbordos(legs14); // ["CNNGB","SGSIN"] si aplica
+      const transbordos = extractTransbordos(legs14);
 
       // Fechas desde 14 principal (01SH si existe; si no, primera con 2 timestamps)
       const main14 = pickMain14ForDates(lines14);
 
       const fechaPresentacion = fechaPresentacionGlobal;
-      const fechaEmision = fechaEmisionGlobal;
       const fechaEmbarque = main14 ? extractFEMBFrom14(main14) : null;
       const fechaZarpe = main14 ? extractFZARPEFrom14(main14) : null;
 
@@ -3332,13 +3338,12 @@ function parsePmsTxt(content) {
       const puertoEmbarqueCod = pe || pol || "";
       const puertoDescargaCod = pd || pod || "";
 
-      // ---------- 51: CONTENEDORES + SELLOS (nuevo, NO rompe) ----------
+      // ---------- 51: CONTENEDORES + SELLOS ----------
       const lines51 = pickAll(bLines, "51");
-      // lo sigues usando para bultos
 
       const weightKgs = extractWeightFrom12(l12);
 
-      const items = extractItemsFrom41_44_47(bLines) || []; // tu función actual
+      const items = extractItemsFrom41_44_47(bLines) || [];
 
       const esEmpty = String(tipoServicioCod || "").trim().toUpperCase() === "MM";
       const contenedores = extractContainersFrom51(pickAll(bLines, "51"), esEmpty) || [];
@@ -3356,26 +3361,24 @@ function parsePmsTxt(content) {
         );
 
         c._hasLinea56 = hits.length > 0;
-
         c.imo = hits.map(h => ({ clase_imo: h.clase, numero_imo: h.un }));
       }
+
       // Detectar SOC desde líneas 47
       const lines47 = pickAll(bLines, "47");
       const textoLineas47 = lines47.join(" ");
       const esSOC = /SHIPPER[\s.]{0,5}OWNER[\s.]{0,5}CONTAINER|SHIPPER'?S[\s.]{0,5}OWN[\s.]{0,5}CONTAINER|\bSOC\b/i.test(textoLineas47);
 
-      // Pegar es_soc y cnt_so_numero a cada contenedor
       for (const c of contenedores) {
         c.es_soc = esSOC;
         if (esSOC) {
-          // TCNU7297920 → "TCNU 729792-0"
           c.cnt_so_numero = `${c.sigla} ${c.numero}-${c.digito}`;
         } else {
           c.cnt_so_numero = null;
         }
       }
 
-      // ---------- 61: FLETE (BOF) ----------  👈 AGREGAR AQUÍ
+      // ---------- 61: FLETE (BOF) ----------
       const line61Bof = bLines.find(l =>
         l.startsWith("61") && l.substring(7, 10) === "BOF"
       );
@@ -3383,30 +3386,23 @@ function parsePmsTxt(content) {
       let formaPagoFlete = null;
       if (line61Bof) {
         const pagoChar = line61Bof[86];
-        const descripcion = line61Bof.substring(87, 117).trim();
         if (pagoChar === "P") formaPagoFlete = `PREPAID`;
         else if (pagoChar === "C") formaPagoFlete = `COLLECT`;
       }
 
-
       for (const it of items) {
         const itemNum = Number(it.numero_item);
-
         const contsDelItem = (contenedores || []).filter(c => Number(c.itemNo) === itemNum);
-
         it.cantidad_real = contsDelItem.length;
-
         const tieneLinea56 = contsDelItem.some(c => c._hasLinea56 === true);
         it.carga_peligrosa = tieneLinea56 ? "S" : "N";
       }
 
       const lugar_recepcion_cod = puertoEmbarqueCod; // LRM
-      const lugar_destino_cod = puertoDescargaCod; // LD
-      const lugar_entrega_cod = puertoDescargaCod; // LEM
-
+      const lugar_destino_cod = puertoDescargaCod;   // LD
+      const lugar_entrega_cod = puertoDescargaCod;   // LEM
 
       return {
-        // ====== lo que ya usas hoy ======
         blNumber,
         tipoServicioCod,
 
@@ -3445,9 +3441,9 @@ function parsePmsTxt(content) {
         fecha_embarque: fechaEmbarque,
         fecha_zarpe: fechaZarpe,
 
-        lugar_emision_cod: lugarEmisionCodGlobal, // LE (74)
-        puerto_embarque_cod: puertoEmbarqueCod,   // PE (14, fallback 13)
-        puerto_descarga_cod: puertoDescargaCod,   // PD (14, fallback 13)
+        lugar_emision_cod: lugarEmisionCod,        // ✅ desde línea 74 del BL
+        puerto_embarque_cod: puertoEmbarqueCod,
+        puerto_descarga_cod: puertoDescargaCod,
 
         lugar_recepcion_cod,
         lugar_destino_cod,
@@ -3457,14 +3453,12 @@ function parsePmsTxt(content) {
         forma_pago_flete: formaPagoFlete,
         cond_transporte: condTransporte,
 
-
         items,
-        // ====== NUEVO (para poblar tablas nuevas, si quieres) ======
-        contenedores, // [{ codigo,sigla,numero,digito,tipo_cnt,sellos:[] }]
+        contenedores,
         _tokensFaltantes: contenedores
           .filter(c => c._tokenFaltante)
           .map(c => c._tokenFaltante)
-          .filter((v, i, a) => a.indexOf(v) === i) // únicos
+          .filter((v, i, a) => a.indexOf(v) === i)
       };
     })
     .filter(Boolean);
@@ -4302,33 +4296,34 @@ async function insertTransbordos(conn, blId, transbordos) {
   await conn.query("DELETE FROM bl_transbordos WHERE bl_id = ?", [blId]);
 
   const sql = `
-    INSERT INTO bl_transbordos (bl_id, sec, puerto_cod, puerto_id)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO bl_transbordos (bl_id, sec, puerto_cod, puerto_id, fecha_arribo)
+    VALUES (?, ?, ?, ?, ?)
   `;
   let sec = 1;
 
-  for (const cod of arr) {
-    const c = String(cod || "").trim().toUpperCase();
+  for (const trb of arr) {
+    const c = String(trb?.puerto_cod || trb || "").trim().toUpperCase();
+    const fechaArribo = trb?.fecha_arribo || null;
     if (!c) continue;
 
-    const puertoId = await getPuertoIdByCodigo(conn, c); // 👈 AQUÍ
+    const puertoId = await getPuertoIdByCodigo(conn, c);
 
     if (!puertoId) {
       const payload = {
         blId,
         nivel: "TRANSBORDO",
         sec,
-        severidad: "OBS", // NO ERROR
+        severidad: "OBS",
         campo: "puerto_id",
         mensaje: "Puerto de transbordo no existe en mantenedor (no afecta XML)",
         valorCrudo: c
       };
 
       await addValidacion(conn, payload);
-      await addValidacionPMS(conn, payload); // solo si esto está en carga PMS
+      await addValidacionPMS(conn, payload);
     }
 
-    await conn.query(sql, [blId, sec++, c, puertoId]);
+    await conn.query(sql, [blId, sec++, c, puertoId, fechaArribo]);
   }
 }
 
@@ -5662,7 +5657,7 @@ async function revalidarBLCompleto(conn, blId) {
   if (!lugarEntregaId) vals.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_entrega_id", mensaje: `Lugar entrega no existe en mantenedor de puertos (Revisar puerto de descarga)`, valorCrudo: bl.lugar_entrega_cod || null });
   if (!lugarRecepcionId) vals.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_recepcion_id", mensaje: `Lugar recepción no existe en mantenedor de puertos (Revisar puerto de embarque)`, valorCrudo: bl.lugar_recepcion_cod || null });
   // BL: fechas obligatorias
-  if (isBlank(bl.fecha_emision)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_emision", mensaje: "Falta fecha_emision (Linea 11)", valorCrudo: bl.fecha_emision || null });
+  if (isBlank(bl.fecha_emision)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_emision", mensaje: "Falta fecha_emision (Linea 74)", valorCrudo: bl.fecha_emision || null });
   if (isBlank(bl.fecha_presentacion)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_presentacion", mensaje: "Falta fecha_presentacion (Linea 00)", valorCrudo: bl.fecha_presentacion || null });
   if (isBlank(bl.fecha_embarque)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_embarque", mensaje: "Falta fecha_embarque (Linea 14)", valorCrudo: bl.fecha_embarque || null });
   if (isBlank(bl.fecha_zarpe)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_zarpe", mensaje: "Falta fecha_zarpe (Linea 14)", valorCrudo: bl.fecha_zarpe || null });
