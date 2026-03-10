@@ -5133,7 +5133,7 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
         if (!tieneContactoNotify) {
           pendingValidations.push({
             nivel: "BL", severidad: "ERROR", campo: "notify_contacto",
-            mensaje: `Notify party debe tener al menos teléfono o correo electrónico (Linea 26B) [Código PIL: ${b.notify_codigo_pil || 'N/A'}]`,
+            mensaje: `Notify debe tener al menos teléfono o correo electrónico (Linea 26B) [Código PIL: ${b.notify_codigo_pil || 'N/A'}]`,
             valorCrudo: b.notify_codigo_pil || null
           });
         }
@@ -5402,6 +5402,23 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
 
     // COMMIT
     await conn.commit();
+
+    // Actualizar fecha_zarpe del manifiesto con la más tardía de los BLs (solo importación)
+    if (tipoOperacion !== 'S') {
+      const [zarpeRows] = await conn.query(
+        `SELECT MAX(fecha_zarpe) AS fecha_zarpe_max
+        FROM bls
+        WHERE manifiesto_id = ? AND fecha_zarpe IS NOT NULL`,
+        [id]
+      );
+
+      if (zarpeRows.length > 0 && zarpeRows[0].fecha_zarpe_max) {
+        await conn.query(
+          `UPDATE manifiestos SET fecha_zarpe = ? WHERE id = ?`,
+          [zarpeRows[0].fecha_zarpe_max, id]
+        );
+      }
+    }
 
     // Resumen de errores
     const [blsConErrores] = await conn.query(`
@@ -8220,13 +8237,13 @@ async function revalidarBLCompleto(conn, blId) {
   );
 
   const esImpoValidacion = manifiesto?.tipo_operacion !== 'S';
-  if (esImpoValidacion && isBlank(bl.fecha_recepcion_bl)) {
-    vals.push({
-      nivel: "BL", severidad: "OBS", campo: "fecha_recepcion_bl",
-      mensaje: "Falta fecha de recepción BL (obligatoria en importación)",
-      valorCrudo: null
-    });
-  }
+  // if (esImpoValidacion && isBlank(bl.fecha_recepcion_bl)) {
+  //   vals.push({
+  //     nivel: "BL", severidad: "OBS", campo: "fecha_recepcion_bl",
+  //     mensaje: "Falta fecha de recepción BL (obligatoria en importación)",
+  //     valorCrudo: null
+  //   });
+  // }
 
   if (!manifiesto || !manifiesto.fecha_zarpe) {
     vals.push({
@@ -8322,7 +8339,7 @@ async function revalidarBLCompleto(conn, blId) {
     if (!tieneContactoNotify) {
       vals.push({
         nivel: "BL", severidad: "OBS", campo: "notify_contacto",
-        mensaje: `Notify party debe tener al menos teléfono o correo electrónico (Linea 26B) [Código PIL: ${bl.notify_codigo_pil || 'N/A'}]`,
+        mensaje: `Notify debe tener al menos teléfono o correo electrónico (Linea 26B) [Código PIL: ${bl.notify_codigo_pil || 'N/A'}]`,
         valorCrudo: bl.notify_codigo_pil || null
       });
     }
