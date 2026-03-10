@@ -1691,6 +1691,118 @@ app.get("/tipos-bulto", async (_req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────
+// MANTENEDOR: Almacenistas (Solo Importación)
+// Usa la tabla `participantes` filtrando por
+// aquellos que tienen codigo_almacen definido.
+// ─────────────────────────────────────────────
+
+app.get("/api/mantenedores/almacenistas", async (_req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, nombre, rut, pais AS nacion_id, codigo_almacen
+       FROM participantes
+       WHERE codigo_almacen IS NOT NULL AND codigo_almacen != ''
+       ORDER BY nombre`
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error("Error al obtener almacenistas:", error);
+    res.status(500).json({ error: "Error al obtener almacenistas" });
+  }
+});
+
+app.get("/api/mantenedores/almacenistas/:id", async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, nombre, rut, pais AS nacion_id, codigo_almacen
+       FROM participantes
+       WHERE id = ? AND codigo_almacen IS NOT NULL AND codigo_almacen != ''`,
+      [req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: "Almacenista no encontrado" });
+    res.json(rows[0]);
+  } catch (error) {
+    console.error("Error al obtener almacenista:", error);
+    res.status(500).json({ error: "Error al obtener almacenista" });
+  }
+});
+
+app.post("/api/mantenedores/almacenistas", async (req, res) => {
+  try {
+    const { nombre, rut, nacion_id, codigo_almacen } = req.body;
+
+    if (!nombre || !rut || !nacion_id || !codigo_almacen) {
+      return res.status(400).json({ error: "nombre, rut, nacion_id y codigo_almacen son obligatorios" });
+    }
+
+    // codigo_bms se genera automáticamente como ALM-<timestamp> para no violar el UNIQUE
+    const codigo_bms = `ALM-${Date.now()}`;
+
+    const [result] = await pool.query(
+      `INSERT INTO participantes (codigo_bms, nombre, rut, pais, codigo_almacen)
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        codigo_bms,
+        nombre.trim(),
+        rut.trim(),
+        nacion_id.trim().toUpperCase(),
+        codigo_almacen.trim(),
+      ]
+    );
+
+    res.status(201).json({
+      id: result.insertId,
+      nombre: nombre.trim(),
+      rut: rut.trim(),
+      nacion_id: nacion_id.trim().toUpperCase(),
+      codigo_almacen: codigo_almacen.trim(),
+    });
+  } catch (error) {
+    console.error("Error al crear almacenista:", error);
+    res.status(500).json({ error: "Error al crear almacenista" });
+  }
+});
+
+app.put("/api/mantenedores/almacenistas/:id", async (req, res) => {
+  try {
+    const { nombre, rut, nacion_id, codigo_almacen } = req.body;
+    const { id } = req.params;
+
+    if (!nombre || !rut || !nacion_id || !codigo_almacen) {
+      return res.status(400).json({ error: "nombre, rut, nacion_id y codigo_almacen son obligatorios" });
+    }
+
+    const [result] = await pool.query(
+      `UPDATE participantes
+       SET nombre = ?, rut = ?, pais = ?, codigo_almacen = ?
+       WHERE id = ?`,
+      [
+        nombre.trim(),
+        rut.trim(),
+        nacion_id.trim().toUpperCase(),
+        codigo_almacen.trim(),
+        id,
+      ]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Almacenista no encontrado" });
+    }
+
+    res.json({
+      id: Number(id),
+      nombre: nombre.trim(),
+      rut: rut.trim(),
+      nacion_id: nacion_id.trim().toUpperCase(),
+      codigo_almacen: codigo_almacen.trim(),
+    });
+  } catch (error) {
+    console.error("Error al actualizar almacenista:", error);
+    res.status(500).json({ error: "Error al actualizar almacenista" });
+  }
+});
+
 // GET /api/tipos-bulto
 app.get("/api/tipos-bulto", async (_req, res) => {
   try {

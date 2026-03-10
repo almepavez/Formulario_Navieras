@@ -16,6 +16,7 @@ import {
   PackageSearch,
   ChevronLeft,
   ChevronRight,
+  Warehouse,
 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 
@@ -41,6 +42,10 @@ const colorStyles = {
   emerald: {
     badgeBg: "bg-emerald-100",
     badgeText: "text-emerald-600",
+  },
+  amber: {
+    badgeBg: "bg-amber-100",
+    badgeText: "text-amber-600",
   },
 };
 
@@ -129,21 +134,21 @@ const CRUDMantenedor = () => {
           placeholder: "Ej: DC, HC, RF, OT, FR, TK"
         },
         {
-  key: "tipo_cnt_sna",
-  label: "Clasificación Aduana (SNA)",
-  type: "select",
-  required: false,
-  options: [
-    { value: "", label: "— Sin clasificar —" },
-    { value: "DRY", label: "DRY" },
-    { value: "HC", label: "HC" },
-    { value: "RHC", label: "RHC" },
-    { value: "REE", label: "REE" },
-    { value: "OT", label: "OT" },
-    { value: "FR", label: "FR" },
-    { value: "TNK", label: "TNK" },
-  ]
-},
+          key: "tipo_cnt_sna",
+          label: "Clasificación Aduana (SNA)",
+          type: "select",
+          required: false,
+          options: [
+            { value: "", label: "— Sin clasificar —" },
+            { value: "DRY", label: "DRY" },
+            { value: "HC", label: "HC" },
+            { value: "RHC", label: "RHC" },
+            { value: "REE", label: "REE" },
+            { value: "OT", label: "OT" },
+            { value: "FR", label: "FR" },
+            { value: "TNK", label: "TNK" },
+          ]
+        },
         {
           key: "activo",
           label: "Estado",
@@ -169,6 +174,59 @@ const CRUDMantenedor = () => {
           required: true,
           placeholder: "Ej: CASE, CARTON, PALLET, BAG, DRUM",
           helpText: "Palabra que identifica el tipo de empaque en archivos PMS (se guarda en MAYÚSCULAS)"
+        },
+        {
+          key: "activo",
+          label: "Estado",
+          type: "select",
+          options: [
+            { value: 1, label: "Activo" },
+            { value: 0, label: "Inactivo" }
+          ],
+          required: true
+        },
+      ],
+    },
+
+    // ─────────────────────────────────────────────
+    // NUEVO: Almacenistas (solo importación / ALM)
+    // ─────────────────────────────────────────────
+    almacenistas: {
+      title: "Almacenistas",
+      singular: "Almacenista",
+      icon: Warehouse,
+      color: "amber",
+      infoText: "Estos registros corresponden a los almacenistas utilizados en BLs de Importación (campo ALM).",
+      fields: [
+        {
+          key: "nombre",
+          label: "Nombre / Razón Social",
+          type: "text",
+          required: true,
+          placeholder: "Ej: SITRANS ALMACENES EXTRAPORTUARIOS LTDA."
+        },
+        {
+          key: "rut",
+          label: "RUT",
+          type: "text",
+          required: true,
+          placeholder: "Ej: 76451351-7"
+        },
+        {
+          key: "nacion_id",
+          label: "Nación ID",
+          type: "text",
+          required: true,
+          placeholder: "CL",
+          maxLength: 2,
+          helpText: "Código de país ISO de 2 letras (se guarda en MAYÚSCULAS)"
+        },
+        {
+          key: "codigo_almacen",
+          label: "Código Almacén",
+          type: "text",
+          required: true,
+          placeholder: "Ej: A-84"
         },
         {
           key: "activo",
@@ -273,6 +331,9 @@ const CRUDMantenedor = () => {
       if (field.key === "activo") {
         return { ...acc, [field.key]: 1 };
       }
+      if (field.key === "nacion_id") {
+        return { ...acc, [field.key]: "CL" };
+      }
       return { ...acc, [field.key]: "" };
     }, {});
     setFormData(emptyForm);
@@ -281,7 +342,7 @@ const CRUDMantenedor = () => {
 
   const handleEdit = (item) => {
     setEditingItem(item);
-   const clean = config.fields.reduce((acc, f) => {
+    const clean = config.fields.reduce((acc, f) => {
       if (f.key === "activo") {
         return { ...acc, [f.key]: Number(item[f.key] ?? 0) };
       }
@@ -379,6 +440,10 @@ const CRUDMantenedor = () => {
       if (dataToSend.activo !== undefined) {
         dataToSend.activo = Number(dataToSend.activo);
       }
+      // nacion_id siempre en mayúsculas
+      if (dataToSend.nacion_id) {
+        dataToSend.nacion_id = dataToSend.nacion_id.toUpperCase();
+      }
 
       console.log('Enviando:', { url, method, data: dataToSend });
 
@@ -471,6 +536,19 @@ const CRUDMantenedor = () => {
             </div>
           </div>
 
+          {/* Banner específico para almacenistas */}
+          {tipo === "almacenistas" && (
+            <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+              <Warehouse className="text-amber-600 flex-shrink-0 mt-0.5" size={20} />
+              <div className="text-sm">
+                <p className="text-amber-800 font-semibold mb-1">Solo Importación</p>
+                <p className="text-amber-700">
+                  Estos registros corresponden a los <strong>almacenistas (ALM)</strong> utilizados exclusivamente en BLs de Importación.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
             <AlertCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
             <div className="text-sm">
@@ -555,7 +633,7 @@ const CRUDMantenedor = () => {
                       <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                         {tableFields.map((field) => (
                           <td key={field.key} className="px-6 py-4 text-sm text-slate-700">
-                            {field.key === "codigo" || field.key === "codigo_sidemar" || field.key === "tipo_cnt" || field.key === "tipo_bulto" || field.key === "token" ? (
+                            {field.key === "codigo" || field.key === "codigo_sidemar" || field.key === "tipo_cnt" || field.key === "tipo_bulto" || field.key === "token" || field.key === "rut" || field.key === "codigo_almacen" || field.key === "nacion_id" ? (
                               <span className="font-mono font-semibold text-[#0F2A44]">{item[field.key]}</span>
                             ) : field.key === "activo" ? (
                               <span className={`px-3 py-1 rounded-full text-xs font-medium ${item[field.key] === 1 || item[field.key] === "1"
@@ -695,6 +773,7 @@ const CRUDMantenedor = () => {
                               const val = field.key === "activo" ? Number(e.target.value) : e.target.value;
                               setFormData({ ...formData, [field.key]: val });
                             }}
+                            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0F2A44] focus:border-transparent transition"
                           >
                             <option value="">Seleccione...</option>
                             {field.options?.map((opt) => (
@@ -707,7 +786,14 @@ const CRUDMantenedor = () => {
                           <input
                             type={field.type || "text"}
                             value={formData[field.key] || ""}
-                            onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
+                            onChange={(e) => {
+                              // nacion_id siempre uppercase al escribir
+                              const val = field.key === "nacion_id"
+                                ? e.target.value.toUpperCase()
+                                : e.target.value;
+                              setFormData({ ...formData, [field.key]: val });
+                            }}
+                            maxLength={field.maxLength || undefined}
                             className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0F2A44] focus:border-transparent transition"
                             placeholder={field.placeholder || `Ingrese ${field.label.toLowerCase()}`}
                           />
