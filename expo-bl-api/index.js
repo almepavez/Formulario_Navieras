@@ -3116,7 +3116,7 @@ function parseLine51(raw, esEmpty = false) {
   const sellos = [];
   if (tail) {
 // MÁS SEGURO: ampliar prefijos conocidos
-const mSeal = tail.match(/\b(?:CL|BZ|JG|CX|SL|TR|CR)[0-9A-Z]{5,}\b|\b\d{5,10}\b/g);    if (mSeal) for (const s of mSeal) if (!sellos.includes(s)) sellos.push(s);
+const mSeal = tail.match(/\b[A-Z]{1,4}[0-9A-Z]{4,}\b|\b\d{5,10}\b/g);    if (mSeal) for (const s of mSeal) if (!sellos.includes(s)) sellos.push(s);
   }
 
   return {
@@ -4745,16 +4745,6 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
     let almacenadorIdDefault = null;
     let almacenadorCodigoDefault = null;
 
-    if (tipoOperacion !== 'S') {
-      const [almRows] = await conn.query(
-        `SELECT id, codigo_almacen FROM participantes WHERE codigo_bms = 'ALM-A56' LIMIT 1`
-      );
-      if (almRows.length > 0) {
-        almacenadorIdDefault = almRows[0].id;
-        almacenadorCodigoDefault = almRows[0].codigo_almacen;
-      }
-    }
-
     // ============================
     // CARGA_REAL
     // ============================
@@ -4836,8 +4826,23 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
       const consigneeId = null;
       const notifyId = null;
 
-      const almacenadorId = almacenadorIdDefault;
-      const almacenadorCodigo = almacenadorCodigoDefault;
+      // Resolver almacenador por defecto según puerto de descarga del BL
+      let almacenadorId = null;
+      let almacenadorCodigo = null;
+
+      if (tipoOperacion !== 'S') {
+        const puertoDescarga = (b.puerto_descarga_cod || '').toUpperCase();
+        const codigoBmsAlmacen = puertoDescarga === 'CLVAP' ? 'ALM-A44' : 'ALM-A56';
+
+        const [almRows] = await conn.query(
+          `SELECT id, codigo_almacen FROM participantes WHERE codigo_bms = ? LIMIT 1`,
+          [codigoBmsAlmacen]
+        );
+        if (almRows.length > 0) {
+          almacenadorId = almRows[0].id;
+          almacenadorCodigo = almRows[0].codigo_almacen;
+        }
+      }
 
       // Pre-calcular tipo_bulto para items
       for (const it of (b.items || [])) {
@@ -8542,7 +8547,7 @@ if (esImpoValidacion) {
       }
     }
 
-    // Sellos OBS si no tiene
+    // Sellos: ERROR si FCL, OBS si EMPTY (MM)
     const [[sellosCount]] = await conn.query(
       "SELECT COUNT(*) AS cnt FROM bl_contenedor_sellos WHERE contenedor_id = ?",
       [c.id]
@@ -8552,7 +8557,7 @@ if (esImpoValidacion) {
         nivel: "CONTENEDOR",
         ref_id: refId,
         sec: itemNo,
-        severidad: "OBS",
+        severidad: esEmpty ? "OBS" : "ERROR",
         campo: "sellos",
         mensaje: `Contenedor ${labelCodigo || '(SIN CODIGO)'} sin sellos en PMS (no siempre aplica)`,
         valorCrudo: c.codigo || null
