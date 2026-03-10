@@ -5,22 +5,17 @@ import Sidebar from "../components/Sidebar";
 
 const formatDateCL = (iso) => {
   if (!iso) return "—";
-  const d = new Date(iso);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
+  const str = String(iso).substring(0, 10); // "YYYY-MM-DD"
+  const [yyyy, mm, dd] = str.split("-");
   return `${dd}-${mm}-${yyyy}`;
 };
 
 const formatDTCL = (iso) => {
   if (!iso) return "—";
-  const d = new Date(iso);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mi = String(d.getMinutes()).padStart(2, "0");
-  return `${dd}-${mm}-${yyyy} ${hh}:${mi}`;
+  const str = String(iso).replace("T", " ").substring(0, 16); // "YYYY-MM-DD HH:mm"
+  const [date, time] = str.split(" ");
+  const [yyyy, mm, dd] = date.split("-");
+  return `${dd}-${mm}-${yyyy} ${time}`;
 };
 
 const toInputDate = (iso) => {

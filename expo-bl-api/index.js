@@ -3228,7 +3228,7 @@ function parseLine51(raw, esEmpty = false) {
   const sellos = [];
   if (tail) {
 // MÁS SEGURO: ampliar prefijos conocidos
-const mSeal = tail.match(/\b(?:CL|BZ|JG|CX|SL|TR|CR)[0-9A-Z]{5,}\b|\b\d{5,10}\b/g);    if (mSeal) for (const s of mSeal) if (!sellos.includes(s)) sellos.push(s);
+const mSeal = tail.match(/\b[A-Z]{1,4}[0-9A-Z]{4,}\b|\b\d{5,10}\b/g);    if (mSeal) for (const s of mSeal) if (!sellos.includes(s)) sellos.push(s);
   }
 
   return {
@@ -4804,7 +4804,6 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
 
     // ============================
     // SQL INSERTS
-    // ============================
     const insertBlSql = `
       INSERT INTO bls
         (manifiesto_id, bl_number, tipo_servicio_id,
@@ -4820,7 +4819,8 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
          volumen, unidad_volumen,
          bultos, total_items,
          fecha_emision, fecha_presentacion, fecha_embarque, fecha_zarpe,
-         status, forma_pago_flete, cond_transporte)
+         status, forma_pago_flete, cond_transporte,
+         almacenador_id, almacenista_codigo_almacen)
       VALUES
         (?, ?, ?,
          ?, ?, ?, ?, ?, ?,
@@ -4835,7 +4835,7 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
          ?, ?,
          ?, ?,
          ?, ?, ?, ?,
-         'CREADO', ?, ?)
+         'CREADO', ?, ?, ?, ?)
     `;
 
     const insertItemSql = `
@@ -4852,6 +4852,10 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
      es_soc, cnt_so_numero)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
+
+    // Resolver almacenador por defecto UNA SOLA VEZ
+    let almacenadorIdDefault = null;
+    let almacenadorCodigoDefault = null;
 
     // ============================
     // CARGA_REAL
@@ -4934,6 +4938,24 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
       const consigneeId = null;
       const notifyId = null;
 
+      // Resolver almacenador por defecto según puerto de descarga del BL
+      let almacenadorId = null;
+      let almacenadorCodigo = null;
+
+      if (tipoOperacion !== 'S') {
+        const puertoDescarga = (b.puerto_descarga_cod || '').toUpperCase();
+        const codigoBmsAlmacen = puertoDescarga === 'CLVAP' ? 'ALM-A44' : 'ALM-A56';
+
+        const [almRows] = await conn.query(
+          `SELECT id, codigo_almacen FROM participantes WHERE codigo_bms = ? LIMIT 1`,
+          [codigoBmsAlmacen]
+        );
+        if (almRows.length > 0) {
+          almacenadorId = almRows[0].id;
+          almacenadorCodigo = almRows[0].codigo_almacen;
+        }
+      }
+
       // Pre-calcular tipo_bulto para items
       for (const it of (b.items || [])) {
         const itemNum = Number(it.numero_item);
@@ -5012,6 +5034,8 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
         cleanMysqlDateTime(b.fecha_zarpe),
         b.forma_pago_flete || null,
         b.cond_transporte || null,
+        almacenadorId,
+        almacenadorCodigo,
       ]);
 
       const blId = blIns.insertId;
@@ -8304,41 +8328,56 @@ async function revalidarBLCompleto(conn, blId) {
     }
   }
 
-  if (esImpoValidacion) {
+if (esImpoValidacion) {
     if (!bl.almacenador_id) {
       vals.push({
         nivel: "BL", severidad: "ERROR", campo: "almacenador_id",
         mensaje: "Falta almacenador (obligatorio en importación)",
         valorCrudo: null
       });
-    }
-    if (isBlank(bl.almacenista_nombre)) {
-      vals.push({
-        nivel: "BL", severidad: "ERROR", campo: "almacenista_nombre",
-        mensaje: "Falta nombre del almacenista (obligatorio en importación)",
-        valorCrudo: bl.almacenista_nombre || null
-      });
-    }
-    if (isBlank(bl.almacenista_rut)) {
-      vals.push({
-        nivel: "BL", severidad: "ERROR", campo: "almacenista_rut",
-        mensaje: "Falta RUT del almacenista (obligatorio en importación)",
-        valorCrudo: bl.almacenista_rut || null
-      });
-    }
-    if (isBlank(bl.almacenista_nacion_id)) {
-      vals.push({
-        nivel: "BL", severidad: "ERROR", campo: "almacenista_nacion_id",
-        mensaje: "Falta nación del almacenista (obligatorio en importación)",
-        valorCrudo: bl.almacenista_nacion_id || null
-      });
-    }
-    if (isBlank(bl.almacenista_codigo_almacen)) {
-      vals.push({
-        nivel: "BL", severidad: "ERROR", campo: "almacenista_codigo_almacen",
-        mensaje: "Falta código de almacén (obligatorio en importación)",
-        valorCrudo: bl.almacenista_codigo_almacen || null
-      });
+    } else {
+      // Cargar datos reales del almacenador desde participantes
+      const [[almacenador]] = await conn.query(
+        `SELECT nombre, rut, pais, codigo_almacen FROM participantes WHERE id = ? LIMIT 1`,
+        [bl.almacenador_id]
+      );
+
+      if (!almacenador) {
+        vals.push({
+          nivel: "BL", severidad: "ERROR", campo: "almacenador_id",
+          mensaje: "El almacenador vinculado no existe en la tabla participantes",
+          valorCrudo: String(bl.almacenador_id)
+        });
+      } else {
+        if (isBlank(almacenador.nombre)) {
+          vals.push({
+            nivel: "BL", severidad: "ERROR", campo: "almacenista_nombre",
+            mensaje: "El almacenador no tiene nombre configurado en participantes",
+            valorCrudo: null
+          });
+        }
+        if (isBlank(almacenador.rut)) {
+          vals.push({
+            nivel: "BL", severidad: "ERROR", campo: "almacenista_rut",
+            mensaje: "El almacenador no tiene RUT configurado en participantes",
+            valorCrudo: null
+          });
+        }
+        if (isBlank(almacenador.pais)) {
+          vals.push({
+            nivel: "BL", severidad: "ERROR", campo: "almacenista_nacion_id",
+            mensaje: "El almacenador no tiene país/nación configurado en participantes",
+            valorCrudo: null
+          });
+        }
+        if (isBlank(almacenador.codigo_almacen)) {
+          vals.push({
+            nivel: "BL", severidad: "ERROR", campo: "almacenista_codigo_almacen",
+            mensaje: "El almacenador no tiene código de almacén configurado en participantes",
+            valorCrudo: null
+          });
+        }
+      }
     }
 
     // Nación del consignee y notify (recomendado en importación)
@@ -8357,7 +8396,6 @@ async function revalidarBLCompleto(conn, blId) {
       });
     }
   }
-
   // ✅ NUEVO: contar contenedores reales por item_id (lo que realmente quedó en BD)
   const contCountByItemId = new Map(); // item_id -> count
 
@@ -8621,7 +8659,7 @@ async function revalidarBLCompleto(conn, blId) {
       }
     }
 
-    // Sellos OBS si no tiene
+    // Sellos: ERROR si FCL, OBS si EMPTY (MM)
     const [[sellosCount]] = await conn.query(
       "SELECT COUNT(*) AS cnt FROM bl_contenedor_sellos WHERE contenedor_id = ?",
       [c.id]
@@ -8631,7 +8669,7 @@ async function revalidarBLCompleto(conn, blId) {
         nivel: "CONTENEDOR",
         ref_id: refId,
         sec: itemNo,
-        severidad: "OBS",
+        severidad: esEmpty ? "OBS" : "ERROR",
         campo: "sellos",
         mensaje: `Contenedor ${labelCodigo || '(SIN CODIGO)'} sin sellos en PMS (no siempre aplica)`,
         valorCrudo: c.codigo || null

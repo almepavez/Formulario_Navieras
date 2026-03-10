@@ -19,22 +19,17 @@ const mapTipoServicio = (codigo) => {
 
 const formatDateCL = (date) => {
   if (!date) return '';
-  const d = new Date(date);
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
+  const str = String(date).substring(0, 10); // YYYY-MM-DD
+  const [yyyy, mm, dd] = str.split('-');
   return `${dd}-${mm}-${yyyy}`;
 };
 
 const formatDateTimeCL = (date) => {
   if (!date) return '';
-  const d = new Date(date);
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  const hh = String(d.getHours()).padStart(2, '0');
-  const min = String(d.getMinutes()).padStart(2, '0');
-  return `${dd}-${mm}-${yyyy} ${hh}:${min}`;
+  const str = String(date).replace('T', ' ').substring(0, 16); // YYYY-MM-DD HH:mm
+  const [datePart, timePart] = str.split(' ');
+  const [yyyy, mm, dd] = datePart.split('-');
+  return `${dd}-${mm}-${yyyy} ${timePart}`;
 };
 
 // ══════════════════════════════════════════
@@ -111,11 +106,11 @@ const buildParticipaciones = (bl, tipo) => {
 
   // Almacenador — existe en bls para IMPO y carga suelta
   const almData = bl.almacenador_id ? {
-    nombre: bl.almacenador_nombre,
-    rut: bl.almacenador_rut,
-    pais: bl.almacenador_pais,
-    tipo_id: 'RUT',
-    nacion_id: 'CL'
+      nombre: bl.almacenador_nombre,
+      rut: bl.almacenador_rut,
+      pais: bl.almacenador_pais || 'CL',
+      tipo_id: 'RUT',
+      nacion_id: bl.almacenador_pais || 'CL'
   } : null;
 
   if (esCargaSuelta) {
@@ -417,7 +412,12 @@ const buildXML = (bl, items, contenedores, transbordos, tipoAccion = 'I') => {
       Locaciones: {
         locacion: [
           !esCargaSuelta && bl.lugar_emision_codigo && { nombre: 'LE', codigo: bl.lugar_emision_codigo, descripcion: bl.lugar_emision_nombre },
-          bl.puerto_embarque_codigo && { nombre: 'PE', codigo: bl.puerto_embarque_codigo, descripcion: bl.puerto_embarque_nombre },
+          (() => {
+            const ultimoTransbordo = transbordos.length > 0 ? transbordos[transbordos.length - 1] : null;
+            const peCodigo = ultimoTransbordo ? (ultimoTransbordo.puerto_codigo_sidemar || ultimoTransbordo.puerto_cod) : bl.puerto_embarque_codigo;
+            const peNombre = ultimoTransbordo ? (ultimoTransbordo.puerto_nombre || peCodigo) : bl.puerto_embarque_nombre;
+            return peCodigo ? { nombre: 'PE', codigo: peCodigo, descripcion: peNombre } : null;
+          })(),
           bl.puerto_descarga_codigo && { nombre: 'PD', codigo: bl.puerto_descarga_codigo, descripcion: bl.puerto_descarga_nombre },
           bl.lugar_destino_codigo && { nombre: 'LD', codigo: bl.lugar_destino_codigo, descripcion: bl.lugar_destino_nombre },
           bl.lugar_entrega_codigo && { nombre: 'LEM', codigo: bl.lugar_entrega_codigo, descripcion: bl.lugar_entrega_nombre },
@@ -433,7 +433,7 @@ const buildXML = (bl, items, contenedores, transbordos, tipoAccion = 'I') => {
       ...(transbordos.length > 0 && {
         Transbordos: {
           transbordo: transbordos.map(t => ({
-            'cod-lugar': t.puerto_cod,
+            'cod-lugar': t.puerto_codigo_sidemar || t.puerto_cod,
             'descripcion-lugar': t.puerto_nombre || t.puerto_cod,
             'fecha-arribo': t.fecha_arribo ? formatDateTimeCL(t.fecha_arribo) : undefined
           }))
@@ -533,7 +533,8 @@ const getContenedoresQuery = () => `
 `;
 
 const getTransbordosQuery = () => `
-  SELECT t.sec, t.puerto_cod, t.fecha_arribo, p.nombre AS puerto_nombre
+  SELECT t.sec, t.puerto_cod, t.fecha_arribo, p.nombre AS puerto_nombre,
+    COALESCE(p.codigo_sidemar, p.codigo) AS puerto_codigo_sidemar
   FROM bl_transbordos t
   LEFT JOIN puertos p ON t.puerto_id = p.id
   WHERE t.bl_id = ?
