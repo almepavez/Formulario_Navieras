@@ -844,10 +844,10 @@ const GenerarXML = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-100">
-      <Sidebar />
+<div className="flex min-h-screen">
+        <Sidebar />
 
-      <main className="flex-1 p-10">
+<main className="flex-1 p-10 min-h-screen bg-slate-100">
         {/* Header */}
         <div className="mb-8">
           <button
