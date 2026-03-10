@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Anchor, Globe, Package, Box, PackageSearch } from "lucide-react";
+import { Anchor, Globe, Package, Box, PackageSearch, Warehouse } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 
 const Mantenedores = () => {
@@ -51,6 +51,16 @@ const Mantenedores = () => {
       bgColor: "bg-emerald-50",
       iconColor: "text-emerald-600",
     },
+    {
+      id: "almacenistas",
+      title: "Almacenistas",
+      description: "Gestión de almacenistas (ALM) para BLs de importación",
+      icon: Warehouse,
+      color: "from-amber-500 to-amber-600",
+      bgColor: "bg-amber-50",
+      iconColor: "text-amber-600",
+      badge: "Solo Importación",
+    },
   ];
 
   const handleCardClick = (id) => navigate(`/mantenedores/${id}`);
@@ -81,6 +91,13 @@ const Mantenedores = () => {
                 >
                   <div className={`relative h-20 bg-gradient-to-br ${item.color}`}>
                     <div className="absolute inset-0 opacity-70 bg-white/80" />
+                    {item.badge && (
+                      <div className="absolute top-3 right-3">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-200 text-amber-800 border border-amber-400">
+                          {item.badge}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex-1 p-5 sm:p-6 -mt-8 relative">

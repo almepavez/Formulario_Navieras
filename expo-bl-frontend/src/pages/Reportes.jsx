@@ -411,7 +411,6 @@ export default function Reportes() {
     } finally {
       setLoadingBLs(false);
     }
-    console.log("manifiesto:", manifiesto);
   };
 
   // ── Auto-save con debounce de 800ms ──
@@ -896,14 +895,16 @@ export default function Reportes() {
                                         placeholder="Ingresa depósito..."
                                       />
                                     ) : c.key === "almacen" ? (
-                                      <input
+                                      <AlmacenSelect
                                         value={row[c.key] ?? ""}
-                                        onChange={(e) => {
+                                        onChange={(val) => {
                                           const realIdx = rows.findIndex(r => r.bl === row.bl && r.n_contenedor === row.n_contenedor);
-                                          if (realIdx !== -1) handleCellEdit(realIdx, c.key, e.target.value);
+                                          if (realIdx !== -1) handleCellEdit(realIdx, c.key, val);
                                         }}
-                                        className="w-full min-w-[130px] bg-blue-50 border border-blue-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300"
-                                        placeholder="Almacén..."
+                                        onSave={() => {
+                                          const realIdx = rows.findIndex(r => r.bl === row.bl && r.n_contenedor === row.n_contenedor);
+                                          if (realIdx !== -1) handleCellEdit(realIdx, "almacen", row.almacen ?? "");
+                                        }}
                                       />
                                     ) : (
                                       <span className="text-slate-700">{highlightCell(row[c.key])}</span>

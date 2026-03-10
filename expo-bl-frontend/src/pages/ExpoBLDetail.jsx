@@ -571,7 +571,7 @@ const ExpoBLDetail = () => {
                                     <tr>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Código</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Tipo</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">SOC</th>  {/* ← NUEVO */}
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">SOC</th> 
                                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Peso</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Volumen</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Sellos</th>
