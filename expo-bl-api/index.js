@@ -5403,6 +5403,23 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
     // COMMIT
     await conn.commit();
 
+    // Actualizar fecha_zarpe del manifiesto con la más tardía de los BLs (solo importación)
+    if (tipoOperacion !== 'S') {
+      const [zarpeRows] = await conn.query(
+        `SELECT MAX(fecha_zarpe) AS fecha_zarpe_max
+        FROM bls
+        WHERE manifiesto_id = ? AND fecha_zarpe IS NOT NULL`,
+        [id]
+      );
+
+      if (zarpeRows.length > 0 && zarpeRows[0].fecha_zarpe_max) {
+        await conn.query(
+          `UPDATE manifiestos SET fecha_zarpe = ? WHERE id = ?`,
+          [zarpeRows[0].fecha_zarpe_max, id]
+        );
+      }
+    }
+
     // Resumen de errores
     const [blsConErrores] = await conn.query(`
       SELECT
