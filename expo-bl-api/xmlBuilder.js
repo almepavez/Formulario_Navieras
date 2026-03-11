@@ -58,8 +58,8 @@ const buildParticipacion = (nombre, participante, includeRUT = true, extraFields
       p['tipo-id'] = participante.tipo_id || 'RUT';
       p['valor-id'] = cleanRUT(participante.rut);
       p['nacion-id'] = 'CL';  // RUT siempre es chileno
-    } else if (participante.nacion_id) {
-      p['nacion-id'] = participante.nacion_id;  // extranjero sin RUT
+    } else if (includeRUT && participante.nacion_id) {
+      p['nacion-id'] = participante.nacion_id;  // extranjero sin RUT (solo IMPO)
     }
   p['nombres'] = participante.nombre;
 
