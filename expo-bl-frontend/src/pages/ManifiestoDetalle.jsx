@@ -362,19 +362,58 @@ const ManifiestoDetalle = () => {
       return;
     }
 
-    const result = await Swal.fire({
-      title: "¿Procesar PMS?",
-      text: "Se crearán los BLs desde el archivo. Los BLs anteriores serán eliminados.",
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonColor: "#10b981",
-      cancelButtonColor: "#e43a3aff",
-      confirmButtonText: "Sí, procesar",
-      cancelButtonText: "Cancelar",
-    });
+   const esIMPO = (m?.tipoOperacion || "").toString().trim().toUpperCase() === "I";
 
-    if (!result.isConfirmed) return;
+    if (esIMPO) {
+      const advertencia = await Swal.fire({
+        title: "Advertencia antes de procesar",
+        icon: "warning",
+        html: `
+          <div style="text-align:left; font-size:13px; color:#334155; display:grid; gap:12px;">
+            <div style="background:#fef9ec; border:1px solid #fcd34d; border-radius:10px; padding:12px 14px; display:flex; gap:10px;">
+              <span style="font-size:18px; flex-shrink:0;">🏪</span>
+              <div>
+                <p style="font-weight:700; color:#92400e; margin-bottom:4px;">Almacenes no se conservarán</p>
+                <p style="color:#78350f; font-size:12px; line-height:1.5;">
+                  Si modificó almacenes anteriormente, quedarán <strong>vacíos</strong> al reprocesar el PMS.<br/>
+                  Los almacenadores no vienen en el PMS — deberá editarlos manualmente en cada BL después de cargar.
+                </p>
+              </div>
+            </div>
+            <div style="background:#eff6ff; border:1px solid #93c5fd; border-radius:10px; padding:12px 14px; display:flex; gap:10px;">
+              <span style="font-size:18px; flex-shrink:0;">📅</span>
+              <div>
+                <p style="font-weight:700; color:#1e40af; margin-bottom:4px;">Fecha de Zarpe se actualizará</p>
+                <p style="color:#1e3a8a; font-size:12px; line-height:1.5;">
+                  La fecha de zarpe se calculará en base a la <strong>información</strong> del PMS.
+                </p>
+              </div>
+            </div>
+          </div>
+        `,
+        showCancelButton: true,
+        confirmButtonColor: "#10b981",
+        cancelButtonColor: "#e43a3aff",
+        confirmButtonText: "Entendido, procesar igual",
+        cancelButtonText: "Cancelar",
+        width: "500px",
+      });
 
+      if (!advertencia.isConfirmed) return;
+    } else {
+      const result = await Swal.fire({
+        title: "¿Procesar PMS?",
+        text: "Se crearán los BLs desde el archivo. Los BLs anteriores serán eliminados.",
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonColor: "#10b981",
+        cancelButtonColor: "#e43a3aff",
+        confirmButtonText: "Sí, procesar",
+        cancelButtonText: "Cancelar",
+      });
+
+      if (!result.isConfirmed) return;
+    }
     try {
       setPmsUploading(true);
 

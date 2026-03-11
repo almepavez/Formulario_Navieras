@@ -1259,7 +1259,17 @@ app.post("/api/mantenedores/almacenistas", async (req, res) => {
       return res.status(400).json({ error: "nombre, rut, nacion_id y codigo_almacen son obligatorios" });
     }
 
-    // codigo_bms se genera automáticamente como ALM-<timestamp> para no violar el UNIQUE
+    // ── Validar que el codigo_almacen no exista ya ──
+    const [existing] = await pool.query(
+      `SELECT nombre FROM participantes WHERE LOWER(codigo_almacen) = LOWER(?)`,
+      [codigo_almacen.trim()]
+    );
+    if (existing.length > 0) {
+      return res.status(409).json({
+        error: `El código "${codigo_almacen}" ya está en uso por "${existing[0].nombre}"`
+      });
+    }
+
     const codigo_bms = `ALM-${Date.now()}`;
 
     const [result] = await pool.query(
