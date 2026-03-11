@@ -3508,14 +3508,15 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
     await conn.beginTransaction();
 
     // 1) Validar manifiesto y obtener tipo_operacion
-    const [mRows] = await conn.query("SELECT id, tipo_operacion FROM manifiestos WHERE id = ?", [id]);
+    const [mRows] = await conn.query("SELECT id, tipo_operacion, fecha_zarpe FROM manifiestos WHERE id = ?", [id]);
     if (mRows.length === 0) {
       await conn.rollback();
       if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
       return res.status(404).json({ error: "Manifiesto no existe" });
     }
 
-    const tipoOperacion = mRows[0].tipo_operacion; // ✅ Guardar para usar después
+    const tipoOperacion = mRows[0].tipo_operacion;
+    const fechaZarpeManifiesto = mRows[0].fecha_zarpe || null;
 
     // 2) Leer archivo
     const content = fs.readFileSync(req.file.path, "utf-8");
@@ -3817,7 +3818,7 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
         b.unidad_volumen || null,
         b.bultos ?? null,
         b.total_items ?? null,
-        cleanMysqlDate(b.fecha_emision),
+        cleanMysqlDate(b.fecha_emision || (tipoOperacion === 'S' ? fechaZarpeManifiesto : null)),
         cleanMysqlDateTime(b.fecha_presentacion),
         cleanMysqlDateTime(b.fecha_embarque),
         cleanMysqlDateTime(b.fecha_zarpe),
@@ -3838,7 +3839,7 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
       if (!lugarDestinoId) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_destino_id", mensaje: "Lugar destino no existe en mantenedor de puertos (Revisar puerto de descarga)", valorCrudo: b.lugar_destino_cod || null });
       if (!lugarEntregaId) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_entrega_id", mensaje: "Lugar entrega no existe en mantenedor de puertos (Revisar puerto de descarga)", valorCrudo: b.lugar_entrega_cod || null });
       if (!lugarRecepcionId) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_recepcion_id", mensaje: "Lugar recepción no existe en mantenedor de puertos (Revisar puerto de embarque)", valorCrudo: b.lugar_recepcion_cod || null });
-      if (isBlank(b.fecha_emision)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_emision", mensaje: "Falta fecha_emision (Linea 11)", valorCrudo: b.fecha_emision || null });
+      if (tipoOperacion !== 'S' && isBlank(b.fecha_emision)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_emision", mensaje: "Falta fecha_emision (Linea 74)", valorCrudo: b.fecha_emision || null });
       if (isBlank(b.fecha_presentacion)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_presentacion", mensaje: "Falta fecha_presentacion (Linea 00)", valorCrudo: b.fecha_presentacion || null });
 
       if (!esEmpty && num(b.peso_bruto) <= 0) {
@@ -3909,7 +3910,7 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
         const tieneContactoConsignee = (!isBlank(b.consignee_telefono)) || (!isBlank(b.consignee_email));
         if (!tieneContactoConsignee) {
           pendingValidations.push({
-            nivel: "BL", severidad: "ERROR", campo: "consignee_contacto",
+            nivel: "BL", severidad: "OBS", campo: "consignee_contacto",
             mensaje: `Consignee debe tener al menos teléfono o correo electrónico (Linea 21B) [Código PIL: ${b.consignee_codigo_pil || 'N/A'}]`,
             valorCrudo: b.consignee_codigo_pil || null
           });
@@ -3921,7 +3922,7 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
         const tieneContactoNotify = (!isBlank(b.notify_telefono)) || (!isBlank(b.notify_email));
         if (!tieneContactoNotify) {
           pendingValidations.push({
-            nivel: "BL", severidad: "ERROR", campo: "notify_contacto",
+            nivel: "BL", severidad: "OBS", campo: "notify_contacto",
             mensaje: `Notify debe tener al menos teléfono o correo electrónico (Linea 26B) [Código PIL: ${b.notify_codigo_pil || 'N/A'}]`,
             valorCrudo: b.notify_codigo_pil || null
           });
@@ -5672,7 +5673,6 @@ async function revalidarBLCompleto(conn, blId) {
   if (!lugarEntregaId) vals.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_entrega_id", mensaje: `Lugar entrega no existe en mantenedor de puertos (Revisar puerto de descarga)`, valorCrudo: bl.lugar_entrega_cod || null });
   if (!lugarRecepcionId) vals.push({ nivel: "BL", severidad: "ERROR", campo: "lugar_recepcion_id", mensaje: `Lugar recepción no existe en mantenedor de puertos (Revisar puerto de embarque)`, valorCrudo: bl.lugar_recepcion_cod || null });
   // BL: fechas obligatorias
-  if (isBlank(bl.fecha_emision)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_emision", mensaje: "Falta fecha_emision (Linea 74)", valorCrudo: bl.fecha_emision || null });
   if (isBlank(bl.fecha_presentacion)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_presentacion", mensaje: "Falta fecha_presentacion (Linea 00)", valorCrudo: bl.fecha_presentacion || null });
   if (isBlank(bl.fecha_embarque)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_embarque", mensaje: "Falta fecha_embarque (Linea 14)", valorCrudo: bl.fecha_embarque || null });
   if (isBlank(bl.fecha_zarpe)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_zarpe", mensaje: "Falta fecha_zarpe (Linea 14)", valorCrudo: bl.fecha_zarpe || null });
@@ -5684,13 +5684,9 @@ async function revalidarBLCompleto(conn, blId) {
   );
 
   const esImpoValidacion = manifiesto?.tipo_operacion !== 'S';
-  // if (esImpoValidacion && isBlank(bl.fecha_recepcion_bl)) {
-  //   vals.push({
-  //     nivel: "BL", severidad: "OBS", campo: "fecha_recepcion_bl",
-  //     mensaje: "Falta fecha de recepción BL (obligatoria en importación)",
-  //     valorCrudo: null
-  //   });
-  // }
+
+  if (esImpoValidacion && isBlank(bl.fecha_emision)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_emision", mensaje: "Falta fecha_emision (Linea 74)", valorCrudo: bl.fecha_emision || null });
+
 
   if (!manifiesto || !manifiesto.fecha_zarpe) {
     vals.push({
