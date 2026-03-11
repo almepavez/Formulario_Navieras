@@ -2822,48 +2822,51 @@ function extractPartyName(rawLine) {
 
   return name;
 }
-// ============================================
-// ✅ NUEVA FUNCIÓN: Extraer código PIL + nombre
-// Agregar después de la línea 2139 (después de extractPartyName)
-// ============================================
+
+
+function extractRutFromText(text) {
+  if (!text) return null;
+  const s = String(text).toUpperCase();
+  const m = s.match(/(?:R\.?U\.?T\.?\s*:?\s*)?((?:\d{1,2}\.?)(?:\d{3}\.?)(?:\d{3})-[\dKk])/);
+  if (!m) return null;
+  return m[1].replace(/\./g, '').toUpperCase();
+}
+
 function extractPartyCodeAndName(rawLine) {
-  if (!rawLine) return { codigo_pil: null, nombre: null, direccion: null, pais: null };
+  if (!rawLine) return { codigo_pil: null, nombre: null, direccion: null, pais: null, rut: null };
 
   const s = String(rawLine).trim();
-
-  // Formato: "16   CL101742         INTER-TANK SPA                      DIRECCION COMPLETA AQUI"
-  // Capturar: tipo_linea (16/21/26) + código_pil + resto
   const match = s.match(/^\s*(\d{2})\s+(\S+)\s+(.+)$/);
 
   if (!match) {
-    return { codigo_pil: null, nombre: null, direccion: null, pais: null };
+    return { codigo_pil: null, nombre: null, direccion: null, pais: null, rut: null };
   }
 
-  const tipoLinea = match[1];  // "16", "21", "26"
-  let codigoPil = match[2];    // "CL101742", "CN116263", "1CN116263"
-  const resto = match[3];      // "INTER-TANK SPA   DIRECCION..."
+  const tipoLinea = match[1];
+  let codigoPil = match[2];
+  const resto = match[3];
 
-  // ⚠️ CASO ESPECIAL: Línea 26 (NOTIFY) puede tener "1" adelante del código
   if (tipoLinea === "26" && codigoPil.startsWith("1") && codigoPil.length > 2) {
-    codigoPil = codigoPil.substring(1); // "1CN116263" → "CN116263"
+    codigoPil = codigoPil.substring(1);
   }
 
-  // Extraer columnas separadas por 2+ espacios
   const cols = resto.split(/\s{2,}/).map(x => x.trim()).filter(Boolean);
-
   const nombre = cols[0] || null;
-  const direccion = cols.slice(1).join(' ').trim() || null; // Todo lo demás es dirección
+  const direccion = cols.slice(1).join(' ').trim() || null;
 
-  // Si el nombre parece ser un código de país (ej: "CLSCL"), es inválido
   if (nombre && /^[A-Z]{5}$/.test(nombre)) {
-    return { codigo_pil: codigoPil, nombre: null, direccion: null };
+    return { codigo_pil: codigoPil, nombre: null, direccion: null, pais: null, rut: null };
   }
+
+  // 🔥 Buscar RUT solo en línea 21 (consignee)
+  const rut = tipoLinea === "21" ? extractRutFromText(resto) : null;
 
   return {
     codigo_pil: normalizeStr(codigoPil),
     nombre: nombre,
     direccion: direccion ? normalizeStr(direccion) : null,
-    pais: codigoPil && codigoPil.length >= 2 ? codigoPil.substring(0, 2).toUpperCase() : null
+    pais: codigoPil && codigoPil.length >= 2 ? codigoPil.substring(0, 2).toUpperCase() : null,
+    rut: rut || null
   };
 }
 
@@ -3427,6 +3430,7 @@ function parsePmsTxt(content) {
         consignee_telefono: consigneeContact.telefono,
         consignee_email: consigneeContact.email,
         consignee_codigo_pil: consigneeData.codigo_pil,
+        consignee_rut: consigneeData.rut,    
         consignee_nacion_id: consigneeData.pais,
 
         notify,
@@ -3592,7 +3596,7 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
       INSERT INTO bls
         (manifiesto_id, bl_number, tipo_servicio_id,
          shipper, shipper_direccion, shipper_telefono, shipper_email, shipper_codigo_pil, shipper_id,
-         consignee, consignee_direccion, consignee_telefono, consignee_email, consignee_codigo_pil, consignee_nacion_id, consignee_id,
+         consignee, consignee_direccion, consignee_telefono, consignee_email, consignee_codigo_pil, consignee_rut, consignee_nacion_id, consignee_id,
          notify_party, notify_direccion, notify_telefono, notify_email, notify_codigo_pil, notify_nacion_id, notify_id,
          lugar_emision_id, puerto_embarque_id, puerto_descarga_id,
          lugar_destino_id, lugar_entrega_id, lugar_recepcion_id,
@@ -3608,7 +3612,7 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
       VALUES
         (?, ?, ?,
          ?, ?, ?, ?, ?, ?,
-         ?, ?, ?, ?, ?, ?, ?,
+         ?, ?, ?, ?, ?, ?, ?, ?,
          ?, ?, ?, ?, ?, ?, ?,
          ?, ?, ?,
          ?, ?, ?,
@@ -3784,6 +3788,7 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
         b.consignee_telefono || null,
         b.consignee_email || null,
         b.consignee_codigo_pil || null,
+        b.consignee_rut || null,
         b.consignee_nacion_id || null,
         consigneeId || null,
         b.notify || null,
