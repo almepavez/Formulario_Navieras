@@ -403,7 +403,7 @@ const buildXML = (bl, items, contenedores, transbordos, tipoAccion = 'I') => {
       Fechas: {
         fecha: [
           { nombre: 'FPRES', valor: formatDateTimeCL(new Date().toISOString()) },
-          bl.manifiesto_fecha_zarpe && { nombre: 'FEM', valor: formatDateCL(bl.manifiesto_fecha_zarpe) },
+          { nombre: 'FEM', valor: formatDateCL(esImpo ? bl.fecha_emision : bl.manifiesto_fecha_zarpe) },
           bl.manifiesto_fecha_zarpe && { nombre: 'FZARPE', valor: formatDateTimeCL(bl.manifiesto_fecha_zarpe) },
           bl.manifiesto_fecha_zarpe && { nombre: 'FEMB', valor: `${formatDateCL(bl.manifiesto_fecha_zarpe)} 00:00` }
         ].filter(Boolean)
