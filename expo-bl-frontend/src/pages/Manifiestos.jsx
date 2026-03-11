@@ -149,10 +149,9 @@ const Manifiestos = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-100">
-      <Sidebar />
-
-      <main className="flex-1 p-10">
+ <div className="flex min-h-screen">
+  <Sidebar />
+  <main className="flex-1 p-10 min-h-screen bg-slate-100">
         {/* Header + CTA */}
         <div className="flex items-start justify-between gap-6 mb-6">
           <div>

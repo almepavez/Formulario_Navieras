@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import { AlertCircle, Ship, AlertTriangle, RefreshCw } from "lucide-react";
 
+
 const API_BASE = import.meta.env.VITE_API_URL;
 
 const estadoStyles = {
@@ -30,6 +31,7 @@ const formatNumber = (num) => {
 };
 
 const ExpoBLDetail = () => {
+
     const { blNumber } = useParams();
     const navigate = useNavigate();
     const [bl, setBl] = useState(null);
@@ -40,6 +42,7 @@ const ExpoBLDetail = () => {
     const [error, setError] = useState("");
     const [puertosNoRegistrados, setPuertosNoRegistrados] = useState([]);
     const [validaciones, setValidaciones] = useState([]);
+    const [observaciones, setObservaciones] = useState([]);
 
     const fetchBLDetail = async () => {
         setLoading(true);
@@ -65,7 +68,11 @@ const ExpoBLDetail = () => {
                 const dataTransbordos = await resTransbordos.json();
                 setTransbordos(dataTransbordos || []);
             }
-
+            const resObs = await fetch(`${API_BASE}/api/bls/${blNumber}/observaciones`);
+            if (resObs.ok) {
+                const dataObs = await resObs.json();
+                setObservaciones(dataObs || []);
+            }
             // Fetch validaciones (ya actualizadas por el backend)
             const resValidaciones = await fetch(`${API_BASE}/api/bls/${blNumber}/validaciones`);
             if (resValidaciones.ok) {
@@ -267,6 +274,14 @@ const ExpoBLDetail = () => {
                             <p className="text-xs text-slate-500 mb-1">Estado</p>
                             <p className="text-sm font-medium text-slate-900">{bl.status}</p>
                         </div>
+                        {bl.fecha_recepcion_bl && (
+                            <div>
+                                <p className="text-xs text-slate-500 mb-1">Fecha Recepción BL</p>
+                                <p className="text-sm font-medium text-slate-900">
+                                    {formatDateCL(bl.fecha_recepcion_bl)}
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -296,20 +311,39 @@ const ExpoBLDetail = () => {
 
                 {/* Puertos y Rutas */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
-                    <h2 className="text-lg font-semibold text-[#0F2A44] mb-4">
-                        Puertos y Rutas
-                    </h2>
+                    <h2 className="text-lg font-semibold text-[#0F2A44] mb-4">Puertos y Rutas</h2>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div>
-                            <p className="text-xs text-slate-500 mb-1">Puerto Origen</p>
-                            <p className="text-sm font-medium text-slate-900">{bl.puerto_embarque || "—"}</p>
-                        </div>
-
+                            <p className="text-xs text-slate-500 mb-1">Lugar Emisión</p>
+                            {bl.lugar_emision_cod
+                                ? [bl.lugar_emision_cod, bl.lugar_emision_nombre].filter(Boolean).join(" — ")
+                                : "—"}                        </div>
                         <div>
-                            <p className="text-xs text-slate-500 mb-1">Puerto Destino</p>
-                            <p className="text-sm font-medium text-slate-900">{bl.puerto_descarga || "—"}</p>
-                        </div>
+                            <p className="text-xs text-slate-500 mb-1">Puerto Embarque</p>
+                            {bl.puerto_embarque_cod
+                                ? [bl.puerto_embarque_cod, bl.puerto_embarque_nombre].filter(Boolean).join(" — ")
+                                : "—"}                        </div>
+                        <div>
+                            <p className="text-xs text-slate-500 mb-1">Puerto Descarga</p>
+                            {bl.puerto_descarga_cod
+                                ? [bl.puerto_descarga_cod, bl.puerto_descarga_nombre].filter(Boolean).join(" — ")
+                                : "—"}                        </div>
+                        <div>
+                            <p className="text-xs text-slate-500 mb-1">Lugar Destino</p>
+                            {bl.lugar_destino_cod
+                                ? [bl.lugar_destino_cod, bl.lugar_destino_nombre].filter(Boolean).join(" — ")
+                                : "—"}                        </div>
+                        <div>
+                            <p className="text-xs text-slate-500 mb-1">Lugar Entrega</p>
+                            {bl.lugar_entrega_cod
+                                ? [bl.lugar_entrega_cod, bl.lugar_entrega_nombre].filter(Boolean).join(" — ")
+                                : "—"}                        </div>
+                        <div>
+                            <p className="text-xs text-slate-500 mb-1">Lugar Recepción</p>
+                            {bl.lugar_recepcion_cod
+                                ? [bl.lugar_recepcion_cod, bl.lugar_recepcion_nombre].filter(Boolean).join(" — ")
+                                : "—"}                        </div>
                     </div>
                 </div>
 
@@ -378,8 +412,25 @@ const ExpoBLDetail = () => {
                         {/* Ruta completa */}
                         <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
                             <p className="text-xs text-blue-700">
-                                <strong>Ruta completa:</strong> {bl.puerto_embarque || "—"} → {transbordos.map(t => t.puerto_cod).join(" → ")} → {bl.puerto_descarga || "—"}
+                                <strong>Ruta completa:</strong> {bl.puerto_embarque_cod || bl.puerto_embarque || "—"} → {transbordos.map(t => t.puerto_cod).join(" → ")} → {bl.puerto_descarga_cod || bl.puerto_descarga || "—"}
                             </p>
+                        </div>
+                    </div>
+                )}
+                {observaciones.length > 0 && (
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+                        <h2 className="text-lg font-semibold text-[#0F2A44] mb-4">
+                            Observaciones ({observaciones.length})
+                        </h2>
+                        <div className="space-y-2">
+                            {observaciones.map((obs, idx) => (
+                                <div key={idx} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                                    <span className="inline-flex items-center px-2 py-1 rounded bg-[#0F2A44] text-white text-xs font-bold flex-shrink-0">
+                                        {obs.nombre}
+                                    </span>
+                                    <p className="text-sm text-slate-700">{obs.contenido}</p>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 )}
@@ -479,6 +530,7 @@ const ExpoBLDetail = () => {
                                                     <span className="text-slate-400 text-xs">Sin contenedores</span>
                                                 )}
                                             </td>
+
                                             <td className="px-4 py-3 text-sm text-slate-900">
                                                 {item.tipo_bulto || "—"}
                                             </td>
@@ -519,6 +571,7 @@ const ExpoBLDetail = () => {
                                     <tr>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Código</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Tipo</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">SOC</th> 
                                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Peso</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Volumen</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Sellos</th>
@@ -529,10 +582,24 @@ const ExpoBLDetail = () => {
                                     {contenedores.map((cont) => (
                                         <tr key={cont.id} className="hover:bg-slate-50">
                                             <td className="px-4 py-3 text-sm font-mono font-medium text-slate-900">
-                                                {cont.codigo}
+                                                {cont.es_soc ? "—" : cont.codigo}
                                             </td>
                                             <td className="px-4 py-3 text-sm text-slate-900">
                                                 {cont.tipo_cnt || "—"}
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-slate-900">
+                                                {cont.es_soc ? (
+                                                    <div>
+                                                        <span className="inline-flex items-center px-2 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold border border-amber-200">
+                                                            SOC
+                                                        </span>
+                                                        {cont.cnt_so_numero && (
+                                                            <p className="text-xs text-slate-500 mt-1 font-mono">{cont.cnt_so_numero}</p>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-slate-300 text-xs">—</span>
+                                                )}
                                             </td>
                                             <td className="px-4 py-3 text-sm text-slate-900">
                                                 {formatNumber(cont.peso)} {cont.unidad_peso || ""}

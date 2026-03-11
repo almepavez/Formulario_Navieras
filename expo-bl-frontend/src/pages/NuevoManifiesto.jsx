@@ -228,17 +228,17 @@ const NuevoManifiesto = () => {
 
     const referenciaHtml = referenciaSeleccionada
       ? `<span style="display:block; padding: 4px 0; border-bottom: 1px solid #e2e8f0;">
-          <strong>REF / MFTO</strong> &nbsp;
-          N°: ${referencia.numeroReferencia} &nbsp;
-          Fecha: ${referencia.fecha} &nbsp;
-          Emisor: ${referenciaSeleccionada.nombre_emisor} &nbsp;
-          RUT: ${referenciaSeleccionada.rut}
-        </span>`
+    <strong>REF / MFTO</strong> &nbsp;
+   <strong>N°:</strong> ${referencia.numeroReferencia} &nbsp;
+<strong>Fecha:</strong> ${referencia.fecha} &nbsp;
+<strong>Operador Nave:</strong> ${referenciaSeleccionada.nombre_emisor} &nbsp;
+<strong>RUT:</strong> ${referenciaSeleccionada.rut}
+</span>`
       : '<span style="color: #ef4444;">No seleccionada</span>';
 
-    const emisorHtml = emisorSeleccionado
-      ? `${form.emisorDocumento} (${emisorSeleccionado.nombre_emisor})`
-      : form.emisorDocumento;
+   const emisorHtml = emisorSeleccionado
+    ? emisorSeleccionado.nombre_emisor
+    : form.emisorDocumento;
 
     const representanteHtml = representanteSeleccionado
       ? `${form.representante} (${representanteSeleccionado.nombre_emisor})`
@@ -250,16 +250,14 @@ const NuevoManifiesto = () => {
         <p><strong>Nave:</strong> ${form.nave}${naveObj ? ` - ${naveObj.nombre}` : ""}</p>
         <p><strong>Viaje:</strong> ${form.viaje}</p>
         <p><strong>Puerto Central:</strong> ${form.puertoCentral}${puertoCentralObj ? ` - ${puertoCentralObj.nombre}` : ""}</p>
-        <p><strong>Operación:</strong> ${form.tipoOperacion}</p>
-        <p><strong>Operador Nave:</strong> ${form.operadorNave}</p>
-        <p><strong>Emisor Documento:</strong> ${emisorHtml}</p>
+        <p><strong>Operación:</strong> ${form.tipoOperacion}</p>   
+<p><strong>Emisor (Agente que presenta el mensaje):</strong> ${operadorNaveSeleccionado ? operadorNaveSeleccionado.nombre_emisor : form.operadorNave}</p>
+<p><strong>Emisor Doc:</strong> ${emisorHtml}</p>
         <p><strong>Representante:</strong> ${representanteHtml}</p>
         <p><strong>Fecha Mfto Aduana:</strong> ${form.fechaManifiestoAduana}</p>
         <p><strong>N° Mfto Aduana:</strong> ${form.numeroManifiestoAduana}</p>
         ${form.fecha_zarpe ? `<p><strong>Fecha Zarpe:</strong> ${form.fecha_zarpe}</p>` : ''}
         <hr style="margin: 12px 0; border: none; border-top: 1px solid #e2e8f0;">
-        <p><strong>Puertos en itinerario:</strong></p>
-        <div style="padding-left: 12px; font-size: 13px;">${puertosItinerario || "Ninguno"}</div>
         <hr style="margin: 12px 0; border: none; border-top: 1px solid #e2e8f0;">
         <p><strong>Referencia:</strong></p>
         <div style="padding-left: 12px; font-size: 13px;">${referenciaHtml}</div>
@@ -289,16 +287,6 @@ const NuevoManifiesto = () => {
       return;
     }
 
-    if (!hasAtLeastOnePort) {
-      await Swal.fire({
-        title: "Itinerario vacío",
-        text: "Debes agregar al menos un puerto en el itinerario.",
-        icon: "warning",
-        confirmButtonColor: "#0F2A44",
-        confirmButtonText: "Entendido",
-      });
-      return;
-    }
 
     const result = await Swal.fire({
       title: "Revisar información del manifiesto",
@@ -636,96 +624,7 @@ const NuevoManifiesto = () => {
             </Field>
           </div>
 
-          {/* ── ITINERARIO ── */}
-          <div className="mt-10">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-slate-700">
-                Itinerario (Puertos)
-              </h2>
-              <button
-                type="button"
-                onClick={addItinerarioRow}
-                className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50"
-              >
-                + Agregar puerto
-              </button>
-            </div>
-
-            <div className="rounded-xl border border-slate-200 overflow-hidden bg-white">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-slate-600">
-                  <tr>
-                    <th className="text-left px-4 py-3 font-semibold">PORT</th>
-                    <th className="text-left px-4 py-3 font-semibold">PORT TYPE</th>
-                    <th className="text-left px-4 py-3 font-semibold">ETA</th>
-                    <th className="text-left px-4 py-3 font-semibold">ETS</th>
-                    <th className="px-4 py-3" />
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {itinerario.map((row, idx) => (
-                    <tr key={idx} className="border-t">
-                      <td className="px-4 py-2">
-                        <input
-                          list="puertosList"
-                          value={row.port}
-                          onChange={(e) => updateItinerarioRow(idx, "port", e.target.value)}
-                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                          placeholder="Escribe código (ej: CLVAP)"
-                        />
-                      </td>
-
-                      <td className="px-4 py-2">
-                        <select
-                          value={row.portType}
-                          onChange={(e) => updateItinerarioRow(idx, "portType", e.target.value)}
-                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
-                        >
-                          <option value="LOAD">LOAD</option>
-                          <option value="DISCHARGE">DISCHARGE</option>
-                        </select>
-                      </td>
-
-                      <td className="px-4 py-2">
-                        <input
-                          type="datetime-local"
-                          value={row.eta}
-                          onChange={(e) => updateItinerarioRow(idx, "eta", e.target.value)}
-                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
-                        />
-                      </td>
-
-                      <td className="px-4 py-2">
-                        <input
-                          type="datetime-local"
-                          value={row.ets}
-                          onChange={(e) => updateItinerarioRow(idx, "ets", e.target.value)}
-                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
-                        />
-                      </td>
-
-                      <td className="px-4 py-2 text-right">
-                        <button
-                          type="button"
-                          onClick={() => removeItinerarioRow(idx)}
-                          disabled={itinerario.length === 1}
-                          className="px-3 py-2 rounded-lg text-xs font-medium border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-50"
-                          title="Eliminar fila"
-                        >
-                          Eliminar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <p className="text-xs text-slate-500 mt-2">
-              Puedes escribir para filtrar. ETA/ETS pueden quedar vacíos.
-            </p>
-          </div>
+      
 
           {/* ── REFERENCIA (simplificada) ── */}
           <div className="mt-10">

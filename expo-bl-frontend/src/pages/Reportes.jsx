@@ -156,6 +156,198 @@ function formatTipoCnt(isoCod) {
 // BD: tipo_operacion "I" = IMPO, "S" = EXPO
 const TIPO_OP_MAP = { IMPO: "I", EXPO: "S" };
 
+// ↓↓↓ PEGA AQUÍ ↓↓↓
+const AlmacenSelect = ({ value, onChange, onSave }) => {
+  const [query, setQuery] = useState(value || "");
+  const [resultados, setResultados] = useState([]);
+  const [buscando, setBuscando] = useState(false);
+  const [mostrar, setMostrar] = useState(false);
+  const [noEncontrado, setNoEncontrado] = useState(false);
+  const ref = useRef(null);
+  const debounceRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setMostrar(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  useEffect(() => { setQuery(value || ""); }, [value]);
+
+  const buscar = (q) => {
+    clearTimeout(debounceRef.current);
+    setQuery(q);
+    onChange(q);
+    setNoEncontrado(false);
+    if (q.trim().length < 2) { setResultados([]); setMostrar(false); return; }
+    debounceRef.current = setTimeout(async () => {
+      setBuscando(true);
+      try {
+        const res = await fetch(`${API_URL}/api/mantenedores/almacenistas`);
+        if (res.ok) {
+          const data = await res.json();
+          const filtrados = data.filter(a => a.nombre.toLowerCase().includes(q.toLowerCase())).slice(0, 8);
+          setResultados(filtrados);
+          setMostrar(true);
+          setNoEncontrado(filtrados.length === 0);
+        }
+      } catch { setResultados([]); }
+      finally { setBuscando(false); }
+    }, 300);
+  };
+
+  const seleccionar = (almacenista) => {
+    setQuery(almacenista.nombre);
+    onChange(almacenista.nombre);
+    setMostrar(false);
+    setNoEncontrado(false);
+    onSave?.();
+  };
+
+  const crearNuevo = async () => {
+    setMostrar(false);
+    const result = await Swal.fire({
+      title: "Almacenista no encontrado",
+      html: `
+        <p style="color:#64748b; font-size:14px; margin-bottom:16px;">
+          "<strong>${query}</strong>" no existe en el Mantenedor de Almacenistas.<br/>
+          ¿Deseas agregarlo como nuevo almacenista?
+        </p>
+        <div style="text-align:left; display:grid; gap:10px;">
+          <div>
+            <label style="font-size:12px; font-weight:600; color:#374151;">RUT *</label>
+            <input id="alm-rut" class="swal2-input" style="margin:4px 0 0 0; width:100%;" placeholder="Ej: 76451351-7">
+          </div>
+          <div>
+            <label style="font-size:12px; font-weight:600; color:#374151;">Código Almacén *</label>
+            <input id="alm-codigo" class="swal2-input" style="margin:4px 0 0 0; width:100%;" placeholder="Ej: A-84">
+          </div>
+          <div>
+            <label style="font-size:12px; font-weight:600; color:#374151;">Nación ID</label>
+            <input id="alm-nacion" class="swal2-input" style="margin:4px 0 0 0; width:100%;" placeholder="CL" maxlength="2">
+          </div>
+        </div>
+      `,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Sí, crear",
+      cancelButtonText: "No, solo guardar el nombre",
+      confirmButtonColor: "#0F2A44",
+      cancelButtonColor: "#64748b",
+      width: "480px",
+      preConfirm: async () => {
+        const rut = document.getElementById("alm-rut")?.value?.trim();
+        const codigo = document.getElementById("alm-codigo")?.value?.trim();
+        const nacion = document.getElementById("alm-nacion")?.value?.trim().toUpperCase() || "CL";
+        if (!rut) { Swal.showValidationMessage("El RUT es obligatorio"); return null; }
+        if (!codigo) { Swal.showValidationMessage("El Código Almacén es obligatorio"); return null; }
+        try {
+          const res = await fetch(`${API_URL}/api/mantenedores/almacenistas`);
+          if (res.ok) {
+            const lista = await res.json();
+            const duplicado = lista.find(a => a.codigo_almacen?.toLowerCase() === codigo.toLowerCase());
+            if (duplicado) {
+              Swal.showValidationMessage(
+                `El código "${duplicado.codigo_almacen}" ya existe — ` +
+                `Nombre: ${duplicado.nombre} · RUT: ${duplicado.rut || "—"} · Nación: ${duplicado.nacion_id || "—"}`
+              );
+              return null;
+            }
+          }
+        } catch { /* el backend validará igual */ }
+        return { rut, codigo_almacen: codigo, nacion_id: nacion };
+      }
+    });
+
+    if (result.isConfirmed && result.value) {
+      try {
+        const res = await fetch(`${API_URL}/api/mantenedores/almacenistas`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nombre: query.trim(),
+            rut: result.value.rut,
+            nacion_id: result.value.nacion_id,
+            codigo_almacen: result.value.codigo_almacen,
+          }),
+        });
+        if (res.ok) {
+          await Swal.fire({ icon: "success", title: "Almacenista creado", text: `"${query}" fue agregado al mantenedor`, timer: 2000, showConfirmButton: false });
+          onSave?.();
+        } else {
+         const errData = await res.json().catch(() => ({}));
+          if (res.status === 409) {
+            const [existing] = await fetch(`${API_URL}/api/mantenedores/almacenistas`)
+              .then(r => r.json()).catch(() => []);
+            const duplicado = existing;
+            Swal.fire({
+              icon: "warning",
+              title: "Código de almacén ya registrado",
+              html: `
+                <p style="color:#64748b; font-size:13px; margin-bottom:14px;">
+                  El código <strong style="color:#d97706;">"${query}"</strong> ya está asignado a:
+                </p>
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px; text-align:left; font-size:13px; display:grid; gap:6px;">
+                  <div><span style="color:#94a3b8; font-size:11px; font-weight:600;">NOMBRE</span><br/><strong style="color:#1e293b;">${duplicado?.nombre || "—"}</strong></div>
+                  <div><span style="color:#94a3b8; font-size:11px; font-weight:600;">RUT</span><br/><span style="color:#334155;">${duplicado?.rut || "—"}</span></div>
+                  <div><span style="color:#94a3b8; font-size:11px; font-weight:600;">CÓDIGO ALMACÉN</span><br/><span style="color:#334155;">${duplicado?.codigo_almacen || "—"}</span></div>
+                  <div><span style="color:#94a3b8; font-size:11px; font-weight:600;">NACIÓN</span><br/><span style="color:#334155;">${duplicado?.nacion_id || "—"}</span></div>
+                </div>
+              `,
+              confirmButtonText: "Entendido",
+              confirmButtonColor: "#0F2A44",
+              width: "420px",
+            });
+          } else {
+            Swal.fire({ icon: "error", title: "No se pudo crear", text: errData.error || "Error al crear el almacenista", confirmButtonColor: "#0F2A44" });
+          }
+        }
+      } catch {
+        Swal.fire({ icon: "error", title: "Error", text: "No se pudo crear el almacenista", confirmButtonColor: "#0F2A44" });
+      }
+    } else if (result.isDismissed && result.dismiss === Swal.DismissReason.cancel) {
+      onSave?.();
+    }
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <div className="relative">
+        <input
+          value={query}
+          onChange={e => buscar(e.target.value)}
+          onFocus={() => query.length >= 2 && setMostrar(true)}
+          className="w-full min-w-[160px] bg-blue-50 border border-blue-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300"
+          placeholder="Buscar almacenista..."
+        />
+        {buscando && <div className="absolute right-2 top-1/2 -translate-y-1/2"><RefreshCw size={10} className="animate-spin text-blue-400" /></div>}
+      </div>
+      {mostrar && resultados.length > 0 && (
+        <div className="absolute z-50 w-64 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          {resultados.map(a => (
+            <button key={a.id} type="button" onClick={() => seleccionar(a)} className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-0 transition-colors">
+              <p className="text-xs font-medium text-slate-800 truncate">{a.nombre}</p>
+              <p className="text-[10px] text-slate-500">
+                {a.codigo_almacen && <span className="font-mono">ALM: {a.codigo_almacen}</span>}
+                {a.rut && <span className="ml-2">RUT: {a.rut}</span>}
+              </p>
+            </button>
+          ))}
+        </div>
+      )}
+      {mostrar && noEncontrado && query.trim().length >= 2 && (
+        <div className="absolute z-50 w-64 mt-1 bg-white border border-orange-200 rounded-lg shadow-lg">
+          <div className="px-3 py-2 text-xs text-slate-500 border-b border-slate-100">No existe "<strong>{query}</strong>" en el mantenedor</div>
+          <button type="button" onClick={crearNuevo} className="w-full text-left px-3 py-2 text-xs text-orange-700 font-semibold hover:bg-orange-50 transition-colors">
+            + Agregar como nuevo almacenista
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+// ↑↑↑ FIN AlmacenSelect ↑↑↑
+
 export default function Reportes() {
   const [allManifiestos, setAllManifiestos] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -411,22 +603,29 @@ export default function Reportes() {
     } finally {
       setLoadingBLs(false);
     }
-    console.log("manifiesto:", manifiesto);
   };
 
   // ── Auto-save con debounce de 800ms ──
   const autoSaveTimers = useRef({});
+
+  const latestRows = useRef(rows);
+
+  useEffect(() => {
+    latestRows.current = rows;
+  }, [rows]);
+
   const handleCellEdit = (rowIdx, key, value) => {
     setRows((prev) => prev.map((r, i) => (i === rowIdx ? { ...r, [key]: value } : r)));
     if (!selectedId) return;
 
     clearTimeout(autoSaveTimers.current[rowIdx]);
     autoSaveTimers.current[rowIdx] = setTimeout(async () => {
-      // Leer fila actualizada del estado más reciente
       setRows((prev) => {
         const row = prev[rowIdx];
         if (!row) return prev;
         const token = localStorage.getItem("token");
+
+        // Guardar en tabla reportes (ya existía)
         fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos`, {
           method: "PUT",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -437,6 +636,37 @@ export default function Reportes() {
             almacen: row.almacen ?? "",
           }),
         }).catch(() => { });
+
+        // ── Si cambió el almacén, actualizar el BL también ──
+        if (key === "almacen" && value && row.bl) {
+          (async () => {
+            try {
+              const resAlm = await fetch(`${API_URL}/api/mantenedores/almacenistas`);
+              if (!resAlm.ok) return;
+              const almacenistas = await resAlm.json();
+              const encontrado = almacenistas.find(
+                a => a.nombre.toLowerCase() === value.toLowerCase()
+              );
+
+              await fetch(`${API_URL}/api/bls/${row.bl}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(encontrado ? {
+                  almacenista_id: encontrado.id,
+                  almacenista_nombre: encontrado.nombre,
+                  almacenista_rut: encontrado.rut,
+                  almacenista_nacion_id: encontrado.nacion_id,
+                  almacenista_codigo_almacen: encontrado.codigo_almacen,
+                } : {
+                  almacenista_nombre: value,
+                }),
+              });
+            } catch (err) {
+              console.warn("No se pudo actualizar el almacenista en el BL:", err);
+            }
+          })();
+        }
+
         return prev;
       });
     }, 800);
@@ -444,23 +674,51 @@ export default function Reportes() {
 
   // ── Guardar todo de una vez ──
   const handleSaveAll = async () => {
-    if (!selectedId || !rows.length) return;
+    if (!selectedId || !latestRows.current.length) return;
     setSaving(true);
     try {
       const token = localStorage.getItem("token");
-      const payload = rows.map((r) => ({
+      const currentRows = latestRows.current;
+
+      const payload = currentRows.map((r) => ({
         bl: r.bl,
         n_contenedor: r.n_contenedor ?? "",
         deposito: r.deposito ?? "",
         almacen: r.almacen ?? "",
       }));
+
       const res = await fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos/bulk`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      showToast("success", `${data.actualizadas ?? rows.length} filas guardadas`);
+
+      const almacenistas = await fetch(`${API_URL}/api/mantenedores/almacenistas`)
+        .then(r => r.ok ? r.json() : [])
+        .catch(() => []);
+
+      const blsConAlmacen = currentRows.filter(r => r.almacen && r.bl);
+      await Promise.all(blsConAlmacen.map(async (row) => {
+        const encontrado = almacenistas.find(
+          a => a.nombre.toLowerCase() === row.almacen.toLowerCase()
+        );
+        await fetch(`${API_URL}/api/bls/${row.bl}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(encontrado ? {
+            almacenista_id: encontrado.id,
+            almacenista_nombre: encontrado.nombre,
+            almacenista_rut: encontrado.rut,
+            almacenista_nacion_id: encontrado.nacion_id,
+            almacenista_codigo_almacen: encontrado.codigo_almacen,
+          } : {
+            almacenista_nombre: row.almacen,
+          }),
+        }).catch(() => { });
+      }));
+
+      showToast("success", `${data.actualizadas ?? currentRows.length} filas guardadas y BLs actualizados`);
     } catch {
       showToast("error", "Error al guardar");
     } finally {
@@ -509,79 +767,231 @@ export default function Reportes() {
 
 
   // ── Importar Excel con depósito/almacén ──
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const wb = XLSX.read(evt.target.result, { type: "binary" });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
-        if (data.length < 2) { showToast("error", "El archivo está vacío"); return; }
 
-        const headers = data[0].map((h) => String(h).trim());
-        const findCol = (label) => headers.findIndex((h) => h.toLowerCase() === label.toLowerCase());
-        const blIdx = findCol("BL");
-        const contenedorIdx = findCol("N° Contenedor");
-        const depositoIdx = findCol("Depósito");
-        const almacenIdx = findCol("Almacén");
+    const readFile = (f) => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (evt) => resolve(evt.target.result);
+      reader.onerror = () => reject(new Error("No se pudo leer el archivo"));
+      reader.readAsBinaryString(f);
+    });
 
-        if (blIdx === -1) { showToast("error", "El Excel no tiene columna 'BL'"); return; }
+    try {
+      const result = await readFile(file);
+      const wb = XLSX.read(result, { type: "binary" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
+      if (data.length < 2) { showToast("error", "El archivo está vacío"); return; }
 
-        const updates = {};
-        data.slice(1).forEach((row) => {
-          const blVal = String(row[blIdx] ?? "").trim();
-          const cntVal = contenedorIdx !== -1 ? String(row[contenedorIdx] ?? "").trim() : "";
-          if (!blVal) return;
-          updates[`${blVal}||${cntVal}`] = {
-            ...(depositoIdx !== -1 ? { deposito: String(row[depositoIdx] ?? "").trim() } : {}),
-            ...(almacenIdx !== -1 ? { almacen: String(row[almacenIdx] ?? "").trim() } : {}),
-          };
-        });
+      const headers = data[0].map((h) => String(h).trim());
+      const findCol = (label) => headers.findIndex((h) => h.toLowerCase() === label.toLowerCase());
+      const blIdx = findCol("BL");
+      const contenedorIdx = findCol("N° Contenedor");
+      const depositoIdx = findCol("Depósito");
+      const almacenIdx = findCol("Almacén");
 
-        let actualizadas = 0;
-        setRows((prev) =>
-          prev.map((r) => {
-            const upd = updates[`${String(r.bl ?? "").trim()}||${String(r.n_contenedor ?? "").trim()}`];
-            if (!upd) return r;
-            actualizadas++;
-            return { ...r, ...upd };
-          })
-        );
-        setTimeout(async () => {
-          showToast("success", `${actualizadas} fila(s) actualizadas desde Excel · guardando...`);
-          // Auto-guardar en BD inmediatamente después de importar el Excel
-          if (selectedId) {
-            try {
-              const token = localStorage.getItem("token");
-              // Leer el estado más reciente de rows via setRows
-              setRows((prev) => {
-                const payload = prev.map((r) => ({
-                  bl: r.bl,
-                  n_contenedor: r.n_contenedor ?? "",
-                  deposito: r.deposito ?? "",
-                  almacen: r.almacen ?? "",
-                }));
-                fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos/bulk`, {
-                  method: "PUT",
-                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                  body: JSON.stringify(payload),
-                })
-                  .then(() => showToast("success", `${actualizadas} fila(s) guardadas correctamente`))
-                  .catch(() => showToast("error", "Error al guardar en BD — usa el botón 'Guardar todo'"));
-                return prev;
+      if (blIdx === -1) { showToast("error", "El Excel no tiene columna 'BL'"); return; }
+
+      const updates = {};
+      data.slice(1).forEach((row) => {
+        const blVal = String(row[blIdx] ?? "").trim();
+        const cntVal = contenedorIdx !== -1 ? String(row[contenedorIdx] ?? "").trim() : "";
+        if (!blVal) return;
+        updates[`${blVal}||${cntVal}`] = {
+          ...(depositoIdx !== -1 ? { deposito: String(row[depositoIdx] ?? "").trim() } : {}),
+          ...(almacenIdx !== -1 ? { almacen: String(row[almacenIdx] ?? "").trim() } : {}),
+        };
+      });
+
+      // ── Verificar almacenes contra mantenedor ──
+      const nombresDelExcel = [...new Set(Object.values(updates).map(u => u.almacen).filter(Boolean))];
+      if (nombresDelExcel.length > 0) {
+        const resAlm = await fetch(`${API_URL}/api/mantenedores/almacenistas`);
+        if (resAlm.ok) {
+          const almacenistasExistentes = await resAlm.json();
+          const nombresExistentes = almacenistasExistentes.map(a => a.nombre.toLowerCase());
+          const noExisten = nombresDelExcel.filter(n => !nombresExistentes.includes(n.toLowerCase()));
+
+          for (const nombreExcel of noExisten) {
+            // ── SWAL 1: Seleccionar existente ──
+            const { value: accion } = await Swal.fire({
+              title: "Almacenista no reconocido",
+              html: `
+    <p style="color:#64748b; font-size:13px; margin-bottom:14px;">
+      El Excel tiene <strong style="color:#d97706;">"${nombreExcel}"</strong> pero no existe en el mantenedor.<br/>
+      ¿Es alguno de estos?
+    </p>
+    <div style="text-align:left;">
+      <label style="font-size:12px; font-weight:600; color:#374151;">Buscar almacenista:</label>
+      <input id="alm-search" style="width:100%; margin-top:6px; padding:8px; border:1px solid #d1d5db; border-radius:8px; font-size:13px;" placeholder="Escribe para filtrar...">
+      <div id="alm-lista" style="margin-top:6px; max-height:180px; overflow-y:auto; border:1px solid #e5e7eb; border-radius:8px;">
+        ${almacenistasExistentes.map(a => `
+          <div 
+            class="alm-item" 
+            data-id="${a.id}" 
+            data-nombre="${a.nombre}"
+            style="padding:8px 12px; cursor:pointer; font-size:13px; border-bottom:1px solid #f1f5f9; transition:background 0.15s;"
+            onmouseover="this.style.background='#f0f9ff'"
+            onmouseout="this.style.background=this.classList.contains('selected') ? '#dbeafe' : 'white'"
+          >
+            <span style="font-weight:500; color:#1e293b;">${a.nombre}</span>
+            <span style="color:#94a3b8; font-size:11px; margin-left:8px;">ALM: ${a.codigo_almacen || '—'} · RUT: ${a.rut || '—'}</span>
+          </div>
+        `).join("")}
+      </div>
+      <input type="hidden" id="alm-selected-id" value="">
+    </div>
+  `,
+              icon: "question",
+              showCancelButton: true,
+              confirmButtonText: "Confirmar seleccionado",
+              cancelButtonText: "No existe, crear uno nuevo",
+              confirmButtonColor: "#0F2A44",
+              cancelButtonColor: "#d97706",
+              width: "520px",
+              didOpen: () => {
+                const search = document.getElementById("alm-search");
+                const lista = document.getElementById("alm-lista");
+                const hiddenId = document.getElementById("alm-selected-id");
+
+                // Click en item
+                lista.addEventListener("click", (e) => {
+                  const item = e.target.closest(".alm-item");
+                  if (!item) return;
+                  // Deseleccionar anterior
+                  lista.querySelectorAll(".alm-item").forEach(el => {
+                    el.classList.remove("selected");
+                    el.style.background = "white";
+                  });
+                  // Seleccionar nuevo
+                  item.classList.add("selected");
+                  item.style.background = "#dbeafe";
+                  hiddenId.value = item.dataset.id;
+                });
+
+                // Filtrar al escribir
+                search.addEventListener("input", () => {
+                  const q = search.value.toLowerCase();
+                  lista.querySelectorAll(".alm-item").forEach(el => {
+                    const nombre = el.dataset.nombre.toLowerCase();
+                    el.style.display = nombre.includes(q) ? "block" : "none";
+                  });
+                });
+              },
+              preConfirm: () => {
+                const id = document.getElementById("alm-selected-id")?.value;
+                if (!id) { Swal.showValidationMessage("Debes seleccionar un almacenista de la lista"); return null; }
+                return { tipo: "existente", id: Number(id) };
+              }
+            });
+
+            if (accion?.tipo === "existente") {
+              // Vincular con el existente
+              const almEncontrado = almacenistasExistentes.find(a => a.id === accion.id);
+              if (almEncontrado) {
+                Object.keys(updates).forEach(key => {
+                  if ((updates[key].almacen || "").toLowerCase() === nombreExcel.toLowerCase()) {
+                    updates[key].almacen = almEncontrado.nombre;
+                  }
+                });
+              }
+
+            } else {
+              // ── SWAL 2: Crear nuevo ──
+              const { value: nuevo } = await Swal.fire({
+                title: "Agregar nuevo almacenista",
+                html: `
+        <p style="color:#64748b; font-size:13px; margin-bottom:14px;">
+          Completa los datos para crear <strong style="color:#d97706;">"${nombreExcel}"</strong> en el mantenedor.
+        </p>
+        <div style="text-align:left; display:grid; gap:10px;">
+          <div>
+            <label style="font-size:12px; font-weight:600; color:#374151;">RUT *</label>
+            <input id="alm-rut" class="swal2-input" style="margin:4px 0 0 0; width:100%;" placeholder="Ej: 76451351-7">
+          </div>
+          <div>
+            <label style="font-size:12px; font-weight:600; color:#374151;">Código Almacén *</label>
+            <input id="alm-cod" class="swal2-input" style="margin:4px 0 0 0; width:100%;" placeholder="Ej: A-84">
+          </div>
+          <div>
+            <label style="font-size:12px; font-weight:600; color:#374151;">Nación ID</label>
+            <input id="alm-nacion" class="swal2-input" style="margin:4px 0 0 0; width:100%;" placeholder="CL" maxlength="2" value="CL">
+          </div>
+        </div>
+      `,
+                icon: "warning",
+                showCancelButton: true,
+                confirmButtonText: "+ Agregar como nuevo almacenista",
+                cancelButtonText: "Importar igual (sin vincular)",
+                confirmButtonColor: "#d97706",
+                cancelButtonColor: "#64748b",
+                width: "480px",
+                preConfirm: async () => {
+                  const rut = document.getElementById("alm-rut")?.value?.trim();
+                  const cod = document.getElementById("alm-cod")?.value?.trim();
+                  const nacion = document.getElementById("alm-nacion")?.value?.trim().toUpperCase() || "CL";
+                  if (!rut) { Swal.showValidationMessage("El RUT es obligatorio"); return null; }
+                  if (!cod) { Swal.showValidationMessage("El Código Almacén es obligatorio"); return null; }
+                  try {
+                    const res = await fetch(`${API_URL}/api/mantenedores/almacenistas`);
+                    if (res.ok) {
+                      const lista = await res.json();
+                      const duplicado = lista.find(a => a.codigo_almacen?.toLowerCase() === cod.toLowerCase());
+                      if (duplicado) {
+                        Swal.showValidationMessage(`El código "${cod}" ya está en uso por "${duplicado.nombre}"`);
+                        return null;
+                      }
+                    }
+                  } catch { /* el backend validará igual */ }
+                  return { rut, codigo_almacen: cod, nacion_id: nacion };
+                }
               });
-            } catch {
-              showToast("error", "Error al guardar — usa el botón 'Guardar todo'");
+
+              if (nuevo) {
+                try {
+                  const resCreate = await fetch(`${API_URL}/api/mantenedores/almacenistas`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      nombre: nombreExcel.trim(),
+                      rut: nuevo.rut,
+                      nacion_id: nuevo.nacion_id,
+                      codigo_almacen: nuevo.codigo_almacen,
+                    }),
+                  });
+                  if (!resCreate.ok) throw new Error();
+                  await Swal.fire({ icon: "success", title: "Almacenista creado", text: `"${nombreExcel}" fue agregado al mantenedor`, timer: 1800, showConfirmButton: false });
+                } catch {
+                  await Swal.fire({ icon: "error", title: "Error", text: "No se pudo crear el almacenista", confirmButtonColor: "#0F2A44" });
+                }
+              }
+              // Si canceló "Importar igual" → sigue con el nombre tal cual
             }
+
           }
-        }, 100);
-      } catch {
-        showToast("error", "No se pudo leer el archivo");
+        }
       }
-    };
-    reader.readAsBinaryString(file);
+
+      let actualizadas = 0;
+      setRows((prev) =>
+        prev.map((r) => {
+          const upd = updates[`${String(r.bl ?? "").trim()}||${String(r.n_contenedor ?? "").trim()}`];
+          if (!upd) return r;
+          actualizadas++;
+          return { ...r, ...upd };
+        })
+      );
+
+      showToast("success", `${actualizadas} fila(s) actualizadas desde Excel · guardando...`);
+      setTimeout(() => handleSaveAll(), 150);
+
+    } catch (err) {
+      console.error("Error en handleFileUpload:", err);
+      showToast("error", "No se pudo leer el archivo");
+    }
+
     e.target.value = "";
   };
 
@@ -896,14 +1306,16 @@ export default function Reportes() {
                                         placeholder="Ingresa depósito..."
                                       />
                                     ) : c.key === "almacen" ? (
-                                      <input
+                                      <AlmacenSelect
                                         value={row[c.key] ?? ""}
-                                        onChange={(e) => {
+                                        onChange={(val) => {
                                           const realIdx = rows.findIndex(r => r.bl === row.bl && r.n_contenedor === row.n_contenedor);
-                                          if (realIdx !== -1) handleCellEdit(realIdx, c.key, e.target.value);
+                                          if (realIdx !== -1) handleCellEdit(realIdx, c.key, val);
                                         }}
-                                        className="w-full min-w-[130px] bg-blue-50 border border-blue-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300"
-                                        placeholder="Almacén..."
+                                        onSave={() => {
+                                          const realIdx = rows.findIndex(r => r.bl === row.bl && r.n_contenedor === row.n_contenedor);
+                                          if (realIdx !== -1) handleCellEdit(realIdx, "almacen", row.almacen ?? "");
+                                        }}
                                       />
                                     ) : (
                                       <span className="text-slate-700">{highlightCell(row[c.key])}</span>

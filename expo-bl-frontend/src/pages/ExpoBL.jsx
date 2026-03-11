@@ -147,10 +147,9 @@ const ExpoBL = () => {
     };
 
     return (
-        <div className="flex min-h-screen bg-slate-100">
-            <Sidebar />
-
-            <main className="flex-1 p-6 lg:p-10 flex flex-col gap-5">
+    <div className="flex min-h-screen">
+  <Sidebar />
+  <main className="flex-1 p-10 min-h-screen bg-slate-100">
 
                 {/* ── Header ─────────────────────────────────────── */}
                 <div className="flex items-start justify-between gap-4">
