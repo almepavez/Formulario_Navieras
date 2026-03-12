@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Swal from "sweetalert2";
@@ -65,8 +65,6 @@ const CargaSueltaNuevo = () => {
         fecha_emision: "",
         fecha_presentacion: "",
         fecha_embarque: "",
-        fecha_zarpe: "",
-
         // Locaciones (Step 1)
         puerto_embarque: "",
         puerto_descarga: "",
@@ -80,6 +78,8 @@ const CargaSueltaNuevo = () => {
         consignee: "",
         notify_party: "",
         almacenador: "",
+        consignee_rut: "",
+        notify_rut: "",
 
         // 🆕 DATOS EXTRAÍDOS (editables)
         shipper_codigo_pil: "",
@@ -183,124 +183,21 @@ const CargaSueltaNuevo = () => {
                     });
                     return false;
                 }
-
-                // 🔥 VALIDACIÓN DE PUERTOS - Puerto de Embarque
+                // Reemplazar todas las validaciones de puertos por estas 4 simples:
                 if (!formData.puerto_embarque?.trim()) {
-                    Swal.fire({
-                        title: "Campo requerido",
-                        text: "Debes seleccionar el Puerto de Embarque",
-                        icon: "warning",
-                        confirmButtonColor: "#10b981"
-                    });
+                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar el Puerto de Embarque", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
-                if (!puertos.some(p => p.codigo === formData.puerto_embarque)) {
-                    Swal.fire({
-                        title: "Puerto inválido",
-                        html: `El código "<strong>${formData.puerto_embarque}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
-                        icon: "error",
-                        confirmButtonColor: "#10b981"
-                    });
-                    return false;
-                }
-
-                // 🔥 VALIDACIÓN DE PUERTOS - Puerto de Descarga
                 if (!formData.puerto_descarga?.trim()) {
-                    Swal.fire({
-                        title: "Campo requerido",
-                        text: "Debes seleccionar el Puerto de Descarga",
-                        icon: "warning",
-                        confirmButtonColor: "#10b981"
-                    });
+                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar el Puerto de Descarga", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
-                if (!puertos.some(p => p.codigo === formData.puerto_descarga)) {
-                    Swal.fire({
-                        title: "Puerto inválido",
-                        html: `El código "<strong>${formData.puerto_descarga}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
-                        icon: "error",
-                        confirmButtonColor: "#10b981"
-                    });
-                    return false;
-                }
-
-                // 🔥 VALIDACIÓN DE PUERTOS - Lugar Destino
                 if (!formData.lugar_destino?.trim()) {
-                    Swal.fire({
-                        title: "Campo requerido",
-                        text: "Debes seleccionar el Lugar de Destino",
-                        icon: "warning",
-                        confirmButtonColor: "#10b981"
-                    });
+                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar el Lugar de Destino", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
-                if (!puertos.some(p => p.codigo === formData.lugar_destino)) {
-                    Swal.fire({
-                        title: "Puerto inválido",
-                        html: `El código "<strong>${formData.lugar_destino}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
-                        icon: "error",
-                        confirmButtonColor: "#10b981"
-                    });
-                    return false;
-                }
-
-                // 🔥 VALIDACIÓN DE PUERTOS - Lugar de Emisión
-                if (!formData.lugar_emision?.trim()) {
-                    Swal.fire({
-                        title: "Campo requerido",
-                        text: "Debes seleccionar el Lugar de Emisión",
-                        icon: "warning",
-                        confirmButtonColor: "#10b981"
-                    });
-                    return false;
-                }
-                if (!puertos.some(p => p.codigo === formData.lugar_emision)) {
-                    Swal.fire({
-                        title: "Puerto inválido",
-                        html: `El código "<strong>${formData.lugar_emision}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
-                        icon: "error",
-                        confirmButtonColor: "#10b981"
-                    });
-                    return false;
-                }
-
-                // 🔥 VALIDACIÓN DE PUERTOS - Lugar Entrega
                 if (!formData.lugar_entrega?.trim()) {
-                    Swal.fire({
-                        title: "Campo requerido",
-                        text: "Debes seleccionar el Lugar de Entrega",
-                        icon: "warning",
-                        confirmButtonColor: "#10b981"
-                    });
-                    return false;
-                }
-                if (!puertos.some(p => p.codigo === formData.lugar_entrega)) {
-                    Swal.fire({
-                        title: "Puerto inválido",
-                        html: `El código "<strong>${formData.lugar_entrega}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
-                        icon: "error",
-                        confirmButtonColor: "#10b981"
-                    });
-                    return false;
-                }
-
-                // 🔥 VALIDACIÓN DE PUERTOS - Lugar de Recepción
-                if (!formData.lugar_recepcion?.trim()) {
-                    Swal.fire({
-                        title: "Campo requerido",
-                        text: "Debes seleccionar el Lugar de Recepción",
-                        icon: "warning",
-                        confirmButtonColor: "#10b981"
-                    });
-                    return false;
-                }
-                if (!puertos.some(p => p.codigo === formData.lugar_recepcion)) {
-                    Swal.fire({
-                        title: "Puerto inválido",
-                        html: `El código "<strong>${formData.lugar_recepcion}</strong>" no existe en el catálogo de puertos.<br><br>Por favor, selecciona un puerto válido de la lista.`,
-                        icon: "error",
-                        confirmButtonColor: "#10b981"
-                    });
+                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar el Lugar de Entrega (LEM)", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
 
@@ -330,16 +227,8 @@ const CargaSueltaNuevo = () => {
                         icon: "warning",
                         confirmButtonColor: "#10b981"
                     });
-                    return false;
-                }
-                if (!formData.fecha_zarpe) {
-                    Swal.fire({
-                        title: "Campo requerido",
-                        text: "Debes ingresar la Fecha de Zarpe",
-                        icon: "warning",
-                        confirmButtonColor: "#10b981"
-                    });
-                    return false;
+                    return false
+
                 }
                 return true;
 
@@ -352,7 +241,7 @@ const CargaSueltaNuevo = () => {
                     Swal.fire({ title: "Campo requerido", text: "La dirección del Shipper es obligatoria", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
-        
+
                 if (!formData.consignee || formData.consignee.trim().length < 3) {
                     Swal.fire({ title: "Campo requerido", text: "El Consignee debe tener al menos 3 caracteres", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
@@ -362,7 +251,7 @@ const CargaSueltaNuevo = () => {
                     return false;
                 }
 
-            
+
                 return true;
 
             case 3:
@@ -814,9 +703,8 @@ const Step1DatosBL = ({ formData, setFormData, manifiestoData, puertos }) => (
 
         <h3 className="text-md font-semibold text-slate-700 mt-6 mb-3">Fechas</h3>
         <div className="grid grid-cols-2 gap-4">
-            <InputField
+            <MaskedDateInput
                 label="Fecha Emisión"
-                type="date"
                 value={formData.fecha_emision}
                 onChange={(v) => setFormData({ ...formData, fecha_emision: v })}
                 required
@@ -830,21 +718,14 @@ const Step1DatosBL = ({ formData, setFormData, manifiestoData, puertos }) => (
                 required
             />
 
-            <InputField
+            <MaskedDateTimeInput
                 label="Fecha Embarque"
-                type="date"
                 value={formData.fecha_embarque}
                 onChange={(v) => setFormData({ ...formData, fecha_embarque: v })}
                 required
             />
 
-            <InputField
-                label="Fecha Zarpe"
-                type="date"
-                value={formData.fecha_zarpe}
-                onChange={(v) => setFormData({ ...formData, fecha_zarpe: v })}
-                required
-            />
+
         </div>
 
         <h3 className="text-md font-semibold text-slate-700 mt-6 mb-3">Locaciones</h3>
@@ -855,49 +736,31 @@ const Step1DatosBL = ({ formData, setFormData, manifiestoData, puertos }) => (
         )}
 
         <div className="grid grid-cols-2 gap-4">
-            <SelectPuerto
-                label="Puerto Embarque"
+            <PuertoAutocomplete
+                label="PE - Puerto Embarque"
                 value={formData.puerto_embarque}
                 onChange={(v) => setFormData({ ...formData, puerto_embarque: v })}
                 puertos={puertos}
                 required
             />
-
-            <SelectPuerto
-                label="Puerto Descarga"
+            <PuertoAutocomplete
+                label="PD - Puerto Descarga"
                 value={formData.puerto_descarga}
                 onChange={(v) => setFormData({ ...formData, puerto_descarga: v })}
                 puertos={puertos}
                 required
             />
-
-            <SelectPuerto
-                label="Lugar Destino"
+            <PuertoAutocomplete
+                label="LD - Lugar Destino"
                 value={formData.lugar_destino}
                 onChange={(v) => setFormData({ ...formData, lugar_destino: v })}
                 puertos={puertos}
                 required
             />
-            {/* 👇 NUEVO CAMPO OBLIGATORIO */}
-            <SelectPuerto
-                label="Lugar de Emisión"
-                value={formData.lugar_emision}
-                onChange={(v) => setFormData({ ...formData, lugar_emision: v })}
-                puertos={puertos}
-                required
-            />
-
-            <SelectPuerto
-                label="Lugar Entrega"
+            <PuertoAutocomplete
+                label="LEM - Lugar Entrega"
                 value={formData.lugar_entrega}
                 onChange={(v) => setFormData({ ...formData, lugar_entrega: v })}
-                puertos={puertos}
-                required
-            />
-            <SelectPuerto
-                label="Lugar de Recepción (LRM)"
-                value={formData.lugar_recepcion}
-                onChange={(v) => setFormData({ ...formData, lugar_recepcion: v })}
                 puertos={puertos}
                 required
             />
@@ -976,6 +839,8 @@ const Step2Participantes = ({ formData, setFormData }) => {
                         />
                     </div>
 
+                    
+
                     {/* Dirección */}
                     <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -1044,6 +909,19 @@ const Step2Participantes = ({ formData, setFormData }) => {
                             onChange={(e) => updateField("consignee", e.target.value)}
                             className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
                             placeholder="Ingrese nombre o razón social completa"
+                        />
+                    </div>
+                    {/* RUT - Opcional */}
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            RUT <span className="text-slate-400 text-xs font-normal">(Opcional - solo si es empresa chilena)</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.consignee_rut || ""}
+                            onChange={(e) => updateField("consignee_rut", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ej: 91256000-7"
                         />
                     </div>
 
@@ -1119,6 +997,20 @@ const Step2Participantes = ({ formData, setFormData }) => {
                             placeholder="Ingrese nombre o razón social completa"
                         />
                     </div>
+
+                    {/* RUT - Opcional */}
+<div className="md:col-span-2">
+    <label className="block text-sm font-medium text-slate-700 mb-2">
+        RUT <span className="text-slate-400 text-xs font-normal">(Opcional - solo si es empresa chilena)</span>
+    </label>
+    <input
+        type="text"
+        value={formData.notify_rut || ""}
+        onChange={(e) => updateField("notify_rut", e.target.value)}
+        className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+        placeholder="Ej: 91256000-7"
+    />
+</div>
 
                     {/* Dirección */}
                     <div className="md:col-span-2">
@@ -1474,35 +1366,16 @@ const Step4Revision = ({ formData, manifiestoData, tiposBulto }) => {
                     </div>
 
                     <div className="col-span-2 border-t border-slate-200 pt-2 mt-2">
-                        <span className="font-medium text-slate-600">Fechas:</span>
-                        <div className="ml-2 text-slate-900 text-xs grid grid-cols-2 gap-2 mt-1">
-                            <div>Emisión: {formData.fecha_emision || "—"}</div>
-                            <div>Presentación: {formData.fecha_presentacion || "—"}</div>
-                            <div>Embarque: {formData.fecha_embarque || "—"}</div>
-                            <div>Zarpe: {formData.fecha_zarpe || "—"}</div>
-                        </div>
-                    </div>
-                    <div className="col-span-2 border-t border-slate-200 pt-2 mt-2">
                         <span className="font-medium text-slate-600">Locaciones:</span>
                         <div className="ml-2 text-slate-900 text-xs grid grid-cols-2 gap-2 mt-1">
                             <div>Puerto Embarque: {formData.puerto_embarque || "—"}</div>
                             <div>Puerto Descarga: {formData.puerto_descarga || "—"}</div>
                             <div>Lugar Destino: {formData.lugar_destino || "—"}</div>
-                            <div>Lugar Emisión: {formData.lugar_emision || "—"}</div> {/* 👈 NUEVO */}
                             <div>Lugar Entrega: {formData.lugar_entrega || "—"}</div>
-                            <div>Lugar Recepción: {formData.lugar_recepcion || "—"}</div>
                         </div>
                     </div>
 
-                    <div className="col-span-2 border-t border-slate-200 pt-2 mt-2">
-                        <span className="font-medium text-slate-600">Puerto Embarque:</span>
-                        <span className="ml-2 text-slate-900 font-mono">{formData.puerto_embarque || "—"}</span>
-                    </div>
-
-                    <div className="col-span-2">
-                        <span className="font-medium text-slate-600">Puerto Descarga:</span>
-                        <span className="ml-2 text-slate-900 font-mono">{formData.puerto_descarga || "—"}</span>
-                    </div>
+            
                 </div>
             </div>
 
@@ -1693,53 +1566,207 @@ const SelectField = ({ label, value, onChange, options, required }) => (
     </div>
 );
 
-const SelectPuerto = ({ label, value, onChange, puertos, required }) => {
-    const datalistId = `puertos-${label.replace(/\s+/g, '-').toLowerCase()}`;
-    const isPuertoValido = puertos.some(p => p.codigo === value);
-    const mostrarWarning = value && !isPuertoValido;
+const PuertoAutocomplete = ({ label, value, onChange, puertos, required }) => {
+    const [query, setQuery] = useState(value || '');
+    const [open, setOpen] = useState(false);
+    const [focused, setFocused] = useState(false);
+    const containerRef = useRef(null);
+
+    // Cerrar al hacer click fuera
+    useEffect(() => {
+        const handler = (e) => {
+            if (containerRef.current && !containerRef.current.contains(e.target)) {
+                setOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    // Sincronizar si value cambia desde afuera
+    useEffect(() => {
+        setQuery(value || '');
+    }, [value]);
+
+    // Generar opciones: sidemar + codigo normal como entradas separadas
+    const todasOpciones = [];
+    puertos.forEach(p => {
+        if (p.codigo_sidemar && p.codigo_sidemar !== p.codigo) {
+            todasOpciones.push({
+                codigo: p.codigo_sidemar,
+                nombre: p.nombre,
+                esSidemar: true
+            });
+        }
+        todasOpciones.push({
+            codigo: p.codigo,
+            nombre: p.nombre,
+            esSidemar: false
+        });
+    });
+
+    const filtradas = query.length >= 1
+        ? todasOpciones.filter(op =>
+            op.codigo.toUpperCase().includes(query.toUpperCase()) ||
+            op.nombre.toUpperCase().includes(query.toUpperCase())
+        ).slice(0, 8)
+        : [];
+
+    const handleSelect = (op) => {
+        setQuery(op.codigo);
+        onChange(op.codigo);
+        setOpen(false);
+    };
+
+    const handleInputChange = (e) => {
+        const v = e.target.value.toUpperCase();
+        setQuery(v);
+        onChange(v);
+        setOpen(true);
+    };
+
+    return (
+        <div className="relative" ref={containerRef}>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+                {label} {required && <span className="text-red-500">*</span>}
+            </label>
+            <input
+                type="text"
+                value={query}
+                onChange={handleInputChange}
+                onFocus={() => { setFocused(true); if (query.length >= 1) setOpen(true); }}
+                onBlur={() => setFocused(false)}
+                placeholder="Escribe código o nombre..."
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F2A44] transition-colors"
+            />
+
+            {open && filtradas.length > 0 && (
+                <div className="absolute left-0 top-full mt-2 z-50 w-full min-w-[280px] bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden">
+                    {/* Header */}
+                    <div className="px-4 py-2 bg-slate-50 border-b border-slate-200">
+                        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                            Puertos disponibles · {filtradas.length} resultado{filtradas.length !== 1 ? 's' : ''}
+                        </p>
+                    </div>
+
+                    {/* Opciones */}
+                    <div className="py-1 max-h-60 overflow-y-auto">
+                        {filtradas.map((op, i) => {
+                            const isSelected = op.codigo === value;
+                            return (
+                                <button
+                                    key={i}
+                                    type="button"
+                                    onMouseDown={() => handleSelect(op)}
+                                    className={`
+                                        w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors
+                                        border-l-4
+                                        ${isSelected
+                                            ? 'border-l-[#0F2A44] bg-slate-100'
+                                            : 'border-l-transparent hover:bg-slate-50'
+                                        }
+                                    `}
+                                >
+                                    {/* Badge código */}
+                                    <span className={`
+                                        flex-shrink-0 px-2 py-1 rounded-lg text-xs font-bold font-mono border
+                                        ${op.esSidemar
+                                            ? 'bg-amber-50 text-amber-700 border-amber-300'
+                                            : 'bg-blue-50 text-blue-700 border-blue-200'
+                                        }
+                                    `}>
+                                        {op.codigo}
+                                    </span>
+
+                                    {/* Nombre y etiqueta */}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-semibold text-slate-800 truncate">
+                                                {op.nombre}
+                                            </span>
+                                            {isSelected && (
+                                                <span className="text-[10px] bg-slate-200 text-slate-500 rounded px-1.5 py-0.5 font-medium flex-shrink-0">
+                                                    Activo
+                                                </span>
+                                            )}
+                                        </div>
+                                        {op.esSidemar && (
+                                            <p className="text-[11px] text-amber-600 font-medium mt-0.5">
+                                                Código SIDEMAR
+                                            </p>
+                                        )}
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const MaskedDateInput = ({ label, value, onChange, required }) => {
+    const handleChange = (e) => {
+        let v = e.target.value.replace(/\D/g, '');
+        if (v.length >= 3) v = v.slice(0, 2) + '/' + v.slice(2);
+        if (v.length >= 6) v = v.slice(0, 5) + '/' + v.slice(5);
+        v = v.slice(0, 10);
+        onChange(v);
+    };
+
+    const isValid = !value || /^\d{2}\/\d{2}\/\d{4}$/.test(value);
 
     return (
         <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
                 {label} {required && <span className="text-red-500">*</span>}
             </label>
-            <div className="relative">
-                <input
-                    type="text"
-                    value={value}
-                    onChange={(e) => onChange(e.target.value.toUpperCase())}
-                    list={datalistId}
-                    placeholder="Escribe o selecciona un puerto..."
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${mostrarWarning
-                        ? 'border-red-300 focus:ring-red-500 bg-red-50'
-                        : 'border-slate-300 focus:ring-[#0F2A44]'
-                        }`}
-                />
-                {mostrarWarning && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                        </svg>
-                    </div>
-                )}
-            </div>
-            <datalist id={datalistId}>
-                {puertos.map(puerto => (
-                    <option
-                        key={puerto.codigo}
-                        value={puerto.codigo}
-                    >
-                        {puerto.nombre}
-                    </option>
-                ))}
-            </datalist>
-            {mostrarWarning && (
-                <p className="text-xs text-red-600 mt-1 flex items-center gap-1 font-medium">
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                    </svg>
-                    El código "{value}" no existe en el catálogo de puertos
-                </p>
+            <input
+                type="text"
+                value={value}
+                onChange={handleChange}
+                placeholder="DD/MM/YYYY"
+                maxLength={10}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F2A44] transition-colors ${!isValid && value ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
+            />
+            {!isValid && value && (
+                <p className="text-xs text-red-600 mt-1">Formato inválido. Usa DD/MM/YYYY</p>
+            )}
+        </div>
+    );
+};
+
+const MaskedDateTimeInput = ({ label, value, onChange, required }) => {
+    const handleChange = (e) => {
+        let v = e.target.value.replace(/[^\d\s]/g, '');
+        const digits = v.replace(/\D/g, '');
+        let result = '';
+        if (digits.length >= 1) result = digits.slice(0, 2);
+        if (digits.length >= 3) result += '/' + digits.slice(2, 4);
+        if (digits.length >= 5) result += '/' + digits.slice(4, 8);
+        if (digits.length >= 9) result += ' ' + digits.slice(8, 10);
+        if (digits.length >= 11) result += ':' + digits.slice(10, 12);
+        onChange(result);
+    };
+
+    const isValid = !value || /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(value);
+
+    return (
+        <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+                {label} {required && <span className="text-red-500">*</span>}
+            </label>
+            <input
+                type="text"
+                value={value}
+                onChange={handleChange}
+                placeholder="DD/MM/YYYY HH:mm"
+                maxLength={16}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F2A44] transition-colors ${!isValid && value ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
+            />
+            {!isValid && value && (
+                <p className="text-xs text-red-600 mt-1">Formato inválido. Usa DD/MM/YYYY HH:mm</p>
             )}
         </div>
     );

@@ -19,19 +19,39 @@ const mapTipoServicio = (codigo) => {
 
 const formatDateCL = (date) => {
   if (!date) return '';
-  const str = String(date).substring(0, 10); // YYYY-MM-DD
-  const [yyyy, mm, dd] = str.split('-');
-  return `${dd}-${mm}-${yyyy}`;
+  const str = String(date).trim();
+  // Ya viene como DD/MM/YYYY (desde getBLQuery con DATE_FORMAT)
+  const matchD = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (matchD) return `${matchD[1]}-${matchD[2]}-${matchD[3]}`;
+  // Viene como YYYY-MM-DD (otros campos)
+  const matchISO = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (matchISO) return `${matchISO[3]}-${matchISO[2]}-${matchISO[1]}`;
+  return str;
 };
 
 const formatDateTimeCL = (date) => {
   if (!date) return '';
-  const str = String(date).replace('T', ' ').substring(0, 16); // YYYY-MM-DD HH:mm
-  const [datePart, timePart] = str.split(' ');
-  const [yyyy, mm, dd] = datePart.split('-');
-  return `${dd}-${mm}-${yyyy} ${timePart}`;
+  const str = String(date).replace('T', ' ').trim();
+  // Ya viene como DD/MM/YYYY HH:mm (desde getBLQuery con DATE_FORMAT)
+  const matchDT = str.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}:\d{2})/);
+  if (matchDT) return `${matchDT[1]}-${matchDT[2]}-${matchDT[3]} ${matchDT[4]}`;
+  // Viene como YYYY-MM-DD HH:mm (otros campos como manifiesto_fecha_zarpe)
+  const matchISO = str.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}:\d{2})/);
+  if (matchISO) return `${matchISO[3]}-${matchISO[2]}-${matchISO[1]} ${matchISO[4]}`;
+  // Solo fecha YYYY-MM-DD sin hora
+  const matchD = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (matchD) return `${matchD[3]}-${matchD[2]}-${matchD[1]} 00:00`;
+  return str;
 };
-
+const parseFechaCL = (str) => {
+  if (!str) return '';
+  str = String(str).trim();
+  const matchDT = str.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}:\d{2})$/);
+  if (matchDT) return `${matchDT[1]}-${matchDT[2]}-${matchDT[3]} ${matchDT[4]}`;
+  const matchD = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (matchD) return `${matchD[1]}-${matchD[2]}-${matchD[3]}`;
+  return formatDateCL(str); // fallback para fechas que vienen de la BD
+};
 // ══════════════════════════════════════════
 // DETECTORES DE TIPO
 // ══════════════════════════════════════════
@@ -108,19 +128,21 @@ const buildParticipaciones = (bl, tipo) => {
 
   // Almacenador — existe en bls para IMPO y carga suelta
   const almData = bl.almacenador_id ? {
-      nombre: bl.almacenador_nombre,
-      rut: bl.almacenador_rut,
-      pais: bl.almacenador_pais || 'CL',
-      tipo_id: 'RUT',
-      nacion_id: bl.almacenador_pais || 'CL'
+    nombre: bl.almacenador_nombre,
+    rut: bl.almacenador_rut,
+    pais: bl.almacenador_pais || 'CL',
+    tipo_id: 'RUT',
+    nacion_id: bl.almacenador_pais || 'CL'
   } : null;
 
   if (esCargaSuelta) {
     // ── CARGA SUELTA (BB) ──────────────────────────────
     // EMI → ALM → REP → EMIDO → EMB → CONS → NOTI
     if (emiData) lista.push(buildParticipacion('EMI', emiData, true, { 'codigo-pais': emiData.pais }, false));
-    if (almData) lista.push(buildParticipacion('ALM', almData, true, { 'codigo-almacen': bl.almacenador_codigo_almacen || '' }, false));
-    if (repData) lista.push(buildParticipacion('REP', repData, true, {}, false));
+    if (almData) {
+      const almSinPais = { ...almData, pais: null };
+      lista.push(buildParticipacion('ALM', almSinPais, true, { 'codigo-almacen': bl.almacenador_codigo_almacen || '' }, false));
+    } if (repData) lista.push(buildParticipacion('REP', repData, true, {}, false));
     if (emidoData) lista.push(buildParticipacion('EMIDO', emidoData, true, {}, false));
     if (shipperData) lista.push(buildParticipacion('EMB', shipperData, false));
     if (consigneeData) lista.push(buildParticipacion('CONS', consigneeData, !!consigneeData.rut));
@@ -218,7 +240,6 @@ const buildItem = (it, contenedores, repData, tipo, bl) => {
   const contsDelItem = contenedores.filter(c => c.item_id === it.id);
   const itemSinVolumen = !(parseFloat(it.volumen) > 0);
   const esPeligroso = String(it.carga_peligrosa || '').toUpperCase() === 'S';
-  console.log('itemSinVolumen:', itemSinVolumen, 'volumen:', it.volumen, 'esImpo:', esImpo); // ← AGREGAR
 
   // IMOs del ítem (union de todos sus contenedores) — necesario en IMPO
   let itemImoList = [];
@@ -250,7 +271,6 @@ const buildItem = (it, contenedores, repData, tipo, bl) => {
       'carga-cnt': 'N'
     };
   }
-  console.log('volumen final:', itemSinVolumen ? 'undefined' : parseFloat(it.volumen || 0).toFixed(2));
 
   return {
     'numero-item': it.numero_item,
@@ -375,7 +395,7 @@ const buildXML = (bl, items, contenedores, transbordos, tipoAccion = 'I') => {
 
       'tipo-accion': tipoAccion,
       'numero-referencia': bl.bl_number,
-         // fecha-recepcion-bl: solo IMPO
+      // fecha-recepcion-bl: solo IMPO
       ...(esImpo && bl.fecha_recepcion_bl && {
         'fecha-recepcion-bl': formatDateTimeCL(bl.fecha_recepcion_bl)
       }),
@@ -389,7 +409,7 @@ const buildXML = (bl, items, contenedores, transbordos, tipoAccion = 'I') => {
       'unidad-volumen': sinVolumen ? undefined : (bl.unidad_volumen || 'MTQ'),
       'total-item': items.length,
 
-   
+
 
       OpTransporte: {
         optransporte: {
@@ -403,12 +423,23 @@ const buildXML = (bl, items, contenedores, transbordos, tipoAccion = 'I') => {
       }),
 
       Fechas: {
-        fecha: [
-          { nombre: 'FPRES', valor: formatDateTimeCL(new Date().toISOString()) },
-          { nombre: 'FEM', valor: formatDateCL(esImpo ? bl.fecha_emision : bl.manifiesto_fecha_zarpe) },
-          bl.manifiesto_fecha_zarpe && { nombre: 'FZARPE', valor: formatDateTimeCL(bl.manifiesto_fecha_zarpe) },
-          bl.manifiesto_fecha_zarpe && { nombre: 'FEMB', valor: `${formatDateCL(bl.manifiesto_fecha_zarpe)} 00:00` }
-        ].filter(Boolean)
+        fecha: (() => {
+          if (esCargaSuelta) {
+            return [
+              { nombre: 'FPRES', valor: formatDateTimeCL(new Date().toISOString()) },
+              { nombre: 'FEM', valor: parseFechaCL(bl.fecha_emision) },
+              bl.fecha_embarque && { nombre: 'FEMB', valor: parseFechaCL(bl.fecha_embarque) },
+              bl.manifiesto_fecha_zarpe && { nombre: 'FZARPE', valor: formatDateTimeCL(bl.manifiesto_fecha_zarpe) }
+            ].filter(Boolean);
+          }
+          // IMPO/EXPO — sin cambios
+          return [
+            { nombre: 'FPRES', valor: formatDateTimeCL(new Date().toISOString()) },
+            { nombre: 'FEM', valor: formatDateCL(esImpo ? bl.fecha_emision : bl.manifiesto_fecha_zarpe) },
+            { nombre: 'FZARPE', valor: formatDateTimeCL(bl.manifiesto_fecha_zarpe) },
+            bl.fecha_embarque && { nombre: 'FEMB', valor: formatDateTimeCL(bl.fecha_embarque) }
+          ].filter(Boolean);
+        })()
       },
 
       Locaciones: {
@@ -452,9 +483,9 @@ const buildXML = (bl, items, contenedores, transbordos, tipoAccion = 'I') => {
     }
   };
 
-const doc = create({ version: '1.0', encoding: 'ISO-8859-1', standalone: esImpo ? true : undefined }, xmlObj); 
- return doc.end({ prettyPrint: true });
- 
+  const doc = create({ version: '1.0', encoding: 'ISO-8859-1', standalone: esImpo ? true : undefined }, xmlObj);
+  return doc.end({ prettyPrint: true });
+
 };
 
 
@@ -465,6 +496,8 @@ const doc = create({ version: '1.0', encoding: 'ISO-8859-1', standalone: esImpo 
 const getBLQuery = () => `
   SELECT
     b.*,
+    DATE_FORMAT(b.fecha_embarque, '%d/%m/%Y %H:%i') AS fecha_embarque,
+    DATE_FORMAT(b.fecha_emision,  '%d/%m/%Y')        AS fecha_emision,
     m.viaje,
     m.tipo_operacion,
     m.numero_referencia,
@@ -550,8 +583,9 @@ module.exports = {
   getTransbordosQuery,
   formatDateCL,
   formatDateTimeCL,
+  parseFechaCL,
   cleanRUT,
   generarReferencias,
   detectarTipo,
-  generarObservaciones, 
+  generarObservaciones,
 };
