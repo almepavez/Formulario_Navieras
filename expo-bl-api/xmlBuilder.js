@@ -49,7 +49,7 @@ const detectarTipo = (bl) => ({
 // PARTICIPACIONES
 // ══════════════════════════════════════════
 
-const buildParticipacion = (nombre, participante, includeRUT = true, extraFields = {}, includeContacto = true) => {
+const buildParticipacion = (nombre, participante, includeRUT = true, extraFields = {}, includeContacto = true, includeNacionId = false) => {
   if (!participante || !participante.nombre) return null;
 
   const p = { nombre };
@@ -57,9 +57,11 @@ const buildParticipacion = (nombre, participante, includeRUT = true, extraFields
   if (includeRUT && participante.rut) {
       p['tipo-id'] = participante.tipo_id || 'RUT';
       p['valor-id'] = cleanRUT(participante.rut);
-      p['nacion-id'] = 'CL';  // RUT siempre es chileno
+      p['nacion-id'] = 'CL';
     } else if (includeRUT && participante.nacion_id) {
-      p['nacion-id'] = participante.nacion_id;  // extranjero sin RUT (solo IMPO)
+      p['nacion-id'] = participante.nacion_id;  // chileno sin RUT (raro) o extranjero con RUT extranjero
+    } else if (includeNacionId && participante.nacion_id) {
+      p['nacion-id'] = participante.nacion_id;  // IMPO sin RUT pero con nacion_id
     }
   p['nombres'] = participante.nombre;
 
@@ -133,8 +135,8 @@ const buildParticipaciones = (bl, tipo) => {
     if (emidoData) lista.push(buildParticipacion('EMIDO', emidoData, true, {}, false));
     if (shipperData) lista.push(buildParticipacion('EMB', shipperData, false));
     // CONS y NOTI en IMPO llevan RUT + nacion-id
-    if (consigneeData) lista.push(buildParticipacion('CONS', consigneeData, !!consigneeData.rut));
-    if (notifyData) lista.push(buildParticipacion('NOTI', notifyData, !!notifyData.rut));
+    if (consigneeData) lista.push(buildParticipacion('CONS', consigneeData, !!consigneeData.rut, {}, true, true));
+    if (notifyData)    lista.push(buildParticipacion('NOTI', notifyData,    !!notifyData.rut,    {}, true, true));
 
   } else {
     // ── EXPO (sentido S) ───────────────────────────────
