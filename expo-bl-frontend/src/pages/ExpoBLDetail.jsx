@@ -313,38 +313,30 @@ const ExpoBLDetail = () => {
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
                     <h2 className="text-lg font-semibold text-[#0F2A44] mb-4">Puertos y Rutas</h2>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div>
-                            <p className="text-xs text-slate-500 mb-1">Lugar Emisión</p>
-                            {bl.lugar_emision_cod
-                                ? [bl.lugar_emision_cod, bl.lugar_emision_nombre].filter(Boolean).join(" — ")
-                                : "—"}                        </div>
-                        <div>
-                            <p className="text-xs text-slate-500 mb-1">Puerto Embarque</p>
-                            {bl.puerto_embarque_cod
-                                ? [bl.puerto_embarque_cod, bl.puerto_embarque_nombre].filter(Boolean).join(" — ")
-                                : "—"}                        </div>
-                        <div>
-                            <p className="text-xs text-slate-500 mb-1">Puerto Descarga</p>
-                            {bl.puerto_descarga_cod
-                                ? [bl.puerto_descarga_cod, bl.puerto_descarga_nombre].filter(Boolean).join(" — ")
-                                : "—"}                        </div>
-                        <div>
-                            <p className="text-xs text-slate-500 mb-1">Lugar Destino</p>
-                            {bl.lugar_destino_cod
-                                ? [bl.lugar_destino_cod, bl.lugar_destino_nombre].filter(Boolean).join(" — ")
-                                : "—"}                        </div>
-                        <div>
-                            <p className="text-xs text-slate-500 mb-1">Lugar Entrega</p>
-                            {bl.lugar_entrega_cod
-                                ? [bl.lugar_entrega_cod, bl.lugar_entrega_nombre].filter(Boolean).join(" — ")
-                                : "—"}                        </div>
-                        <div>
-                            <p className="text-xs text-slate-500 mb-1">Lugar Recepción</p>
-                            {bl.lugar_recepcion_cod
-                                ? [bl.lugar_recepcion_cod, bl.lugar_recepcion_nombre].filter(Boolean).join(" — ")
-                                : "—"}                        </div>
-                    </div>
+{(() => {
+    const esCargaSuelta = bl.tipo_servicio_codigo === 'BB' || bl.tipo_servicio === 'BB';
+    const campos = [
+        !esCargaSuelta && { label: "Lugar Emisión", cod: bl.lugar_emision_cod, nombre: bl.lugar_emision_nombre },
+        { label: "Puerto Embarque", cod: bl.puerto_embarque_cod, nombre: bl.puerto_embarque_nombre },
+        { label: "Puerto Descarga", cod: bl.puerto_descarga_cod, nombre: bl.puerto_descarga_nombre },
+        { label: "Lugar Destino", cod: bl.lugar_destino_cod, nombre: bl.lugar_destino_nombre },
+        { label: "Lugar Entrega", cod: bl.lugar_entrega_cod, nombre: bl.lugar_entrega_nombre },
+        !esCargaSuelta && { label: "Lugar Recepción", cod: bl.lugar_recepcion_cod, nombre: bl.lugar_recepcion_nombre },
+    ].filter(Boolean);
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {campos.map(({ label, cod, nombre }) => (
+                <div key={label}>
+                    <p className="text-xs text-slate-500 mb-1">{label}</p>
+                    <p className="text-sm font-medium text-slate-900">
+                        {cod ? [cod, nombre].filter(Boolean).join(" — ") : "—"}
+                    </p>
+                </div>
+            ))}
+        </div>
+    );
+})()}
                 </div>
 
                 {/* Transbordos CON VALIDACIONES */}
