@@ -759,11 +759,6 @@ const Step2Participantes = ({ formData, setFormData }) => {
         <div className="space-y-6">
             <h2 className="text-lg font-semibold text-slate-800 mb-4">Participantes del BL</h2>
 
-            <div className="bg-slate-50 border border-slate-300 rounded-lg p-4">
-                <p className="text-sm text-slate-700">
-                    ℹ️ <strong>Información de los participantes.</strong> Completa los datos de contacto de cada participante. Al menos uno de los campos (teléfono o email) es obligatorio.
-                </p>
-            </div>
 
             {/* SHIPPER */}
             <div className="border border-slate-300 rounded-lg p-6 bg-white relative">
