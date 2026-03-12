@@ -94,8 +94,33 @@ const ExpoBLEdit = () => {
                 if (resTiposCnt.ok) setTiposContenedor(await resTiposCnt.json());
                 if (resMapeo.ok) setTipoCntTipoBulto(await resMapeo.json());
 
-                const formatDate = d => d ? d.split("T")[0] : "";
-                const formatDateTime = d => d ? d.replace(" ", "T").substring(0, 16) : "";
+                // DD/MM/YYYY — para fecha_emision (MaskedDateInput)
+                const formatDate = (str) => {
+                    if (!str) return "";
+                    const datePart = str.split('T')[0].split(' ')[0];
+                    const [yyyy, mm, dd] = datePart.split('-');
+                    if (!yyyy || !mm || !dd) return "";
+                    return `${dd}/${mm}/${yyyy}`;
+                };
+
+                // DD/MM/YYYY HH:mm — para fechas con hora (MaskedDateTimeInput)
+                const formatDateTime = (str) => {
+                    if (!str) return "";
+                    const clean = str.replace('T', ' ').trim();
+                    const [datePart, timePart] = clean.split(' ');
+                    const [yyyy, mm, dd] = datePart.split('-');
+                    if (!yyyy || !mm || !dd) return "";
+                    let hhmm = '00:00';
+                    if (timePart) {
+                        const [hh, min] = timePart.slice(0, 5).split(':');
+                        const hhNum = parseInt(hh || '0');
+                        const minNum = parseInt(min || '0');
+                        if (hhNum <= 23 && minNum <= 59) {
+                            hhmm = `${String(hhNum).padStart(2, '0')}:${String(minNum).padStart(2, '0')}`;
+                        }
+                    }
+                    return `${dd}/${mm}/${yyyy} ${hhmm}`;
+                };
 
                 setFormData({
                     bl_number: dataBL.bl_number || "", viaje: dataBL.viaje || "",
@@ -495,7 +520,7 @@ const ExpoBLEdit = () => {
             const res = await fetch(`${API_BASE}/api/bls/${blNumber}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(dataToSend) });
             if (!res.ok) { const e = await res.json(); throw new Error(e.error || "Error al guardar"); }
 
-          
+
             // ── Sincronizar almacenista con el mantenedor ──
             if (almacenistaModificado && formData.almacenista_id) {
                 const resAlm = await fetch(`${API_BASE}/api/mantenedores/almacenistas/${formData.almacenista_id}`, {
@@ -677,7 +702,6 @@ const ExpoBLEdit = () => {
                     <h2 className="text-xl font-semibold text-slate-900 mb-2">{steps[currentStep - 1].name}</h2>
                     <p className="text-sm text-slate-500 mb-6">{steps[currentStep - 1].description}</p>
 
-                    {/* ════ STEP 1: GENERAL ════ */}
                     {currentStep === 1 && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div><label className="block text-sm font-medium text-slate-700 mb-2">BL Number</label><input type="text" value={formData.bl_number} disabled className="w-full px-4 py-2 rounded-lg border border-slate-300 bg-slate-50 text-slate-500" /></div>
@@ -690,17 +714,72 @@ const ExpoBLEdit = () => {
                                     <option value="MM">EMPTY (MM)</option>
                                 </select>
                             </div>
-                            <div><label className="block text-sm font-medium text-slate-700 mb-2">Fecha Emisión <span className="text-red-500">*</span></label><input type="date" value={formData.fecha_emision} onChange={e => updateField("fecha_emision", e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500" /></div>
-                            <div><label className="block text-sm font-medium text-slate-700 mb-2">Fecha Presentación <span className="text-red-500">*</span></label><input type="datetime-local" value={formData.fecha_presentacion} onChange={e => updateField("fecha_presentacion", e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500" /></div>
-                            <div><label className="block text-sm font-medium text-slate-700 mb-2">Fecha Zarpe <span className="text-red-500">*</span></label><input type="datetime-local" value={formData.fecha_zarpe} onChange={e => updateField("fecha_zarpe", e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500" /></div>
-                            <div><label className="block text-sm font-medium text-slate-700 mb-2">Fecha Embarque <span className="text-red-500">*</span></label><input type="datetime-local" value={formData.fecha_embarque} onChange={e => updateField("fecha_embarque", e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500" /></div>
+
+                            {/* Fecha Emisión — solo fecha DD/MM/YYYY */}
+                            <MaskedDateInput
+                                label="Fecha Emisión"
+                                value={formData.fecha_emision}
+                                onChange={v => updateField("fecha_emision", v)}
+                                required
+                            />
+
+                            {/* Fecha Presentación — con hora DD/MM/YYYY HH:mm */}
+                            <MaskedDateTimeInput
+                                label="Fecha Presentación"
+                                value={formData.fecha_presentacion}
+                                onChange={v => updateField("fecha_presentacion", v)}
+                                required
+                            />
+
+                            {/* Fecha Zarpe — con hora DD/MM/YYYY HH:mm */}
+                            <MaskedDateTimeInput
+                                label="Fecha Zarpe"
+                                value={formData.fecha_zarpe}
+                                onChange={v => updateField("fecha_zarpe", v)}
+                                required
+                            />
+
+                            {/* Fecha Embarque — con hora DD/MM/YYYY HH:mm */}
+                            <MaskedDateTimeInput
+                                label="Fecha Embarque"
+                                value={formData.fecha_embarque}
+                                onChange={v => updateField("fecha_embarque", v)}
+                                required
+                            />
+
+                            {/* Fecha Recepción BL — opcional, con hora, solo IMPO */}
                             {esImpo && (
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-2">Fecha Recepción BL</label>
-                                    <input type="datetime-local" value={formData.fecha_recepcion_bl} onChange={e => updateField("fecha_recepcion_bl", e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500" />
-                                    <p className="text-xs text-slate-500 mt-1">Opcional — solo aplica en importación</p>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                                        Fecha Recepción BL
+                                        <span className="text-slate-400 text-xs font-normal ml-1">(Opcional)</span>
+                                    </label>
+                                    <div className="flex gap-2 items-center">
+                                        <div className="flex-1">
+                                            <MaskedDateTimeInput
+                                                label=""
+                                                value={formData.fecha_recepcion_bl}
+                                                onChange={v => updateField("fecha_recepcion_bl", v)}
+                                            />
+                                        </div>
+                                        {formData.fecha_recepcion_bl && (
+                                            <button
+                                                type="button"
+                                                onClick={() => updateField("fecha_recepcion_bl", "")}
+                                                className="flex-shrink-0 mb-1 px-3 py-2 rounded-lg border border-red-300 bg-red-50 text-red-600 hover:bg-red-100 transition-colors text-sm font-medium flex items-center gap-1"
+                                                title="Limpiar fecha"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                                Limpiar
+                                            </button>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-slate-500 mt-1">Solo aplica en importación</p>
                                 </div>
                             )}
+
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-2">Forma de Pago Flete {formData.tipo_servicio !== "MM" && <span className="text-red-500">*</span>}</label>
                                 <select value={formData.forma_pago_flete} onChange={e => updateField("forma_pago_flete", e.target.value)} disabled={formData.tipo_servicio === "MM"} className={`w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 ${formData.tipo_servicio === "MM" ? "bg-slate-100 text-slate-400 cursor-not-allowed" : ""}`}>
@@ -729,43 +808,22 @@ const ExpoBLEdit = () => {
                             <div className="border-b pb-6">
                                 <h3 className="font-semibold text-slate-800 mb-4">Lugares de Origen</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {[["lugar_emision", "Lugar Emisión"], ["lugar_recepcion", "Lugar Recepción"]].map(([field, label]) => (
-                                        <div key={field}>
-                                            <label className="block text-sm font-medium text-slate-700 mb-2">{label} <span className="text-red-500">*</span></label>
-                                            <select value={formData[field]} onChange={e => updateField(field, e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500">
-                                                <option value="">Seleccionar lugar...</option>
-                                                {puertos.map(p => <option key={p.id} value={p.codigo}>{p.codigo} - {p.nombre}</option>)}
-                                            </select>
-                                        </div>
-                                    ))}
+                                    <PuertoAutocomplete label="Lugar Emisión" value={formData.lugar_emision} onChange={v => updateField('lugar_emision', v)} puertos={puertos} required />
+                                    <PuertoAutocomplete label="Lugar Recepción" value={formData.lugar_recepcion} onChange={v => updateField('lugar_recepcion', v)} puertos={puertos} required />
                                 </div>
                             </div>
                             <div className="border-b pb-6">
                                 <h3 className="font-semibold text-slate-800 mb-4">Puertos Principales</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {[["puerto_embarque", "Puerto Embarque"], ["puerto_descarga", "Puerto Descarga"]].map(([field, label]) => (
-                                        <div key={field}>
-                                            <label className="block text-sm font-medium text-slate-700 mb-2">{label} <span className="text-red-500">*</span></label>
-                                            <select value={formData[field]} onChange={e => updateField(field, e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500">
-                                                <option value="">Seleccionar puerto...</option>
-                                                {puertos.map(p => <option key={p.id} value={p.codigo}>{p.codigo} - {p.nombre}</option>)}
-                                            </select>
-                                        </div>
-                                    ))}
+                                    <PuertoAutocomplete label="PE - Puerto Embarque" value={formData.puerto_embarque} onChange={v => updateField('puerto_embarque', v)} puertos={puertos} required />
+                                    <PuertoAutocomplete label="PD - Puerto Descarga" value={formData.puerto_descarga} onChange={v => updateField('puerto_descarga', v)} puertos={puertos} required />
                                 </div>
                             </div>
                             <div className="border-b pb-6">
                                 <h3 className="font-semibold text-slate-800 mb-4">Lugares de Destino</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {[["lugar_destino", "Lugar Destino"], ["lugar_entrega", "Lugar Entrega"]].map(([field, label]) => (
-                                        <div key={field}>
-                                            <label className="block text-sm font-medium text-slate-700 mb-2">{label} <span className="text-red-500">*</span></label>
-                                            <select value={formData[field]} onChange={e => updateField(field, e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500">
-                                                <option value="">Seleccionar lugar...</option>
-                                                {puertos.map(p => <option key={p.id} value={p.codigo}>{p.codigo} - {p.nombre}</option>)}
-                                            </select>
-                                        </div>
-                                    ))}
+                                    <PuertoAutocomplete label="LD - Lugar Destino" value={formData.lugar_destino} onChange={v => updateField('lugar_destino', v)} puertos={puertos} required />
+                                    <PuertoAutocomplete label="LEM - Lugar Entrega" value={formData.lugar_entrega} onChange={v => updateField('lugar_entrega', v)} puertos={puertos} required />
                                 </div>
                             </div>
                             <div>
@@ -1296,6 +1354,161 @@ const ExpoBLEdit = () => {
             </main>
 
             <CrearPuertoModal isOpen={showCrearPuertoModal} onClose={() => setShowCrearPuertoModal(false)} onPuertoCreado={handlePuertoCreado} />
+        </div>
+    );
+};
+const PuertoAutocomplete = ({ label, value, onChange, puertos, required }) => {
+    const [query, setQuery] = useState(value || '');
+    const [open, setOpen] = useState(false);
+    const containerRef = useRef(null);
+
+    useEffect(() => {
+        const handler = (e) => {
+            if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    useEffect(() => {
+        setQuery(value || '');
+    }, [value]);
+
+    const todasOpciones = [];
+    puertos.forEach(p => {
+        if (p.codigo_sidemar && p.codigo_sidemar !== p.codigo) {
+            todasOpciones.push({ codigo: p.codigo_sidemar, nombre: p.nombre, esSidemar: true });
+        }
+        todasOpciones.push({ codigo: p.codigo, nombre: p.nombre, esSidemar: false });
+    });
+
+    const filtradas = query.length >= 1
+        ? todasOpciones.filter(op =>
+            op.codigo.toUpperCase().includes(query.toUpperCase()) ||
+            op.nombre.toUpperCase().includes(query.toUpperCase())
+        ).slice(0, 8)
+        : [];
+
+    const handleSelect = (op) => {
+        setQuery(op.codigo);
+        onChange(op.codigo);
+        setOpen(false);
+    };
+
+    const handleInputChange = (e) => {
+        const v = e.target.value.toUpperCase();
+        setQuery(v);
+        onChange(v);
+        setOpen(true);
+    };
+
+    return (
+        <div className="relative" ref={containerRef}>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+                {label} {required && <span className="text-red-500">*</span>}
+            </label>
+            <input
+                type="text"
+                value={query}
+                onChange={handleInputChange}
+                onFocus={() => { if (query.length >= 1) setOpen(true); }}
+                placeholder="Escribe código o nombre..."
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F2A44] transition-colors"
+            />
+            {open && filtradas.length > 0 && (
+                <div className="absolute left-0 top-full mt-2 z-50 w-full min-w-[280px] bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden">
+                    <div className="px-4 py-2 bg-slate-50 border-b border-slate-200">
+                        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                            Puertos disponibles · {filtradas.length} resultado{filtradas.length !== 1 ? 's' : ''}
+                        </p>
+                    </div>
+                    <div className="py-1 max-h-60 overflow-y-auto">
+                        {filtradas.map((op, i) => {
+                            const isSelected = op.codigo === value;
+                            return (
+                                <button
+                                    key={i}
+                                    type="button"
+                                    onMouseDown={() => handleSelect(op)}
+                                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors border-l-4 ${isSelected ? 'border-l-[#0F2A44] bg-slate-100' : 'border-l-transparent hover:bg-slate-50'}`}
+                                >
+                                    <span className={`flex-shrink-0 px-2 py-1 rounded-lg text-xs font-bold font-mono border ${op.esSidemar ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                                        {op.codigo}
+                                    </span>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-semibold text-slate-800 truncate">{op.nombre}</span>
+                                            {isSelected && <span className="text-[10px] bg-slate-200 text-slate-500 rounded px-1.5 py-0.5 font-medium flex-shrink-0">Activo</span>}
+                                        </div>
+                                        {op.esSidemar && <p className="text-[11px] text-amber-600 font-medium mt-0.5">Código SIDEMAR</p>}
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const MaskedDateInput = ({ label, value, onChange, required }) => {
+    const handleChange = (e) => {
+        let v = e.target.value.replace(/\D/g, '');
+        if (v.length >= 3) v = v.slice(0, 2) + '/' + v.slice(2);
+        if (v.length >= 6) v = v.slice(0, 5) + '/' + v.slice(5);
+        v = v.slice(0, 10);
+        onChange(v);
+    };
+    const isValid = !value || /^\d{2}\/\d{2}\/\d{4}$/.test(value);
+    return (
+        <div>
+            {label && (
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                    {label} {required && <span className="text-red-500">*</span>}
+                </label>
+            )}
+            <input
+                type="text"
+                value={value}
+                onChange={handleChange}
+                placeholder="DD/MM/YYYY"
+                maxLength={10}
+                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-colors ${!isValid && value ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
+            />
+            {!isValid && value && <p className="text-xs text-red-600 mt-1">Formato inválido. Usa DD/MM/YYYY</p>}
+        </div>
+    );
+};
+
+const MaskedDateTimeInput = ({ label, value, onChange, required }) => {
+    const handleChange = (e) => {
+        const digits = e.target.value.replace(/\D/g, '');
+        let result = '';
+        if (digits.length >= 1) result = digits.slice(0, 2);
+        if (digits.length >= 3) result += '/' + digits.slice(2, 4);
+        if (digits.length >= 5) result += '/' + digits.slice(4, 8);
+        if (digits.length >= 9) result += ' ' + digits.slice(8, 10);
+        if (digits.length >= 11) result += ':' + digits.slice(10, 12);
+        onChange(result);
+    };
+    const isValid = !value || /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(value);
+    return (
+        <div>
+            {label && (
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                    {label} {required && <span className="text-red-500">*</span>}
+                </label>
+            )}
+            <input
+                type="text"
+                value={value}
+                onChange={handleChange}
+                placeholder="DD/MM/YYYY HH:mm"
+                maxLength={16}
+                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-colors ${!isValid && value ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
+            />
+            {!isValid && value && <p className="text-xs text-red-600 mt-1">Formato inválido. Usa DD/MM/YYYY HH:mm</p>}
         </div>
     );
 };

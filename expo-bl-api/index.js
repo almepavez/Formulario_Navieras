@@ -16,7 +16,7 @@ const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const { create } = require('xmlbuilder2');
 const archiver = require('archiver');
-const { 
+const {
   buildXML, getBLQuery, getContenedoresQuery, getTransbordosQuery,
   detectarTipo, generarObservaciones  // ← NUEVO
 } = require('./xmlBuilder');
@@ -1204,7 +1204,7 @@ app.delete("/api/mantenedores/puertos/:id", async (req, res) => {
 app.get("/api/puertos", async (_req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT id, codigo, nombre, pais FROM puertos ORDER BY nombre"
+      "SELECT id, codigo, codigo_sidemar, nombre, pais FROM puertos ORDER BY nombre"
     );
     res.json(rows);
   } catch (error) {
@@ -2745,8 +2745,8 @@ function parseLine51(raw, esEmpty = false) {
   // ===========================
   const sellos = [];
   if (tail) {
-// MÁS SEGURO: ampliar prefijos conocidos
-const mSeal = tail.match(/\b[A-Z]{1,4}[0-9A-Z]{4,}\b|\b\d{5,10}\b/g);    if (mSeal) for (const s of mSeal) if (!sellos.includes(s)) sellos.push(s);
+    // MÁS SEGURO: ampliar prefijos conocidos
+    const mSeal = tail.match(/\b[A-Z]{1,4}[0-9A-Z]{4,}\b|\b\d{5,10}\b/g); if (mSeal) for (const s of mSeal) if (!sellos.includes(s)) sellos.push(s);
   }
 
   return {
@@ -3195,7 +3195,7 @@ function parseLegs14(lines14) {
     if (!m) continue;
 
     const mDates = s.match(/(\d{12})\s*(\d{12})/);
-    const fechaEmb  = mDates ? parseYYYYMMDDHHMM(mDates[1]) : null;
+    const fechaEmb = mDates ? parseYYYYMMDDHHMM(mDates[1]) : null;
     const fechaZarpe = mDates ? parseYYYYMMDDHHMM(mDates[2]) : null;
 
     legs.push({ step, from: m[1], to: m[2], fechaEmb, fechaZarpe });
@@ -3430,7 +3430,7 @@ function parsePmsTxt(content) {
         consignee_telefono: consigneeContact.telefono,
         consignee_email: consigneeContact.email,
         consignee_codigo_pil: consigneeData.codigo_pil,
-        consignee_rut: consigneeData.rut,    
+        consignee_rut: consigneeData.rut,
         consignee_nacion_id: consigneeData.pais,
 
         notify,
@@ -5014,60 +5014,118 @@ app.put("/api/bls/:blNumber/carga-suelta", async (req, res) => {
   const { blNumber } = req.params;
   const {
     forma_pago_flete, cond_transporte, fecha_emision, fecha_presentacion,
-    fecha_embarque, fecha_zarpe, lugar_emision, lugar_recepcion, puerto_embarque,
-    puerto_descarga, lugar_destino, lugar_entrega, shipper_id, consignee_id,
-    notify_id, almacenador_id, shipper, consignee, notify_party, almacenador,
+    fecha_embarque, puerto_embarque, puerto_descarga, lugar_destino, lugar_entrega,
+    almacenador_id, shipper, consignee, notify_party, almacenador,
     shipper_direccion, shipper_telefono, shipper_email,
-    consignee_direccion, consignee_telefono, consignee_email,
-    notify_direccion, notify_telefono, notify_email, items, observaciones
+    consignee_rut, consignee_direccion, consignee_telefono, consignee_email,
+    notify_rut, notify_direccion, notify_telefono, notify_email,
+    items, observaciones
   } = req.body;
+
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
+
     const [blRows] = await conn.query("SELECT id FROM bls WHERE bl_number = ? LIMIT 1", [blNumber]);
-    if (blRows.length === 0) { await conn.rollback(); return res.status(404).json({ error: "BL no encontrado" }); }
+    if (blRows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: "BL no encontrado" });
+    }
     const blId = blRows[0].id;
+
+    // ─── Convertir fecha DD/MM/YYYY → YYYY-MM-DD ───────────────────────────
+    // Reemplaza parseFecha por esta:
+    const parseFechaCLtoMySQL = (str) => {
+      if (!str) return null;
+      str = String(str).trim();
+      const matchDT = str.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}:\d{2})$/);
+      if (matchDT) return `${matchDT[3]}-${matchDT[2]}-${matchDT[1]} ${matchDT[4]}`;
+      const matchD = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (matchD) return `${matchD[3]}-${matchD[2]}-${matchD[1]}`;
+      return str; // ya viene en formato MySQL, lo deja igual
+    };
+
+    // Actualiza las 3 llamadas:
+    const fecha_emision_sql = parseFechaCLtoMySQL(fecha_emision);
+    const fecha_presentacion_sql = parseFechaCLtoMySQL(fecha_presentacion);
+    const fecha_embarque_sql = parseFechaCLtoMySQL(fecha_embarque);
+
+    // ─── Resolver IDs de puertos ────────────────────────────────────────────
     const resolvePortId = async (codigo) => {
       if (!codigo) return null;
       const [rows] = await conn.query("SELECT id FROM puertos WHERE codigo = ? LIMIT 1", [codigo]);
       return rows.length > 0 ? rows[0].id : null;
     };
-    const lugar_emision_id = await resolvePortId(lugar_emision);
-    const lugar_recepcion_id = await resolvePortId(lugar_recepcion);
+
     const puerto_embarque_id = await resolvePortId(puerto_embarque);
     const puerto_descarga_id = await resolvePortId(puerto_descarga);
     const lugar_destino_id = await resolvePortId(lugar_destino);
     const lugar_entrega_id = await resolvePortId(lugar_entrega);
+
     await conn.query(`
-      UPDATE bls SET forma_pago_flete=?, cond_transporte=?, fecha_emision=?, fecha_presentacion=?,
-        fecha_embarque=?, fecha_zarpe=?, lugar_emision_id=?, lugar_recepcion_id=?, puerto_embarque_id=?,
-        puerto_descarga_id=?, lugar_destino_id=?, lugar_entrega_id=?, shipper_id=?, consignee_id=?,
-        notify_id=?, almacenador_id=?, shipper=?, consignee=?, notify_party=?, almacenador=?,
-        shipper_direccion=?, shipper_telefono=?, shipper_email=?, consignee_direccion=?,
-        consignee_telefono=?, consignee_email=?, notify_direccion=?, notify_telefono=?, notify_email=?,
-        observaciones=?, updated_at=NOW() WHERE id=?
+      UPDATE bls SET
+        forma_pago_flete=?, cond_transporte=?,
+        fecha_emision=?, fecha_presentacion=?, fecha_embarque=?,
+        fecha_zarpe=NULL, lugar_emision_id=NULL, lugar_recepcion_id=NULL,
+        puerto_embarque_id=?, puerto_descarga_id=?,
+        lugar_destino_id=?, lugar_entrega_id=?,
+        almacenador_id=?,
+        shipper=?, consignee=?, notify_party=?, almacenador=?,
+        shipper_direccion=?, shipper_telefono=?, shipper_email=?,
+        consignee_rut=?, consignee_direccion=?, consignee_telefono=?, consignee_email=?,
+        notify_rut=?, notify_direccion=?, notify_telefono=?, notify_email=?,
+        observaciones=?, updated_at=NOW()
+      WHERE id=?
     `, [
-      forma_pago_flete, cond_transporte, fecha_emision, fecha_presentacion, fecha_embarque, fecha_zarpe,
-      lugar_emision_id, lugar_recepcion_id, puerto_embarque_id, puerto_descarga_id, lugar_destino_id, lugar_entrega_id,
-      shipper_id, consignee_id, notify_id, almacenador_id, shipper, consignee, notify_party, almacenador,
+      forma_pago_flete, cond_transporte,
+      fecha_emision_sql, fecha_presentacion_sql, fecha_embarque_sql,
+      puerto_embarque_id, puerto_descarga_id,
+      lugar_destino_id, lugar_entrega_id,
+      almacenador_id || null,
+      shipper, consignee, notify_party || null, almacenador || null,
       shipper_direccion || null, shipper_telefono || null, shipper_email || null,
-      consignee_direccion || null, consignee_telefono || null, consignee_email || null,
-      notify_direccion || null, notify_telefono || null, notify_email || null,
-      observaciones ? JSON.stringify(observaciones) : null, blId
+      consignee_rut || null, consignee_direccion || null, consignee_telefono || null, consignee_email || null,
+      notify_rut || null, notify_direccion || null, notify_telefono || null, notify_email || null,
+      observaciones ? JSON.stringify(observaciones) : null,
+      blId
     ]);
+
+    // ─── Items ──────────────────────────────────────────────────────────────
     await conn.query("DELETE FROM bl_items WHERE bl_id = ?", [blId]);
     if (Array.isArray(items) && items.length > 0) {
       for (const item of items) {
-        await conn.query(`INSERT INTO bl_items (bl_id, numero_item, marcas, tipo_bulto, descripcion, cantidad, peso_bruto, unidad_peso, volumen, unidad_volumen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [blId, item.numero_item, item.marcas || 'N/M', item.tipo_bulto, item.descripcion, item.cantidad, item.peso_bruto, item.unidad_peso, item.volumen || 0, item.unidad_volumen]);
+        await conn.query(`
+          INSERT INTO bl_items
+            (bl_id, numero_item, marcas, tipo_bulto, descripcion, cantidad, peso_bruto, unidad_peso, volumen, unidad_volumen)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          blId, item.numero_item, item.marcas || 'N/M', item.tipo_bulto,
+          item.descripcion, item.cantidad, item.peso_bruto,
+          item.unidad_peso, item.volumen || 0, item.unidad_volumen
+        ]);
       }
     }
+
+    // ─── Totales ────────────────────────────────────────────────────────────
     const totalPeso = items.reduce((sum, i) => sum + parseFloat(i.peso_bruto || 0), 0);
     const totalVolumen = items.reduce((sum, i) => sum + parseFloat(i.volumen || 0), 0);
     const totalBultos = items.reduce((sum, i) => sum + parseInt(i.cantidad || 0), 0);
-    await conn.query(`UPDATE bls SET bultos=?, peso_bruto=?, volumen=? WHERE id=?`, [totalBultos, totalPeso, totalVolumen, blId]);
+
+    await conn.query(
+      `UPDATE bls SET bultos=?, peso_bruto=?, volumen=? WHERE id=?`,
+      [totalBultos, totalPeso, totalVolumen, blId]
+    );
+
     await conn.commit();
-    res.json({ success: true, bl_number: blNumber, total_items: items.length, bultos: totalBultos, peso_bruto: totalPeso, volumen: totalVolumen });
+    res.json({
+      success: true,
+      bl_number: blNumber,
+      total_items: items.length,
+      bultos: totalBultos,
+      peso_bruto: totalPeso,
+      volumen: totalVolumen
+    });
+
   } catch (error) {
     await conn.rollback();
     console.error("Error actualizando carga suelta:", error);
@@ -5111,44 +5169,36 @@ app.post("/api/admin/pms51/tokens/reload", async (req, res) => {
 
 function validateBLForXML(bl) {
   const errors = [];
+  const esCargaSuelta = bl.tipo_servicio_codigo === 'BB';
 
-  // Campos obligatorios
-  if (!bl.bl_number || bl.bl_number.trim() === '') {
+  if (!bl.bl_number || bl.bl_number.trim() === '')
     errors.push("Falta número de BL");
-  }
 
-  if (!bl.shipper || bl.shipper.trim() === '') {
+  if (!bl.shipper || bl.shipper.trim() === '')
     errors.push("Falta Shipper");
-  }
 
-  // Lugar Destino (LD)
-  if (!bl.lugar_destino_codigo && !bl.lugar_destino_id) {
-    errors.push("Falta Lugar de Destino (LD)");
-  }
-
-  // Lugar Entrega (LEM)
-  if (!bl.lugar_entrega_codigo && !bl.lugar_entrega_id) {
-    errors.push("Falta Lugar de Entrega (LEM)");
-  }
-
-  // Lugar Recepción (LRM)
-  if (!bl.lugar_recepcion_codigo && !bl.lugar_recepcion_id) {
-    errors.push("Falta Lugar de Recepción (LRM)");
-  }
-  if (!bl.consignee || bl.consignee.trim() === '') {
+  if (!bl.consignee || bl.consignee.trim() === '')
     errors.push("Falta Consignee");
-  }
 
-  if (!bl.puerto_embarque_codigo && !bl.puerto_embarque_id) {
+  if (!bl.puerto_embarque_codigo && !bl.puerto_embarque_id)
     errors.push("Falta Puerto de Embarque (POL)");
-  }
 
-  if (!bl.puerto_descarga_codigo && !bl.puerto_descarga_id) {
+  if (!bl.puerto_descarga_codigo && !bl.puerto_descarga_id)
     errors.push("Falta Puerto de Descarga (POD)");
-  }
 
-  if (!bl.lugar_emision_codigo && !bl.lugar_emision_id) {
-    errors.push("Falta Lugar de Emisión (LE)");
+  if (!bl.lugar_destino_codigo && !bl.lugar_destino_id)
+    errors.push("Falta Lugar de Destino (LD)");
+
+  if (!bl.lugar_entrega_codigo && !bl.lugar_entrega_id)
+    errors.push("Falta Lugar de Entrega (LEM)");
+
+  // Solo para IMPO/EXPO — carga suelta no los usa
+  if (!esCargaSuelta) {
+    if (!bl.lugar_emision_codigo && !bl.lugar_emision_id)
+      errors.push("Falta Lugar de Emisión (LE)");
+
+    if (!bl.lugar_recepcion_codigo && !bl.lugar_recepcion_id)
+      errors.push("Falta Lugar de Recepción (LRM)");
   }
 
   return {
@@ -5406,35 +5456,35 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
       );
 
       const esCargaSuelta = bl.tipo_servicio_codigo === 'BB';
-let contenedores = [];
+      let contenedores = [];
 
-if (!esCargaSuelta) {
-  const [contRows] = await pool.query(getContenedoresQuery(), [bl.id]);
-  contenedores = contRows;
+      if (!esCargaSuelta) {
+        const [contRows] = await pool.query(getContenedoresQuery(), [bl.id]);
+        contenedores = contRows;
 
-  const erroresIMO = [];
-  for (const item of items) {
-    if (String(item.carga_peligrosa || '').toUpperCase() === 'S') {
-      contenedores
-        .filter(c => c.item_id === item.id)
-        .forEach(c => {
-          if (!c.imo_data)
-            erroresIMO.push({
-              bl_number: blNumber,
-              item: item.numero_item,
-              contenedor: c.codigo,
-              mensaje: "Contenedor sin datos IMO"
-            });
-        });
-    }
-  }
-  if (erroresIMO.length > 0) {
-    return res.status(400).json({
-      error: "Contenedores de carga peligrosa sin datos IMO",
-      details: erroresIMO
-    });
-  }
-}
+        const erroresIMO = [];
+        for (const item of items) {
+          if (String(item.carga_peligrosa || '').toUpperCase() === 'S') {
+            contenedores
+              .filter(c => c.item_id === item.id)
+              .forEach(c => {
+                if (!c.imo_data)
+                  erroresIMO.push({
+                    bl_number: blNumber,
+                    item: item.numero_item,
+                    contenedor: c.codigo,
+                    mensaje: "Contenedor sin datos IMO"
+                  });
+              });
+          }
+        }
+        if (erroresIMO.length > 0) {
+          return res.status(400).json({
+            error: "Contenedores de carga peligrosa sin datos IMO",
+            details: erroresIMO
+          });
+        }
+      }
 
       const [transbordos] = await pool.query(getTransbordosQuery(), [bl.id]);
 
@@ -5788,7 +5838,7 @@ async function revalidarBLCompleto(conn, blId) {
     }
   }
 
-if (esImpoValidacion) {
+  if (esImpoValidacion) {
     if (!bl.almacenador_id) {
       vals.push({
         nivel: "BL", severidad: "ERROR", campo: "almacenador_id",
@@ -6241,6 +6291,24 @@ app.put("/api/bls/:blNumber", async (req, res) => {
       'lugar_emision'
     ];
 
+    // Convierte DD/MM/YYYY o DD/MM/YYYY HH:mm → formato MySQL
+   const parseFechaCLtoMySQL = (str) => {
+  if (!str) return null;
+  str = String(str).trim();
+  // DD/MM/YYYY HH:mm o DD/MM/YYYY HH:mm:ss
+  const matchDT = str.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}:\d{2})(:\d{2})?$/);
+  if (matchDT) return `${matchDT[3]}-${matchDT[2]}-${matchDT[1]} ${matchDT[4]}`;
+  // DD/MM/YYYY
+  const matchD = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (matchD) return `${matchD[3]}-${matchD[2]}-${matchD[1]}`;
+  return str;
+};
+
+    const fechaFields = ['fecha_emision', 'fecha_presentacion', 'fecha_zarpe', 'fecha_embarque', 'fecha_recepcion_bl'];
+    for (const f of fechaFields) {
+      if (updates[f] !== undefined) updates[f] = parseFechaCLtoMySQL(updates[f]);
+    }
+
     for (const field of Object.keys(updates)) {
       const value = updates[field];
 
@@ -6444,7 +6512,6 @@ app.post("/api/manifiestos/:id/carga-suelta", async (req, res) => {
     fecha_emision,
     fecha_presentacion,
     fecha_embarque,
-    fecha_zarpe,
 
     puerto_embarque,
     puerto_descarga,
@@ -6453,13 +6520,13 @@ app.post("/api/manifiestos/:id/carga-suelta", async (req, res) => {
     lugar_entrega,
     lugar_recepcion,
 
-    // 🔥 IDs de participantes
     shipper_id,
     consignee_id,
     notify_id,
-    almacenador_id,    // ✅ YA ESTÁ EN EL DESTRUCTURING
+    almacenador_id,
+    consignee_rut,
+    notify_rut,
 
-    // Backward compatibility: si viene texto, lo guardamos también
     shipper,
     consignee,
     notify_party,
@@ -6483,12 +6550,24 @@ app.post("/api/manifiestos/:id/carga-suelta", async (req, res) => {
     observaciones
   } = req.body;
 
+  // Convierte DD/MM/YYYY o DD/MM/YYYY HH:mm → formato MySQL (YYYY-MM-DD o YYYY-MM-DD HH:mm)
+  const parseFechaCLtoMySQL = (str) => {
+    if (!str) return null;
+    str = String(str).trim();
+    // DD/MM/YYYY HH:mm → YYYY-MM-DD HH:mm
+    const matchDT = str.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}:\d{2})$/);
+    if (matchDT) return `${matchDT[3]}-${matchDT[2]}-${matchDT[1]} ${matchDT[4]}`;
+    // DD/MM/YYYY → YYYY-MM-DD
+    const matchD = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (matchD) return `${matchD[3]}-${matchD[2]}-${matchD[1]}`;
+    return str; // ya viene en formato MySQL, dejarlo igual
+  };
+
   const connection = await pool.getConnection();
 
   try {
     await connection.beginTransaction();
 
-    // Validaciones previas (mantener las que ya tienes)
     if (tipo_servicio !== 'BB') {
       throw new Error('El tipo de servicio debe ser BB (Break Bulk) para carga suelta');
     }
@@ -6497,9 +6576,7 @@ app.post("/api/manifiestos/:id/carga-suelta", async (req, res) => {
       'SELECT id, viaje FROM manifiestos WHERE id = ?',
       [manifiestoId]
     );
-    if (manifiestos.length === 0) {
-      throw new Error('Manifiesto no encontrado');
-    }
+    if (manifiestos.length === 0) throw new Error('Manifiesto no encontrado');
 
     const [blsExistentes] = await connection.query(
       'SELECT id FROM bls WHERE bl_number = ?',
@@ -6509,19 +6586,14 @@ app.post("/api/manifiestos/:id/carga-suelta", async (req, res) => {
       throw new Error(`El BL ${bl_number} ya existe en el sistema`);
     }
 
-    // Validar campos obligatorios
     const camposObligatorios = [
       { campo: bl_number, nombre: 'N° de BL' },
-
-      // DESPUÉS (valida los textos que sí vienen)
       { campo: shipper, nombre: 'Shipper' },
       { campo: consignee, nombre: 'Consignee' },
       { campo: puerto_embarque, nombre: 'Puerto de Embarque' },
       { campo: puerto_descarga, nombre: 'Puerto de Descarga' },
       { campo: lugar_destino, nombre: 'Lugar de Destino' },
-      { campo: lugar_emision, nombre: 'Lugar de Emisión' },
       { campo: lugar_entrega, nombre: 'Lugar de Entrega' },
-      { campo: lugar_recepcion, nombre: 'Lugar de Recepción' },
       { campo: fecha_presentacion, nombre: 'Fecha de Presentación' }
     ];
 
@@ -6536,160 +6608,124 @@ app.post("/api/manifiestos/:id/carga-suelta", async (req, res) => {
     }
 
     for (const item of items) {
-      if (!item.descripcion || item.descripcion.trim() === '') {
+      if (!item.descripcion || item.descripcion.trim() === '')
         throw new Error(`El item #${item.numero_item} debe tener descripción`);
-      }
-      if (!item.tipo_bulto || item.tipo_bulto.trim() === '') {
+      if (!item.tipo_bulto || item.tipo_bulto.trim() === '')
         throw new Error(`El item #${item.numero_item} debe tener tipo de bulto`);
-      }
-      if (!item.peso_bruto || parseFloat(item.peso_bruto) <= 0) {
+      if (!item.peso_bruto || parseFloat(item.peso_bruto) <= 0)
         throw new Error(`El item #${item.numero_item} debe tener peso bruto mayor a 0`);
-      }
-      if (!item.cantidad || parseInt(item.cantidad) <= 0) {
+      if (!item.cantidad || parseInt(item.cantidad) <= 0)
         throw new Error(`El item #${item.numero_item} debe tener cantidad mayor a 0`);
-      }
     }
 
-    // Obtener tipo_servicio_id
     const [tiposServicio] = await connection.query(
-      'SELECT id FROM tipos_servicio WHERE codigo = ?',
-      ['BB']
+      'SELECT id FROM tipos_servicio WHERE codigo = ?', ['BB']
     );
-    if (tiposServicio.length === 0) {
-      throw new Error('Tipo de servicio BB no encontrado.');
-    }
+    if (tiposServicio.length === 0) throw new Error('Tipo de servicio BB no encontrado.');
     const tipo_servicio_id = tiposServicio[0].id;
 
-    // Función auxiliar para obtener puerto
     const obtenerPuerto = async (codigo, nombreCampo) => {
-      if (!codigo || codigo.trim() === '') {
+      if (!codigo || codigo.trim() === '')
         throw new Error(`El campo ${nombreCampo} es obligatorio`);
-      }
-
       const codigoUpper = codigo.toUpperCase().trim();
-
       const [rows] = await connection.query(
-        'SELECT id, codigo FROM puertos WHERE codigo = ?',
-        [codigoUpper]
+        'SELECT id, codigo FROM puertos WHERE codigo = ? OR codigo_sidemar = ?',
+        [codigoUpper, codigoUpper]
       );
-
-      if (rows.length === 0) {
+      if (rows.length === 0)
         throw new Error(`El puerto '${codigoUpper}' (${nombreCampo}) no existe en el mantenedor`);
-      }
-
       return rows[0];
     };
 
     const puertoEmbarque = await obtenerPuerto(puerto_embarque, 'Puerto de Embarque');
     const puertoDescarga = await obtenerPuerto(puerto_descarga, 'Puerto de Descarga');
     const lugarDestino = await obtenerPuerto(lugar_destino, 'Lugar de Destino');
-    const lugarEmision = await obtenerPuerto(lugar_emision, 'Lugar de Emisión');
     const lugarEntrega = await obtenerPuerto(lugar_entrega, 'Lugar de Entrega');
-    const lugarRecepcion = await obtenerPuerto(lugar_recepcion, 'Lugar de Recepción');
 
-    // 🔥 OBTENER NOMBRES DE PARTICIPANTES DESDE BD (para backward compatibility)
+    // lugar_emision y lugar_recepcion opcionales para carga suelta
+    const lugarEmision = lugar_emision ? await obtenerPuerto(lugar_emision, 'Lugar de Emisión') : null;
+    const lugarRecepcion = lugar_recepcion ? await obtenerPuerto(lugar_recepcion, 'Lugar de Recepción') : null;
+
     let shipperNombre = shipper || null;
     let consigneeNombre = consignee || null;
     let notifyNombre = notify_party || null;
-    let almacenadorNombre = almacenador || null;  // ✅ DECLARAR AQUÍ
+    let almacenadorNombre = almacenador || null;
 
     if (shipper_id && !shipperNombre) {
-      const [rows] = await connection.query(
-        'SELECT nombre FROM participantes WHERE id = ?',
-        [shipper_id]
-      );
+      const [rows] = await connection.query('SELECT nombre FROM participantes WHERE id = ?', [shipper_id]);
       shipperNombre = rows.length > 0 ? rows[0].nombre : null;
     }
-
     if (consignee_id && !consigneeNombre) {
-      const [rows] = await connection.query(
-        'SELECT nombre FROM participantes WHERE id = ?',
-        [consignee_id]
-      );
+      const [rows] = await connection.query('SELECT nombre FROM participantes WHERE id = ?', [consignee_id]);
       consigneeNombre = rows.length > 0 ? rows[0].nombre : null;
     }
-
     if (notify_id && !notifyNombre) {
-      const [rows] = await connection.query(
-        'SELECT nombre FROM participantes WHERE id = ?',
-        [notify_id]
-      );
+      const [rows] = await connection.query('SELECT nombre FROM participantes WHERE id = ?', [notify_id]);
       notifyNombre = rows.length > 0 ? rows[0].nombre : null;
     }
-
-    // ✅ AHORA SÍ USAR almacenadorNombre
     if (almacenador_id && !almacenadorNombre) {
-      const [rows] = await connection.query(
-        'SELECT nombre FROM participantes WHERE id = ?',
-        [almacenador_id]
-      );
+      const [rows] = await connection.query('SELECT nombre FROM participantes WHERE id = ?', [almacenador_id]);
       almacenadorNombre = rows.length > 0 ? rows[0].nombre : null;
     }
 
-    // Calcular totales
-    const peso_bruto_total = items.reduce((sum, item) =>
-      sum + parseFloat(item.peso_bruto || 0), 0
-    );
+    const peso_bruto_total = items.reduce((sum, i) => sum + parseFloat(i.peso_bruto || 0), 0);
+    const volumen_total = items.reduce((sum, i) => sum + parseFloat(i.volumen || 0), 0);
+    const bultos_total = items.reduce((sum, i) => sum + parseInt(i.cantidad || 0), 0);
 
-    const volumen_total = items.reduce((sum, item) =>
-      sum + parseFloat(item.volumen || 0), 0
-    );
+    // ✅ Convertir fechas de DD/MM/YYYY a YYYY-MM-DD para MySQL
+    const fechaEmisionSQL = parseFechaCLtoMySQL(fecha_emision);
+    const fechaPresentacionSQL = parseFechaCLtoMySQL(fecha_presentacion);
+    const fechaEmbarqueSQL = parseFechaCLtoMySQL(fecha_embarque);
 
-    const bultos_total = items.reduce((sum, item) =>
-      sum + parseInt(item.cantidad || 0), 0
-    );
-
-    // 🔥 INSERTAR BL CON IDs DE PARTICIPANTES
     const [blResult] = await connection.query(
       `INSERT INTO bls (
-    manifiesto_id, bl_number, tipo_servicio_id, forma_pago_flete, cond_transporte,
-    shipper_id, consignee_id, notify_id, almacenador_id,
-    shipper, shipper_direccion, shipper_telefono, shipper_email, shipper_codigo_pil,
-    consignee, consignee_direccion, consignee_telefono, consignee_email, consignee_codigo_pil,
-    notify_party, notify_direccion, notify_telefono, notify_email, notify_codigo_pil,
-    almacenador,
-    fecha_emision, fecha_presentacion, fecha_embarque, fecha_zarpe,
-    puerto_embarque_id, puerto_embarque_cod,
-    puerto_descarga_id, puerto_descarga_cod,
-    lugar_destino_id, lugar_destino_cod,
-    lugar_emision_id, lugar_emision_cod,
-    lugar_entrega_id, lugar_entrega_cod,
-    lugar_recepcion_id, lugar_recepcion_cod,
-    peso_bruto, unidad_peso, volumen, unidad_volumen, bultos, total_items,
-    observaciones, status, valid_status
-  ) VALUES (
-    ?, ?, ?, ?, ?,
-    ?, ?, ?, ?,
-    ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?,
-    ?,
-    ?, ?, ?, ?,
-    ?, ?,
-    ?, ?,
-    ?, ?,
-    ?, ?,
-    ?, ?,
-    ?, ?,
-    ?, ?, ?, ?, ?, ?,
-    ?, ?, ?
-  )`,
+        manifiesto_id, bl_number, tipo_servicio_id, forma_pago_flete, cond_transporte,
+        shipper_id, consignee_id, notify_id, almacenador_id,
+        shipper, shipper_direccion, shipper_telefono, shipper_email, shipper_codigo_pil,
+        consignee, consignee_rut, consignee_direccion, consignee_telefono, consignee_email, consignee_codigo_pil,
+        notify_party, notify_rut, notify_direccion, notify_telefono, notify_email, notify_codigo_pil,
+        almacenador,
+        fecha_emision, fecha_presentacion, fecha_embarque,
+        puerto_embarque_id, puerto_embarque_cod,
+        puerto_descarga_id, puerto_descarga_cod,
+        lugar_destino_id,   lugar_destino_cod,
+        lugar_emision_id,   lugar_emision_cod,
+        lugar_entrega_id,   lugar_entrega_cod,
+        lugar_recepcion_id, lugar_recepcion_cod,
+        peso_bruto, unidad_peso, volumen, unidad_volumen, bultos, total_items,
+        observaciones, status, valid_status
+      ) VALUES (
+        ?, ?, ?, ?, ?,
+        ?, ?, ?, ?,
+        ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?,
+        ?,
+        ?, ?, ?,
+        ?, ?,
+        ?, ?,
+        ?, ?,
+        ?, ?,
+        ?, ?,
+        ?, ?,
+        ?, ?, ?, ?, ?, ?,
+        ?, ?, ?
+      )`,
       [
         manifiestoId, bl_number, tipo_servicio_id,
         forma_pago_flete || 'PREPAID', cond_transporte || 'HH',
         shipper_id || null, consignee_id || null, notify_id || null, almacenador_id || null,
         shipperNombre, shipper_direccion || null, shipper_telefono || null, shipper_email || null, shipper_codigo_pil || null,
-        consigneeNombre, consignee_direccion || null, consignee_telefono || null, consignee_email || null, consignee_codigo_pil || null,
-        notifyNombre, notify_direccion || null, notify_telefono || null, notify_email || null, notify_codigo_pil || null,
+        consigneeNombre, consignee_rut || null, consignee_direccion || null, consignee_telefono || null, consignee_email || null, consignee_codigo_pil || null,
+        notifyNombre, notify_rut || null, notify_direccion || null, notify_telefono || null, notify_email || null, notify_codigo_pil || null,
         almacenadorNombre,
-        fecha_emision || null, fecha_presentacion || null,
-        fecha_embarque || null, fecha_zarpe || null,
+        fechaEmisionSQL, fechaPresentacionSQL, fechaEmbarqueSQL,  // ✅ fechas convertidas
         puertoEmbarque.id, puertoEmbarque.codigo,
         puertoDescarga.id, puertoDescarga.codigo,
         lugarDestino.id, lugarDestino.codigo,
-        lugarEmision.id, lugarEmision.codigo,
+        lugarEmision ? lugarEmision.id : null, lugarEmision ? lugarEmision.codigo : null,
         lugarEntrega.id, lugarEntrega.codigo,
-        lugarRecepcion.id, lugarRecepcion.codigo,
+        lugarRecepcion ? lugarRecepcion.id : null, lugarRecepcion ? lugarRecepcion.codigo : null,
         peso_bruto_total, 'KGM', volumen_total, 'MTQ', bultos_total, items.length,
         observaciones?.length > 0 ? JSON.stringify(observaciones) : null,
         'CREADO', 'OK'
@@ -6697,7 +6733,6 @@ app.post("/api/manifiestos/:id/carga-suelta", async (req, res) => {
     );
     const bl_id = blResult.insertId;
 
-    // Insertar items (sin cambios)
     for (const item of items) {
       await connection.query(
         `INSERT INTO bl_items (
@@ -6706,17 +6741,10 @@ app.post("/api/manifiestos/:id/carga-suelta", async (req, res) => {
           created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
         [
-          bl_id,
-          item.numero_item,
-          item.descripcion,
-          item.marcas || 'N/M',
-          item.carga_peligrosa || 'N',
-          item.tipo_bulto,
-          item.cantidad,
-          item.peso_bruto,
-          item.unidad_peso || 'KGM',
-          item.volumen || 0,
-          item.unidad_volumen || 'MTQ'
+          bl_id, item.numero_item, item.descripcion,
+          item.marcas || 'N/M', item.carga_peligrosa || 'N',
+          item.tipo_bulto, item.cantidad, item.peso_bruto,
+          item.unidad_peso || 'KGM', item.volumen || 0, item.unidad_volumen || 'MTQ'
         ]
       );
     }
@@ -6726,8 +6754,7 @@ app.post("/api/manifiestos/:id/carga-suelta", async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Carga suelta creada exitosamente',
-      bl_id,
-      bl_number,
+      bl_id, bl_number,
       tipo_servicio: 'BB',
       manifiesto: manifiestos[0].viaje,
       total_items: items.length,
@@ -6739,7 +6766,6 @@ app.post("/api/manifiestos/:id/carga-suelta", async (req, res) => {
   } catch (error) {
     await connection.rollback();
     console.error('Error al crear carga suelta:', error);
-
     res.status(400).json({
       success: false,
       error: error.message || 'Error al crear la carga suelta'

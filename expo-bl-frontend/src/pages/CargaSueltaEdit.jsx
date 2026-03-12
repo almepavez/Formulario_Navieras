@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Swal from "sweetalert2";
+import AlmacenadorSelector from '../components/AlmacenadorSelector';
 
 const STEPS = [
     { id: 1, name: "Datos BL" },
@@ -34,169 +35,6 @@ const UNIDADES_VOLUMEN = [
     { value: "LTR", label: "LTR - Litros" }
 ];
 
-// ==================== ALMACENADOR SELECTOR ====================
-const AlmacenadorSelector = ({ value, displayValue, onChange, onClear }) => {
-    const [query, setQuery] = useState(displayValue || "");
-    const [results, setResults] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [open, setOpen] = useState(false);
-    const [selected, setSelected] = useState(!!value);
-    const containerRef = useRef(null);
-
-    useEffect(() => {
-        setQuery(displayValue || "");
-        setSelected(!!value);
-    }, [value, displayValue]);
-
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (containerRef.current && !containerRef.current.contains(e.target)) {
-                setOpen(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
-    const search = async (q) => {
-        if (q.trim().length < 2) {
-            setResults([]);
-            setOpen(false);
-            return;
-        }
-        setLoading(true);
-        try {
-            const res = await fetch(`${API_BASE}/api/mantenedores/participantes?tipo=almacenador&q=${encodeURIComponent(q)}`);
-            const data = await res.json();
-            setResults(data || []);
-            setOpen(true);
-        } catch (e) {
-            console.error("Error buscando almacenadores:", e);
-            setResults([]);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleInput = (e) => {
-        const val = e.target.value;
-        setQuery(val);
-        setSelected(false);
-        search(val);
-    };
-
-    const handleSelect = (item) => {
-        setQuery(item.nombre);
-        setSelected(true);
-        setOpen(false);
-        setResults([]);
-        onChange(item.id, item.nombre, {
-            direccion: item.direccion || "",
-            telefono: item.telefono || "",
-            email: item.email || "",
-            codigo_pil: item.codigo_pil || "",
-        });
-    };
-
-    const handleClear = () => {
-        setQuery("");
-        setSelected(false);
-        setResults([]);
-        setOpen(false);
-        onClear();
-    };
-
-    return (
-        <div ref={containerRef} className="relative">
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-                Nombre / Razón Social{" "}
-                <span className="text-xs text-slate-400 font-normal">(buscar en mantenedor)</span>
-            </label>
-            <div className="relative">
-                <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                    {/* Search icon */}
-                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
-                    </svg>
-                </div>
-                <input
-                    type="text"
-                    value={query}
-                    onChange={handleInput}
-                    onFocus={() => query.length >= 2 && !selected && setOpen(true)}
-                    placeholder="Escribe para buscar almacenador..."
-                    className={`w-full pl-10 pr-10 py-2 rounded-lg border focus:ring-2 focus:outline-none transition-colors ${selected
-                        ? "border-emerald-400 bg-emerald-50 focus:ring-emerald-300"
-                        : "border-slate-300 focus:ring-slate-400"
-                        }`}
-                />
-                {loading && (
-                    <div className="absolute inset-y-0 right-3 flex items-center">
-                        <svg className="animate-spin h-4 w-4 text-slate-400" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                        </svg>
-                    </div>
-                )}
-                {!loading && selected && (
-                    <button
-                        type="button"
-                        onClick={handleClear}
-                        className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-red-500 transition-colors"
-                    >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                )}
-            </div>
-
-            {selected && (
-                <p className="mt-1 text-xs text-emerald-600 flex items-center gap-1">
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    Almacenador seleccionado del mantenedor
-                </p>
-            )}
-
-            {open && results.length > 0 && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
-                    {results.map((item) => (
-                        <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => handleSelect(item)}
-                            className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-0 transition-colors"
-                        >
-                            <div className="flex items-start justify-between gap-2">
-                                <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-slate-900 text-sm truncate">{item.nombre}</p>
-                                    <p className="text-xs text-slate-500 mt-0.5">{item.ciudad || "—"}</p>
-                                    {item.codigo_bms && (
-                                        <p className="text-xs text-slate-400">BMS: {item.codigo_bms}</p>
-                                    )}
-                                </div>
-                                {item.codigo_almacen && (
-                                    <span className="flex-shrink-0 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-mono rounded">
-                                        ALM: {item.codigo_almacen}
-                                    </span>
-                                )}
-                            </div>
-                        </button>
-                    ))}
-                </div>
-            )}
-
-            {open && !loading && results.length === 0 && query.length >= 2 && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg px-4 py-3 text-sm text-slate-500">
-                    No se encontraron almacenadores con ese nombre
-                </div>
-            )}
-        </div>
-    );
-};
-
 const validarEmail = (email) => {
     if (!email || email.trim() === "") return true;
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -222,9 +60,6 @@ const CargaSueltaEdit = () => {
         fecha_emision: "",
         fecha_presentacion: "",
         fecha_embarque: "",
-        fecha_zarpe: "",
-        lugar_emision: "",
-        lugar_recepcion: "",
         puerto_embarque: "",
         puerto_descarga: "",
         lugar_destino: "",
@@ -234,8 +69,9 @@ const CargaSueltaEdit = () => {
         consignee: "",
         notify_party: "",
         almacenador: "",
-        // 🆕 almacenador_id para el selector
         almacenador_id: null,
+        consignee_rut: "",
+        notify_rut: "",
 
         shipper_codigo_pil: "",
         shipper_direccion: "",
@@ -269,128 +105,160 @@ const CargaSueltaEdit = () => {
         fetchPuertos();
     }, [blNumber]);
 
-    const fetchBLData = async () => {
-        try {
-            setLoading(true);
+const fetchBLData = async () => {
+    try {
+        setLoading(true);
 
-            const res = await fetch(`${API_BASE}/api/bls/${blNumber}`);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const bl = await res.json();
+        const res = await fetch(`${API_BASE}/api/bls/${blNumber}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const bl = await res.json();
 
-            if (bl.tipo_servicio_codigo !== 'BB' && bl.tipo_servicio !== 'BB') {
-                Swal.fire({
-                    title: "Error",
-                    text: "Este BL no es de carga suelta (tipo BB)",
-                    icon: "error",
-                    confirmButtonColor: "#10b981"
-                });
-                navigate(`/expo-bl/${blNumber}`);
-                return;
-            }
-
-            const resItems = await fetch(`${API_BASE}/api/bls/${blNumber}/items-contenedores`);
-            if (!resItems.ok) throw new Error(`HTTP ${resItems.status}`);
-            const dataItems = await resItems.json();
-
-            let observacionesParsed = [
-                { nombre: 'GRAL', contenido: '' },
-                { nombre: 'MOT', contenido: 'LISTA DE ENCARGO' }
-            ];
-            if (bl.observaciones) {
-                if (typeof bl.observaciones === 'string') {
-                    try {
-                        observacionesParsed = JSON.parse(bl.observaciones);
-                    } catch (e) {
-                        console.error('Error parseando observaciones:', e);
-                    }
-                } else if (Array.isArray(bl.observaciones)) {
-                    observacionesParsed = bl.observaciones;
-                }
-            }
-
-            setFormData({
-                bl_number: bl.bl_number || "",
-                tipo_servicio: "BB",
-                forma_pago_flete: bl.forma_pago_flete || "PREPAID",
-                cond_transporte: bl.cond_transporte || "HH",
-                fecha_emision: bl.fecha_emision ? bl.fecha_emision.split('T')[0] : "",
-                fecha_presentacion: bl.fecha_presentacion ? bl.fecha_presentacion.split('T')[0] : "",
-                fecha_embarque: bl.fecha_embarque ? bl.fecha_embarque.split('T')[0] : "",
-                fecha_zarpe: bl.fecha_zarpe ? bl.fecha_zarpe.split('T')[0] : "",
-
-                lugar_emision: (bl.lugar_emision_cod && bl.lugar_emision_cod !== 'NO ESPECIFICADO')
-                    ? bl.lugar_emision_cod
-                    : (bl.puerto_embarque_cod || ""),
-                lugar_recepcion: (bl.lugar_recepcion_cod && bl.lugar_recepcion_cod !== 'NO ESPECIFICADO')
-                    ? bl.lugar_recepcion_cod
-                    : (bl.puerto_embarque_cod || ""),
-                puerto_embarque: bl.puerto_embarque_cod || "",
-                puerto_descarga: bl.puerto_descarga_cod || "",
-                lugar_destino: bl.lugar_destino_cod || "",
-                lugar_entrega: bl.lugar_entrega_cod || "",
-
-                shipper: bl.shipper || "",
-                shipper_codigo_pil: bl.shipper_codigo_pil || "",
-                shipper_direccion: bl.shipper_direccion || "",
-                shipper_telefono: bl.shipper_telefono || "",
-                shipper_email: bl.shipper_email || "",
-
-                consignee: bl.consignee || "",
-                consignee_codigo_pil: bl.consignee_codigo_pil || "",
-                consignee_direccion: bl.consignee_direccion || "",
-                consignee_telefono: bl.consignee_telefono || "",
-                consignee_email: bl.consignee_email || "",
-
-                notify_party: bl.notify_party || "",
-                notify_codigo_pil: bl.notify_codigo_pil || "",
-                notify_direccion: bl.notify_direccion || "",
-                notify_telefono: bl.notify_telefono || "",
-                notify_email: bl.notify_email || "",
-
-                // 🆕 Cargar almacenador_id si existe en BD
-                almacenador_id: bl.almacenador_id || null,
-                almacenador: bl.almacenador || "",
-                almacenador_codigo_pil: bl.almacenador_codigo_pil || "",
-                almacenador_direccion: bl.almacenador_direccion || "",
-                almacenador_telefono: bl.almacenador_telefono || "",
-                almacenador_email: bl.almacenador_email || "",
-
-                items: (dataItems.items || []).map(item => ({
-                    numero_item: item.numero_item,
-                    marcas: item.marcas || "N/M",
-                    tipo_bulto: item.tipo_bulto || "80",
-                    descripcion: item.descripcion || "",
-                    cantidad: item.cantidad || 1,
-                    peso_bruto: item.peso_bruto || "",
-                    unidad_peso: item.unidad_peso || "KGM",
-                    volumen: item.volumen || 0,
-                    unidad_volumen: item.unidad_volumen || "MTQ",
-                    carga_cnt: "N"
-                })),
-                observaciones: observacionesParsed
-            });
-
-            if (bl.manifiesto_id) {
-                const resManifiesto = await fetch(`${API_BASE}/api/manifiestos/${bl.manifiesto_id}`);
-                if (resManifiesto.ok) {
-                    const jsonManifiesto = await resManifiesto.json();
-                    setManifiestoData(jsonManifiesto.manifiesto);
-                }
-            }
-
-        } catch (e) {
-            console.error("Error cargando BL:", e);
+        if (bl.tipo_servicio_codigo !== 'BB' && bl.tipo_servicio !== 'BB') {
             Swal.fire({
                 title: "Error",
-                text: "No se pudo cargar la información del BL",
+                text: "Este BL no es de carga suelta (tipo BB)",
                 icon: "error",
                 confirmButtonColor: "#10b981"
             });
-            navigate("/expo-bl");
-        } finally {
-            setLoading(false);
+            navigate(`/expo-bl/${blNumber}`);
+            return;
         }
-    };
+
+        const resItems = await fetch(`${API_BASE}/api/bls/${blNumber}/items-contenedores`);
+        if (!resItems.ok) throw new Error(`HTTP ${resItems.status}`);
+        const dataItems = await resItems.json();
+
+        let observacionesParsed = [
+            { nombre: 'GRAL', contenido: '' },
+            { nombre: 'MOT', contenido: 'LISTA DE ENCARGO' }
+        ];
+        if (bl.observaciones) {
+            if (typeof bl.observaciones === 'string') {
+                try {
+                    observacionesParsed = JSON.parse(bl.observaciones);
+                } catch (e) {
+                    console.error('Error parseando observaciones:', e);
+                }
+            } else if (Array.isArray(bl.observaciones)) {
+                observacionesParsed = bl.observaciones;
+            }
+        }
+
+        // "YYYY-MM-DD HH:mm:ss" o "YYYY-MM-DDTHH:mm:ss" → "DD/MM/YYYY"
+        const mysqlToDDMMYYYY = (str) => {
+            if (!str) return "";
+            const datePart = str.split('T')[0].split(' ')[0];
+            const [yyyy, mm, dd] = datePart.split('-');
+            if (!yyyy || !mm || !dd) return "";
+            return `${dd}/${mm}/${yyyy}`;
+        };
+
+        // "YYYY-MM-DD HH:mm:ss" o "YYYY-MM-DDTHH:mm:ss" → "DD/MM/YYYY HH:mm"
+       const mysqlToDDMMYYYYHHmm = (str) => {
+    if (!str) return "";
+    const clean = str.replace('T', ' ').trim();
+    const [datePart, timePart] = clean.split(' ');
+    const [yyyy, mm, dd] = datePart.split('-');
+    if (!yyyy || !mm || !dd) return "";
+
+    // Sanitizar hora: si es inválida (hh > 23 o mm > 59), usar 00:00
+    let hhmm = '00:00';
+    if (timePart) {
+        const [hh, min] = timePart.slice(0, 5).split(':');
+        const hhNum = parseInt(hh || '0');
+        const minNum = parseInt(min || '0');
+        if (hhNum <= 23 && minNum <= 59) {
+            hhmm = `${String(hhNum).padStart(2, '0')}:${String(minNum).padStart(2, '0')}`;
+        }
+        // Si la hora es inválida (ej: 25:55), se queda en '00:00'
+    }
+
+    return `${dd}/${mm}/${yyyy} ${hhmm}`;
+};
+
+        // "YYYY-MM-DD HH:mm:ss" → "YYYY-MM-DD" (para input type="date")
+        const mysqlToInputDate = (str) => {
+            if (!str) return "";
+            return str.split('T')[0].split(' ')[0];
+        };
+
+        setFormData({
+            bl_number: bl.bl_number || "",
+            tipo_servicio: "BB",
+            forma_pago_flete: bl.forma_pago_flete || "PREPAID",
+            cond_transporte: bl.cond_transporte || "HH",
+            fecha_emision: mysqlToDDMMYYYY(bl.fecha_emision),         // → "DD/MM/YYYY"     para MaskedDateInput
+            fecha_presentacion: mysqlToInputDate(bl.fecha_presentacion), // → "YYYY-MM-DD"   para input type="date"
+            fecha_embarque: mysqlToDDMMYYYYHHmm(bl.fecha_embarque),   // → "DD/MM/YYYY HH:mm" para MaskedDateTimeInput
+
+            puerto_embarque: bl.puerto_embarque_cod || "",
+            puerto_descarga: bl.puerto_descarga_cod || "",
+            lugar_destino: bl.lugar_destino_cod || "",
+            lugar_entrega: bl.lugar_entrega_cod || "",
+
+            shipper: bl.shipper || "",
+            shipper_codigo_pil: bl.shipper_codigo_pil || "",
+            shipper_direccion: bl.shipper_direccion || "",
+            shipper_telefono: bl.shipper_telefono || "",
+            shipper_email: bl.shipper_email || "",
+
+            consignee: bl.consignee || "",
+            consignee_rut: bl.consignee_rut || "",
+            consignee_codigo_pil: bl.consignee_codigo_pil || "",
+            consignee_direccion: bl.consignee_direccion || "",
+            consignee_telefono: bl.consignee_telefono || "",
+            consignee_email: bl.consignee_email || "",
+
+            notify_party: bl.notify_party || "",
+            notify_rut: bl.notify_rut || "",
+            notify_codigo_pil: bl.notify_codigo_pil || "",
+            notify_direccion: bl.notify_direccion || "",
+            notify_telefono: bl.notify_telefono || "",
+            notify_email: bl.notify_email || "",
+
+            almacenador_id: bl.almacenador_id || null,
+            almacenador: bl.almacenador || "",
+            almacenador_codigo_pil: bl.almacenador_codigo_pil || "",
+            almacenador_direccion: bl.almacenador_direccion || "",
+            almacenador_telefono: bl.almacenador_telefono || "",
+            almacenador_email: bl.almacenador_email || "",
+
+            items: (dataItems.items || []).map(item => ({
+                numero_item: item.numero_item,
+                marcas: item.marcas || "N/M",
+                tipo_bulto: item.tipo_bulto || "80",
+                descripcion: item.descripcion || "",
+                cantidad: item.cantidad || 1,
+                peso_bruto: item.peso_bruto || "",
+                unidad_peso: item.unidad_peso || "KGM",
+                volumen: item.volumen || 0,
+                unidad_volumen: item.unidad_volumen || "MTQ",
+                carga_cnt: "N"
+            })),
+            observaciones: observacionesParsed
+        });
+
+        if (bl.manifiesto_id) {
+            const resManifiesto = await fetch(`${API_BASE}/api/manifiestos/${bl.manifiesto_id}`);
+            if (resManifiesto.ok) {
+                const jsonManifiesto = await resManifiesto.json();
+                setManifiestoData(jsonManifiesto.manifiesto);
+            }
+        }
+
+    } catch (e) {
+        console.error("Error cargando BL:", e);
+        Swal.fire({
+            title: "Error",
+            text: "No se pudo cargar la información del BL",
+            icon: "error",
+            confirmButtonColor: "#10b981"
+        });
+        navigate("/expo-bl");
+    } finally {
+        setLoading(false);
+    }
+};
 
     const fetchPuertos = async () => {
         try {
@@ -411,50 +279,34 @@ const CargaSueltaEdit = () => {
                     Swal.fire({ title: "Campo requerido", text: "Debes ingresar el N° de BL", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
-                if (!formData.lugar_emision?.trim()) {
-                    Swal.fire({ title: "Campo requerido", text: "Debes seleccionar el Lugar de Emisión", icon: "warning", confirmButtonColor: "#10b981" });
-                    return false;
-                }
-                if (!puertos.some(p => p.codigo === formData.lugar_emision)) {
-                    Swal.fire({ title: "Puerto inválido", html: `El código "<strong>${formData.lugar_emision}</strong>" no existe en el catálogo.`, icon: "error", confirmButtonColor: "#10b981" });
-                    return false;
-                }
-                if (!formData.lugar_recepcion?.trim()) {
-                    Swal.fire({ title: "Campo requerido", text: "Debes seleccionar el Lugar de Recepción", icon: "warning", confirmButtonColor: "#10b981" });
-                    return false;
-                }
-                if (!puertos.some(p => p.codigo === formData.lugar_recepcion)) {
-                    Swal.fire({ title: "Puerto inválido", html: `El código "<strong>${formData.lugar_recepcion}</strong>" no existe en el catálogo.`, icon: "error", confirmButtonColor: "#10b981" });
-                    return false;
-                }
                 if (!formData.puerto_embarque?.trim()) {
-                    Swal.fire({ title: "Campo requerido", text: "Debes seleccionar el Puerto de Embarque", icon: "warning", confirmButtonColor: "#10b981" });
-                    return false;
-                }
-                if (!puertos.some(p => p.codigo === formData.puerto_embarque)) {
-                    Swal.fire({ title: "Puerto inválido", html: `El código "<strong>${formData.puerto_embarque}</strong>" no existe en el catálogo.`, icon: "error", confirmButtonColor: "#10b981" });
+                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar el Puerto de Embarque", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
                 if (!formData.puerto_descarga?.trim()) {
-                    Swal.fire({ title: "Campo requerido", text: "Debes seleccionar el Puerto de Descarga", icon: "warning", confirmButtonColor: "#10b981" });
+                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar el Puerto de Descarga", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
-                if (!puertos.some(p => p.codigo === formData.puerto_descarga)) {
-                    Swal.fire({ title: "Puerto inválido", html: `El código "<strong>${formData.puerto_descarga}</strong>" no existe en el catálogo.`, icon: "error", confirmButtonColor: "#10b981" });
+                if (!formData.lugar_destino?.trim()) {
+                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar el Lugar de Destino", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
-                if (formData.lugar_destino?.trim() && !puertos.some(p => p.codigo === formData.lugar_destino)) {
-                    Swal.fire({ title: "Puerto inválido", html: `El código "<strong>${formData.lugar_destino}</strong>" no existe en el catálogo.`, icon: "error", confirmButtonColor: "#10b981" });
+                if (!formData.lugar_entrega?.trim()) {
+                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar el Lugar de Entrega (LEM)", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
-                if (formData.lugar_entrega?.trim() && !puertos.some(p => p.codigo === formData.lugar_entrega)) {
-                    Swal.fire({ title: "Puerto inválido", html: `El código "<strong>${formData.lugar_entrega}</strong>" no existe en el catálogo.`, icon: "error", confirmButtonColor: "#10b981" });
+                if (!formData.fecha_emision) {
+                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar la Fecha de Emisión", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
-                if (!formData.fecha_emision) { Swal.fire({ title: "Campo requerido", text: "Debes ingresar la Fecha de Emisión", icon: "warning", confirmButtonColor: "#10b981" }); return false; }
-                if (!formData.fecha_presentacion) { Swal.fire({ title: "Campo requerido", text: "Debes ingresar la Fecha de Presentación", icon: "warning", confirmButtonColor: "#10b981" }); return false; }
-                if (!formData.fecha_embarque) { Swal.fire({ title: "Campo requerido", text: "Debes ingresar la Fecha de Embarque", icon: "warning", confirmButtonColor: "#10b981" }); return false; }
-                if (!formData.fecha_zarpe) { Swal.fire({ title: "Campo requerido", text: "Debes ingresar la Fecha de Zarpe", icon: "warning", confirmButtonColor: "#10b981" }); return false; }
+                if (!formData.fecha_presentacion) {
+                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar la Fecha de Presentación", icon: "warning", confirmButtonColor: "#10b981" });
+                    return false;
+                }
+                if (!formData.fecha_embarque) {
+                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar la Fecha de Embarque", icon: "warning", confirmButtonColor: "#10b981" });
+                    return false;
+                }
                 return true;
 
             case 2:
@@ -462,58 +314,18 @@ const CargaSueltaEdit = () => {
                     Swal.fire({ title: "Campo requerido", text: "El Shipper/Embarcador debe tener al menos 3 caracteres", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
-                // AGREGAR ESTO:
                 if (!formData.shipper_direccion?.trim()) {
                     Swal.fire({ title: "Campo requerido", text: "La dirección del Shipper es obligatoria", icon: "warning", confirmButtonColor: "#10b981" });
-                    return false;
-                }
-                if (!formData.shipper_telefono?.trim() && !formData.shipper_email?.trim()) {
-                    Swal.fire({ title: "Datos de contacto faltantes", text: "El Shipper debe tener al menos teléfono o email", icon: "warning", confirmButtonColor: "#10b981" });
-                    return false;
-                }
-                if (formData.shipper_telefono?.trim() && formData.shipper_telefono.trim().length < 7) {
-                    Swal.fire({ title: "Teléfono inválido", text: "El teléfono del Shipper debe tener al menos 7 caracteres", icon: "warning", confirmButtonColor: "#10b981" });
-                    return false;
-                }
-                if (formData.shipper_email?.trim() && !validarEmail(formData.shipper_email)) {
-                    Swal.fire({ title: "Email inválido", text: "El email del Shipper no tiene formato válido", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
                 if (!formData.consignee || formData.consignee.trim().length < 3) {
                     Swal.fire({ title: "Campo requerido", text: "El Consignee debe tener al menos 3 caracteres", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
-                // AGREGAR ESTO:
                 if (!formData.consignee_direccion?.trim()) {
                     Swal.fire({ title: "Campo requerido", text: "La dirección del Consignee es obligatoria", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
-                if (!formData.consignee_telefono?.trim() && !formData.consignee_email?.trim()) {
-                    Swal.fire({ title: "Datos de contacto faltantes", text: "El Consignee debe tener al menos teléfono o email", icon: "warning", confirmButtonColor: "#10b981" });
-                    return false;
-                }
-                // Después del check de consignee:
-                if (formData.consignee_telefono?.trim() && formData.consignee_telefono.trim().length < 7) {
-                    Swal.fire({ title: "Teléfono inválido", text: "El teléfono del Consignee debe tener al menos 7 caracteres", icon: "warning", confirmButtonColor: "#10b981" });
-                    return false;
-                }
-                if (formData.consignee_email?.trim() && !validarEmail(formData.consignee_email)) {
-                    Swal.fire({ title: "Email inválido", text: "El email del Consignee no tiene formato válido", icon: "warning", confirmButtonColor: "#10b981" });
-                    return false;
-                }
-                if (formData.notify_party?.trim() && !formData.notify_telefono?.trim() && !formData.notify_email?.trim()) {
-                    Swal.fire({ title: "Datos de contacto faltantes", text: "Si ingresas Notify Party, debe tener al menos teléfono o email", icon: "warning", confirmButtonColor: "#10b981" });
-                    return false;
-                }
-                if (formData.notify_telefono?.trim() && formData.notify_telefono.trim().length < 7) {
-                    Swal.fire({ title: "Teléfono inválido", text: "El teléfono del Notify Party debe tener al menos 7 caracteres", icon: "warning", confirmButtonColor: "#10b981" });
-                    return false;
-                }
-                if (formData.notify_email?.trim() && !validarEmail(formData.notify_email)) {
-                    Swal.fire({ title: "Email inválido", text: "El email del Notify Party no tiene formato válido", icon: "warning", confirmButtonColor: "#10b981" });
-                    return false;
-                }
-
                 return true;
 
             case 3:
@@ -670,7 +482,8 @@ const CargaSueltaEdit = () => {
                     peso_bruto: "",
                     unidad_peso: "KGM",
                     volumen: 0,
-                    unidad_volumen: "MTQ"
+                    unidad_volumen: "MTQ",
+                    carga_cnt: "N"
                 }
             ]
         });
@@ -798,8 +611,7 @@ const CargaSueltaEdit = () => {
     );
 };
 
-// ==================== STEP COMPONENTS ====================
-
+// ==================== STEP 1: DATOS BL ====================
 const Step1DatosBL = ({ formData, setFormData, manifiestoData, puertos }) => (
     <div className="space-y-6">
         <h2 className="text-lg font-semibold text-slate-800 mb-4">Datos del BL</h2>
@@ -813,28 +625,73 @@ const Step1DatosBL = ({ formData, setFormData, manifiestoData, puertos }) => (
                 </div>
                 <div className="ml-3">
                     <p className="text-sm text-blue-700">
-                        <strong>Carga Suelta (Break Bulk):</strong> Mercancía que se transporta en bultos individuales sin contenedor.
+                        <strong>Carga Suelta (Break Bulk):</strong> Mercancía que se transporta en bultos individuales sin contenedor. Los items se detallan por tipo de bulto (pallets, cajas, sacos, etc.).
                     </p>
                 </div>
             </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-            <InputField label="N° BL" value={formData.bl_number} onChange={(v) => setFormData({ ...formData, bl_number: v })} required placeholder="Ej: B042025" disabled />
+            <InputField
+                label="N° BL"
+                value={formData.bl_number}
+                onChange={(v) => setFormData({ ...formData, bl_number: v })}
+                required
+                placeholder="Ej: B042025"
+                disabled
+            />
             <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Tipo Servicio <span className="text-red-500">*</span></label>
-                <input type="text" value="BB - Break Bulk (Carga Suelta)" disabled className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-100 text-slate-600 cursor-not-allowed" />
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Tipo Servicio <span className="text-red-500">*</span>
+                </label>
+                <input
+                    type="text"
+                    value="BB - Break Bulk (Carga Suelta)"
+                    disabled
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-100 text-slate-600 cursor-not-allowed"
+                />
             </div>
-            <SelectField label="Forma Pago Flete" value={formData.forma_pago_flete} onChange={(v) => setFormData({ ...formData, forma_pago_flete: v })} options={[{ value: "PREPAID", label: "PREPAID - Pagado en origen" }, { value: "COLLECT", label: "COLLECT - Por cobrar en destino" }]} required />
-            <InputField label="Condición Transporte" value={formData.cond_transporte} onChange={(v) => setFormData({ ...formData, cond_transporte: v.toUpperCase() })} placeholder="HH, CY, SD, etc." maxLength={10} required />
+            <SelectField
+                label="Forma Pago Flete"
+                value={formData.forma_pago_flete}
+                onChange={(v) => setFormData({ ...formData, forma_pago_flete: v })}
+                options={[
+                    { value: "PREPAID", label: "PREPAID - Pagado en origen" },
+                    { value: "COLLECT", label: "COLLECT - Por cobrar en destino" }
+                ]}
+                required
+            />
+            <InputField
+                label="Condición Transporte"
+                value={formData.cond_transporte}
+                onChange={(v) => setFormData({ ...formData, cond_transporte: v.toUpperCase() })}
+                placeholder="HH, CY, SD, etc."
+                maxLength={10}
+                required
+            />
         </div>
 
         <h3 className="text-md font-semibold text-slate-700 mt-6 mb-3">Fechas</h3>
         <div className="grid grid-cols-2 gap-4">
-            <InputField label="Fecha Emisión" type="date" value={formData.fecha_emision} onChange={(v) => setFormData({ ...formData, fecha_emision: v })} required />
-            <InputField label="Fecha Presentación" type="date" value={formData.fecha_presentacion} onChange={(v) => setFormData({ ...formData, fecha_presentacion: v })} required />
-            <InputField label="Fecha Embarque" type="date" value={formData.fecha_embarque} onChange={(v) => setFormData({ ...formData, fecha_embarque: v })} required />
-            <InputField label="Fecha Zarpe" type="date" value={formData.fecha_zarpe} onChange={(v) => setFormData({ ...formData, fecha_zarpe: v })} required />
+            <MaskedDateInput
+                label="Fecha Emisión"
+                value={formData.fecha_emision}
+                onChange={(v) => setFormData({ ...formData, fecha_emision: v })}
+                required
+            />
+            <InputField
+                label="Fecha Presentación"
+                type="date"
+                value={formData.fecha_presentacion}
+                onChange={(v) => setFormData({ ...formData, fecha_presentacion: v })}
+                required
+            />
+            <MaskedDateTimeInput
+                label="Fecha Embarque"
+                value={formData.fecha_embarque}
+                onChange={(v) => setFormData({ ...formData, fecha_embarque: v })}
+                required
+            />
         </div>
 
         <h3 className="text-md font-semibold text-slate-700 mt-6 mb-3">Locaciones</h3>
@@ -844,22 +701,54 @@ const Step1DatosBL = ({ formData, setFormData, manifiestoData, puertos }) => (
             </div>
         )}
         <div className="grid grid-cols-2 gap-4">
-            <SelectPuerto label="Lugar Emisión" value={formData.lugar_emision} onChange={(v) => setFormData({ ...formData, lugar_emision: v })} puertos={puertos} required />
-            <SelectPuerto label="Lugar Recepción" value={formData.lugar_recepcion} onChange={(v) => setFormData({ ...formData, lugar_recepcion: v })} puertos={puertos} required />
-            <SelectPuerto label="Puerto Embarque" value={formData.puerto_embarque} onChange={(v) => setFormData({ ...formData, puerto_embarque: v })} puertos={puertos} required />
-            <SelectPuerto label="Puerto Descarga" value={formData.puerto_descarga} onChange={(v) => setFormData({ ...formData, puerto_descarga: v })} puertos={puertos} required />
-            <SelectPuerto label="Lugar Destino" value={formData.lugar_destino} onChange={(v) => setFormData({ ...formData, lugar_destino: v })} puertos={puertos} required />
-            <SelectPuerto label="Lugar Entrega" value={formData.lugar_entrega} onChange={(v) => setFormData({ ...formData, lugar_entrega: v })} puertos={puertos} required />
+            <PuertoAutocomplete
+                label="PE - Puerto Embarque"
+                value={formData.puerto_embarque}
+                onChange={(v) => setFormData({ ...formData, puerto_embarque: v })}
+                puertos={puertos}
+                required
+            />
+            <PuertoAutocomplete
+                label="PD - Puerto Descarga"
+                value={formData.puerto_descarga}
+                onChange={(v) => setFormData({ ...formData, puerto_descarga: v })}
+                puertos={puertos}
+                required
+            />
+            <PuertoAutocomplete
+                label="LD - Lugar Destino"
+                value={formData.lugar_destino}
+                onChange={(v) => setFormData({ ...formData, lugar_destino: v })}
+                puertos={puertos}
+                required
+            />
+            <PuertoAutocomplete
+                label="LEM - Lugar Entrega"
+                value={formData.lugar_entrega}
+                onChange={(v) => setFormData({ ...formData, lugar_entrega: v })}
+                puertos={puertos}
+                required
+            />
         </div>
     </div>
 );
 
+// ==================== STEP 2: PARTICIPANTES ====================
 const Step2Participantes = ({ formData, setFormData }) => {
-    
     const updateField = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
     const [emailErrors, setEmailErrors] = useState({ shipper: false, consignee: false, notify: false });
-    const addObservacion = () => setFormData({ ...formData, observaciones: [...formData.observaciones, { nombre: 'GRAL', contenido: '' }] });
-    const removeObservacion = (index) => setFormData({ ...formData, observaciones: formData.observaciones.filter((_, idx) => idx !== index) });
+
+    const addObservacion = () => {
+        setFormData({
+            ...formData,
+            observaciones: [...formData.observaciones, { nombre: 'GRAL', contenido: '' }]
+        });
+    };
+
+    const removeObservacion = (index) => {
+        setFormData({ ...formData, observaciones: formData.observaciones.filter((_, idx) => idx !== index) });
+    };
+
     const updateObservacion = (index, field, value) => {
         const newObs = [...formData.observaciones];
         newObs[index] = { ...newObs[index], [field]: value };
@@ -872,144 +761,271 @@ const Step2Participantes = ({ formData, setFormData }) => {
 
             <div className="bg-slate-50 border border-slate-300 rounded-lg p-4">
                 <p className="text-sm text-slate-700">
-                    ℹ️ <strong>Información de los participantes.</strong> Completa los datos de contacto. Al menos teléfono o email es obligatorio para Shipper y Consignee.
+                    ℹ️ <strong>Información de los participantes.</strong> Completa los datos de contacto de cada participante. Al menos uno de los campos (teléfono o email) es obligatorio.
                 </p>
             </div>
 
             {/* SHIPPER */}
-            <div className="border border-slate-300 rounded-lg p-6 bg-white">
-                <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">Shipper / Embarcador (EMB)</h3>
+            <div className="border border-slate-300 rounded-lg p-6 bg-white relative">
+                {formData.shipper_codigo_pil && (
+                    <div className="absolute top-4 right-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-blue-100 text-blue-800 border border-blue-300">
+                            PIL: {formData.shipper_codigo_pil}
+                        </span>
+                    </div>
+                )}
+                <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
+                    Shipper / Embarcador (EMB)
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Nombre / Razón Social <span className="text-red-500">*</span></label>
-                        <textarea rows={3} value={formData.shipper || ""} onChange={(e) => updateField("shipper", e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500" placeholder="Ingrese nombre o razón social completa" />
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Nombre / Razón Social <span className="text-red-500">*</span>
+                        </label>
+                        <textarea
+                            rows={3}
+                            value={formData.shipper || ""}
+                            onChange={(e) => updateField("shipper", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ingrese nombre o razón social completa"
+                        />
                     </div>
                     <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Dirección <span className="text-red-500">*</span></label>
-                        <input type="text" value={formData.shipper_direccion || ""} onChange={(e) => updateField("shipper_direccion", e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500" placeholder="Ingrese dirección" />
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Dirección <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.shipper_direccion || ""}
+                            onChange={(e) => updateField("shipper_direccion", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ingrese dirección"
+                        />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Teléfono <span className="text-amber-500 text-xs">(requerido si no hay email)</span></label>
-                        <input type="text" value={formData.shipper_telefono || ""}
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Teléfono <span className="text-amber-500 text-xs">(requerido si no hay email)</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.shipper_telefono || ""}
                             onChange={(e) => updateField("shipper_telefono", e.target.value.replace(/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/g, ""))}
-                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
-                            placeholder="+56 9 1234 5678" />
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="+56 9 1234 5678"
+                        />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Email <span className="text-amber-500 text-xs">(requerido si no hay teléfono)</span></label>
-                        <input type="email" value={formData.shipper_email || ""}
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Email <span className="text-amber-500 text-xs">(requerido si no hay teléfono)</span>
+                        </label>
+                        <input
+                            type="email"
+                            value={formData.shipper_email || ""}
                             onChange={(e) => { updateField("shipper_email", e.target.value); setEmailErrors(p => ({ ...p, shipper: false })); }}
                             onBlur={(e) => setEmailErrors(p => ({ ...p, shipper: !validarEmail(e.target.value) }))}
-                            className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-slate-500 outline-none transition-colors ${emailErrors.shipper ? "border-red-400 bg-red-50" : "border-slate-300"}`}
-                            placeholder="correo@ejemplo.com" />
+                            className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none transition-colors ${emailErrors.shipper ? "border-red-400 bg-red-50" : "border-slate-300"}`}
+                            placeholder="correo@ejemplo.com"
+                        />
                         {emailErrors.shipper && <p className="text-xs text-red-600 mt-1">Formato de email inválido</p>}
                     </div>
                 </div>
             </div>
 
             {/* CONSIGNEE */}
-            <div className="border border-slate-300 rounded-lg p-6 bg-white">
-                <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">Consignatario (CONS)</h3>
+            <div className="border border-slate-300 rounded-lg p-6 bg-white relative">
+                {formData.consignee_codigo_pil && (
+                    <div className="absolute top-4 right-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-green-100 text-green-800 border border-green-300">
+                            PIL: {formData.consignee_codigo_pil}
+                        </span>
+                    </div>
+                )}
+                <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
+                    Consignatario (CONS)
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Nombre / Razón Social <span className="text-red-500">*</span></label>
-                        <textarea rows={3} value={formData.consignee || ""} onChange={(e) => updateField("consignee", e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500" placeholder="Ingrese nombre o razón social completa" />
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Nombre / Razón Social <span className="text-red-500">*</span>
+                        </label>
+                        <textarea
+                            rows={3}
+                            value={formData.consignee || ""}
+                            onChange={(e) => updateField("consignee", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ingrese nombre o razón social completa"
+                        />
                     </div>
                     <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Dirección<span className="text-red-500">*</span></label>
-                        <input type="text" value={formData.consignee_direccion || ""} onChange={(e) => updateField("consignee_direccion", e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500" placeholder="Ingrese dirección" />
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            RUT <span className="text-slate-400 text-xs font-normal">(Opcional - solo si es empresa chilena)</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.consignee_rut || ""}
+                            onChange={(e) => updateField("consignee_rut", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ej: 91256000-7"
+                        />
+                    </div>
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Dirección <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.consignee_direccion || ""}
+                            onChange={(e) => updateField("consignee_direccion", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ingrese dirección"
+                        />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Teléfono <span className="text-amber-500 text-xs">(requerido si no hay email)</span></label>
-
-                        <input type="text" value={formData.consignee_telefono || ""}
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Teléfono <span className="text-amber-500 text-xs">(requerido si no hay email)</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.consignee_telefono || ""}
                             onChange={(e) => updateField("consignee_telefono", e.target.value.replace(/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/g, ""))}
-                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
-                            placeholder="+56 9 1234 5678" />
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="+56 9 1234 5678"
+                        />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Email <span className="text-amber-500 text-xs">(requerido si no hay teléfono)</span></label>
-                        <input type="email" value={formData.consignee_email || ""}
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Email <span className="text-amber-500 text-xs">(requerido si no hay teléfono)</span>
+                        </label>
+                        <input
+                            type="email"
+                            value={formData.consignee_email || ""}
                             onChange={(e) => { updateField("consignee_email", e.target.value); setEmailErrors(p => ({ ...p, consignee: false })); }}
                             onBlur={(e) => setEmailErrors(p => ({ ...p, consignee: !validarEmail(e.target.value) }))}
-                            className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-slate-500 outline-none transition-colors ${emailErrors.consignee ? "border-red-400 bg-red-50" : "border-slate-300"}`}
-                            placeholder="correo@ejemplo.com" />
+                            className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none transition-colors ${emailErrors.consignee ? "border-red-400 bg-red-50" : "border-slate-300"}`}
+                            placeholder="correo@ejemplo.com"
+                        />
                         {emailErrors.consignee && <p className="text-xs text-red-600 mt-1">Formato de email inválido</p>}
                     </div>
                 </div>
             </div>
 
             {/* NOTIFY PARTY */}
-            <div className="border border-slate-300 rounded-lg p-6 bg-white">
-                <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">Notify Party (NOTI) <span className="text-sm text-slate-500 font-normal">(Opcional)</span></h3>
+            <div className="border border-slate-300 rounded-lg p-6 bg-white relative">
+                {formData.notify_codigo_pil && (
+                    <div className="absolute top-4 right-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-mono bg-purple-100 text-purple-800 border border-purple-300">
+                            PIL: {formData.notify_codigo_pil}
+                        </span>
+                    </div>
+                )}
+                <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
+                    Notify Party (NOTI) <span className="text-sm text-slate-500 font-normal">(Opcional)</span>
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Nombre / Razón Social</label>
-                        <textarea rows={3} value={formData.notify_party || ""} onChange={(e) => updateField("notify_party", e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500" placeholder="Ingrese nombre o razón social completa" />
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Nombre / Razón Social
+                        </label>
+                        <textarea
+                            rows={3}
+                            value={formData.notify_party || ""}
+                            onChange={(e) => updateField("notify_party", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ingrese nombre o razón social completa"
+                        />
                     </div>
                     <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Dirección</label>
-                        <input type="text" value={formData.notify_direccion || ""} onChange={(e) => updateField("notify_direccion", e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500" placeholder="Ingrese dirección" />
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            RUT <span className="text-slate-400 text-xs font-normal">(Opcional - solo si es empresa chilena)</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.notify_rut || ""}
+                            onChange={(e) => updateField("notify_rut", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ej: 91256000-7"
+                        />
+                    </div>
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Dirección
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.notify_direccion || ""}
+                            onChange={(e) => updateField("notify_direccion", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ingrese dirección"
+                        />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">Teléfono</label>
-                        <input type="text" value={formData.notify_telefono || ""}
+                        <input
+                            type="text"
+                            value={formData.notify_telefono || ""}
                             onChange={(e) => updateField("notify_telefono", e.target.value.replace(/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/g, ""))}
-                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500"
-                            placeholder="+56 9 1234 5678" />
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="+56 9 1234 5678"
+                        />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
-                        <input type="email" value={formData.notify_email || ""}
+                        <input
+                            type="email"
+                            value={formData.notify_email || ""}
                             onChange={(e) => { updateField("notify_email", e.target.value); setEmailErrors(p => ({ ...p, notify: false })); }}
                             onBlur={(e) => setEmailErrors(p => ({ ...p, notify: !validarEmail(e.target.value) }))}
-                            className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-slate-500 outline-none transition-colors ${emailErrors.notify ? "border-red-400 bg-red-50" : "border-slate-300"}`}
-                            placeholder="correo@ejemplo.com" />
+                            className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none transition-colors ${emailErrors.notify ? "border-red-400 bg-red-50" : "border-slate-300"}`}
+                            placeholder="correo@ejemplo.com"
+                        />
                         {emailErrors.notify && <p className="text-xs text-red-600 mt-1">Formato de email inválido</p>}
                     </div>
                 </div>
             </div>
 
-            {/* ALMACENADOR CON SELECTOR */}
-            <div className="border border-slate-300 rounded-lg p-6 bg-white">
-                <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
-                    Almacenador (ALM) <span className="text-sm text-slate-500 font-normal">(Opcional)</span>
-                </h3>
-                <AlmacenadorSelector
-                    value={formData.almacenador_id}
-                    displayValue={formData.almacenador}
-                    onChange={(id, texto, datos) => {
-                        setFormData(prev => ({
-                            ...prev,
-                            almacenador_id: id,
-                            almacenador: texto,
-                            almacenador_codigo_pil: datos.codigo_pil || '',
-                        }));
-                    }}
-                    onClear={() => {
-                        setFormData(prev => ({
-                            ...prev,
-                            almacenador_id: null,
-                            almacenador: '',
-                            almacenador_codigo_pil: '',
-                        }));
-                    }}
-                />
-            </div>
+            {/* ALMACENADOR */}
+            <AlmacenadorSelector
+                value={formData.almacenador_id}
+                displayValue={formData.almacenador}
+                onChange={(id, texto, datos) => {
+                    setFormData(prev => ({
+                        ...prev,
+                        almacenador_id: id,
+                        almacenador: texto,
+                        almacenador_direccion: datos.direccion || '',
+                        almacenador_telefono: datos.telefono || '',
+                        almacenador_email: datos.email || '',
+                        almacenador_codigo_pil: datos.codigo_pil || '',
+                    }));
+                }}
+                onClear={() => {
+                    setFormData(prev => ({
+                        ...prev,
+                        almacenador_id: null,
+                        almacenador: '',
+                        almacenador_direccion: '',
+                        almacenador_telefono: '',
+                        almacenador_email: '',
+                        almacenador_codigo_pil: '',
+                    }));
+                }}
+            />
 
             {/* Nota roles */}
             <div className="bg-blue-50 border-l-4 border-blue-500 p-4">
                 <div className="flex">
-                    <svg className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                    </svg>
+                    <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                    </div>
                     <div className="ml-3 text-sm text-blue-700">
                         <p className="font-medium mb-1">Roles específicos de Carga Suelta:</p>
                         <ul className="list-disc list-inside space-y-1 ml-2">
-                            <li><strong>EMB:</strong> Shipper/Embarcador — <strong>Obligatorio</strong></li>
-                            <li><strong>CONS:</strong> Consignatario — <strong>Obligatorio</strong></li>
-                            <li><strong>NOTI:</strong> A quien notificar — Opcional</li>
-                            <li><strong>ALM:</strong> Almacenador del mantenedor — Opcional</li>
+                            <li><strong>EMB:</strong> Shipper/Embarcador (quien envía la carga) - <strong>Obligatorio</strong></li>
+                            <li><strong>CONS:</strong> Consignatario (quien recibe) - <strong>Obligatorio</strong></li>
+                            <li><strong>NOTI:</strong> A quien notificar - Opcional</li>
+                            <li><strong>ALM:</strong> Almacenador (empresa de almacenaje) - Opcional</li>
                         </ul>
                         <p className="mt-2 text-xs">Los roles EMI, REP y EMIDO se toman automáticamente de las referencias del manifiesto.</p>
                     </div>
@@ -1020,26 +1036,43 @@ const Step2Participantes = ({ formData, setFormData }) => {
             <div className="mt-6 pt-6 border-t border-slate-200">
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="text-md font-semibold text-slate-700">Observaciones del BL</h3>
-                    <button type="button" onClick={addObservacion} className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 flex items-center gap-2 transition-colors">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    <button
+                        type="button"
+                        onClick={addObservacion}
+                        className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 flex items-center gap-2 transition-colors"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
                         Agregar Observación
                     </button>
                 </div>
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3 text-sm text-blue-800">
                     <strong>Info:</strong> Las observaciones aparecerán en el XML de carga suelta.
+                    Por defecto se incluye "LISTA DE ENCARGO" como motivo (MOT).
                 </div>
                 <div className="space-y-3">
                     {formData.observaciones.map((obs, idx) => (
                         <div key={idx} className="border border-slate-200 rounded-lg p-3 bg-slate-50 relative">
                             {formData.observaciones.length > 1 && (
-                                <button type="button" onClick={() => removeObservacion(idx)} className="absolute top-2 right-2 text-red-500 hover:text-red-700 p-1 rounded transition-colors">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                <button
+                                    type="button"
+                                    onClick={() => removeObservacion(idx)}
+                                    className="absolute top-2 right-2 text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
                                 </button>
                             )}
                             <div className="grid grid-cols-4 gap-3">
                                 <div className="col-span-1">
                                     <label className="block text-xs font-medium text-slate-600 mb-1">Tipo</label>
-                                    <select value={obs.nombre} onChange={(e) => updateObservacion(idx, 'nombre', e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <select
+                                        value={obs.nombre}
+                                        onChange={(e) => updateObservacion(idx, 'nombre', e.target.value)}
+                                        className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
                                         <option value="GRAL">GRAL</option>
                                         <option value="MOT">MOT</option>
                                         <option value="OBS">OBS</option>
@@ -1047,7 +1080,13 @@ const Step2Participantes = ({ formData, setFormData }) => {
                                 </div>
                                 <div className="col-span-3">
                                     <label className="block text-xs font-medium text-slate-600 mb-1">Contenido</label>
-                                    <input type="text" value={obs.contenido} onChange={(e) => updateObservacion(idx, 'contenido', e.target.value)} placeholder="Ej: SELLOS PARA CONTENEDORES" className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                    <input
+                                        type="text"
+                                        value={obs.contenido}
+                                        onChange={(e) => updateObservacion(idx, 'contenido', e.target.value)}
+                                        placeholder="Ej: SELLOS PARA CONTENEDORES"
+                                        className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
                                 </div>
                             </div>
                         </div>
@@ -1063,6 +1102,7 @@ const Step2Participantes = ({ formData, setFormData }) => {
     );
 };
 
+// ==================== STEP 3: ITEMS ====================
 const Step3Items = ({ formData, setFormData, addItem, removeItem, tiposBulto }) => {
     const updateItem = (index, field, value) => {
         const newItems = [...formData.items];
@@ -1074,8 +1114,13 @@ const Step3Items = ({ formData, setFormData, addItem, removeItem, tiposBulto }) 
         <div className="space-y-4">
             <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-slate-800">Items de Carga</h2>
-                <button onClick={addItem} className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 flex items-center gap-2 transition-colors">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                <button
+                    onClick={addItem}
+                    className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 flex items-center gap-2 transition-colors"
+                >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
                     Agregar Item
                 </button>
             </div>
@@ -1083,20 +1128,36 @@ const Step3Items = ({ formData, setFormData, addItem, removeItem, tiposBulto }) 
             {formData.items.map((item, idx) => (
                 <div key={idx} className="border border-slate-200 rounded-lg p-4 relative bg-slate-50 hover:bg-slate-100 transition-colors">
                     {formData.items.length > 1 && (
-                        <button onClick={() => removeItem(idx)} className="absolute top-2 right-2 text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        <button
+                            onClick={() => removeItem(idx)}
+                            className="absolute top-2 right-2 text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
+                            title="Eliminar item"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
                         </button>
                     )}
                     <div className="mb-3 text-sm font-semibold text-slate-700 flex items-center gap-2">
-                        <span className="bg-[#0F2A44] text-white w-7 h-7 rounded-full flex items-center justify-center text-xs">{item.numero_item}</span>
+                        <span className="bg-[#0F2A44] text-white w-7 h-7 rounded-full flex items-center justify-center text-xs">
+                            {item.numero_item}
+                        </span>
                         Item #{item.numero_item}
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <InputField label="Marcas" value={item.marcas} onChange={(v) => updateItem(idx, 'marcas', v)} placeholder="N/M (si no aplica)" required />
                         <SelectField label="Tipo Bulto" value={item.tipo_bulto} onChange={(v) => updateItem(idx, 'tipo_bulto', v)} options={tiposBulto} required />
                         <div className="col-span-2">
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Descripción de la Mercancía <span className="text-red-500">*</span></label>
-                            <textarea value={item.descripcion} onChange={(e) => updateItem(idx, 'descripcion', e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F2A44]" rows={5} placeholder="Descripción detallada de la mercancía" />
+                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                                Descripción de la Mercancía <span className="text-red-500">*</span>
+                            </label>
+                            <textarea
+                                value={item.descripcion}
+                                onChange={(e) => updateItem(idx, 'descripcion', e.target.value)}
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F2A44]"
+                                rows={5}
+                                placeholder="Descripción detallada de la mercancía&#10;Ejemplo:&#10;01 PALLETS STC: 44 CAJAS&#10;BOLT SEALS SERIAL NO. CL000001 - CL010000&#10;10.000 PCS&#10;SIZE OF EACH BOX (LXBXH): 51 X 32 X 13.5 CM"
+                            />
                         </div>
                         <InputField label="Cantidad de Bultos" type="number" value={item.cantidad} onChange={(v) => updateItem(idx, 'cantidad', v)} required min="1" step="1" />
                         <div className="col-span-2 grid grid-cols-2 gap-4">
@@ -1113,6 +1174,9 @@ const Step3Items = ({ formData, setFormData, addItem, removeItem, tiposBulto }) 
 
             {formData.items.length === 0 && (
                 <div className="text-center py-12 text-slate-500 bg-slate-50 rounded-lg border-2 border-dashed border-slate-300">
+                    <svg className="w-12 h-12 mx-auto mb-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                    </svg>
                     <p>No hay items. Haz clic en "Agregar Item" para comenzar.</p>
                 </div>
             )}
@@ -1120,6 +1184,7 @@ const Step3Items = ({ formData, setFormData, addItem, removeItem, tiposBulto }) 
     );
 };
 
+// ==================== STEP 4: REVISIÓN ====================
 const Step4Revision = ({ formData, manifiestoData, tiposBulto }) => {
     const totalPeso = formData.items.reduce((sum, i) => sum + parseFloat(i.peso_bruto || 0), 0);
     const totalVolumen = formData.items.reduce((sum, i) => sum + parseFloat(i.volumen || 0), 0);
@@ -1130,24 +1195,36 @@ const Step4Revision = ({ formData, manifiestoData, tiposBulto }) => {
             <h2 className="text-lg font-semibold text-slate-800 mb-4">Revisión Final</h2>
 
             <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                <h3 className="font-semibold text-slate-700 mb-3">Datos del BL</h3>
+                <h3 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Datos del BL
+                </h3>
                 <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div><span className="font-medium text-slate-600">N° BL:</span><span className="ml-2 font-mono">{formData.bl_number || "—"}</span></div>
-                    <div><span className="font-medium text-slate-600">Tipo:</span><span className="ml-2 bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-medium">BB (Break Bulk)</span></div>
-                    <div><span className="font-medium text-slate-600">Forma Pago:</span><span className="ml-2">{formData.forma_pago_flete}</span></div>
-                    <div><span className="font-medium text-slate-600">Cond. Transporte:</span><span className="ml-2">{formData.cond_transporte || "—"}</span></div>
+                    <div><span className="font-medium text-slate-600">N° BL:</span><span className="ml-2 text-slate-900 font-mono">{formData.bl_number || "—"}</span></div>
+                    <div><span className="font-medium text-slate-600">Tipo Servicio:</span><span className="ml-2 text-slate-900 bg-blue-100 px-2 py-0.5 rounded text-xs font-medium">BB (Break Bulk)</span></div>
+                    <div><span className="font-medium text-slate-600">Forma Pago:</span><span className="ml-2 text-slate-900">{formData.forma_pago_flete}</span></div>
+                    <div><span className="font-medium text-slate-600">Cond. Transporte:</span><span className="ml-2 text-slate-900">{formData.cond_transporte || "—"}</span></div>
                     <div className="col-span-2 border-t border-slate-200 pt-2 mt-2">
-                        <span className="font-medium text-slate-600">Puertos:</span>
-                        <div className="ml-2 text-xs grid grid-cols-2 gap-2 mt-1">
-                            <div>Embarque: {formData.puerto_embarque || "—"}</div>
-                            <div>Descarga: {formData.puerto_descarga || "—"}</div>
+                        <span className="font-medium text-slate-600">Locaciones:</span>
+                        <div className="ml-2 text-slate-900 text-xs grid grid-cols-2 gap-2 mt-1">
+                            <div>Puerto Embarque: {formData.puerto_embarque || "—"}</div>
+                            <div>Puerto Descarga: {formData.puerto_descarga || "—"}</div>
+                            <div>Lugar Destino: {formData.lugar_destino || "—"}</div>
+                            <div>Lugar Entrega: {formData.lugar_entrega || "—"}</div>
                         </div>
                     </div>
                 </div>
             </div>
 
             <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-200">
-                <h3 className="font-semibold text-emerald-800 mb-3">Totales de Carga</h3>
+                <h3 className="font-semibold text-emerald-800 mb-3 flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    Totales de Carga
+                </h3>
                 <div className="grid grid-cols-3 gap-4">
                     <div className="text-center bg-white rounded-lg p-3">
                         <div className="text-emerald-600 font-medium text-sm">Items</div>
@@ -1163,25 +1240,51 @@ const Step4Revision = ({ formData, manifiestoData, tiposBulto }) => {
                         <div className="text-xs text-emerald-600">{formData.items[0]?.unidad_peso || 'KGM'}</div>
                     </div>
                 </div>
+                {totalVolumen > 0 && (
+                    <div className="text-center mt-3 pt-3 border-t border-emerald-200">
+                        <div className="text-emerald-600 font-medium text-sm">Volumen Total</div>
+                        <div className="text-xl font-bold text-emerald-900">{totalVolumen.toFixed(3)} {formData.items[0]?.unidad_volumen || 'MTQ'}</div>
+                    </div>
+                )}
             </div>
 
             <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                <h3 className="font-semibold text-slate-700 mb-3">Items de Carga ({formData.items.length})</h3>
+                <h3 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                    Items de Carga ({formData.items.length})
+                </h3>
                 <div className="space-y-2 max-h-80 overflow-y-auto">
                     {formData.items.map((item, idx) => {
                         const tipoBultoLabel = tiposBulto.find(t => t.value === item.tipo_bulto)?.label || item.tipo_bulto;
                         return (
-                            <div key={idx} className="bg-white p-3 rounded-lg border border-slate-200 text-sm">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span className="bg-[#0F2A44] text-white w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold">{item.numero_item}</span>
-                                    <span className="font-medium">Item #{item.numero_item}</span>
-                                    <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{tipoBultoLabel}</span>
-                                </div>
-                                <div className="text-slate-600 text-xs line-clamp-2 pl-7">{item.descripcion || "Sin descripción"}</div>
-                                <div className="flex gap-3 text-xs text-slate-500 pl-7 mt-1">
-                                    <span>{item.cantidad} bulto(s)</span>
-                                    <span>•</span>
-                                    <span className="font-mono">{parseFloat(item.peso_bruto).toFixed(3)} {item.unidad_peso}</span>
+                            <div key={idx} className="bg-white p-3 rounded-lg border border-slate-200 text-sm hover:border-slate-300 transition-colors">
+                                <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="bg-[#0F2A44] text-white w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold">{item.numero_item}</span>
+                                            <span className="font-medium text-slate-900">Item #{item.numero_item}</span>
+                                            <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{tipoBultoLabel}</span>
+                                        </div>
+                                        <div className="text-slate-600 text-xs line-clamp-2 mb-2 pl-7">{item.descripcion || "Sin descripción"}</div>
+                                        <div className="flex flex-wrap gap-3 text-xs text-slate-500 pl-7">
+                                            <span>{item.cantidad} bulto(s)</span>
+                                            <span>•</span>
+                                            <span className="font-mono">{parseFloat(item.peso_bruto).toFixed(3)} {item.unidad_peso}</span>
+                                            {item.volumen > 0 && (
+                                                <>
+                                                    <span>•</span>
+                                                    <span className="font-mono">{parseFloat(item.volumen).toFixed(3)} {item.unidad_volumen}</span>
+                                                </>
+                                            )}
+                                            <span>•</span>
+                                            <span>Marcas: {item.marcas}</span>
+                                        </div>
+                                    </div>
+                                    <div className="ml-3">
+                                        <span className="inline-block px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium">Sin CNT</span>
+                                    </div>
                                 </div>
                             </div>
                         );
@@ -1192,22 +1295,30 @@ const Step4Revision = ({ formData, manifiestoData, tiposBulto }) => {
             <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                 <h3 className="font-semibold text-slate-700 mb-3">Participantes del BL</h3>
                 <div className="space-y-2 text-sm">
-                    <div><span className="font-medium text-slate-600">Shipper (EMB):</span><p className="text-slate-900 mt-1 text-xs whitespace-pre-line">{formData.shipper || "—"}</p></div>
+                    <div><span className="font-medium text-slate-600">Shipper/Embarcador (EMB):</span><p className="text-slate-900 mt-1 text-xs whitespace-pre-line">{formData.shipper || "—"}</p></div>
                     <div className="pt-2 border-t border-slate-200"><span className="font-medium text-slate-600">Consignee (CONS):</span><p className="text-slate-900 mt-1 text-xs whitespace-pre-line">{formData.consignee || "—"}</p></div>
                     <div className="pt-2 border-t border-slate-200"><span className="font-medium text-slate-600">Notify Party (NOTI):</span><p className="text-slate-900 mt-1 text-xs whitespace-pre-line">{formData.notify_party || "—"}</p></div>
                     {formData.almacenador && (
                         <div className="pt-2 border-t border-slate-200">
                             <span className="font-medium text-slate-600">Almacenador (ALM):</span>
-                            <p className="text-slate-900 mt-1 text-xs">{formData.almacenador}</p>
+                            <p className="text-slate-900 mt-1 text-xs whitespace-pre-line">{formData.almacenador}</p>
                             {formData.almacenador_id && <span className="text-xs text-emerald-600">✓ Del mantenedor</span>}
                         </div>
                     )}
+                </div>
+                <div className="mt-3 pt-3 border-t border-slate-200 text-xs text-slate-500">
+                    <strong>Nota:</strong> Los roles EMI (Emisor), REP (Representante) y EMIDO (Emisor Doc) se toman de las referencias del manifiesto.
                 </div>
             </div>
 
             {formData.observaciones?.length > 0 && (
                 <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                    <h3 className="font-semibold text-slate-700 mb-3">Observaciones ({formData.observaciones.length})</h3>
+                    <h3 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                        </svg>
+                        Observaciones ({formData.observaciones.length})
+                    </h3>
                     <div className="space-y-2">
                         {formData.observaciones.map((obs, idx) => (
                             <div key={idx} className="bg-white p-2 rounded border border-slate-200 text-sm">
@@ -1224,7 +1335,7 @@ const Step4Revision = ({ formData, manifiestoData, tiposBulto }) => {
                     <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                 </svg>
                 <div className="text-sm text-amber-800">
-                    <strong>Importante:</strong> Verifica que todos los datos sean correctos antes de actualizar.
+                    <strong>Importante:</strong> Verifica que todos los datos sean correctos antes de actualizar la carga suelta.
                 </div>
             </div>
         </div>
@@ -1232,7 +1343,6 @@ const Step4Revision = ({ formData, manifiestoData, tiposBulto }) => {
 };
 
 // ==================== HELPER COMPONENTS ====================
-
 const InputField = ({ label, type = "text", value, onChange, placeholder, required, step, min, maxLength, disabled }) => (
     <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -1257,36 +1367,155 @@ const SelectField = ({ label, value, onChange, options, required }) => (
     </div>
 );
 
-const SelectPuerto = ({ label, value, onChange, puertos, required }) => {
-    const datalistId = `puertos-edit-${label.replace(/\s+/g, '-').toLowerCase()}`;
-    const isPuertoValido = puertos.some(p => p.codigo === value);
-    const mostrarWarning = value && !isPuertoValido;
+const PuertoAutocomplete = ({ label, value, onChange, puertos, required }) => {
+    const [query, setQuery] = useState(value || '');
+    const [open, setOpen] = useState(false);
+    const containerRef = useRef(null);
 
+    useEffect(() => {
+        const handler = (e) => {
+            if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    useEffect(() => {
+        setQuery(value || '');
+    }, [value]);
+
+    const todasOpciones = [];
+    puertos.forEach(p => {
+        if (p.codigo_sidemar && p.codigo_sidemar !== p.codigo) {
+            todasOpciones.push({ codigo: p.codigo_sidemar, nombre: p.nombre, esSidemar: true });
+        }
+        todasOpciones.push({ codigo: p.codigo, nombre: p.nombre, esSidemar: false });
+    });
+
+    const filtradas = query.length >= 1
+        ? todasOpciones.filter(op =>
+            op.codigo.toUpperCase().includes(query.toUpperCase()) ||
+            op.nombre.toUpperCase().includes(query.toUpperCase())
+        ).slice(0, 8)
+        : [];
+
+    const handleSelect = (op) => {
+        setQuery(op.codigo);
+        onChange(op.codigo);
+        setOpen(false);
+    };
+
+    const handleInputChange = (e) => {
+        const v = e.target.value.toUpperCase();
+        setQuery(v);
+        onChange(v);
+        setOpen(true);
+    };
+
+    return (
+        <div className="relative" ref={containerRef}>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+                {label} {required && <span className="text-red-500">*</span>}
+            </label>
+            <input
+                type="text"
+                value={query}
+                onChange={handleInputChange}
+                onFocus={() => { if (query.length >= 1) setOpen(true); }}
+                placeholder="Escribe código o nombre..."
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F2A44] transition-colors"
+            />
+            {open && filtradas.length > 0 && (
+                <div className="absolute left-0 top-full mt-2 z-50 w-full min-w-[280px] bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden">
+                    <div className="px-4 py-2 bg-slate-50 border-b border-slate-200">
+                        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
+                            Puertos disponibles · {filtradas.length} resultado{filtradas.length !== 1 ? 's' : ''}
+                        </p>
+                    </div>
+                    <div className="py-1 max-h-60 overflow-y-auto">
+                        {filtradas.map((op, i) => {
+                            const isSelected = op.codigo === value;
+                            return (
+                                <button
+                                    key={i}
+                                    type="button"
+                                    onMouseDown={() => handleSelect(op)}
+                                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors border-l-4 ${isSelected ? 'border-l-[#0F2A44] bg-slate-100' : 'border-l-transparent hover:bg-slate-50'}`}
+                                >
+                                    <span className={`flex-shrink-0 px-2 py-1 rounded-lg text-xs font-bold font-mono border ${op.esSidemar ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                                        {op.codigo}
+                                    </span>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-semibold text-slate-800 truncate">{op.nombre}</span>
+                                            {isSelected && <span className="text-[10px] bg-slate-200 text-slate-500 rounded px-1.5 py-0.5 font-medium flex-shrink-0">Activo</span>}
+                                        </div>
+                                        {op.esSidemar && <p className="text-[11px] text-amber-600 font-medium mt-0.5">Código SIDEMAR</p>}
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const MaskedDateInput = ({ label, value, onChange, required }) => {
+    const handleChange = (e) => {
+        let v = e.target.value.replace(/\D/g, '');
+        if (v.length >= 3) v = v.slice(0, 2) + '/' + v.slice(2);
+        if (v.length >= 6) v = v.slice(0, 5) + '/' + v.slice(5);
+        v = v.slice(0, 10);
+        onChange(v);
+    };
+    const isValid = !value || /^\d{2}\/\d{2}\/\d{4}$/.test(value);
     return (
         <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
                 {label} {required && <span className="text-red-500">*</span>}
             </label>
-            <div className="relative">
-                <input
-                    type="text" value={value} onChange={(e) => onChange(e.target.value.toUpperCase())}
-                    list={datalistId} placeholder="Escribe o selecciona un puerto..."
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${mostrarWarning ? 'border-red-300 focus:ring-red-500 bg-red-50' : 'border-slate-300 focus:ring-[#0F2A44]'}`}
-                />
-                {mostrarWarning && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                        </svg>
-                    </div>
-                )}
-            </div>
-            <datalist id={datalistId}>
-                {puertos.map(puerto => <option key={puerto.codigo} value={puerto.codigo}>{puerto.nombre}</option>)}
-            </datalist>
-            {mostrarWarning && (
-                <p className="text-xs text-red-600 mt-1 font-medium">El código "{value}" no existe en el catálogo de puertos</p>
-            )}
+            <input
+                type="text"
+                value={value}
+                onChange={handleChange}
+                placeholder="DD/MM/YYYY"
+                maxLength={10}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F2A44] transition-colors ${!isValid && value ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
+            />
+            {!isValid && value && <p className="text-xs text-red-600 mt-1">Formato inválido. Usa DD/MM/YYYY</p>}
+        </div>
+    );
+};
+
+const MaskedDateTimeInput = ({ label, value, onChange, required }) => {
+    const handleChange = (e) => {
+        let v = e.target.value.replace(/[^\d\s]/g, '');
+        const digits = v.replace(/\D/g, '');
+        let result = '';
+        if (digits.length >= 1) result = digits.slice(0, 2);
+        if (digits.length >= 3) result += '/' + digits.slice(2, 4);
+        if (digits.length >= 5) result += '/' + digits.slice(4, 8);
+        if (digits.length >= 9) result += ' ' + digits.slice(8, 10);
+        if (digits.length >= 11) result += ':' + digits.slice(10, 12);
+        onChange(result);
+    };
+    const isValid = !value || /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(value);
+    return (
+        <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+                {label} {required && <span className="text-red-500">*</span>}
+            </label>
+            <input
+                type="text"
+                value={value}
+                onChange={handleChange}
+                placeholder="DD/MM/YYYY HH:mm"
+                maxLength={16}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F2A44] transition-colors ${!isValid && value ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
+            />
+            {!isValid && value && <p className="text-xs text-red-600 mt-1">Formato inválido. Usa DD/MM/YYYY HH:mm</p>}
         </div>
     );
 };
