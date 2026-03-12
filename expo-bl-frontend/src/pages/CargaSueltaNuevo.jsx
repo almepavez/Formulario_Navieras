@@ -352,18 +352,7 @@ const CargaSueltaNuevo = () => {
                     Swal.fire({ title: "Campo requerido", text: "La dirección del Shipper es obligatoria", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
-                if (!formData.shipper_telefono?.trim() && !formData.shipper_email?.trim()) {
-                    Swal.fire({ title: "Datos de contacto faltantes", text: "El Shipper debe tener al menos teléfono o email", icon: "warning", confirmButtonColor: "#10b981" });
-                    return false;
-                }
-                if (formData.shipper_telefono?.trim() && formData.shipper_telefono.trim().length < 7) {
-                    Swal.fire({ title: "Teléfono inválido", text: "El teléfono del Shipper debe tener al menos 7 caracteres", icon: "warning", confirmButtonColor: "#10b981" });
-                    return false;
-                }
-                if (formData.shipper_email?.trim() && !validarEmail(formData.shipper_email)) {
-                    Swal.fire({ title: "Email inválido", text: "El email del Shipper no tiene formato válido", icon: "warning", confirmButtonColor: "#10b981" });
-                    return false;
-                }
+        
                 if (!formData.consignee || formData.consignee.trim().length < 3) {
                     Swal.fire({ title: "Campo requerido", text: "El Consignee debe tener al menos 3 caracteres", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
@@ -372,30 +361,8 @@ const CargaSueltaNuevo = () => {
                     Swal.fire({ title: "Campo requerido", text: "La dirección del Consignee es obligatoria", icon: "warning", confirmButtonColor: "#10b981" });
                     return false;
                 }
-                if (!formData.consignee_telefono?.trim() && !formData.consignee_email?.trim()) {
-                    Swal.fire({ title: "Datos de contacto faltantes", text: "El Consignee debe tener al menos teléfono o email", icon: "warning", confirmButtonColor: "#10b981" });
-                    return false;
-                }
-                if (formData.consignee_telefono?.trim() && formData.consignee_telefono.trim().length < 7) {
-                    Swal.fire({ title: "Teléfono inválido", text: "El teléfono del Consignee debe tener al menos 7 caracteres", icon: "warning", confirmButtonColor: "#10b981" });
-                    return false;
-                }
-                if (formData.consignee_email?.trim() && !validarEmail(formData.consignee_email)) {
-                    Swal.fire({ title: "Email inválido", text: "El email del Consignee no tiene formato válido", icon: "warning", confirmButtonColor: "#10b981" });
-                    return false;
-                }
-                if (formData.notify_party?.trim() && !formData.notify_telefono?.trim() && !formData.notify_email?.trim()) {
-                    Swal.fire({ title: "Datos de contacto faltantes", text: "Si ingresas Notify Party, debe tener al menos teléfono o email", icon: "warning", confirmButtonColor: "#10b981" });
-                    return false;
-                }
-                if (formData.notify_telefono?.trim() && formData.notify_telefono.trim().length < 7) {
-                    Swal.fire({ title: "Teléfono inválido", text: "El teléfono del Notify Party debe tener al menos 7 caracteres", icon: "warning", confirmButtonColor: "#10b981" });
-                    return false;
-                }
-                if (formData.notify_email?.trim() && !validarEmail(formData.notify_email)) {
-                    Swal.fire({ title: "Email inválido", text: "El email del Notify Party no tiene formato válido", icon: "warning", confirmButtonColor: "#10b981" });
-                    return false;
-                }
+
+            
                 return true;
 
             case 3:
