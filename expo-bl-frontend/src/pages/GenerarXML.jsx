@@ -92,7 +92,7 @@ const TipoAccionSelector = ({ value, onChange }) => {
             {/* Header */}
             <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
               <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">
-                Tipo de Acción · 
+                Tipo de Acción ·
               </p>
             </div>
 
@@ -174,7 +174,8 @@ const GenerarXML = () => {
   const [sortOrder, setSortOrder] = useState("recent");
   const [showOnlyErrors, setShowOnlyErrors] = useState(false);
   const [tipoAccion, setTipoAccion] = useState("I"); // 🆕
-
+  const [naveManifiesto, setNaveManifiesto] = useState("");
+  const [viajeManifiesto, setViajeManifiesto] = useState("");
 
   useEffect(() => {
     if (!id) {
@@ -184,6 +185,7 @@ const GenerarXML = () => {
     }
 
     fetchBLs();
+    fetchManifiestoInfo();
     const handleFocus = () => {
       console.log('🔄 Ventana recuperó el foco - Recargando BLs...');
       fetchBLs();
@@ -195,6 +197,22 @@ const GenerarXML = () => {
       window.removeEventListener('focus', handleFocus);
     };
   }, [id]);
+
+
+  const fetchManifiestoInfo = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/manifiestos/${id}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const m = data.manifiesto || data;
+      const naveRaw = (m.nave || "").toUpperCase().replace(/\s+/g, "_");
+      const viajeRaw = (m.viaje || "").toUpperCase().replace(/\s+/g, "_");
+      setNaveManifiesto(naveRaw);
+      setViajeManifiesto(viajeRaw);
+    } catch {
+      // si falla, queda string vacío y usa el fallback
+    }
+  };
 
   const fetchBLs = async () => {
     setLoading(true);
@@ -479,14 +497,14 @@ const GenerarXML = () => {
     );
 
     if (blsConWarnings.length > 0) {
-    const warningsHTML = blsConWarnings.map(bl =>
-  `<div style="text-align: left; margin-bottom: 10px; padding: 10px; background: #FEF3C7; border-radius: 6px; border: 1px solid #FCD34D;">
+      const warningsHTML = blsConWarnings.map(bl =>
+        `<div style="text-align: left; margin-bottom: 10px; padding: 10px; background: #FEF3C7; border-radius: 6px; border: 1px solid #FCD34D;">
     <strong style="color: #92400E;">${bl.bl_number}</strong>
     <p style="margin: 4px 0; font-size: 13px; color: #92400E;">
       ${bl.valid_count_obs} observación(es) — haz clic en Preview para ver el detalle.
     </p>
   </div>`
-).join('');
+      ).join('');
 
       const result = await Swal.fire({
         icon: 'warning',
@@ -555,8 +573,9 @@ const GenerarXML = () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `BLs_Manifiesto_${id}.zip`;
-      document.body.appendChild(a);
+      a.download = naveManifiesto && viajeManifiesto
+        ? `${naveManifiesto}_${viajeManifiesto}.zip`
+        : `BLs_Manifiesto_${id}.zip`; document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
@@ -816,8 +835,8 @@ const GenerarXML = () => {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `BMS_V1_SNA-BL-1.0-${blNumber}.xml`;
-        document.body.appendChild(a);
+        a.download = `SGA_V1_SNA-BL-1.0-${blNumber}.xml`;
+         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
@@ -844,10 +863,10 @@ const GenerarXML = () => {
   };
 
   return (
-<div className="flex min-h-screen">
-        <Sidebar />
+    <div className="flex min-h-screen">
+      <Sidebar />
 
-<main className="flex-1 p-10 min-h-screen bg-slate-100">
+      <main className="flex-1 p-10 min-h-screen bg-slate-100">
         {/* Header */}
         <div className="mb-8">
           <button
@@ -896,7 +915,7 @@ const GenerarXML = () => {
                   />
                 </div>
 
-          
+
 
                 <select
                   value={sortOrder}
