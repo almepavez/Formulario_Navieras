@@ -33,14 +33,11 @@ function exportToExcel(rowsToExport, filename) {
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   ws["!cols"] = COLUMNS.map((_, i) => ({ wch: i >= 10 ? 30 : 22 }));
 
-  // ── Estilo encabezado celeste (#00B0F0) ──
   const headerStyle = {
     fill: { patternType: "solid", fgColor: { rgb: "00B0F0" } },
     font: { bold: true, color: { rgb: "FFFFFF" } },
     alignment: { horizontal: "center", vertical: "center" },
-    border: {
-      bottom: { style: "thin", color: { rgb: "FFFFFF" } },
-    },
+    border: { bottom: { style: "thin", color: { rgb: "FFFFFF" } } },
   };
 
   COLUMNS.forEach((_, colIdx) => {
@@ -49,31 +46,26 @@ function exportToExcel(rowsToExport, filename) {
     ws[cellAddr].s = headerStyle;
   });
 
-  // Altura de fila del encabezado
   ws["!rows"] = [{ hpt: 20 }];
-
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Reporte");
-
-  // xlsx-js-style soporta estilos — si usas xlsx normal, instala xlsx-js-style
   XLSX.writeFile(wb, filename);
 }
 
-// ── Columnas plantilla TATC ──
 const TATC_COLUMNS = [
   { key: "nave_codigo", label: "Nave" },
   { key: "viaje", label: "Viaje" },
-  { key: "imo_nave", label: "Lloyd" },      // ya tenía esto — NO tocar
-  { key: "n_contenedor_tatc", label: "Nro Contenedor" },  // antes n_contenedor
+  { key: "imo_nave", label: "Lloyd" },
+  { key: "n_contenedor_tatc", label: "Nro Contenedor" },
   { key: "tipo_bulto", label: "Tipo Bulto" },
-  { key: "tam_contenedor", label: "Tamaño Contenedor" },  // antes tam_contenedor vacío
-  { key: "tipo_cnt_sna", label: "Tipo Contenedor" },      // antes tipo_contenedor
+  { key: "tam_contenedor", label: "Tamaño Contenedor" },
+  { key: "tipo_cnt_sna", label: "Tipo Contenedor" },
   { key: "cod_iso", label: "Código ISO Contenedor" },
   { key: "estado_cnt", label: "Estado Contenedor" },
   { key: "tara", label: "Tara Contenedor" },
   { key: "anio_fab", label: "Año Fabricación Contenedor" },
   { key: "pais_fab", label: "País Fabricación Contenedor" },
-  { key: "estado_emb", label: "Estado Embarque" },        // ahora con valor real
+  { key: "estado_emb", label: "Estado Embarque" },
   { key: "num_reserva", label: "Número Reserva Armador" },
   { key: "almacen", label: "Almacén" },
   { key: "deposito", label: "Deposito Devolución" },
@@ -86,7 +78,6 @@ const TATC_COLUMNS = [
 ];
 
 function exportTATC(rowsToExport, filename) {
-  // Encabezado naranja igual al de la imagen (#F4801A es el naranja de Excel)
   const headerStyle = {
     fill: { patternType: "solid", fgColor: { rgb: "F4801A" } },
     font: { bold: true, color: { rgb: "FFFFFF" } },
@@ -94,7 +85,6 @@ function exportTATC(rowsToExport, filename) {
     border: { bottom: { style: "thin", color: { rgb: "FFFFFF" } } },
   };
 
-  // Mapear filas — solo los campos que tenemos, el resto vacío
   const wsData = [
     TATC_COLUMNS.map((c) => c.label),
     ...rowsToExport.map((r) => TATC_COLUMNS.map((c) => r[c.key] ?? "")),
@@ -104,7 +94,6 @@ function exportTATC(rowsToExport, filename) {
   ws["!cols"] = TATC_COLUMNS.map(() => ({ wch: 24 }));
   ws["!rows"] = [{ hpt: 22 }];
 
-  // Aplicar estilo naranja al encabezado
   const grayKeys = ["tipo_bulto", "estado_cnt", "tara", "anio_fab", "pais_fab", "fecha_ingreso_pais", "fecha_ingreso_dep", "fecha_emision_tatc", "eir", "ingreso_doc"];
 
   const grayStyle = {
@@ -153,10 +142,8 @@ function formatTipoCnt(isoCod) {
   return CNT_TYPE_MAP[key] || key;
 }
 
-// BD: tipo_operacion "I" = IMPO, "S" = EXPO
 const TIPO_OP_MAP = { IMPO: "I", EXPO: "S" };
 
-// ↓↓↓ PEGA AQUÍ ↓↓↓
 const AlmacenSelect = ({ value, onChange, onSave }) => {
   const [query, setQuery] = useState(value || "");
   const [resultados, setResultados] = useState([]);
@@ -275,7 +262,7 @@ const AlmacenSelect = ({ value, onChange, onSave }) => {
           await Swal.fire({ icon: "success", title: "Almacenista creado", text: `"${query}" fue agregado al mantenedor`, timer: 2000, showConfirmButton: false });
           onSave?.();
         } else {
-         const errData = await res.json().catch(() => ({}));
+          const errData = await res.json().catch(() => ({}));
           if (res.status === 409) {
             const [existing] = await fetch(`${API_URL}/api/mantenedores/almacenistas`)
               .then(r => r.json()).catch(() => []);
@@ -346,7 +333,6 @@ const AlmacenSelect = ({ value, onChange, onSave }) => {
     </div>
   );
 };
-// ↑↑↑ FIN AlmacenSelect ↑↑↑
 
 export default function Reportes() {
   const [allManifiestos, setAllManifiestos] = useState([]);
@@ -366,7 +352,6 @@ export default function Reportes() {
   const [tableFilter, setTableFilter] = useState("todos");
   const [tipoOp, setTipoOp] = useState("IMPO");
 
-  // ── Filas filtradas para la tabla ──
   const filteredRows = rows.filter((r) => {
     const q = tableSearch.toLowerCase();
     const matchSearch = !q ||
@@ -385,7 +370,6 @@ export default function Reportes() {
     return matchSearch && matchFilter;
   });
 
-  // ── Combo filtrado por tipoOp + texto ──
   const comboFiltered = allManifiestos.filter((m) => {
     const tipoNorm = (m.tipoOperacion ?? m.tipo_operacion ?? "").toString().trim().toUpperCase();
     const matchTipo = tipoNorm === TIPO_OP_MAP[tipoOp];
@@ -400,6 +384,7 @@ export default function Reportes() {
   const manifiestosTipo = allManifiestos.filter(
     (m) => (m.tipoOperacion ?? m.tipo_operacion ?? "").toString().trim().toUpperCase() === TIPO_OP_MAP[tipoOp]
   );
+
   const handleExportAll = async () => {
     if (!rows.length) { showToast("error", "No hay datos para exportar"); return; }
 
@@ -416,14 +401,14 @@ export default function Reportes() {
       const result = await Swal.fire({
         title: "Datos incompletos",
         html: `
-        <p style="color:#64748b; margin-bottom:12px; font-size:14px;">Algunas filas no tienen datos completos:</p>
-        <ul style="text-align:left; padding-left:20px; margin-bottom:8px;">
-          ${colsConVacios.map(({ label, count }) =>
+          <p style="color:#64748b; margin-bottom:12px; font-size:14px;">Algunas filas no tienen datos completos:</p>
+          <ul style="text-align:left; padding-left:20px; margin-bottom:8px;">
+            ${colsConVacios.map(({ label, count }) =>
           `<li style="color:#dc2626; font-size:13px; margin-bottom:4px;">• <strong>${label}</strong>: ${count} fila(s) vacía(s)</li>`
         ).join("")}
-        </ul>
-        <p style="color:#64748b; font-size:13px;">¿Exportar de todas formas?</p>
-      `,
+          </ul>
+          <p style="color:#64748b; font-size:13px;">¿Exportar de todas formas?</p>
+        `,
         icon: "warning",
         showCancelButton: true,
         confirmButtonColor: "#0F2A44",
@@ -441,51 +426,69 @@ export default function Reportes() {
     showToast("success", "Excel exportado");
   };
 
-  const handleExportTATC = async () => {
-    if (!rows.length) { showToast("error", "No hay datos para exportar"); return; }
+ const handleExportTATC = async () => {
+  if (!rows.length) { showToast("error", "No hay datos para exportar"); return; }
 
-    const nombresLegibles = {
-      nombre_nave: "Nave",
-      viaje: "Viaje",
-      codigo_nave: "Lloyd / IMO",
-      n_contenedor: "Nro Contenedor",
-      tipo_contenedor: "Tipo Contenedor",
-      almacen: "Almacén",
-      deposito: "Depósito",
-    };
+  const esSoc = (r) => {
+    const v = r.es_soc;
+    if (v === null || v === undefined || v === 0 || v === "0" || v === false || v === "false" || v === "") return false;
+    return true;
+  };
 
-    const camposVacios = Object.keys(nombresLegibles).filter(
-      (campo) => rows.every((r) => !r[campo])
-    );
+  const rowsConSoc = rows.filter(r => esSoc(r));
+  const rowsSinSoc = rows.filter(r => !esSoc(r));
 
-    if (camposVacios.length > 0) {
-      const result = await Swal.fire({
-        title: "Columnas sin datos",
-        html: `
-        <p style="color:#64748b; margin-bottom:12px; font-size:14px;">Las siguientes columnas están completamente vacías:</p>
-        <ul style="text-align:left; padding-left:20px; margin-bottom:8px;">
-          ${camposVacios.map(c => `<li style="color:#dc2626; font-size:13px; margin-bottom:4px;">• <strong>${nombresLegibles[c]}</strong></li>`).join("")}
+  if (rowsSinSoc.length === 0) {
+    await Swal.fire({
+      title: "No hay contenedores para exportar",
+      html: `<p style="color:#64748b; font-size:14px;">Todos los contenedores son SOC, no se puede generar la plantilla TATC.</p>`,
+      icon: "error",
+      confirmButtonColor: "#0F2A44",
+      confirmButtonText: "Entendido",
+    });
+    return;
+  }
+
+  // Si hay SOC, avisar cuáles se omitirán pero continuar
+  if (rowsConSoc.length > 0) {
+    const lista = rowsConSoc
+      .map(r => `<li style="color:#d97706; font-size:12px; margin-bottom:4px;">
+        • <strong>${r.n_contenedor || "Sin N° contenedor"}</strong>
+        ${r.bl ? `<span style="color:#94a3b8;"> — BL: ${r.bl}</span>` : ""}
+      </li>`)
+      .join("");
+
+    const result = await Swal.fire({
+      title: "Contenedores SOC serán omitidos",
+      html: `
+        <p style="color:#64748b; font-size:13px; margin-bottom:12px;">
+          Los siguientes <strong>${rowsConSoc.length}</strong> contenedor(es) SOC 
+          <u>no se incluirán</u> en la plantilla TATC:
+        </p>
+        <ul style="text-align:left; padding-left:10px; margin-bottom:12px; max-height:160px; overflow-y:auto; border:1px solid #fef3c7; border-radius:8px; padding:10px;">
+          ${lista}
         </ul>
-        <p style="color:#64748b; font-size:13px;">¿Exportar la plantilla TATC de todas formas?</p>
+        <p style="color:#64748b; font-size:12px;">
+          Se exportarán <strong>${rowsSinSoc.length}</strong> contenedor(es) sin SOC. ¿Continuar?
+        </p>
       `,
-        icon: "warning",
-        showCancelButton: true,
-        confirmButtonColor: "#F97316",
-        cancelButtonColor: "#ef4444",
-        confirmButtonText: "Sí, exportar igual",
-        cancelButtonText: "Cancelar",
-        width: "480px",
-      });
-      if (!result.isConfirmed) return;
-    }
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#F97316",
+      cancelButtonColor: "#64748b",
+      confirmButtonText: `Exportar ${rowsSinSoc.length} contenedor(es)`,
+      cancelButtonText: "Cancelar",
+      width: "500px",
+    });
+    if (!result.isConfirmed) return;
+  }
 
     const nave = selectedInfo?.nombre_nave || selectedInfo?.nave || "nave";
     const viaje = selectedInfo?.viaje || "viaje";
-    exportTATC(rows, `TATC_${nave}_${viaje}_${today()}.xlsx`);
-    showToast("success", "Plantilla TATC exportada");
+    exportTATC(rowsSinSoc, `TATC_${nave}_${viaje}_${today()}.xlsx`);
+    showToast("success", `Plantilla TATC exportada (${rowsSinSoc.length} contenedores)`);
   };
 
-  // ── Cerrar combo al click fuera ──
   useEffect(() => {
     const handler = (e) => {
       if (comboRef.current && !comboRef.current.contains(e.target)) setComboOpen(false);
@@ -499,7 +502,6 @@ export default function Reportes() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  // ── Cargar todos los manifiestos al montar ──
   useEffect(() => {
     const fetchAll = async () => {
       setLoadingAll(true);
@@ -514,7 +516,6 @@ export default function Reportes() {
     fetchAll();
   }, []);
 
-  // ── Seleccionar manifiesto → cargar BLs + depósitos guardados ──
   const handleSelectManifiesto = async (manifiesto) => {
     setSelectedId(manifiesto.id);
     setSelectedInfo(manifiesto);
@@ -525,11 +526,14 @@ export default function Reportes() {
       const [resBls, resDepositos] = await Promise.all([
         fetch(`${API_URL}/api/manifiestos/${manifiesto.id}/bls`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`${API_URL}/api/manifiestos/${manifiesto.id}/depositos`, { headers: { Authorization: `Bearer ${token}` } }),
+        
       ]);
+      
       const bls = await resBls.json();
+      console.log("BL raw data:", JSON.stringify(bls[0], null, 2));
+
       const depositosGuardados = resDepositos.ok ? await resDepositos.json() : [];
 
-      // Índice para lookup O(1)
       const depositoMap = {};
       depositosGuardados.forEach((d) => {
         depositoMap[`${d.bl}||${d.n_contenedor ?? ""}`] = d;
@@ -562,6 +566,7 @@ export default function Reportes() {
             deposito: saved.deposito ?? "",
             operador: bl.operador_nave || "",
             nombre_cliente: bl.consignee || "",
+            es_soc: bl.es_soc ?? 0,
           }];
         }
 
@@ -591,6 +596,7 @@ export default function Reportes() {
             deposito: saved.deposito ?? "",
             operador: bl.operador_nave || "",
             nombre_cliente: bl.consignee || "",
+            es_soc: cnt.es_soc ?? bl.es_soc ?? 0,
           };
         });
       });
@@ -605,9 +611,7 @@ export default function Reportes() {
     }
   };
 
-  // ── Auto-save con debounce de 800ms ──
   const autoSaveTimers = useRef({});
-
   const latestRows = useRef(rows);
 
   useEffect(() => {
@@ -625,7 +629,6 @@ export default function Reportes() {
         if (!row) return prev;
         const token = localStorage.getItem("token");
 
-        // Guardar en tabla reportes (ya existía)
         fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos`, {
           method: "PUT",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -637,7 +640,6 @@ export default function Reportes() {
           }),
         }).catch(() => { });
 
-        // ── Si cambió el almacén, actualizar el BL también ──
         if (key === "almacen" && value && row.bl) {
           (async () => {
             try {
@@ -647,7 +649,6 @@ export default function Reportes() {
               const encontrado = almacenistas.find(
                 a => a.nombre.toLowerCase() === value.toLowerCase()
               );
-
               await fetch(`${API_URL}/api/bls/${row.bl}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
@@ -672,7 +673,6 @@ export default function Reportes() {
     }, 800);
   };
 
-  // ── Guardar todo de una vez ──
   const handleSaveAll = async () => {
     if (!selectedId || !latestRows.current.length) return;
     setSaving(true);
@@ -726,27 +726,24 @@ export default function Reportes() {
     }
   };
 
-
-
-  // ── Verificar columnas vacías antes de exportar ──
   const checkEmptyColumns = async (rowsToCheck, columnsToCheck) => {
     const emptyLabels = columnsToCheck
       .filter(({ key }) => rowsToCheck.every((r) => !r[key]))
       .map(({ label }) => label);
 
-    if (emptyLabels.length === 0) return true; // todo OK, continuar
+    if (emptyLabels.length === 0) return true;
 
     const result = await Swal.fire({
       title: "Datos incompletos",
       html: `
-      <p style="color:#64748b; margin-bottom:12px; font-size:14px;">
-        Las siguientes columnas no tienen datos en ninguna fila:
-      </p>
-      <ul style="text-align:left; padding-left:20px; margin-bottom:8px;">
-        ${emptyLabels.map(l => `<li style="color:#dc2626; font-size:13px; margin-bottom:4px;">• <strong>${l}</strong></li>`).join("")}
-      </ul>
-      <p style="color:#64748b; font-size:13px;">¿Deseas exportar de todas formas?</p>
-    `,
+        <p style="color:#64748b; margin-bottom:12px; font-size:14px;">
+          Las siguientes columnas no tienen datos en ninguna fila:
+        </p>
+        <ul style="text-align:left; padding-left:20px; margin-bottom:8px;">
+          ${emptyLabels.map(l => `<li style="color:#dc2626; font-size:13px; margin-bottom:4px;">• <strong>${l}</strong></li>`).join("")}
+        </ul>
+        <p style="color:#64748b; font-size:13px;">¿Deseas exportar de todas formas?</p>
+      `,
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#0F2A44",
@@ -764,243 +761,72 @@ export default function Reportes() {
     showToast("success", `Excel exportado para BL ${row.bl}`);
   };
 
+ const handleFileUpload = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
 
+  const readFile = (f) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (evt) => resolve(evt.target.result);
+    reader.onerror = () => reject(new Error("No se pudo leer el archivo"));
+    reader.readAsBinaryString(f);
+  });
 
-  // ── Importar Excel con depósito/almacén ──
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  try {
+    const result = await readFile(file);
+    const wb = XLSX.read(result, { type: "binary" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
+    if (data.length < 2) { showToast("error", "El archivo está vacío"); return; }
 
-    const readFile = (f) => new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (evt) => resolve(evt.target.result);
-      reader.onerror = () => reject(new Error("No se pudo leer el archivo"));
-      reader.readAsBinaryString(f);
+    const headers = data[0].map((h) => String(h).trim());
+    const findCol = (label) => headers.findIndex((h) => h.toLowerCase() === label.toLowerCase());
+    const blIdx = findCol("BL");
+    const contenedorIdx = findCol("N° Contenedor");
+    const depositoIdx = findCol("Depósito");
+    const almacenIdx = findCol("Almacén");
+
+    if (blIdx === -1) { showToast("error", "El Excel no tiene columna 'BL'"); return; }
+
+    const updates = {};
+    data.slice(1).forEach((row) => {
+      const blVal = String(row[blIdx] ?? "").trim();
+      const cntVal = contenedorIdx !== -1 ? String(row[contenedorIdx] ?? "").trim() : "";
+      if (!blVal) return;
+      updates[`${blVal}||${cntVal}`] = {
+        ...(depositoIdx !== -1 ? { deposito: String(row[depositoIdx] ?? "").trim() } : {}),
+        ...(almacenIdx !== -1 ? { almacen: String(row[almacenIdx] ?? "").trim() } : {}),
+      };
     });
 
-    try {
-      const result = await readFile(file);
-      const wb = XLSX.read(result, { type: "binary" });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
-      if (data.length < 2) { showToast("error", "El archivo está vacío"); return; }
+    // ← TODO EL BLOQUE de validación de almacenistas fue eliminado
 
-      const headers = data[0].map((h) => String(h).trim());
-      const findCol = (label) => headers.findIndex((h) => h.toLowerCase() === label.toLowerCase());
-      const blIdx = findCol("BL");
-      const contenedorIdx = findCol("N° Contenedor");
-      const depositoIdx = findCol("Depósito");
-      const almacenIdx = findCol("Almacén");
+    let actualizadas = 0;
+    setRows((prev) =>
+      prev.map((r) => {
+        const upd = updates[`${String(r.bl ?? "").trim()}||${String(r.n_contenedor ?? "").trim()}`];
+        if (!upd) return r;
+        actualizadas++;
+        return { ...r, ...upd };
+      })
+    );
 
-      if (blIdx === -1) { showToast("error", "El Excel no tiene columna 'BL'"); return; }
+    showToast("success", `${actualizadas} fila(s) actualizadas desde Excel · guardando...`);
+    setTimeout(() => handleSaveAll(), 150);
 
-      const updates = {};
-      data.slice(1).forEach((row) => {
-        const blVal = String(row[blIdx] ?? "").trim();
-        const cntVal = contenedorIdx !== -1 ? String(row[contenedorIdx] ?? "").trim() : "";
-        if (!blVal) return;
-        updates[`${blVal}||${cntVal}`] = {
-          ...(depositoIdx !== -1 ? { deposito: String(row[depositoIdx] ?? "").trim() } : {}),
-          ...(almacenIdx !== -1 ? { almacen: String(row[almacenIdx] ?? "").trim() } : {}),
-        };
-      });
+  } catch (err) {
+    console.error("Error en handleFileUpload:", err);
+    showToast("error", "No se pudo leer el archivo");
+  }
 
-      // ── Verificar almacenes contra mantenedor ──
-      const nombresDelExcel = [...new Set(Object.values(updates).map(u => u.almacen).filter(Boolean))];
-      if (nombresDelExcel.length > 0) {
-        const resAlm = await fetch(`${API_URL}/api/mantenedores/almacenistas`);
-        if (resAlm.ok) {
-          const almacenistasExistentes = await resAlm.json();
-          const nombresExistentes = almacenistasExistentes.map(a => a.nombre.toLowerCase());
-          const noExisten = nombresDelExcel.filter(n => !nombresExistentes.includes(n.toLowerCase()));
-
-          for (const nombreExcel of noExisten) {
-            // ── SWAL 1: Seleccionar existente ──
-            const { value: accion } = await Swal.fire({
-              title: "Almacenista no reconocido",
-              html: `
-    <p style="color:#64748b; font-size:13px; margin-bottom:14px;">
-      El Excel tiene <strong style="color:#d97706;">"${nombreExcel}"</strong> pero no existe en el mantenedor.<br/>
-      ¿Es alguno de estos?
-    </p>
-    <div style="text-align:left;">
-      <label style="font-size:12px; font-weight:600; color:#374151;">Buscar almacenista:</label>
-      <input id="alm-search" style="width:100%; margin-top:6px; padding:8px; border:1px solid #d1d5db; border-radius:8px; font-size:13px;" placeholder="Escribe para filtrar...">
-      <div id="alm-lista" style="margin-top:6px; max-height:180px; overflow-y:auto; border:1px solid #e5e7eb; border-radius:8px;">
-        ${almacenistasExistentes.map(a => `
-          <div 
-            class="alm-item" 
-            data-id="${a.id}" 
-            data-nombre="${a.nombre}"
-            style="padding:8px 12px; cursor:pointer; font-size:13px; border-bottom:1px solid #f1f5f9; transition:background 0.15s;"
-            onmouseover="this.style.background='#f0f9ff'"
-            onmouseout="this.style.background=this.classList.contains('selected') ? '#dbeafe' : 'white'"
-          >
-            <span style="font-weight:500; color:#1e293b;">${a.nombre}</span>
-            <span style="color:#94a3b8; font-size:11px; margin-left:8px;">ALM: ${a.codigo_almacen || '—'} · RUT: ${a.rut || '—'}</span>
-          </div>
-        `).join("")}
-      </div>
-      <input type="hidden" id="alm-selected-id" value="">
-    </div>
-  `,
-              icon: "question",
-              showCancelButton: true,
-              confirmButtonText: "Confirmar seleccionado",
-              cancelButtonText: "No existe, crear uno nuevo",
-              confirmButtonColor: "#0F2A44",
-              cancelButtonColor: "#d97706",
-              width: "520px",
-              didOpen: () => {
-                const search = document.getElementById("alm-search");
-                const lista = document.getElementById("alm-lista");
-                const hiddenId = document.getElementById("alm-selected-id");
-
-                // Click en item
-                lista.addEventListener("click", (e) => {
-                  const item = e.target.closest(".alm-item");
-                  if (!item) return;
-                  // Deseleccionar anterior
-                  lista.querySelectorAll(".alm-item").forEach(el => {
-                    el.classList.remove("selected");
-                    el.style.background = "white";
-                  });
-                  // Seleccionar nuevo
-                  item.classList.add("selected");
-                  item.style.background = "#dbeafe";
-                  hiddenId.value = item.dataset.id;
-                });
-
-                // Filtrar al escribir
-                search.addEventListener("input", () => {
-                  const q = search.value.toLowerCase();
-                  lista.querySelectorAll(".alm-item").forEach(el => {
-                    const nombre = el.dataset.nombre.toLowerCase();
-                    el.style.display = nombre.includes(q) ? "block" : "none";
-                  });
-                });
-              },
-              preConfirm: () => {
-                const id = document.getElementById("alm-selected-id")?.value;
-                if (!id) { Swal.showValidationMessage("Debes seleccionar un almacenista de la lista"); return null; }
-                return { tipo: "existente", id: Number(id) };
-              }
-            });
-
-            if (accion?.tipo === "existente") {
-              // Vincular con el existente
-              const almEncontrado = almacenistasExistentes.find(a => a.id === accion.id);
-              if (almEncontrado) {
-                Object.keys(updates).forEach(key => {
-                  if ((updates[key].almacen || "").toLowerCase() === nombreExcel.toLowerCase()) {
-                    updates[key].almacen = almEncontrado.nombre;
-                  }
-                });
-              }
-
-            } else {
-              // ── SWAL 2: Crear nuevo ──
-              const { value: nuevo } = await Swal.fire({
-                title: "Agregar nuevo almacenista",
-                html: `
-        <p style="color:#64748b; font-size:13px; margin-bottom:14px;">
-          Completa los datos para crear <strong style="color:#d97706;">"${nombreExcel}"</strong> en el mantenedor.
-        </p>
-        <div style="text-align:left; display:grid; gap:10px;">
-          <div>
-            <label style="font-size:12px; font-weight:600; color:#374151;">RUT *</label>
-            <input id="alm-rut" class="swal2-input" style="margin:4px 0 0 0; width:100%;" placeholder="Ej: 76451351-7">
-          </div>
-          <div>
-            <label style="font-size:12px; font-weight:600; color:#374151;">Código Almacén *</label>
-            <input id="alm-cod" class="swal2-input" style="margin:4px 0 0 0; width:100%;" placeholder="Ej: A-84">
-          </div>
-          <div>
-            <label style="font-size:12px; font-weight:600; color:#374151;">Nación ID</label>
-            <input id="alm-nacion" class="swal2-input" style="margin:4px 0 0 0; width:100%;" placeholder="CL" maxlength="2" value="CL">
-          </div>
-        </div>
-      `,
-                icon: "warning",
-                showCancelButton: true,
-                confirmButtonText: "+ Agregar como nuevo almacenista",
-                cancelButtonText: "Importar igual (sin vincular)",
-                confirmButtonColor: "#d97706",
-                cancelButtonColor: "#64748b",
-                width: "480px",
-                preConfirm: async () => {
-                  const rut = document.getElementById("alm-rut")?.value?.trim();
-                  const cod = document.getElementById("alm-cod")?.value?.trim();
-                  const nacion = document.getElementById("alm-nacion")?.value?.trim().toUpperCase() || "CL";
-                  if (!rut) { Swal.showValidationMessage("El RUT es obligatorio"); return null; }
-                  if (!cod) { Swal.showValidationMessage("El Código Almacén es obligatorio"); return null; }
-                  try {
-                    const res = await fetch(`${API_URL}/api/mantenedores/almacenistas`);
-                    if (res.ok) {
-                      const lista = await res.json();
-                      const duplicado = lista.find(a => a.codigo_almacen?.toLowerCase() === cod.toLowerCase());
-                      if (duplicado) {
-                        Swal.showValidationMessage(`El código "${cod}" ya está en uso por "${duplicado.nombre}"`);
-                        return null;
-                      }
-                    }
-                  } catch { /* el backend validará igual */ }
-                  return { rut, codigo_almacen: cod, nacion_id: nacion };
-                }
-              });
-
-              if (nuevo) {
-                try {
-                  const resCreate = await fetch(`${API_URL}/api/mantenedores/almacenistas`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      nombre: nombreExcel.trim(),
-                      rut: nuevo.rut,
-                      nacion_id: nuevo.nacion_id,
-                      codigo_almacen: nuevo.codigo_almacen,
-                    }),
-                  });
-                  if (!resCreate.ok) throw new Error();
-                  await Swal.fire({ icon: "success", title: "Almacenista creado", text: `"${nombreExcel}" fue agregado al mantenedor`, timer: 1800, showConfirmButton: false });
-                } catch {
-                  await Swal.fire({ icon: "error", title: "Error", text: "No se pudo crear el almacenista", confirmButtonColor: "#0F2A44" });
-                }
-              }
-              // Si canceló "Importar igual" → sigue con el nombre tal cual
-            }
-
-          }
-        }
-      }
-
-      let actualizadas = 0;
-      setRows((prev) =>
-        prev.map((r) => {
-          const upd = updates[`${String(r.bl ?? "").trim()}||${String(r.n_contenedor ?? "").trim()}`];
-          if (!upd) return r;
-          actualizadas++;
-          return { ...r, ...upd };
-        })
-      );
-
-      showToast("success", `${actualizadas} fila(s) actualizadas desde Excel · guardando...`);
-      setTimeout(() => handleSaveAll(), 150);
-
-    } catch (err) {
-      console.error("Error en handleFileUpload:", err);
-      showToast("error", "No se pudo leer el archivo");
-    }
-
-    e.target.value = "";
-  };
+  e.target.value = "";
+};
 
   return (
     <div className="flex min-h-screen bg-slate-100">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
 
-        {/* ── Header ── */}
         <header className="bg-white border-b border-slate-200 px-8 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <FileSpreadsheet size={24} className="text-[#0F2A44]" />
@@ -1055,8 +881,7 @@ export default function Reportes() {
               </button>
               <button
                 onClick={handleExportTATC}
-
-                className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white text-sm rounded-lg opacity-100 "
+                className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white text-sm rounded-lg"
               >
                 <Download size={15} /> Plantilla TATC
               </button>
@@ -1066,7 +891,6 @@ export default function Reportes() {
 
         <div className="flex-1 overflow-auto p-8">
 
-          {/* ── STEP 1: Seleccionar manifiesto ── */}
           {step === 1 && (
             <div className="max-w-2xl mx-auto">
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
@@ -1078,7 +902,6 @@ export default function Reportes() {
                   Elige de la lista completa o filtra por nombre de nave, viaje o número de manifiesto.
                 </p>
 
-                {/* Botones IMPO / EXPO */}
                 <div className="flex items-center gap-2 mb-5">
                   <span className="text-xs font-medium text-slate-500 mr-1">Tipo de operación:</span>
                   {["IMPO", "EXPO"].map((tipo) => (
@@ -1132,7 +955,6 @@ export default function Reportes() {
                     )}
                   </div>
 
-                  {/* Dropdown */}
                   {comboOpen && comboFiltered.length > 0 && (
                     <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
                       {comboFiltered.map((m) => {
@@ -1182,7 +1004,6 @@ export default function Reportes() {
             </div>
           )}
 
-          {/* ── STEP 2: Tabla ── */}
           {step === 2 && (
             <>
               {loadingBLs ? (
@@ -1195,7 +1016,6 @@ export default function Reportes() {
               ) : (
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
 
-                  {/* Barra búsqueda + filtros */}
                   <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center gap-3">
                     <div className="relative flex-1 min-w-[220px]">
                       <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -1242,7 +1062,6 @@ export default function Reportes() {
                     </div>
                   </div>
 
-                  {/* Aviso IMO */}
                   <div className="px-5 py-2 bg-blue-50 border-b border-blue-100 flex items-center gap-2">
                     <AlertCircle size={13} className="text-blue-400 shrink-0" />
                     <span className="text-[11px] text-blue-600">
@@ -1250,7 +1069,7 @@ export default function Reportes() {
                       <a href="/mantenedores/naves" className="font-semibold underline hover:text-blue-800" target="_blank" rel="noreferrer">Mantenedores → Naves</a>
                     </span>
                   </div>
-                  {/* Tabla */}
+
                   {filteredRows.length === 0 ? (
                     <div className="text-center py-16 text-slate-400 text-sm">
                       <Search size={32} className="mx-auto mb-3 opacity-30" />
@@ -1336,19 +1155,17 @@ export default function Reportes() {
         </div>
       </div>
 
-      {
-        toast && (
-          <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg text-sm text-white z-50 ${toast.type === "success" ? "bg-emerald-600"
+      {toast && (
+        <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg text-sm text-white z-50 ${toast.type === "success" ? "bg-emerald-600"
             : toast.type === "warning" ? "bg-orange-500"
               : "bg-red-500"
-            }`}>
-            {toast.type === "success" ? <CheckCircle size={18} />
-              : toast.type === "warning" ? <AlertCircle size={18} />
-                : <AlertCircle size={18} />}
-            {toast.msg}
-          </div>
-        )
-      }
-    </div >
-  )
-};
+          }`}>
+          {toast.type === "success" ? <CheckCircle size={18} />
+            : toast.type === "warning" ? <AlertCircle size={18} />
+              : <AlertCircle size={18} />}
+          {toast.msg}
+        </div>
+      )}
+    </div>
+  );
+}

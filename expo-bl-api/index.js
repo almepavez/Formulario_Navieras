@@ -782,7 +782,8 @@ app.get("/api/manifiestos/:id/bls", async (req, res) => {
          'tipo_cnt', bc.tipo_cnt,
          'tam_contenedor', tcb.tam_contenedor,
          'tipo_cnt_sna', tcb.tipo_cnt_sna,
-        'tipo_bulto', tcb.tipo_bulto
+        'tipo_bulto', tcb.tipo_bulto,
+        'es_soc', bc.es_soc
        )
      )
      FROM bl_contenedores bc
