@@ -2612,29 +2612,39 @@ function pickPEPD(lines14) {
 function parseLine56(raw) {
   const s = String(raw || "").toUpperCase();
 
-  // 56 01 001 001  (ej: "56 01001004 ...")
+  // Formato extendido: 56 <2d><3d><3d><UN4d><letraClase><clase1-2d>
+  // Ej: "56 010010013265C8"  => itemNo=1, seqNo=1, un=3265, clase=8
+  // Ej: "56 010010013077A9"  => itemNo=1, seqNo=1, un=3077, clase=9
+  const mExt = s.match(/^56\s*(\d{2})(\d{3})(\d{3})(\d{4})[A-Z](\d{1,2})/);
+  if (mExt) {
+    return {
+      itemNo: Number(mExt[2]),
+      seqNo:  Number(mExt[3]),
+      un:     mExt[4],
+      clase:  mExt[5],
+    };
+  }
+
+  // Fallback: header corto sin UN/clase pegados al header
   const m = s.match(/^56\s*(\d{2})(\d{3})(\d{3})/);
   if (!m) return null;
 
-  const itemNo = Number(m[2]); // "001" => 1
-  const seqNo = Number(m[3]); // "004" => 4 (según tu PMS)
-
-  // ✅ CLAVE: buscar IMO SOLO después del header (evita capturar 01001004 como UN=1004)
-  const tail = s.slice(m[0].length);
+  const itemNo = Number(m[2]);
+  const seqNo  = Number(m[3]);
+  const tail   = s.slice(m[0].length);
 
   let un = "";
   let clase = "";
 
-  // 1) Preferido: "UN3077" (con o sin espacios / ceros)
+  // 1) "UN3077"
   const unMatch = tail.match(/UN\s*0*(\d{4})/);
   if (unMatch) un = unMatch[1];
 
-  // 2) Preferido: "CLASS 9" (con o sin espacios / ceros)
+  // 2) "CLASS 9"
   const classMatch = tail.match(/CLASS\s*0*(\d{1,2})/);
   if (classMatch) clase = classMatch[1];
 
-  // 3) Fallback: formato compacto "3077A9" o "3077 A9"
-  //    (usamos (^|[^0-9]) para no enganchar dígitos pegados raros)
+  // 3) Compacto "3077A9"
   if (!un || !clase) {
     const compact = tail.match(/(^|[^0-9])0*(\d{4})\s*A\s*0*(\d{1,2})/);
     if (compact) {
@@ -2643,8 +2653,7 @@ function parseLine56(raw) {
     }
   }
 
-  // ✅ IMPORTANTE: NO retornes null si falta IMO.
-  // Queremos que "exista línea 56" para _hasLinea56 y para que insertImo valide calidad.
+  // ✅ No retornar null aunque falte IMO (para mantener _hasLinea56)
   return { itemNo, seqNo, un, clase };
 }
 
@@ -3210,9 +3219,9 @@ function parseLegs14(lines14) {
 
 function extractTransbordos(legs) {
   if (!Array.isArray(legs) || legs.length <= 1) return [];
-  return legs.slice(0, -1).map(l => ({
+  return legs.slice(0, -1).map((l, i) => ({
     puerto_cod: l.to,
-    fecha_arribo: l.fechaZarpe || null  // zarpe del leg = arribo al transbordo
+    fecha_arribo: legs[i + 1]?.fechaEmb || null  // embarque del leg siguiente = arribo al transbordo
   }));
 }
 
