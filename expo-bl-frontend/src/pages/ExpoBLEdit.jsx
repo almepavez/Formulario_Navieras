@@ -580,68 +580,109 @@ const ExpoBLEdit = () => {
             setSaving(false);
         }
     };
+const AlmacenistaBuscador = ({ onSelect }) => {
+    const [query, setQuery] = useState("");
+    const [todos, setTodos] = useState([]);
+    const [resultados, setResultados] = useState([]);
+    const [buscando, setBuscando] = useState(false);
+    const [mostrar, setMostrar] = useState(false);
+    const ref = useRef(null);
 
-    const AlmacenistaBuscador = ({ onSelect }) => {
-        const [query, setQuery] = useState("");
-        const [resultados, setResultados] = useState([]);
-        const [buscando, setBuscando] = useState(false);
-        const [mostrar, setMostrar] = useState(false);
-        const ref = useRef(null);
+    useEffect(() => {
+        const handler = (e) => {
+            if (ref.current && !ref.current.contains(e.target)) setMostrar(false);
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, []);
 
-        useEffect(() => {
-            const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setMostrar(false); };
-            document.addEventListener("mousedown", handler);
-            return () => document.removeEventListener("mousedown", handler);
-        }, []);
+    // Carga TODOS al montar, una sola vez
+    useEffect(() => {
+        setBuscando(true);
+        fetch(`${API_BASE}/api/mantenedores/participantes?tipo=almacenador`)
+            .then(r => r.ok ? r.json() : [])
+            .then(data => setTodos(Array.isArray(data) ? data : []))
+            .catch(() => setTodos([]))
+            .finally(() => setBuscando(false));
+    }, []);
 
-        useEffect(() => {
-            if (query.trim().length < 2) { setResultados([]); return; }
-            const timer = setTimeout(async () => {
-                setBuscando(true);
-                try {
-                    const res = await fetch(`${API_BASE}/api/mantenedores/participantes?tipo=almacenador&q=${encodeURIComponent(query)}`);
-                    if (res.ok) setResultados(await res.json());
-                } catch { setResultados([]); }
-                finally { setBuscando(false); }
-            }, 300);
-            return () => clearTimeout(timer);
-        }, [query]);
+    // Filtra client-side al escribir
+    useEffect(() => {
+        if (query.trim().length < 2) { setResultados([]); setMostrar(false); return; }
+        const q = query.toLowerCase();
+        setResultados(
+            todos.filter(a =>
+                a.nombre?.toLowerCase().includes(q) ||
+                a.rut?.toLowerCase().includes(q) ||
+                a.codigo_almacen?.toLowerCase().includes(q)
+            ).slice(0, 8)
+        );
+        setMostrar(true);
+    }, [query, todos]);
 
-        return (
-            <div className="relative mb-4" ref={ref}>
-                <div className="relative">
-                    <input
-                        type="text" value={query}
-                        onChange={e => { setQuery(e.target.value); setMostrar(true); }}
-                        onFocus={() => setMostrar(true)}
-                        placeholder="Buscar almacenista en BD para autocompletar (opcional)..."
-                        className="w-full px-4 py-2 rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-orange-400 text-sm"
-                    />
-                    {buscando && <div className="absolute right-3 top-1/2 -translate-y-1/2"><div className="animate-spin h-4 w-4 border-2 border-orange-400 border-t-transparent rounded-full" /></div>}
-                </div>
-                {mostrar && resultados.length > 0 && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
-                        {resultados.map(a => (
-                            <button key={a.id} type="button" onClick={() => { onSelect(a); setQuery(""); setMostrar(false); }} className="w-full text-left px-4 py-3 hover:bg-orange-50 border-b border-slate-100 last:border-0 transition-colors">
-                                <div className="flex items-center justify-between gap-2">
-                                    <div>
-                                        <p className="text-sm font-medium text-slate-800">{a.nombre}</p>
-                                        <p className="text-xs text-slate-500 mt-0.5">RUT: {a.rut || "—"}</p>
-                                    </div>
-                                    {a.codigo_almacen && <span className="text-xs font-mono bg-orange-100 text-orange-700 px-2 py-0.5 rounded border border-orange-200 flex-shrink-0">ALM: {a.codigo_almacen}</span>}
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-                )}
-                {mostrar && query.length >= 2 && !buscando && resultados.length === 0 && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow p-3 text-sm text-slate-500 text-center">
-                        No encontrado — completa los campos manualmente
+    return (
+        <div className="relative mb-4" ref={ref}>
+            <div className="relative">
+                <input
+                    type="text"
+                    value={query}
+                    onChange={e => setQuery(e.target.value)}
+                    onFocus={() => query.length >= 2 && setMostrar(true)}
+                    placeholder={buscando ? "Cargando almacenistas..." : "Buscar almacenista para autocompletar (opcional)..."}
+                    disabled={buscando}
+                    className="w-full px-4 py-2 rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-orange-400 text-sm disabled:opacity-50"
+                />
+                {buscando && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <div className="animate-spin h-4 w-4 border-2 border-orange-400 border-t-transparent rounded-full" />
                     </div>
                 )}
             </div>
-        );
-    };
+
+            {mostrar && resultados.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+                    {resultados.map(a => (
+                        <button
+                            key={a.id}
+                            type="button"
+                            onClick={() => {
+                                onSelect({
+                                    id: a.id,
+                                    nombre: a.nombre,
+                                    rut: a.rut,
+                                    pais: a.nacion_id || a.pais || "CL",
+                                    codigo_almacen: a.codigo_almacen,
+                                });
+                                setQuery("");
+                                setMostrar(false);
+                            }}
+                            className="w-full text-left px-4 py-3 hover:bg-orange-50 border-b border-slate-100 last:border-0 transition-colors"
+                        >
+                            <div className="flex items-center justify-between gap-2">
+                                <div>
+                                    <p className="text-sm font-medium text-slate-800">{a.nombre}</p>
+                                    <p className="text-xs text-slate-500 mt-0.5">RUT: {a.rut || "—"}</p>
+                                </div>
+                                {a.codigo_almacen && (
+                                    <span className="text-xs font-mono bg-orange-100 text-orange-700 px-2 py-0.5 rounded border border-orange-200 flex-shrink-0">
+                                        ALM: {a.codigo_almacen}
+                                    </span>
+                                )}
+                            </div>
+                        </button>
+                    ))}
+                </div>
+            )}
+
+            {mostrar && query.length >= 2 && !buscando && resultados.length === 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow p-3 text-sm text-slate-500 text-center">
+                    No encontrado — completa los campos manualmente
+                </div>
+            )}
+        </div>
+    );
+};
+ 
 
     if (loading) return (
         <div className="flex min-h-screen bg-slate-100"><Sidebar />

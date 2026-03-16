@@ -782,7 +782,8 @@ app.get("/api/manifiestos/:id/bls", async (req, res) => {
          'tipo_cnt', bc.tipo_cnt,
          'tam_contenedor', tcb.tam_contenedor,
          'tipo_cnt_sna', tcb.tipo_cnt_sna,
-        'tipo_bulto', tcb.tipo_bulto
+        'tipo_bulto', tcb.tipo_bulto,
+        'es_soc', bc.es_soc
        )
      )
      FROM bl_contenedores bc
@@ -5437,8 +5438,14 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
     // Crear ZIP
     const archive = archiver('zip', { zlib: { level: 9 } });
     res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename="BLs_Manifiesto_${id}.zip"`);
-    archive.pipe(res);
+    const [manifRow] = await pool.query(
+      `SELECT n.nombre AS nave, m.viaje FROM manifiestos m JOIN naves n ON n.id = m.nave_id WHERE m.id = ?`, [id]
+    );
+    const naveZip = (manifRow[0]?.nave || "").toUpperCase().replace(/\s+/g, "_");
+    const viajeZip = (manifRow[0]?.viaje || "").toUpperCase().replace(/\s+/g, "_");
+    const zipFilename = naveZip && viajeZip ? `${naveZip}_${viajeZip}.zip` : `BLs_Manifiesto_${id}.zip`;
+
+    res.setHeader('Content-Disposition', `attachment; filename="${zipFilename}"`); archive.pipe(res);
 
     for (const blNumber of blNumbers) {
       const [blRows] = await pool.query(getBLQuery(), [blNumber]);
@@ -5489,7 +5496,7 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
       const [transbordos] = await pool.query(getTransbordosQuery(), [bl.id]);
 
       const xmlString = buildXML(bl, items, contenedores, transbordos, tipoAccion);
-      archive.append(xmlString, { name: `BMS_V1_SNA-BL-1.0-${bl.bl_number}.xml` });
+      archive.append(xmlString, { name: `SGA_V1_SNA-BL-1.0-${bl.bl_number}.xml` });
     }
 
     await archive.finalize();
@@ -6292,17 +6299,17 @@ app.put("/api/bls/:blNumber", async (req, res) => {
     ];
 
     // Convierte DD/MM/YYYY o DD/MM/YYYY HH:mm → formato MySQL
-   const parseFechaCLtoMySQL = (str) => {
-  if (!str) return null;
-  str = String(str).trim();
-  // DD/MM/YYYY HH:mm o DD/MM/YYYY HH:mm:ss
-  const matchDT = str.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}:\d{2})(:\d{2})?$/);
-  if (matchDT) return `${matchDT[3]}-${matchDT[2]}-${matchDT[1]} ${matchDT[4]}`;
-  // DD/MM/YYYY
-  const matchD = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (matchD) return `${matchD[3]}-${matchD[2]}-${matchD[1]}`;
-  return str;
-};
+    const parseFechaCLtoMySQL = (str) => {
+      if (!str) return null;
+      str = String(str).trim();
+      // DD/MM/YYYY HH:mm o DD/MM/YYYY HH:mm:ss
+      const matchDT = str.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}:\d{2})(:\d{2})?$/);
+      if (matchDT) return `${matchDT[3]}-${matchDT[2]}-${matchDT[1]} ${matchDT[4]}`;
+      // DD/MM/YYYY
+      const matchD = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (matchD) return `${matchD[3]}-${matchD[2]}-${matchD[1]}`;
+      return str;
+    };
 
     const fechaFields = ['fecha_emision', 'fecha_presentacion', 'fecha_zarpe', 'fecha_embarque', 'fecha_recepcion_bl'];
     for (const f of fechaFields) {

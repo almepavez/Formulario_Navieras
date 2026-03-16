@@ -156,7 +156,7 @@ const Manifiestos = () => {
         <div className="flex items-start justify-between gap-6 mb-6">
           <div>
             <h1 className="text-2xl font-semibold text-[#0F2A44]">
-              Manifiestos (EXPO)
+              Manifiestos 
             </h1>
             <p className="text-sm text-slate-500 mt-1">
               Selecciona un manifiesto para gestionar sus BL de exportación
