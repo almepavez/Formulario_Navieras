@@ -103,6 +103,8 @@ const EMAILS_PERMITIDOS = {
   'iriffo@broomgroup.com': 'admin',
   'driquelme.sai@broomchile.com': 'admin',
   'mdiaz.sai@broomchile.com': 'admin',
+  'ccatalan.sai@broomchile.com': 'admin',
+  'pcatalan@broomgroup.com': 'admin'
 };
 
 // 🔒 FUNCIÓN AUXILIAR: Verificar email autorizado
@@ -4210,7 +4212,10 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
         );
       }
     }
-
+await conn.query(
+  `UPDATE manifiestos SET updated_at = NOW() WHERE id = ?`,
+  [id]
+);
     // Resumen de errores
     const [blsConErrores] = await conn.query(`
       SELECT
@@ -4891,6 +4896,30 @@ app.patch('/api/bls/bulk-update', async (req, res) => {
   const connection = await pool.getConnection();
   try {
     const { blNumbers, updates } = req.body;
+
+    // Justo después de: const { blNumbers, updates } = req.body;
+// ── Convertir fechas DD/MM/YYYY → YYYY-MM-DD ──
+const DATE_FIELDS = ['fecha_emision'];
+const DATETIME_FIELDS = ['fecha_embarque', 'fecha_zarpe'];
+
+DATE_FIELDS.forEach(f => {
+  if (updates[f]) {
+    const parts = updates[f].split('/'); // DD/MM/YYYY
+    if (parts.length === 3) {
+      updates[f] = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
+    }
+  }
+});
+
+DATETIME_FIELDS.forEach(f => {
+  if (updates[f]) {
+    const parts = updates[f].split('/'); // DD/MM/YYYY
+    if (parts.length === 3) {
+      updates[f] = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD (sin hora, igual válido para DATETIME)
+    }
+  }
+});
+
     const STATUS_MAP = {
       'ACTIVO': 'CREADO', 'INACTIVO': 'ANULADO',
       'EN REVISION': 'VALIDADO', 'EN_REVISION': 'VALIDADO',

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import { FileText, Download, Loader2, Search, AlertTriangle, CheckCircle2, XCircle, RefreshCw, ChevronDown } from "lucide-react";
@@ -159,6 +159,105 @@ const TipoAccionSelector = ({ value, onChange }) => {
   );
 };
 
+const POLFilterDropdown = ({ pols, selected, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const toggle = (pol) => {
+    onChange(prev => {
+      const next = new Set(prev);
+      if (next.has(pol)) next.delete(pol);
+      else next.add(pol);
+      return next;
+    });
+  };
+
+  const label = selected.size === 0
+    ? "Puerto de Embarque (POL)"
+    : `POL: ${[...selected].join(", ")}`;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={`w-full flex items-center justify-between gap-2 px-4 py-2 rounded-lg border text-sm transition-colors ${
+          selected.size > 0
+            ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+            : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"
+        }`}
+      >
+        <span className="truncate">{label}</span>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {selected.size > 0 && (
+            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-xs flex items-center justify-center font-semibold">
+              {selected.size}
+            </span>
+          )}
+          <ChevronDown className={`w-4 h-4 opacity-50 transition-transform ${open ? "rotate-180" : ""}`} />
+        </div>
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-full mt-1.5 z-50 w-64 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
+            <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                Filtrar por POL
+              </span>
+              {selected.size > 0 && (
+                <button
+                  onClick={() => onChange(new Set())}
+                  className="text-xs text-red-500 hover:text-red-700 font-medium"
+                >
+                  Limpiar
+                </button>
+              )}
+            </div>
+            <div className="py-1 max-h-56 overflow-y-auto">
+              {pols.length === 0 && (
+                <p className="px-4 py-3 text-sm text-slate-400 text-center">Sin POLs disponibles</p>
+              )}
+              {pols.map(pol => (
+                <label
+                  key={pol}
+                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 cursor-pointer transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.has(pol)}
+                    onChange={() => toggle(pol)}
+                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span className={`text-sm ${selected.has(pol) ? "text-indigo-700 font-medium" : "text-slate-700"}`}>
+                    {pol}
+                  </span>
+                </label>
+              ))}
+            </div>
+            {selected.size > 0 && (
+              <div className="px-4 py-2 bg-indigo-50 border-t border-indigo-100">
+                <p className="text-xs text-indigo-600">
+                  {selected.size} de {pols.length} seleccionado{selected.size !== 1 ? "s" : ""}
+                </p>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
 const GenerarXML = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -171,11 +270,19 @@ const GenerarXML = () => {
   const [revalidando, setRevalidando] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [sortOrder, setSortOrder] = useState("recent");
   const [showOnlyErrors, setShowOnlyErrors] = useState(false);
+  const [filterPOL, setFilterPOL] = useState(new Set()); // POLs seleccionados  const [showOnlyErrors, setShowOnlyErrors] = useState(false);
   const [tipoAccion, setTipoAccion] = useState("I"); // 🆕
   const [naveManifiesto, setNaveManifiesto] = useState("");
   const [viajeManifiesto, setViajeManifiesto] = useState("");
+
+// Justo después de los estados, antes del return
+const polesDisponibles = useMemo(() => {
+  const pols = bls
+    .map(bl => bl.puerto_embarque)
+    .filter(Boolean);
+  return [...new Set(pols)].sort();
+}, [bls]);
 
   useEffect(() => {
     if (!id) {
@@ -244,36 +351,36 @@ const GenerarXML = () => {
     }
   };
 
-  const filteredAndSortedBLs = useMemo(() => {
-    let result = [...bls];
+const filteredAndSortedBLs = useMemo(() => {
+  let result = [...bls];
 
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      result = result.filter(bl =>
-        bl.bl_number?.toLowerCase().includes(term) ||
-        bl.shipper?.toLowerCase().includes(term) ||
-        bl.consignee?.toLowerCase().includes(term)
-      );
-    }
+  if (searchTerm) {
+    const term = searchTerm.toLowerCase();
+    result = result.filter(bl =>
+      bl.bl_number?.toLowerCase().includes(term) ||
+      bl.shipper?.toLowerCase().includes(term) ||
+      bl.consignee?.toLowerCase().includes(term)
+    );
+  }
 
-    if (filterStatus !== "all") {
-      result = result.filter(bl => bl.status === filterStatus);
-    }
+  if (filterStatus !== "all") {
+    result = result.filter(bl => bl.status === filterStatus);
+  }
 
-    if (showOnlyErrors) {
-      result = result.filter(bl =>
-        bl.valid_status === 'ERROR' || bl.valid_status === 'OBS'
-      );
-    }
+  // ✅ Solo errores críticos, NO observaciones
+  if (showOnlyErrors) {
+    result = result.filter(bl => bl.valid_status === 'ERROR');
+  }
 
-    if (sortOrder === "recent") {
-      result.sort((a, b) => a.bl_number.localeCompare(b.bl_number));
-    } else {
-      result.sort((a, b) => b.bl_number.localeCompare(a.bl_number));
-    }
+  // ✅ Filtro POL con multi-check
+  if (filterPOL.size > 0) {
+    result = result.filter(bl => filterPOL.has(bl.puerto_embarque));
+  }
 
-    return result;
-  }, [bls, searchTerm, filterStatus, sortOrder, showOnlyErrors]);
+  result.sort((a, b) => a.bl_number.localeCompare(b.bl_number));
+
+  return result;
+}, [bls, searchTerm, filterStatus, showOnlyErrors, filterPOL]);
 
   const toggleBL = (blNumber) => {
     setSelectedBls(prev => {
@@ -836,7 +943,7 @@ const GenerarXML = () => {
         const a = document.createElement("a");
         a.href = url;
         a.download = `SGA_V1_SNA-BL-1.0-${blNumber}.xml`;
-         document.body.appendChild(a);
+        document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
@@ -902,45 +1009,50 @@ const GenerarXML = () => {
         {!loading && bls.length > 0 && (
           <>
             {/* Barra de búsqueda y filtros */}
-            <div className="mb-4 bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Buscar BL, Shipper, Consignee..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
+<div className="mb-4 bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    {/* Búsqueda */}
+    <div className="relative">
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+      <input
+        type="text"
+        placeholder="Buscar BL, Shipper, Consignee..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+    </div>
 
+{/* Filtro POL — dropdown con checkboxes */}
+    <div className="relative">
+      <POLFilterDropdown
+        pols={polesDisponibles}
+        selected={filterPOL}
+        onChange={setFilterPOL}
+      />
+    </div>
 
+    {/* Solo errores */}
+    <label className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 bg-white cursor-pointer hover:bg-slate-50">
+      <input
+        type="checkbox"
+        checked={showOnlyErrors}
+        onChange={(e) => setShowOnlyErrors(e.target.checked)}
+        className="w-4 h-4 rounded border-slate-300"
+      />
+      <span className="text-sm text-slate-700">Solo con errores críticos</span>
+    </label>
+  </div>
 
-                <select
-                  value={sortOrder}
-                  onChange={(e) => setSortOrder(e.target.value)}
-                  className="px-4 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="recent">BL A → Z</option>
-                  <option value="oldest">BL Z → A</option>
-                </select>
-
-                <label className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 bg-white cursor-pointer hover:bg-slate-50">
-                  <input
-                    type="checkbox"
-                    checked={showOnlyErrors}
-                    onChange={(e) => setShowOnlyErrors(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-300"
-                  />
-                  <span className="text-sm text-slate-700">Solo con errores</span>
-                </label>
-              </div>
-
-              <div className="mt-3 text-sm text-slate-600">
-                Mostrando {filteredAndSortedBLs.length} de {bls.length} BLs
-              </div>
-            </div>
+  <div className="mt-3 text-sm text-slate-600">
+    Mostrando {filteredAndSortedBLs.length} de {bls.length} BLs
+    {filterPOL.size > 0 && (
+      <span className="ml-2 text-indigo-600 font-medium">
+        · POL: {[...filterPOL].join(", ")}
+      </span>
+    )}
+  </div>
+</div>
 
             {/* Botones de acción */}
             <div className="mb-4 flex items-center gap-3 flex-wrap">

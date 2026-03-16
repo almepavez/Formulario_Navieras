@@ -485,8 +485,7 @@ const NuevoManifiesto = () => {
               >
                 <option value="S">S (Salida/Exportación)</option>
                 <option value="I">I (Ingreso/Importación)</option>
-                <option value="TR">TR (Tránsito)</option>
-                <option value="TRB">TRB (Transbordo)</option>
+
               </select>
             </Field>
 

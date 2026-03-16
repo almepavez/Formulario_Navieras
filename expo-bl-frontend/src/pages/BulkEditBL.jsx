@@ -199,6 +199,8 @@ const BulkEditBL = () => {
     const [filteredBLs, setFilteredBLs] = useState([]);
     const [selectedBLs, setSelectedBLs] = useState([]);
     const [modoTipo, setModoTipo] = useState(null);
+    const [searchBL, setSearchBL] = useState("");
+
 
     const [fieldsToEdit, setFieldsToEdit] = useState({
         descripcion_carga: false,
@@ -283,15 +285,21 @@ const BulkEditBL = () => {
         }, {})
     ).sort((a, b) => a.viaje.localeCompare(b.viaje));
 
-    useEffect(() => {
-        if (!selectedViaje) { setFilteredBLs([]); return; }
-        setFilteredBLs(allBLs.filter(bl => bl.viaje === selectedViaje));
-        setSelectedBLs([]);
-        setModoTipo(null);
-    }, [selectedViaje, allBLs]);
+useEffect(() => {
+  if (!selectedViaje) { setFilteredBLs([]); return; }
+  setFilteredBLs(allBLs.filter(bl => bl.viaje === selectedViaje));
+  setSelectedBLs([]);
+  setModoTipo(null);
+  setSearchBL(""); // ← agrega esto
+}, [selectedViaje, allBLs]);
 
     const blsVisibles = modoTipo
-        ? filteredBLs.filter(bl => modoTipo === "BB" ? esBB(bl) : !esBB(bl))
+        ? filteredBLs.filter(bl => {
+            const matchTipo = modoTipo === "BB" ? esBB(bl) : !esBB(bl);
+            const matchSearch = !searchBL.trim() ||
+                bl.bl_number?.toLowerCase().includes(searchBL.trim().toLowerCase());
+            return matchTipo && matchSearch;
+        })
         : [];
 
     useEffect(() => {
@@ -572,7 +580,27 @@ const BulkEditBL = () => {
                                         </p>
                                     )}
                                 </div>
-
+{modoTipo && (
+  <div className="relative">
+    <input
+      type="text"
+      value={searchBL}
+      onChange={e => setSearchBL(e.target.value)}
+      placeholder="Buscar por número de BL..."
+      className="w-full pl-10 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44] outline-none"
+    />
+    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
+    </svg>
+    {searchBL && (
+      <button onClick={() => setSearchBL("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    )}
+  </div>
+)}
                                 {modoTipo && (
                                     <div className="border border-slate-200 rounded-xl overflow-hidden">
                                         <div className="max-h-[380px] overflow-y-auto divide-y divide-slate-100">

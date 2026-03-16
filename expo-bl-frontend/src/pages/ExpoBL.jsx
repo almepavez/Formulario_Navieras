@@ -163,7 +163,7 @@ const ExpoBL = () => {
                             className="px-4 py-2 rounded-lg bg-[#0F2A44] text-white text-sm font-medium hover:bg-[#1a3a5c] flex items-center gap-2 transition-colors"
                         >
                             <Edit3 className="w-4 h-4" />
-                            Editar Varios BLs
+                            Edición Masiva
                         </button>
                         <button
                             onClick={fetchBLs}
