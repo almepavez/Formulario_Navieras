@@ -3210,9 +3210,9 @@ function parseLegs14(lines14) {
 
 function extractTransbordos(legs) {
   if (!Array.isArray(legs) || legs.length <= 1) return [];
-  return legs.slice(0, -1).map(l => ({
+  return legs.slice(0, -1).map((l, i) => ({
     puerto_cod: l.to,
-    fecha_arribo: l.fechaZarpe || null  // zarpe del leg = arribo al transbordo
+    fecha_arribo: legs[i + 1]?.fechaEmb || null  // embarque del leg siguiente = arribo al transbordo
   }));
 }
 
