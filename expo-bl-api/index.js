@@ -103,6 +103,8 @@ const EMAILS_PERMITIDOS = {
   'iriffo@broomgroup.com': 'admin',
   'driquelme.sai@broomchile.com': 'admin',
   'mdiaz.sai@broomchile.com': 'admin',
+  'ccatalan.sai@broomchile.com': 'admin',
+  'pcatalan@broomgroup.com': 'admin'
 };
 
 // 🔒 FUNCIÓN AUXILIAR: Verificar email autorizado
@@ -4210,7 +4212,10 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
         );
       }
     }
-
+await conn.query(
+  `UPDATE manifiestos SET updated_at = NOW() WHERE id = ?`,
+  [id]
+);
     // Resumen de errores
     const [blsConErrores] = await conn.query(`
       SELECT
