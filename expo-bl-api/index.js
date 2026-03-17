@@ -1339,6 +1339,19 @@ app.put("/api/mantenedores/almacenistas/:id", async (req, res) => {
   }
 });
 
+app.get("/api/mantenedores/almacenistas/tatc", async (_req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, nombre, codigo_almacen, codigo_tatc
+       FROM participantes
+       WHERE codigo_tatc IS NOT NULL AND codigo_tatc != ''
+       ORDER BY codigo_tatc`
+    );
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: "Error al obtener códigos TATC" });
+  }
+});
 // GET /api/tipos-bulto
 app.get("/api/tipos-bulto", async (_req, res) => {
   try {
