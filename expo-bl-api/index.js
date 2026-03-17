@@ -859,7 +859,7 @@ app.get("/api/manifiestos/:id", async (req, res) => {
           m.created_at AS createdAt,
           m.updated_at AS updatedAt,
           
-          -- 🆕 AGREGAR ESTOS 3 CAMPOS
+          
           m.referencia_id AS referenciaId,
           m.numero_referencia AS numeroReferencia,
           m.fecha_referencia AS fechaReferencia,
