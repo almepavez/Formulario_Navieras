@@ -327,10 +327,12 @@ const BulkEditBL = () => {
                 countTotal: allBLs.filter(b => b.viaje === bl.viaje).length,
                 countBB: allBLs.filter(b => b.viaje === bl.viaje && esBB(b)).length,
                 countCont: allBLs.filter(b => b.viaje === bl.viaje && !esBB(b)).length,
+                createdAt: manifiestoMatch?.createdAt || "",
+                numeroManifiesto: manifiestoMatch?.numeroManifiestoAduana || "",
             };
             return acc;
         }, {})
-    ).sort((a, b) => a.viaje.localeCompare(b.viaje));
+    ).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));  // ← más reciente primero
 
     useEffect(() => {
         if (!selectedViaje) { setFilteredBLs([]); return; }
@@ -616,7 +618,13 @@ const BulkEditBL = () => {
                                                             <span className="font-semibold text-slate-900 text-sm">{m.viaje}</span>
                                                             <span className="text-slate-300 text-xs">|</span>
                                                             <span className="text-xs font-medium text-slate-500 italic">{m.nombre_nave}</span>
-                                                        </div>                                                        <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+                                                            {m.numeroManifiesto && <>
+                                                                <span className="text-slate-300 text-xs">|</span>
+                                                                <span className="text-xs text-slate-400 font-mono">N° {m.numeroManifiesto}</span>
+                                                            </>}
+                                                        </div>
+
+                                                        <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
                                                             <span>{m.countTotal} BL{m.countTotal !== 1 ? "s" : ""} total</span>
                                                             {m.countCont > 0 && <span className="text-blue-600">· {m.countCont} contenedor</span>}
                                                             {m.countBB > 0 && <span className="text-green-600">· {m.countBB} carga suelta</span>}

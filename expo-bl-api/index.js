@@ -4684,7 +4684,11 @@ app.get("/api/bls/:blNumber", async (req, res) => {
         pe.nombre AS puerto_embarque,
         pd.codigo AS puerto_descarga_cod,
         pd.nombre AS puerto_descarga,
-        n.nombre AS nave_nombre
+        n.nombre AS nave_nombre,
+        COALESCE(p.nombre,         b.almacenista_nombre)         AS almacenista_nombre,
+        COALESCE(p.rut,            b.almacenista_rut)             AS almacenista_rut,
+        COALESCE(p.pais,           b.almacenista_nacion_id)       AS almacenista_nacion_id,
+        COALESCE(p.codigo_almacen, b.almacenista_codigo_almacen)  AS almacenista_codigo_almacen
       FROM bls b
       LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
       LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id
@@ -4692,6 +4696,7 @@ app.get("/api/bls/:blNumber", async (req, res) => {
       LEFT JOIN puertos pe ON b.puerto_embarque_id = pe.id
       LEFT JOIN puertos pd ON b.puerto_descarga_id = pd.id
       LEFT JOIN naves n ON m.nave_id = n.id
+      LEFT JOIN participantes p ON b.almacenador_id = p.id
       WHERE b.bl_number = ?
       LIMIT 1
     `;
@@ -4699,8 +4704,7 @@ app.get("/api/bls/:blNumber", async (req, res) => {
     if (rows.length === 0) {
       return res.status(404).json({ error: "BL no encontrado" });
     }
-    const [updatedRows] = await conn.query(query, [blNumber]);
-    res.json(updatedRows[0]);
+    res.json(rows[0]);
   } catch (error) {
     console.error("Error al obtener BL:", error);
     res.status(500).json({ error: "Error al obtener BL", details: error.message });
