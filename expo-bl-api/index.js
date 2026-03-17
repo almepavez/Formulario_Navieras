@@ -590,7 +590,7 @@ app.post("/api/auth/verify-code", async (req, res) => {
 
 
 // POST /api/manifiestos
-app.post("/api/manifiestos", async (req, res) => {
+app.post("/api/manifiestos", verificarToken, async (req, res) => {
   const {
     servicio, nave, puertoCentral, viaje, tipoOperacion, operadorNave, status,
     remark, emisorDocumento, representante, fechaManifiestoAduana,
@@ -623,17 +623,17 @@ app.post("/api/manifiestos", async (req, res) => {
     if (!pcRow) throw new Error(`Puerto central no existe: ${puertoCentral}`);
     const [result] = await conn.query(
       `INSERT INTO manifiestos
-       (servicio_id, nave_id, puerto_central_id, viaje, tipo_operacion, operador_nave,
-        status, remark, emisor_documento, representante, fecha_manifiesto_aduana,
-        numero_manifiesto_aduana, referencia_id, numero_referencia, fecha_referencia, fecha_zarpe)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+ (servicio_id, nave_id, puerto_central_id, viaje, tipo_operacion, operador_nave,
+  status, remark, emisor_documento, representante, fecha_manifiesto_aduana,
+  numero_manifiesto_aduana, referencia_id, numero_referencia, fecha_referencia, fecha_zarpe, created_by)
+ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         servRow.id, naveRow.id, pcRow.id, String(viaje).trim(),
         String(tipoOperacion).toUpperCase(), String(operadorNave).trim(),
         statusFinal, remark || null, String(emisorDocumento).trim(),
         String(representante).trim(), fechaManifiestoAduana,
         String(numeroManifiestoAduana).trim(), referenciaId || null,
-        numeroReferencia || null, fechaReferencia || null, fecha_zarpe || null
+        numeroReferencia || null, fechaReferencia || null, fecha_zarpe || null, req.usuario.id
       ]
     );
     const manifiestoId = result.insertId;
@@ -726,6 +726,8 @@ app.get("/api/manifiestos", async (_req, res) => {
           m.operador_nave AS operadorNave,
           m.status,
           m.remark,
+          u.nombre AS creadoPorNombre,
+          u.email AS creadoPorEmail,
           m.emisor_documento AS emisorDocumento,
           m.representante,
           m.fecha_manifiesto_aduana AS fechaManifiestoAduana,
@@ -737,6 +739,7 @@ app.get("/api/manifiestos", async (_req, res) => {
        JOIN servicios s ON s.id = m.servicio_id
        JOIN naves n ON n.id = m.nave_id
        JOIN puertos pc ON pc.id = m.puerto_central_id
+       LEFT JOIN usuarios u ON u.id = m.created_by
        ORDER BY m.created_at DESC
        LIMIT 20`
     );
@@ -847,6 +850,8 @@ app.get("/api/manifiestos/:id", async (req, res) => {
           m.operador_nave AS operadorNave,
           m.status,
           m.remark,
+          u.nombre AS creadoPorNombre,
+          u.email AS creadoPorEmail,
           m.emisor_documento AS emisorDocumento,
           m.representante,
           m.fecha_manifiesto_aduana AS fechaManifiestoAduana,
@@ -865,6 +870,7 @@ app.get("/api/manifiestos/:id", async (req, res) => {
        JOIN servicios s ON s.id = m.servicio_id
        JOIN naves n ON n.id = m.nave_id
        JOIN puertos pc ON pc.id = m.puerto_central_id
+       LEFT JOIN usuarios u ON u.id = m.created_by
        WHERE m.id = ?`,
       [id]
     );
@@ -2632,9 +2638,9 @@ function parseLine56(raw) {
   if (mExt) {
     return {
       itemNo: Number(mExt[2]),
-      seqNo:  Number(mExt[3]),
-      un:     mExt[4],
-      clase:  mExt[5],
+      seqNo: Number(mExt[3]),
+      un: mExt[4],
+      clase: mExt[5],
     };
   }
 
@@ -2643,8 +2649,8 @@ function parseLine56(raw) {
   if (!m) return null;
 
   const itemNo = Number(m[2]);
-  const seqNo  = Number(m[3]);
-  const tail   = s.slice(m[0].length);
+  const seqNo = Number(m[3]);
+  const tail = s.slice(m[0].length);
 
   let un = "";
   let clase = "";
