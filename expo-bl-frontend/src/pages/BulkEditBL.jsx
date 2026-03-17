@@ -79,15 +79,28 @@ const FieldRow = ({ field, fieldsToEdit, setFieldsToEdit, children }) => (
 );
 
 // ── AlmacenadorSelector — FUERA del componente principal ─────────────────────
-const AlmacenadorSelector = ({ value, displayValue, onChange, onClear }) => {
-    const [query, setQuery] = useState(displayValue || "");
-    const [results, setResults] = useState([]);
-    const [loading, setLoading] = useState(false);
+const AlmacenadorSelector = ({ value, onSelect, selectedBLsCount = 0 }) => {
+    const [almacenistas, setAlmacenistas] = useState([]);
+    const [loadingList, setLoadingList] = useState(true);
+    const [query, setQuery] = useState("");
     const [open, setOpen] = useState(false);
-    const [selected, setSelected] = useState(!!value);
+    const [selected, setSelected] = useState(null);
     const containerRef = useRef(null);
 
-    useEffect(() => { setQuery(displayValue || ""); setSelected(!!value); }, [value, displayValue]);
+    useEffect(() => {
+        fetch(`${API_BASE}/api/mantenedores/almacenistas`)
+            .then(r => r.json())
+            .then(data => {
+                const lista = Array.isArray(data) ? data : [];
+                setAlmacenistas(lista);
+                if (value) {
+                    const encontrado = lista.find(a => a.id === value);
+                    if (encontrado) { setSelected(encontrado); setQuery(encontrado.nombre); }
+                }
+            })
+            .catch(() => setAlmacenistas([]))
+            .finally(() => setLoadingList(false));
+    }, []);
 
     useEffect(() => {
         const handler = (e) => {
@@ -97,22 +110,18 @@ const AlmacenadorSelector = ({ value, displayValue, onChange, onClear }) => {
         return () => document.removeEventListener("mousedown", handler);
     }, []);
 
-    const search = async (q) => {
-        if (q.trim().length < 2) { setResults([]); setOpen(false); return; }
-        setLoading(true);
-        try {
-            const res = await fetch(`${API_BASE}/api/mantenedores/participantes?tipo=almacenador&q=${encodeURIComponent(q)}`);
-            const data = await res.json();
-            setResults(data || []);
-            setOpen(true);
-        } catch { setResults([]); } finally { setLoading(false); }
-    };
+    const filtrados = query.trim().length >= 1
+        ? almacenistas.filter(a =>
+            a.nombre?.toLowerCase().includes(query.toLowerCase()) ||
+            a.codigo_almacen?.toLowerCase().includes(query.toLowerCase()) ||
+            a.rut?.toLowerCase().includes(query.toLowerCase())
+        )
+        : almacenistas;
+
+    const tieneDatosCompletos = selected?.nombre && selected?.rut && selected?.nacion_id && selected?.codigo_almacen;
 
     return (
-        <div ref={containerRef} className="relative">
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Almacenador <span className="text-xs text-slate-400 font-normal">(buscar en mantenedor)</span>
-            </label>
+        <div ref={containerRef} className="space-y-3">
             <div className="relative">
                 <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
                     <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -120,13 +129,15 @@ const AlmacenadorSelector = ({ value, displayValue, onChange, onClear }) => {
                     </svg>
                 </div>
                 <input
-                    type="text" value={query}
-                    onChange={e => { setQuery(e.target.value); setSelected(false); search(e.target.value); }}
-                    onFocus={() => query.length >= 2 && !selected && setOpen(true)}
-                    placeholder="Escribe para buscar..."
+                    type="text"
+                    value={query}
+                    onChange={e => { setQuery(e.target.value); setSelected(null); setOpen(true); }}
+                    onFocus={() => setOpen(true)}
+                    placeholder={loadingList ? "Cargando almacenistas..." : "Buscar por nombre, RUT o código..."}
+                    disabled={loadingList}
                     className={`w-full pl-10 pr-10 py-2 text-sm rounded-lg border focus:ring-2 focus:outline-none transition-colors ${selected ? "border-emerald-400 bg-emerald-50 focus:ring-emerald-300" : "border-slate-300 focus:ring-[#0F2A44]"}`}
                 />
-                {loading && (
+                {loadingList && (
                     <div className="absolute inset-y-0 right-3 flex items-center">
                         <svg className="animate-spin h-4 w-4 text-slate-400" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
@@ -134,38 +145,72 @@ const AlmacenadorSelector = ({ value, displayValue, onChange, onClear }) => {
                         </svg>
                     </div>
                 )}
-                {!loading && selected && (
-                    <button type="button" onClick={() => { setQuery(""); setSelected(false); setResults([]); setOpen(false); onClear(); }}
+                {!loadingList && selected && (
+                    <button type="button"
+                        onClick={() => {
+                            setQuery(""); setSelected(null); setOpen(false);
+                            onSelect({ id: null, nombre: "", rut: "", nacion_id: "", codigo_almacen: "" });
+                        }}
                         className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-red-500 transition-colors">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
                 )}
+
+                {open && !loadingList && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+                        {filtrados.length > 0 ? filtrados.map(item => (
+                            <button key={item.id} type="button"
+                                onMouseDown={e => e.preventDefault()}
+                                onClick={() => {
+                                    setSelected(item);
+                                    setQuery(item.nombre);
+                                    setOpen(false);
+                                    onSelect(item);
+                                }}
+                                className="w-full text-left px-4 py-2.5 hover:bg-slate-50 border-b border-slate-100 last:border-0 transition-colors">
+                                <p className="font-medium text-slate-900 text-sm">{item.nombre}</p>
+                                <p className="text-xs text-slate-500">
+                                    {item.rut && <span>RUT: {item.rut}</span>}
+                                    {item.codigo_almacen && <span className="ml-2">· ALM: {item.codigo_almacen}</span>}
+                                </p>
+                            </button>
+                        )) : (
+                            <div className="px-4 py-3 text-sm text-slate-500">No se encontraron almacenistas</div>
+                        )}
+                    </div>
+                )}
             </div>
+
             {selected && (
-                <p className="mt-1 text-xs text-emerald-600 flex items-center gap-1">
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    Almacenador seleccionado del mantenedor
-                </p>
-            )}
-            {open && results.length > 0 && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
-                    {results.map(item => (
-                        <button key={item.id} type="button"
-                            onClick={() => { setQuery(item.nombre); setSelected(true); setOpen(false); setResults([]); onChange(item.id, item.nombre); }}
-                            className="w-full text-left px-4 py-2.5 hover:bg-slate-50 border-b border-slate-100 last:border-0 transition-colors">
-                            <p className="font-medium text-slate-900 text-sm">{item.nombre}</p>
-                            <p className="text-xs text-slate-500">{item.ciudad || "—"}</p>
-                        </button>
-                    ))}
-                </div>
-            )}
-            {open && !loading && results.length === 0 && query.length >= 2 && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow px-4 py-3 text-sm text-slate-500">
-                    No se encontraron almacenadores
+                <div className={`rounded-xl border p-4 text-sm ${tieneDatosCompletos ? "bg-emerald-50 border-emerald-200" : "bg-yellow-50 border-yellow-300"}`}>
+                    {!tieneDatosCompletos && (
+                        <div className="flex items-center gap-2 mb-3 text-yellow-800 bg-yellow-100 border border-yellow-300 rounded-lg px-3 py-2 text-xs">
+                            <svg className="w-4 h-4 flex-shrink-0 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                            </svg>
+                            <span>Datos incompletos — ve a <strong>Mantenedores → Almacenistas</strong> para completarlos.</span>
+                        </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                        {[
+                            { label: "Nombre", value: selected.nombre },
+                            { label: "RUT", value: selected.rut },
+                            { label: "Nación", value: selected.nacion_id },
+                            { label: "Cód. Almacén", value: selected.codigo_almacen },
+                        ].map(({ label, value: val }) => (
+                            <div key={label}>
+                                <span className="text-xs uppercase tracking-wide text-slate-400">{label}</span>
+                                <p className={`font-medium mt-0.5 text-sm ${val ? "text-slate-800" : "text-red-500 italic"}`}>
+                                    {val || "Sin dato"}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                    <p className="text-xs text-emerald-600 mt-3 pt-3 border-t border-emerald-200">
+                        Se asignará a <strong>{selectedBLsCount} BLs</strong> seleccionados.
+                    </p>
                 </div>
             )}
         </div>
@@ -208,7 +253,6 @@ const BulkEditBL = () => {
         descripcion_carga: false,
         bultos: false,
         peso_bruto: false,
-        status: false,
         fecha_embarque: false,
         fecha_zarpe: false,
         fecha_emision: false,
@@ -220,7 +264,6 @@ const BulkEditBL = () => {
         descripcion_carga: "",
         bultos: "",
         peso_bruto: "",
-        status: "CREADO",
         fecha_embarque: "",
         fecha_zarpe: "",
         fecha_emision: "",
@@ -240,6 +283,8 @@ const BulkEditBL = () => {
         lugar_entrega_cod: "", lugar_destino_cod: "", lugar_emision_cod: "",
     });
 
+    const [almacenistaPreview, setAlmacenistaPreview] = useState(null);
+    const [loadingPreview, setLoadingPreview] = useState(false);
     const [saving, setSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -292,7 +337,10 @@ const BulkEditBL = () => {
         setFilteredBLs(allBLs.filter(bl => bl.viaje === selectedViaje));
         setSelectedBLs([]);
         setModoTipo(null);
-        setSearchBL(""); // ← agrega esto
+        setSearchBL("");
+        setFieldsToEdit(p => ({ ...p, almacenador: false }));
+        setEditValues(p => ({ ...p, almacenador: "", almacenador_id: null }));
+        setAlmacenistaPreview(null);
     }, [selectedViaje, allBLs]);
 
     const blsVisibles = modoTipo
@@ -337,38 +385,38 @@ const BulkEditBL = () => {
     const handleSelectAll = () =>
         setSelectedBLs(selectedBLs.length === blsVisibles.length ? [] : blsVisibles.map(b => b.bl_number));
 
-const handlePasteBLs = () => {
-    const tokens = pasteInput
-        .split(/[\n\r\t,;]+/)
-        .map(s => s.trim().toUpperCase())
-        .filter(Boolean);
-    const unicos = [...new Set(tokens)];
-    const encontrados = unicos.filter(t => blsVisibles.some(bl => bl.bl_number === t));
-    const noEncontrados = unicos.filter(t => !blsVisibles.some(bl => bl.bl_number === t));
+    const handlePasteBLs = () => {
+        const tokens = pasteInput
+            .split(/[\n\r\t,;]+/)
+            .map(s => s.trim().toUpperCase())
+            .filter(Boolean);
+        const unicos = [...new Set(tokens)];
+        const encontrados = unicos.filter(t => blsVisibles.some(bl => bl.bl_number === t));
+        const noEncontrados = unicos.filter(t => !blsVisibles.some(bl => bl.bl_number === t));
 
-    if (encontrados.length === 0) {
-        Swal.fire({
-            icon: "warning",
-            title: "Ningún BL encontrado",
-            text: "Los números pegados no coinciden con BLs de este manifiesto y tipo.",
-            confirmButtonColor: "#0F2A44",
-        });
-        return;
-    }
+        if (encontrados.length === 0) {
+            Swal.fire({
+                icon: "warning",
+                title: "Ningún BL encontrado",
+                text: "Los números pegados no coinciden con BLs de este manifiesto y tipo.",
+                confirmButtonColor: "#0F2A44",
+            });
+            return;
+        }
 
-    const listaEncontrados = encontrados
-        .map(num => `<span style="display:inline-block;background:#E6F1FB;color:#0C447C;font-size:12px;font-weight:600;padding:3px 10px;border-radius:99px;margin:3px 2px;">${num}</span>`)
-        .join("");
+        const listaEncontrados = encontrados
+            .map(num => `<span style="display:inline-block;background:#E6F1FB;color:#0C447C;font-size:12px;font-weight:600;padding:3px 10px;border-radius:99px;margin:3px 2px;">${num}</span>`)
+            .join("");
 
-    const listaNoEncontrados = noEncontrados.length > 0
-        ? `<div style="margin-top:12px;padding:10px 12px;background:#FCEBEB;border-radius:8px;font-size:12px;color:#A32D2D;">
+        const listaNoEncontrados = noEncontrados.length > 0
+            ? `<div style="margin-top:12px;padding:10px 12px;background:#FCEBEB;border-radius:8px;font-size:12px;color:#A32D2D;">
             <strong>No encontrados (${noEncontrados.length}):</strong> ${noEncontrados.join(", ")}
            </div>`
-        : "";
+            : "";
 
-    Swal.fire({
-        title: `Se encontraron ${encontrados.length} BL${encontrados.length !== 1 ? "s" : ""}`,
-        html: `
+        Swal.fire({
+            title: `Se encontraron ${encontrados.length} BL${encontrados.length !== 1 ? "s" : ""}`,
+            html: `
             <p style="font-size:13px;color:#64748b;margin-bottom:12px;">
                 Verifica que sean los correctos antes de continuar.
             </p>
@@ -377,21 +425,21 @@ const handlePasteBLs = () => {
             </div>
             ${listaNoEncontrados}
         `,
-        icon: "success",
-        showCancelButton: true,
-        confirmButtonText: "Sí, seleccionar estos BLs",
-        cancelButtonText: "Cancelar",
-        confirmButtonColor: "#0F2A44",
-        cancelButtonColor: "#94a3b8",
-        reverseButtons: true,
-    }).then(result => {
-        if (result.isConfirmed) {
-            setSelectedBLs(encontrados);
-            setPasteInput("");
-            setShowPastePanel(false);
-        }
-    });
-};
+            icon: "success",
+            showCancelButton: true,
+            confirmButtonText: "Sí, seleccionar estos BLs",
+            cancelButtonText: "Cancelar",
+            confirmButtonColor: "#0F2A44",
+            cancelButtonColor: "#94a3b8",
+            reverseButtons: true,
+        }).then(result => {
+            if (result.isConfirmed) {
+                setSelectedBLs(encontrados);
+                setPasteInput("");
+                setShowPastePanel(false);
+            }
+        });
+    };
 
     const handleSelectBL = (num) =>
         setSelectedBLs(prev => prev.includes(num) ? prev.filter(n => n !== num) : [...prev, num]);
@@ -423,6 +471,21 @@ const handlePasteBLs = () => {
         { key: "lugar_emision_cod", label: "Lugar de Emisión (LE)" },
     ];
 
+    const fetchAlmacenistaPreview = async (id) => {
+        if (!id) { setAlmacenistaPreview(null); return; }
+        setLoadingPreview(true);
+        try {
+            const res = await fetch(`${API_BASE}/api/mantenedores/almacenistas/${id}`);
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            setAlmacenistaPreview(data);
+        } catch {
+            setAlmacenistaPreview(null);
+        } finally {
+            setLoadingPreview(false);
+        }
+    };
+
     const handleSave = async () => {
         setSaving(true); setError("");
         try {
@@ -430,8 +493,8 @@ const handlePasteBLs = () => {
             Object.keys(fieldsToEdit).forEach(f => {
                 if (!fieldsToEdit[f]) return;
                 if (f === "almacenador") {
-                    updates.almacenador = editValues.almacenador;
                     updates.almacenador_id = editValues.almacenador_id;
+                    updates.almacenador = editValues.almacenador;
                 } else {
                     updates[f] = editValues[f];
                 }
@@ -781,16 +844,6 @@ const handlePasteBLs = () => {
                                         </FieldRow>
                                     </div>
 
-                                    <FieldRow field="status" fieldsToEdit={fieldsToEdit} setFieldsToEdit={setFieldsToEdit}>
-                                        <select value={editValues.status}
-                                            onChange={e => setEditValues(p => ({ ...p, status: e.target.value }))}
-                                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] outline-none">
-                                            <option value="CREADO">Creado</option>
-                                            <option value="VALIDADO">Validado</option>
-                                            <option value="ENVIADO">Enviado</option>
-                                            <option value="ANULADO">Anulado</option>
-                                        </select>
-                                    </FieldRow>
 
                                     <FieldRow field="fecha_emision" fieldsToEdit={fieldsToEdit} setFieldsToEdit={setFieldsToEdit}>
                                         <MaskedDateInput
@@ -812,23 +865,23 @@ const handlePasteBLs = () => {
                                             onChange={v => setEditValues(p => ({ ...p, fecha_zarpe: v }))}
                                         />
                                     </FieldRow>
-
-                                    {modoTipo === "BB" && (
-                                        <div className="space-y-2 pt-2">
+                                    <FieldRow field="forma_pago_flete" fieldsToEdit={fieldsToEdit} setFieldsToEdit={setFieldsToEdit}>
+                                        <select value={editValues.forma_pago_flete}
+                                            onChange={e => setEditValues(p => ({ ...p, forma_pago_flete: e.target.value }))}
+                                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] outline-none">
+                                            <option value="PREPAID">PREPAID — Pagado en origen</option>
+                                            <option value="COLLECT">COLLECT — Por cobrar en destino</option>
+                                        </select>
+                                    </FieldRow>
+                                    {manifiestoSel?.tipo_operacion === "I" &&
+                                        (<div className="space-y-2 pt-2">
                                             <div className="flex items-center gap-2">
                                                 <div className="h-px flex-1 bg-green-200" />
-                                                <span className="text-xs font-semibold text-green-700 uppercase tracking-wider">Carga Suelta (BB)</span>
+                                                <span className="text-xs font-semibold text-green-700 uppercase tracking-wider">
+                                                    {modoTipo === "BB" ? "Carga Suelta (BB)" : "Importación"}
+                                                </span>
                                                 <div className="h-px flex-1 bg-green-200" />
                                             </div>
-
-                                            <FieldRow field="forma_pago_flete" fieldsToEdit={fieldsToEdit} setFieldsToEdit={setFieldsToEdit}>
-                                                <select value={editValues.forma_pago_flete}
-                                                    onChange={e => setEditValues(p => ({ ...p, forma_pago_flete: e.target.value }))}
-                                                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] outline-none">
-                                                    <option value="PREPAID">PREPAID — Pagado en origen</option>
-                                                    <option value="COLLECT">COLLECT — Por cobrar en destino</option>
-                                                </select>
-                                            </FieldRow>
 
                                             <FieldRow field="cond_transporte" fieldsToEdit={fieldsToEdit} setFieldsToEdit={setFieldsToEdit}>
                                                 <input type="text" value={editValues.cond_transporte}
@@ -839,10 +892,15 @@ const handlePasteBLs = () => {
                                             </FieldRow>
 
                                             <div className={`border rounded-xl p-4 transition-all ${fieldsToEdit.almacenador ? "border-[#0F2A44]/30 bg-[#0F2A44]/5" : "border-slate-200 bg-white hover:border-slate-300"}`}>
-                                                <label className="flex items-start gap-3 cursor-pointer">
+                                                <div className="flex items-start gap-3">
                                                     <input type="checkbox" checked={fieldsToEdit.almacenador}
-                                                        onChange={() => setFieldsToEdit(p => ({ ...p, almacenador: !p.almacenador }))}
-                                                        className="mt-0.5 w-4 h-4 text-[#0F2A44] rounded focus:ring-2 focus:ring-[#0F2A44]" />
+                                                        onChange={() => {
+                                                            setFieldsToEdit(p => ({ ...p, almacenador: !p.almacenador }));
+                                                            if (fieldsToEdit.almacenador) {
+                                                                setEditValues(p => ({ ...p, almacenador_id: null, almacenador: "" }));
+                                                            }
+                                                        }}
+                                                        className="mt-0.5 w-4 h-4 text-[#0F2A44] rounded focus:ring-2 focus:ring-[#0F2A44] cursor-pointer flex-shrink-0" />
                                                     <div className="flex-1">
                                                         <div className="font-medium text-slate-800 text-sm mb-2">
                                                             Almacenador
@@ -851,16 +909,21 @@ const handlePasteBLs = () => {
                                                         {fieldsToEdit.almacenador && (
                                                             <AlmacenadorSelector
                                                                 value={editValues.almacenador_id}
-                                                                displayValue={editValues.almacenador}
-                                                                onChange={(id, nombre) => setEditValues(p => ({ ...p, almacenador_id: id, almacenador: nombre }))}
-                                                                onClear={() => setEditValues(p => ({ ...p, almacenador_id: null, almacenador: "" }))}
+                                                                selectedBLsCount={selectedBLs.length}
+                                                                onSelect={(datos) => {
+                                                                    setEditValues(p => ({
+                                                                        ...p,
+                                                                        almacenador_id: datos.id,
+                                                                        almacenador: datos.nombre,
+                                                                    }));
+                                                                }}
                                                             />
                                                         )}
                                                     </div>
-                                                </label>
+                                                </div>
                                             </div>
                                         </div>
-                                    )}
+                                        )}
                                 </div>
                             </div>
                         )}

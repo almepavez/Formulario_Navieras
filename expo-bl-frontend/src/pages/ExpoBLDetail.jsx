@@ -306,6 +306,36 @@ const ExpoBLDetail = () => {
                             <p className="text-xs font-semibold text-slate-600 mb-2">Notify Party</p>
                             <p className="text-sm text-slate-900">{bl.notify_party || "—"}</p>
                         </div>
+
+                        {(bl.tipo_operacion === "I" || bl.tipo_servicio_codigo === "BB" || bl.tipo_servicio === "BB") && (
+                            <div className="pt-4 border-t border-slate-100">
+                                <p className="text-xs font-semibold text-slate-600 mb-3 flex items-center gap-2">
+                                    Almacenista
+                                    <span className="text-xs font-normal text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                                        {bl.tipo_servicio_codigo === "BB" || bl.tipo_servicio === "BB" ? "Carga Suelta" : "Importación"}
+                                    </span>
+                                </p>
+                                {bl.almacenista_nombre ? (
+                                    <div className="grid grid-cols-2 gap-x-6 gap-y-2 bg-slate-50 rounded-lg p-4 border border-slate-200">
+                                        {[
+                                            { label: "Nombre", value: bl.almacenista_nombre },
+                                            { label: "RUT", value: bl.almacenista_rut },
+                                            { label: "Nación", value: bl.almacenista_nacion_id },
+                                            { label: "Cód. Almacén", value: bl.almacenista_codigo_almacen },
+                                        ].map(({ label, value }) => (
+                                            <div key={label}>
+                                                <p className="text-xs text-slate-400 uppercase tracking-wide">{label}</p>
+                                                <p className={`text-sm font-medium mt-0.5 ${value ? "text-slate-800" : "text-red-400 italic"}`}>
+                                                    {value || "Sin dato"}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-slate-400 italic">Sin almacenista asignado</p>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -313,30 +343,30 @@ const ExpoBLDetail = () => {
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
                     <h2 className="text-lg font-semibold text-[#0F2A44] mb-4">Puertos y Rutas</h2>
 
-{(() => {
-    const esCargaSuelta = bl.tipo_servicio_codigo === 'BB' || bl.tipo_servicio === 'BB';
-    const campos = [
-        !esCargaSuelta && { label: "Lugar Emisión", cod: bl.lugar_emision_cod, nombre: bl.lugar_emision_nombre },
-        { label: "Puerto Embarque", cod: bl.puerto_embarque_cod, nombre: bl.puerto_embarque_nombre },
-        { label: "Puerto Descarga", cod: bl.puerto_descarga_cod, nombre: bl.puerto_descarga_nombre },
-        { label: "Lugar Destino", cod: bl.lugar_destino_cod, nombre: bl.lugar_destino_nombre },
-        { label: "Lugar Entrega", cod: bl.lugar_entrega_cod, nombre: bl.lugar_entrega_nombre },
-        !esCargaSuelta && { label: "Lugar Recepción", cod: bl.lugar_recepcion_cod, nombre: bl.lugar_recepcion_nombre },
-    ].filter(Boolean);
+                    {(() => {
+                        const esCargaSuelta = bl.tipo_servicio_codigo === 'BB' || bl.tipo_servicio === 'BB';
+                        const campos = [
+                            !esCargaSuelta && { label: "Lugar Emisión", cod: bl.lugar_emision_cod, nombre: bl.lugar_emision_nombre },
+                            { label: "Puerto Embarque", cod: bl.puerto_embarque_cod, nombre: bl.puerto_embarque_nombre },
+                            { label: "Puerto Descarga", cod: bl.puerto_descarga_cod, nombre: bl.puerto_descarga_nombre },
+                            { label: "Lugar Destino", cod: bl.lugar_destino_cod, nombre: bl.lugar_destino_nombre },
+                            { label: "Lugar Entrega", cod: bl.lugar_entrega_cod, nombre: bl.lugar_entrega_nombre },
+                            !esCargaSuelta && { label: "Lugar Recepción", cod: bl.lugar_recepcion_cod, nombre: bl.lugar_recepcion_nombre },
+                        ].filter(Boolean);
 
-    return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {campos.map(({ label, cod, nombre }) => (
-                <div key={label}>
-                    <p className="text-xs text-slate-500 mb-1">{label}</p>
-                    <p className="text-sm font-medium text-slate-900">
-                        {cod ? [cod, nombre].filter(Boolean).join(" — ") : "—"}
-                    </p>
-                </div>
-            ))}
-        </div>
-    );
-})()}
+                        return (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                {campos.map(({ label, cod, nombre }) => (
+                                    <div key={label}>
+                                        <p className="text-xs text-slate-500 mb-1">{label}</p>
+                                        <p className="text-sm font-medium text-slate-900">
+                                            {cod ? [cod, nombre].filter(Boolean).join(" — ") : "—"}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        );
+                    })()}
                 </div>
 
                 {/* Transbordos CON VALIDACIONES */}
@@ -563,7 +593,7 @@ const ExpoBLDetail = () => {
                                     <tr>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Código</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Tipo</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">SOC</th> 
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">SOC</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Peso</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Volumen</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Sellos</th>

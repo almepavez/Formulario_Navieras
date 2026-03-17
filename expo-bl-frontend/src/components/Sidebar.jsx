@@ -108,23 +108,24 @@ const Sidebar = () => {
           )}
         </NavLink>
 
-        <div
-          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg relative group cursor-not-allowed opacity-40 ${isExpanded ? "" : "justify-center"}`}
-          title="Próximamente">
+        <NavLink
+          to="/reportes"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-4 py-3 rounded-lg transition-all group relative ${isActive || location.pathname.startsWith('/reportes')
+              ? "bg-white/15 text-white font-medium"
+              : "text-slate-300 hover:bg-white/10 hover:text-white"
+            }`
+          }
+        >
           <BarChart2 size={20} className="flex-shrink-0" />
-          {isExpanded && (
-            <div className="flex items-center gap-2 flex-1">
-              <span className="text-sm">Reportes</span>
-              <span className="text-xs bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full">Próximo</span>
-            </div>
-          )}
+          {isExpanded && <span className="text-sm">Reportes</span>}
           {!isExpanded && (
             <div className="absolute left-full ml-2 px-3 py-2 bg-slate-800 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
-              Reportes — Próximamente
+              Reportes
               <div className="absolute right-full top-1/2 -translate-y-1/2 border-8 border-transparent border-r-slate-800"></div>
             </div>
           )}
-        </div>
+        </NavLink>
       </nav>
 
       {/* Footer con Logout */}
