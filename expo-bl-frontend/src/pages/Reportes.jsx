@@ -145,190 +145,148 @@ function formatTipoCnt(isoCod) {
 const TIPO_OP_MAP = { IMPO: "I", EXPO: "S" };
 
 const AlmacenSelect = ({ value, onChange, onSave }) => {
-  const [query, setQuery] = useState(value || "");
+  const [query, setQuery] = useState("");
+  const [todos, setTodos] = useState([]);
   const [resultados, setResultados] = useState([]);
-  const [buscando, setBuscando] = useState(false);
-  const [mostrar, setMostrar] = useState(false);
-  const [noEncontrado, setNoEncontrado] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [selectedLabel, setSelectedLabel] = useState(value || "");
   const ref = useRef(null);
-  const debounceRef = useRef(null);
+
+  // Cargar todos los almacenistas con código TATC al montar
+  useEffect(() => {
+    fetch(`${API_URL}/api/mantenedores/almacenistas/tatc`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setTodos(Array.isArray(data) ? data : []))
+      .catch(() => setTodos([]));
+  }, []);
+
+  // Sincronizar label cuando cambia value desde afuera
+  useEffect(() => {
+    if (value && todos.length > 0) {
+      // value puede ser nombre o codigo_tatc
+      const found = todos.find(a =>
+        a.nombre === value ||
+        a.codigo_tatc === value ||
+        a.codigo_almacen === value
+      );
+      setSelectedLabel(found ? `${found.codigo_tatc} — ${found.nombre}` : value);
+    } else {
+      setSelectedLabel(value || "");
+    }
+  }, [value, todos]);
 
   useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setMostrar(false); };
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  useEffect(() => { setQuery(value || ""); }, [value]);
-
-  const buscar = (q) => {
-    clearTimeout(debounceRef.current);
+  const handleSearch = (q) => {
     setQuery(q);
-    onChange(q);
-    setNoEncontrado(false);
-    if (q.trim().length < 2) { setResultados([]); setMostrar(false); return; }
-    debounceRef.current = setTimeout(async () => {
-      setBuscando(true);
-      try {
-        const res = await fetch(`${API_URL}/api/mantenedores/almacenistas`);
-        if (res.ok) {
-          const data = await res.json();
-          const filtrados = data.filter(a => a.nombre.toLowerCase().includes(q.toLowerCase())).slice(0, 8);
-          setResultados(filtrados);
-          setMostrar(true);
-          setNoEncontrado(filtrados.length === 0);
-        }
-      } catch { setResultados([]); }
-      finally { setBuscando(false); }
-    }, 300);
+    setOpen(true);
+    if (!q.trim()) {
+      setResultados(todos.slice(0, 8));
+      return;
+    }
+    const lower = q.toLowerCase();
+    setResultados(
+      todos.filter(a =>
+        a.codigo_tatc?.toLowerCase().includes(lower) ||
+        a.nombre?.toLowerCase().includes(lower) ||
+        a.codigo_almacen?.toLowerCase().includes(lower)
+      ).slice(0, 8)
+    );
   };
 
-  const seleccionar = (almacenista) => {
-    setQuery(almacenista.nombre);
-    onChange(almacenista.nombre);
-    setMostrar(false);
-    setNoEncontrado(false);
+  const handleSelect = (almacenista) => {
+    setSelectedLabel(`${almacenista.codigo_tatc} — ${almacenista.nombre}`);
+    setQuery("");
+    setOpen(false);
+    onChange(almacenista.nombre); // guardamos nombre para compatibilidad con lógica existente
     onSave?.();
   };
 
-  const crearNuevo = async () => {
-    setMostrar(false);
-    const result = await Swal.fire({
-      title: "Almacenista no encontrado",
-      html: `
-        <p style="color:#64748b; font-size:14px; margin-bottom:16px;">
-          "<strong>${query}</strong>" no existe en el Mantenedor de Almacenistas.<br/>
-          ¿Deseas agregarlo como nuevo almacenista?
-        </p>
-        <div style="text-align:left; display:grid; gap:10px;">
-          <div>
-            <label style="font-size:12px; font-weight:600; color:#374151;">RUT *</label>
-            <input id="alm-rut" class="swal2-input" style="margin:4px 0 0 0; width:100%;" placeholder="Ej: 76451351-7">
-          </div>
-          <div>
-            <label style="font-size:12px; font-weight:600; color:#374151;">Código Almacén *</label>
-            <input id="alm-codigo" class="swal2-input" style="margin:4px 0 0 0; width:100%;" placeholder="Ej: A-84">
-          </div>
-          <div>
-            <label style="font-size:12px; font-weight:600; color:#374151;">Nación ID</label>
-            <input id="alm-nacion" class="swal2-input" style="margin:4px 0 0 0; width:100%;" placeholder="CL" maxlength="2">
-          </div>
-        </div>
-      `,
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonText: "Sí, crear",
-      cancelButtonText: "No, solo guardar el nombre",
-      confirmButtonColor: "#0F2A44",
-      cancelButtonColor: "#64748b",
-      width: "480px",
-      preConfirm: async () => {
-        const rut = document.getElementById("alm-rut")?.value?.trim();
-        const codigo = document.getElementById("alm-codigo")?.value?.trim();
-        const nacion = document.getElementById("alm-nacion")?.value?.trim().toUpperCase() || "CL";
-        if (!rut) { Swal.showValidationMessage("El RUT es obligatorio"); return null; }
-        if (!codigo) { Swal.showValidationMessage("El Código Almacén es obligatorio"); return null; }
-        try {
-          const res = await fetch(`${API_URL}/api/mantenedores/almacenistas`);
-          if (res.ok) {
-            const lista = await res.json();
-            const duplicado = lista.find(a => a.codigo_almacen?.toLowerCase() === codigo.toLowerCase());
-            if (duplicado) {
-              Swal.showValidationMessage(
-                `El código "${duplicado.codigo_almacen}" ya existe — ` +
-                `Nombre: ${duplicado.nombre} · RUT: ${duplicado.rut || "—"} · Nación: ${duplicado.nacion_id || "—"}`
-              );
-              return null;
-            }
-          }
-        } catch { /* el backend validará igual */ }
-        return { rut, codigo_almacen: codigo, nacion_id: nacion };
-      }
-    });
-
-    if (result.isConfirmed && result.value) {
-      try {
-        const res = await fetch(`${API_URL}/api/mantenedores/almacenistas`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            nombre: query.trim(),
-            rut: result.value.rut,
-            nacion_id: result.value.nacion_id,
-            codigo_almacen: result.value.codigo_almacen,
-          }),
-        });
-        if (res.ok) {
-          await Swal.fire({ icon: "success", title: "Almacenista creado", text: `"${query}" fue agregado al mantenedor`, timer: 2000, showConfirmButton: false });
-          onSave?.();
-        } else {
-          const errData = await res.json().catch(() => ({}));
-          if (res.status === 409) {
-            const [existing] = await fetch(`${API_URL}/api/mantenedores/almacenistas`)
-              .then(r => r.json()).catch(() => []);
-            const duplicado = existing;
-            Swal.fire({
-              icon: "warning",
-              title: "Código de almacén ya registrado",
-              html: `
-                <p style="color:#64748b; font-size:13px; margin-bottom:14px;">
-                  El código <strong style="color:#d97706;">"${query}"</strong> ya está asignado a:
-                </p>
-                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px; text-align:left; font-size:13px; display:grid; gap:6px;">
-                  <div><span style="color:#94a3b8; font-size:11px; font-weight:600;">NOMBRE</span><br/><strong style="color:#1e293b;">${duplicado?.nombre || "—"}</strong></div>
-                  <div><span style="color:#94a3b8; font-size:11px; font-weight:600;">RUT</span><br/><span style="color:#334155;">${duplicado?.rut || "—"}</span></div>
-                  <div><span style="color:#94a3b8; font-size:11px; font-weight:600;">CÓDIGO ALMACÉN</span><br/><span style="color:#334155;">${duplicado?.codigo_almacen || "—"}</span></div>
-                  <div><span style="color:#94a3b8; font-size:11px; font-weight:600;">NACIÓN</span><br/><span style="color:#334155;">${duplicado?.nacion_id || "—"}</span></div>
-                </div>
-              `,
-              confirmButtonText: "Entendido",
-              confirmButtonColor: "#0F2A44",
-              width: "420px",
-            });
-          } else {
-            Swal.fire({ icon: "error", title: "No se pudo crear", text: errData.error || "Error al crear el almacenista", confirmButtonColor: "#0F2A44" });
-          }
-        }
-      } catch {
-        Swal.fire({ icon: "error", title: "Error", text: "No se pudo crear el almacenista", confirmButtonColor: "#0F2A44" });
-      }
-    } else if (result.isDismissed && result.dismiss === Swal.DismissReason.cancel) {
-      onSave?.();
-    }
+  const handleClear = () => {
+    setSelectedLabel("");
+    setQuery("");
+    onChange("");
+    onSave?.();
   };
 
   return (
     <div className="relative" ref={ref}>
-      <div className="relative">
-        <input
-          value={query}
-          onChange={e => buscar(e.target.value)}
-          onFocus={() => query.length >= 2 && setMostrar(true)}
-          className="w-full min-w-[160px] bg-blue-50 border border-blue-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300"
-          placeholder="Buscar almacenista..."
-        />
-        {buscando && <div className="absolute right-2 top-1/2 -translate-y-1/2"><RefreshCw size={10} className="animate-spin text-blue-400" /></div>}
-      </div>
-      {mostrar && resultados.length > 0 && (
-        <div className="absolute z-50 w-64 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-          {resultados.map(a => (
-            <button key={a.id} type="button" onClick={() => seleccionar(a)} className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-0 transition-colors">
-              <p className="text-xs font-medium text-slate-800 truncate">{a.nombre}</p>
-              <p className="text-[10px] text-slate-500">
-                {a.codigo_almacen && <span className="font-mono">ALM: {a.codigo_almacen}</span>}
-                {a.rut && <span className="ml-2">RUT: {a.rut}</span>}
-              </p>
-            </button>
-          ))}
-        </div>
-      )}
-      {mostrar && noEncontrado && query.trim().length >= 2 && (
-        <div className="absolute z-50 w-64 mt-1 bg-white border border-orange-200 rounded-lg shadow-lg">
-          <div className="px-3 py-2 text-xs text-slate-500 border-b border-slate-100">No existe "<strong>{query}</strong>" en el mantenedor</div>
-          <button type="button" onClick={crearNuevo} className="w-full text-left px-3 py-2 text-xs text-orange-700 font-semibold hover:bg-orange-50 transition-colors">
-            + Agregar como nuevo almacenista
+      {/* Si hay uno seleccionado, mostrar badge con X */}
+      {selectedLabel && !open ? (
+        <div className="flex items-center gap-1 bg-blue-50 border border-blue-200 rounded px-2 py-1 min-w-[160px]">
+          <span className="text-xs text-blue-800 truncate flex-1">{selectedLabel}</span>
+          <button
+            type="button"
+            onClick={handleClear}
+            className="text-blue-400 hover:text-red-500 flex-shrink-0 ml-1"
+          >
+            ✕
           </button>
         </div>
+      ) : (
+        <div className="relative">
+          <input
+            value={query}
+            onChange={e => handleSearch(e.target.value)}
+            onFocus={() => { setOpen(true); setResultados(todos.slice(0, 8)); }}
+            className="w-full min-w-[160px] bg-blue-50 border border-blue-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300"
+            placeholder="Buscar código TATC..."
+          />
+        </div>
+      )}
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute z-50 w-72 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
+            {/* Search dentro del dropdown */}
+            {selectedLabel && (
+              <div className="p-2 border-b border-slate-100">
+                <input
+                  autoFocus
+                  value={query}
+                  onChange={e => handleSearch(e.target.value)}
+                  className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  placeholder="Buscar código TATC o nombre..."
+                />
+              </div>
+            )}
+            <div className="max-h-48 overflow-y-auto">
+              {resultados.length === 0 && (
+                <div className="px-3 py-3 text-xs text-slate-400 text-center">
+                  {query ? `Sin resultados para "${query}"` : "Sin almacenistas con código TATC"}
+                </div>
+              )}
+              {resultados.map(a => (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => handleSelect(a)}
+                  className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-0 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 flex-shrink-0">
+                      {a.codigo_tatc}
+                    </span>
+                    <span className="text-xs text-slate-700 truncate">{a.nombre}</span>
+                  </div>
+                  {a.codigo_almacen && (
+                    <p className="text-[10px] text-slate-400 mt-0.5 ml-0.5">ALM: {a.codigo_almacen}</p>
+                  )}
+                </button>
+              ))}
+            </div>
+            <div className="px-3 py-2 bg-slate-50 border-t border-slate-100">
+              <p className="text-[10px] text-slate-400">Solo se muestran almacenistas con código TATC registrado</p>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
@@ -426,41 +384,41 @@ export default function Reportes() {
     showToast("success", "Excel exportado");
   };
 
- const handleExportTATC = async () => {
-  if (!rows.length) { showToast("error", "No hay datos para exportar"); return; }
+  const handleExportTATC = async () => {
+    if (!rows.length) { showToast("error", "No hay datos para exportar"); return; }
 
-  const esSoc = (r) => {
-    const v = r.es_soc;
-    if (v === null || v === undefined || v === 0 || v === "0" || v === false || v === "false" || v === "") return false;
-    return true;
-  };
+    const esSoc = (r) => {
+      const v = r.es_soc;
+      if (v === null || v === undefined || v === 0 || v === "0" || v === false || v === "false" || v === "") return false;
+      return true;
+    };
 
-  const rowsConSoc = rows.filter(r => esSoc(r));
-  const rowsSinSoc = rows.filter(r => !esSoc(r));
+    const rowsConSoc = rows.filter(r => esSoc(r));
+    const rowsSinSoc = rows.filter(r => !esSoc(r));
 
-  if (rowsSinSoc.length === 0) {
-    await Swal.fire({
-      title: "No hay contenedores para exportar",
-      html: `<p style="color:#64748b; font-size:14px;">Todos los contenedores son SOC, no se puede generar la plantilla TATC.</p>`,
-      icon: "error",
-      confirmButtonColor: "#0F2A44",
-      confirmButtonText: "Entendido",
-    });
-    return;
-  }
+    if (rowsSinSoc.length === 0) {
+      await Swal.fire({
+        title: "No hay contenedores para exportar",
+        html: `<p style="color:#64748b; font-size:14px;">Todos los contenedores son SOC, no se puede generar la plantilla TATC.</p>`,
+        icon: "error",
+        confirmButtonColor: "#0F2A44",
+        confirmButtonText: "Entendido",
+      });
+      return;
+    }
 
-  // Si hay SOC, avisar cuáles se omitirán pero continuar
-  if (rowsConSoc.length > 0) {
-    const lista = rowsConSoc
-      .map(r => `<li style="color:#d97706; font-size:12px; margin-bottom:4px;">
+    // Si hay SOC, avisar cuáles se omitirán pero continuar
+    if (rowsConSoc.length > 0) {
+      const lista = rowsConSoc
+        .map(r => `<li style="color:#d97706; font-size:12px; margin-bottom:4px;">
         • <strong>${r.n_contenedor || "Sin N° contenedor"}</strong>
         ${r.bl ? `<span style="color:#94a3b8;"> — BL: ${r.bl}</span>` : ""}
       </li>`)
-      .join("");
+        .join("");
 
-    const result = await Swal.fire({
-      title: "Contenedores SOC serán omitidos",
-      html: `
+      const result = await Swal.fire({
+        title: "Contenedores SOC serán omitidos",
+        html: `
         <p style="color:#64748b; font-size:13px; margin-bottom:12px;">
           Los siguientes <strong>${rowsConSoc.length}</strong> contenedor(es) SOC 
           <u>no se incluirán</u> en la plantilla TATC:
@@ -472,16 +430,16 @@ export default function Reportes() {
           Se exportarán <strong>${rowsSinSoc.length}</strong> contenedor(es) sin SOC. ¿Continuar?
         </p>
       `,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#F97316",
-      cancelButtonColor: "#64748b",
-      confirmButtonText: `Exportar ${rowsSinSoc.length} contenedor(es)`,
-      cancelButtonText: "Cancelar",
-      width: "500px",
-    });
-    if (!result.isConfirmed) return;
-  }
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#F97316",
+        cancelButtonColor: "#64748b",
+        confirmButtonText: `Exportar ${rowsSinSoc.length} contenedor(es)`,
+        cancelButtonText: "Cancelar",
+        width: "500px",
+      });
+      if (!result.isConfirmed) return;
+    }
 
     const nave = selectedInfo?.nombre_nave || selectedInfo?.nave || "nave";
     const viaje = selectedInfo?.viaje || "viaje";
@@ -526,9 +484,9 @@ export default function Reportes() {
       const [resBls, resDepositos] = await Promise.all([
         fetch(`${API_URL}/api/manifiestos/${manifiesto.id}/bls`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`${API_URL}/api/manifiestos/${manifiesto.id}/depositos`, { headers: { Authorization: `Bearer ${token}` } }),
-        
+
       ]);
-      
+
       const bls = await resBls.json();
       console.log("BL raw data:", JSON.stringify(bls[0], null, 2));
 
@@ -761,66 +719,135 @@ export default function Reportes() {
     showToast("success", `Excel exportado para BL ${row.bl}`);
   };
 
- const handleFileUpload = async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
-  const readFile = (f) => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (evt) => resolve(evt.target.result);
-    reader.onerror = () => reject(new Error("No se pudo leer el archivo"));
-    reader.readAsBinaryString(f);
-  });
-
-  try {
-    const result = await readFile(file);
-    const wb = XLSX.read(result, { type: "binary" });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
-    if (data.length < 2) { showToast("error", "El archivo está vacío"); return; }
-
-    const headers = data[0].map((h) => String(h).trim());
-    const findCol = (label) => headers.findIndex((h) => h.toLowerCase() === label.toLowerCase());
-    const blIdx = findCol("BL");
-    const contenedorIdx = findCol("N° Contenedor");
-    const depositoIdx = findCol("Depósito");
-    const almacenIdx = findCol("Almacén");
-
-    if (blIdx === -1) { showToast("error", "El Excel no tiene columna 'BL'"); return; }
-
-    const updates = {};
-    data.slice(1).forEach((row) => {
-      const blVal = String(row[blIdx] ?? "").trim();
-      const cntVal = contenedorIdx !== -1 ? String(row[contenedorIdx] ?? "").trim() : "";
-      if (!blVal) return;
-      updates[`${blVal}||${cntVal}`] = {
-        ...(depositoIdx !== -1 ? { deposito: String(row[depositoIdx] ?? "").trim() } : {}),
-        ...(almacenIdx !== -1 ? { almacen: String(row[almacenIdx] ?? "").trim() } : {}),
-      };
+    const readFile = (f) => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (evt) => resolve(evt.target.result);
+      reader.onerror = () => reject(new Error("No se pudo leer el archivo"));
+      reader.readAsBinaryString(f);
     });
 
-    // ← TODO EL BLOQUE de validación de almacenistas fue eliminado
+    try {
+      const result = await readFile(file);
+      const wb = XLSX.read(result, { type: "binary" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
+      if (data.length < 2) { showToast("error", "El archivo está vacío"); return; }
 
-    let actualizadas = 0;
-    setRows((prev) =>
-      prev.map((r) => {
-        const upd = updates[`${String(r.bl ?? "").trim()}||${String(r.n_contenedor ?? "").trim()}`];
-        if (!upd) return r;
-        actualizadas++;
-        return { ...r, ...upd };
-      })
-    );
+      const headers = data[0].map((h) => String(h).trim());
+      const findCol = (label) => headers.findIndex((h) => h.toLowerCase() === label.toLowerCase());
+      const blIdx = findCol("BL");
+      const contenedorIdx = findCol("N° Contenedor");
+      const depositoIdx = findCol("Depósito");
+      const almacenIdx = findCol("Almacén");
 
-    showToast("success", `${actualizadas} fila(s) actualizadas desde Excel · guardando...`);
-    setTimeout(() => handleSaveAll(), 150);
+      if (blIdx === -1) { showToast("error", "El Excel no tiene columna 'BL'"); return; }
 
-  } catch (err) {
-    console.error("Error en handleFileUpload:", err);
-    showToast("error", "No se pudo leer el archivo");
-  }
+      const updates = {};
+      data.slice(1).forEach((row) => {
+        const blVal = String(row[blIdx] ?? "").trim();
+        const cntVal = contenedorIdx !== -1 ? String(row[contenedorIdx] ?? "").trim() : "";
+        if (!blVal) return;
+        updates[`${blVal}||${cntVal}`] = {
+          ...(depositoIdx !== -1 ? { deposito: String(row[depositoIdx] ?? "").trim() } : {}),
+          ...(almacenIdx !== -1 ? { almacen: String(row[almacenIdx] ?? "").trim() } : {}),
+        };
+      });
 
-  e.target.value = "";
-};
+      // ← TODO EL BLOQUE de validación de almacenistas fue eliminado
+
+      // ✅ REEMPLAZA por esto:
+      // Obtener almacenistas con TATC para validar
+      let almacenistasTatc = [];
+      try {
+        const resTatc = await fetch(`${API_URL}/api/mantenedores/almacenistas/tatc`);
+        if (resTatc.ok) almacenistasTatc = await resTatc.json();
+      } catch { /* silencioso */ }
+
+      // Validar códigos TATC inválidos en el Excel
+      const codigosInvalidos = [];
+      Object.values(updates).forEach(upd => {
+        if (!upd.almacen) return;
+        const val = upd.almacen.trim();
+        // Si parece un código TATC (todo mayúsculas, sin espacios, corto)
+        const pareceTatc = /^[A-Z0-9]{3,10}$/.test(val);
+        if (pareceTatc) {
+          const existe = almacenistasTatc.some(a =>
+            a.codigo_tatc?.toUpperCase() === val.toUpperCase()
+          );
+          if (!existe && !codigosInvalidos.includes(val)) {
+            codigosInvalidos.push(val);
+          }
+        }
+      });
+
+      if (codigosInvalidos.length > 0) {
+        const validos = almacenistasTatc.map(a => a.codigo_tatc).filter(Boolean).join(", ");
+        const result = await Swal.fire({
+          icon: "warning",
+          title: "Códigos TATC no reconocidos",
+          html: `
+      <p style="color:#64748b; font-size:13px; margin-bottom:12px;">
+        Los siguientes códigos en la columna <strong>Almacén</strong> no existen en el mantenedor:
+      </p>
+      <ul style="text-align:left; padding-left:16px; margin-bottom:12px;">
+        ${codigosInvalidos.map(c =>
+            `<li style="color:#dc2626; font-size:13px; margin-bottom:4px; font-mono font-bold;">${c}</li>`
+          ).join("")}
+      </ul>
+      <p style="color:#64748b; font-size:12px;">
+        Códigos válidos disponibles:<br/>
+        <span style="font-family:monospace; color:#0F2A44;">${validos || "Ninguno registrado aún"}</span>
+      </p>
+      <p style="margin-top:12px; color:#64748b; font-size:12px;">¿Importar de todas formas? Las filas con códigos inválidos se guardarán como texto libre.</p>
+    `,
+          showCancelButton: true,
+          confirmButtonText: "Importar igual",
+          cancelButtonText: "Cancelar y revisar",
+          confirmButtonColor: "#F97316",
+          cancelButtonColor: "#64748b",
+          width: "520px",
+        });
+        if (!result.isConfirmed) return;
+      }
+
+      // Resolver nombre desde código TATC si aplica
+      const resolveAlmacen = (val) => {
+        if (!val) return val;
+        const byTatc = almacenistasTatc.find(a =>
+          a.codigo_tatc?.toUpperCase() === val.trim().toUpperCase()
+        );
+        return byTatc ? byTatc.nombre : val;
+      };
+
+      let actualizadas = 0;
+      setRows((prev) =>
+        prev.map((r) => {
+          const upd = updates[`${String(r.bl ?? "").trim()}||${String(r.n_contenedor ?? "").trim()}`];
+          if (!upd) return r;
+          actualizadas++;
+          return {
+            ...r,
+            ...upd,
+            // Si viene código TATC, resolver al nombre del almacenista
+            ...(upd.almacen ? { almacen: resolveAlmacen(upd.almacen) } : {}),
+          };
+        })
+      );
+
+      showToast("success", `${actualizadas} fila(s) actualizadas desde Excel · guardando...`);
+      setTimeout(() => handleSaveAll(), 150);
+
+    } catch (err) {
+      console.error("Error en handleFileUpload:", err);
+      showToast("error", "No se pudo leer el archivo");
+    }
+
+    e.target.value = "";
+  };
 
   return (
     <div className="flex min-h-screen bg-slate-100">
@@ -1157,8 +1184,8 @@ export default function Reportes() {
 
       {toast && (
         <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg text-sm text-white z-50 ${toast.type === "success" ? "bg-emerald-600"
-            : toast.type === "warning" ? "bg-orange-500"
-              : "bg-red-500"
+          : toast.type === "warning" ? "bg-orange-500"
+            : "bg-red-500"
           }`}>
           {toast.type === "success" ? <CheckCircle size={18} />
             : toast.type === "warning" ? <AlertCircle size={18} />

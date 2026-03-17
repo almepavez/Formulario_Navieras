@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Check, AlertCircle, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import Sidebar from "../components/Sidebar";
+import Swal from "sweetalert2";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -200,7 +201,8 @@ const BulkEditBL = () => {
     const [selectedBLs, setSelectedBLs] = useState([]);
     const [modoTipo, setModoTipo] = useState(null);
     const [searchBL, setSearchBL] = useState("");
-
+    const [showPastePanel, setShowPastePanel] = useState(false);
+    const [pasteInput, setPasteInput] = useState("");
 
     const [fieldsToEdit, setFieldsToEdit] = useState({
         descripcion_carga: false,
@@ -285,13 +287,13 @@ const BulkEditBL = () => {
         }, {})
     ).sort((a, b) => a.viaje.localeCompare(b.viaje));
 
-useEffect(() => {
-  if (!selectedViaje) { setFilteredBLs([]); return; }
-  setFilteredBLs(allBLs.filter(bl => bl.viaje === selectedViaje));
-  setSelectedBLs([]);
-  setModoTipo(null);
-  setSearchBL(""); // ← agrega esto
-}, [selectedViaje, allBLs]);
+    useEffect(() => {
+        if (!selectedViaje) { setFilteredBLs([]); return; }
+        setFilteredBLs(allBLs.filter(bl => bl.viaje === selectedViaje));
+        setSelectedBLs([]);
+        setModoTipo(null);
+        setSearchBL(""); // ← agrega esto
+    }, [selectedViaje, allBLs]);
 
     const blsVisibles = modoTipo
         ? filteredBLs.filter(bl => {
@@ -334,6 +336,62 @@ useEffect(() => {
 
     const handleSelectAll = () =>
         setSelectedBLs(selectedBLs.length === blsVisibles.length ? [] : blsVisibles.map(b => b.bl_number));
+
+const handlePasteBLs = () => {
+    const tokens = pasteInput
+        .split(/[\n\r\t,;]+/)
+        .map(s => s.trim().toUpperCase())
+        .filter(Boolean);
+    const unicos = [...new Set(tokens)];
+    const encontrados = unicos.filter(t => blsVisibles.some(bl => bl.bl_number === t));
+    const noEncontrados = unicos.filter(t => !blsVisibles.some(bl => bl.bl_number === t));
+
+    if (encontrados.length === 0) {
+        Swal.fire({
+            icon: "warning",
+            title: "Ningún BL encontrado",
+            text: "Los números pegados no coinciden con BLs de este manifiesto y tipo.",
+            confirmButtonColor: "#0F2A44",
+        });
+        return;
+    }
+
+    const listaEncontrados = encontrados
+        .map(num => `<span style="display:inline-block;background:#E6F1FB;color:#0C447C;font-size:12px;font-weight:600;padding:3px 10px;border-radius:99px;margin:3px 2px;">${num}</span>`)
+        .join("");
+
+    const listaNoEncontrados = noEncontrados.length > 0
+        ? `<div style="margin-top:12px;padding:10px 12px;background:#FCEBEB;border-radius:8px;font-size:12px;color:#A32D2D;">
+            <strong>No encontrados (${noEncontrados.length}):</strong> ${noEncontrados.join(", ")}
+           </div>`
+        : "";
+
+    Swal.fire({
+        title: `Se encontraron ${encontrados.length} BL${encontrados.length !== 1 ? "s" : ""}`,
+        html: `
+            <p style="font-size:13px;color:#64748b;margin-bottom:12px;">
+                Verifica que sean los correctos antes de continuar.
+            </p>
+            <div style="text-align:left;max-height:200px;overflow-y:auto;padding:10px 12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;">
+                ${listaEncontrados}
+            </div>
+            ${listaNoEncontrados}
+        `,
+        icon: "success",
+        showCancelButton: true,
+        confirmButtonText: "Sí, seleccionar estos BLs",
+        cancelButtonText: "Cancelar",
+        confirmButtonColor: "#0F2A44",
+        cancelButtonColor: "#94a3b8",
+        reverseButtons: true,
+    }).then(result => {
+        if (result.isConfirmed) {
+            setSelectedBLs(encontrados);
+            setPasteInput("");
+            setShowPastePanel(false);
+        }
+    });
+};
 
     const handleSelectBL = (num) =>
         setSelectedBLs(prev => prev.includes(num) ? prev.filter(n => n !== num) : [...prev, num]);
@@ -542,9 +600,16 @@ useEffect(() => {
                                         </div>
                                     </div>
                                     {modoTipo && (
-                                        <button onClick={handleSelectAll} className="text-sm font-medium text-[#0F2A44] hover:underline flex-shrink-0">
-                                            {selectedBLs.length === blsVisibles.length && blsVisibles.length > 0 ? "Deseleccionar todos" : "Seleccionar todos"}
-                                        </button>
+                                        <div className="flex items-center gap-3 flex-shrink-0">
+                                            <button onClick={() => setShowPastePanel(v => !v)}
+                                                className="text-sm font-medium text-[#0F2A44] hover:underline flex-shrink-0">
+                                                {showPastePanel ? "Cerrar panel" : "Pegar desde Excel"}
+                                            </button>
+                                            <span className="text-slate-300 text-xs">|</span>
+                                            <button onClick={handleSelectAll} className="text-sm font-medium text-[#0F2A44] hover:underline flex-shrink-0">
+                                                {selectedBLs.length === blsVisibles.length && blsVisibles.length > 0 ? "Deseleccionar todos" : "Seleccionar todos"}
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
 
@@ -579,28 +644,61 @@ useEffect(() => {
                                             Solo puedes editar BLs del mismo tipo en una sesión.
                                         </p>
                                     )}
+
+                                    {showPastePanel && modoTipo && (
+                                        <div className="border border-[#0F2A44]/20 bg-[#0F2A44]/5 rounded-xl p-4 space-y-3">
+                                            <p className="text-xs font-semibold text-[#0F2A44] uppercase tracking-wider">
+                                                Pegar BLs desde Excel
+                                            </p>
+                                            <textarea
+                                                value={pasteInput}
+                                                onChange={e => setPasteInput(e.target.value)}
+                                                rows={5}
+                                                placeholder={"Pega aquí los números de BL\n(una columna de Excel, separados por línea, coma o tab)"}
+                                                className="w-full px-3 py-2 text-sm font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44] outline-none resize-none bg-white"
+                                            />
+                                            <div className="flex items-center gap-3">
+                                                <button
+                                                    onClick={handlePasteBLs}
+                                                    disabled={!pasteInput.trim()}
+                                                    className="px-4 py-2 text-sm font-medium text-white bg-[#0F2A44] hover:bg-[#1a3a5c] rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                                                    Seleccionar BLs
+                                                </button>
+                                                <button
+                                                    onClick={() => { setPasteInput(""); setShowPastePanel(false); }}
+                                                    className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">
+                                                    Cancelar
+                                                </button>
+                                                {pasteInput.trim() && (
+                                                    <span className="text-xs text-slate-500 ml-auto">
+                                                        {[...new Set(pasteInput.split(/[\n\r\t,;]+/).map(s => s.trim().toUpperCase()).filter(Boolean))].length} BL{pasteInput.split(/[\n\r\t,;]+/).filter(s => s.trim()).length !== 1 ? "s" : ""} detectado{pasteInput.split(/[\n\r\t,;]+/).filter(s => s.trim()).length !== 1 ? "s" : ""}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-{modoTipo && (
-  <div className="relative">
-    <input
-      type="text"
-      value={searchBL}
-      onChange={e => setSearchBL(e.target.value)}
-      placeholder="Buscar por número de BL..."
-      className="w-full pl-10 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44] outline-none"
-    />
-    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
-    </svg>
-    {searchBL && (
-      <button onClick={() => setSearchBL("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
-    )}
-  </div>
-)}
+                                {modoTipo && (
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            value={searchBL}
+                                            onChange={e => setSearchBL(e.target.value)}
+                                            placeholder="Buscar por número de BL..."
+                                            className="w-full pl-10 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44] outline-none"
+                                        />
+                                        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
+                                        </svg>
+                                        {searchBL && (
+                                            <button onClick={() => setSearchBL("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
                                 {modoTipo && (
                                     <div className="border border-slate-200 rounded-xl overflow-hidden">
                                         <div className="max-h-[380px] overflow-y-auto divide-y divide-slate-100">
