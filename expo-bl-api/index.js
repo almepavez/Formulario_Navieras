@@ -1229,13 +1229,28 @@ app.get("/api/puertos", async (_req, res) => {
 // aquellos que tienen codigo_almacen definido.
 // ─────────────────────────────────────────────
 
+
+app.get("/api/mantenedores/almacenistas/tatc", async (_req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, nombre, codigo_almacen, codigo_tatc
+       FROM participantes
+       WHERE codigo_tatc IS NOT NULL AND codigo_tatc != ''
+       ORDER BY codigo_tatc`
+    );
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: "Error al obtener códigos TATC" });
+  }
+});
+
 app.get("/api/mantenedores/almacenistas", async (_req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT id, nombre, rut, pais AS nacion_id, codigo_almacen
-       FROM participantes
-       WHERE codigo_almacen IS NOT NULL AND codigo_almacen != ''
-       ORDER BY nombre`
+      `SELECT id, nombre, rut, pais AS nacion_id, codigo_almacen, codigo_tatc
+   FROM participantes
+   WHERE codigo_almacen IS NOT NULL AND codigo_almacen != ''
+   ORDER BY nombre`
     );
     res.json(rows);
   } catch (error) {
@@ -1246,12 +1261,12 @@ app.get("/api/mantenedores/almacenistas", async (_req, res) => {
 
 app.get("/api/mantenedores/almacenistas/:id", async (req, res) => {
   try {
-    const [rows] = await pool.query(
-      `SELECT id, nombre, rut, pais AS nacion_id, codigo_almacen
-       FROM participantes
-       WHERE id = ? AND codigo_almacen IS NOT NULL AND codigo_almacen != ''`,
-      [req.params.id]
-    );
+   const [rows] = await pool.query(
+  `SELECT id, nombre, rut, pais AS nacion_id, codigo_almacen, codigo_tatc
+   FROM participantes
+   WHERE id = ? AND codigo_almacen IS NOT NULL AND codigo_almacen != ''`,
+  [req.params.id]
+);
     if (rows.length === 0) return res.status(404).json({ error: "Almacenista no encontrado" });
     res.json(rows[0]);
   } catch (error) {
@@ -1308,7 +1323,7 @@ app.post("/api/mantenedores/almacenistas", async (req, res) => {
 
 app.put("/api/mantenedores/almacenistas/:id", async (req, res) => {
   try {
-    const { nombre, rut, nacion_id, codigo_almacen } = req.body;
+    const { nombre, rut, nacion_id, codigo_almacen, codigo_tatc } = req.body;
     const { id } = req.params;
 
     if (!nombre || !rut || !nacion_id || !codigo_almacen) {
@@ -1317,13 +1332,14 @@ app.put("/api/mantenedores/almacenistas/:id", async (req, res) => {
 
     const [result] = await pool.query(
       `UPDATE participantes
-       SET nombre = ?, rut = ?, pais = ?, codigo_almacen = ?
+       SET nombre = ?, rut = ?, pais = ?, codigo_almacen = ?, codigo_tatc = ?
        WHERE id = ?`,
       [
         nombre.trim(),
         rut.trim(),
         nacion_id.trim().toUpperCase(),
         codigo_almacen.trim(),
+        codigo_tatc?.trim() || null,
         id,
       ]
     );
@@ -1338,6 +1354,7 @@ app.put("/api/mantenedores/almacenistas/:id", async (req, res) => {
       rut: rut.trim(),
       nacion_id: nacion_id.trim().toUpperCase(),
       codigo_almacen: codigo_almacen.trim(),
+      codigo_tatc: codigo_tatc?.trim() || null,
     });
   } catch (error) {
     console.error("Error al actualizar almacenista:", error);
@@ -1345,19 +1362,7 @@ app.put("/api/mantenedores/almacenistas/:id", async (req, res) => {
   }
 });
 
-app.get("/api/mantenedores/almacenistas/tatc", async (_req, res) => {
-  try {
-    const [rows] = await pool.query(
-      `SELECT id, nombre, codigo_almacen, codigo_tatc
-       FROM participantes
-       WHERE codigo_tatc IS NOT NULL AND codigo_tatc != ''
-       ORDER BY codigo_tatc`
-    );
-    res.json(rows);
-  } catch (error) {
-    res.status(500).json({ error: "Error al obtener códigos TATC" });
-  }
-});
+
 // GET /api/tipos-bulto
 app.get("/api/tipos-bulto", async (_req, res) => {
   try {
@@ -4694,7 +4699,8 @@ app.get("/api/bls/:blNumber", async (req, res) => {
         COALESCE(p.nombre,         b.almacenista_nombre)         AS almacenista_nombre,
         COALESCE(p.rut,            b.almacenista_rut)             AS almacenista_rut,
         COALESCE(p.pais,           b.almacenista_nacion_id)       AS almacenista_nacion_id,
-        COALESCE(p.codigo_almacen, b.almacenista_codigo_almacen)  AS almacenista_codigo_almacen
+COALESCE(p.codigo_almacen, b.almacenista_codigo_almacen)  AS almacenista_codigo_almacen,
+p.codigo_tatc AS almacenista_codigo_tatc
       FROM bls b
       LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
       LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id

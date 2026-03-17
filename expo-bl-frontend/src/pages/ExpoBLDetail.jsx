@@ -322,6 +322,7 @@ const ExpoBLDetail = () => {
                                             { label: "RUT", value: bl.almacenista_rut },
                                             { label: "Nación", value: bl.almacenista_nacion_id },
                                             { label: "Cód. Almacén", value: bl.almacenista_codigo_almacen },
+                                            { label: "Cód. TATC", value: bl.almacenista_codigo_tatc },
                                         ].map(({ label, value }) => (
                                             <div key={label}>
                                                 <p className="text-xs text-slate-400 uppercase tracking-wide">{label}</p>
