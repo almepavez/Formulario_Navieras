@@ -581,107 +581,139 @@ const ExpoBLEdit = () => {
         }
     };
 
-    const AlmacenistaSelector = ({ value, onSelect }) => {
-  const [almacenistas, setAlmacenistas] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState(null);
+const AlmacenistaSelector = ({ value, onSelect }) => {
+    const [almacenistas, setAlmacenistas] = useState([]);
+    const [loadingList, setLoadingList] = useState(true);
+    const [query, setQuery] = useState("");
+    const [open, setOpen] = useState(false);
+    const [selected, setSelected] = useState(null);
+    const containerRef = useRef(null);
 
-  useEffect(() => {
-    fetch(`${API_BASE}/api/mantenedores/almacenistas`)
-      .then(r => r.json())
-      .then(data => {
-        const lista = Array.isArray(data) ? data : [];
-        setAlmacenistas(lista);
-        if (value) {
-          const encontrado = lista.find(a => a.id === value);
-          if (encontrado) setSelected(encontrado);
-        }
-      })
-      .catch(() => setAlmacenistas([]))
-      .finally(() => setLoading(false));
-  }, []);
+    useEffect(() => {
+        fetch(`${API_BASE}/api/mantenedores/almacenistas`)
+            .then(r => r.json())
+            .then(data => {
+                const lista = Array.isArray(data) ? data : [];
+                setAlmacenistas(lista);
+                if (value) {
+                    const encontrado = lista.find(a => a.id === value);
+                    if (encontrado) { setSelected(encontrado); setQuery(encontrado.nombre); }
+                }
+            })
+            .catch(() => setAlmacenistas([]))
+            .finally(() => setLoadingList(false));
+    }, []);
 
-  // Si value cambia desde fuera (ej: carga inicial del BL), sincronizar
-  useEffect(() => {
-    if (value && almacenistas.length > 0) {
-      const encontrado = almacenistas.find(a => a.id === value);
-      if (encontrado) setSelected(encontrado);
-    }
-  }, [value, almacenistas]);
+    useEffect(() => {
+        const handler = (e) => {
+            if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, []);
 
-  const handleChange = (e) => {
-    const id = Number(e.target.value);
-    if (!id) { setSelected(null); return; }
-    const alm = almacenistas.find(a => a.id === id);
-    if (alm) { setSelected(alm); onSelect(alm); }
-  };
+    const filtrados = query.trim().length >= 1
+        ? almacenistas.filter(a =>
+            a.nombre?.toLowerCase().includes(query.toLowerCase()) ||
+            a.codigo_almacen?.toLowerCase().includes(query.toLowerCase()) ||
+            a.rut?.toLowerCase().includes(query.toLowerCase())
+        )
+        : almacenistas;
 
-  const tieneDatosCompletos = selected?.nombre && selected?.rut && selected?.nacion_id && selected?.codigo_almacen;
+    const tieneDatosCompletos = selected?.nombre && selected?.rut && selected?.nacion_id && selected?.codigo_almacen;
 
-  return (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-slate-700 mb-2">
-          Seleccionar Almacenista <span className="text-red-500">*</span>
-        </label>
-        {loading ? (
-          <div className="text-sm text-slate-500">Cargando almacenistas...</div>
-        ) : (
-          <select
-            value={value || ""}
-            onChange={handleChange}
-            className="w-full px-4 py-2 rounded-lg border border-orange-300 bg-white focus:ring-2 focus:ring-orange-400 text-slate-700"
-          >
-            <option value="">— Selecciona un almacenista —</option>
-            {almacenistas.map(a => (
-              <option key={a.id} value={a.id}>
-                {a.nombre} {a.codigo_almacen ? `(${a.codigo_almacen})` : ""}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
+    return (
+        <div ref={containerRef} className="space-y-3">
+            <div className="relative">
+                <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
+                    </svg>
+                </div>
+                <input
+                    type="text"
+                    value={query}
+                    onChange={e => { setQuery(e.target.value); setSelected(null); setOpen(true); }}
+                    onFocus={() => setOpen(true)}
+                    placeholder={loadingList ? "Cargando almacenistas..." : "Buscar por nombre, RUT o código..."}
+                    disabled={loadingList}
+                    className={`w-full pl-10 pr-10 py-2 text-sm rounded-lg border focus:ring-2 focus:outline-none transition-colors ${selected ? "border-emerald-400 bg-emerald-50 focus:ring-emerald-300" : "border-orange-300 focus:ring-orange-400"}`}
+                />
+                {loadingList && (
+                    <div className="absolute inset-y-0 right-3 flex items-center">
+                        <svg className="animate-spin h-4 w-4 text-slate-400" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                    </div>
+                )}
+                {!loadingList && selected && (
+                    <button type="button"
+                        onClick={() => {
+                            setQuery(""); setSelected(null); setOpen(false);
+                            onSelect({ id: null, nombre: "", rut: "", nacion_id: "CL", codigo_almacen: "" });
+                        }}
+                        className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-red-500 transition-colors">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                )}
 
-      {selected && (
-        <div className={`rounded-lg border p-4 text-sm ${tieneDatosCompletos ? "bg-white border-orange-200" : "bg-yellow-50 border-yellow-300"}`}>
-          {!tieneDatosCompletos && (
-            <div className="flex items-center gap-2 mb-3 text-yellow-800 bg-yellow-100 border border-yellow-300 rounded-lg px-3 py-2 text-xs">
-              <svg className="w-4 h-4 flex-shrink-0 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-              </svg>
-              <span>Datos incompletos — ve a <strong>Mantenedores → Almacenistas</strong> para completarlos.</span>
+                {open && !loadingList && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+                        {filtrados.length > 0 ? filtrados.map(item => (
+                            <button key={item.id} type="button"
+                                onMouseDown={e => e.preventDefault()}
+                                onClick={() => {
+                                    setSelected(item);
+                                    setQuery(item.nombre);
+                                    setOpen(false);
+                                    onSelect(item);
+                                }}
+                                className="w-full text-left px-4 py-2.5 hover:bg-orange-50 border-b border-slate-100 last:border-0 transition-colors">
+                                <p className="font-medium text-slate-900 text-sm">{item.nombre}</p>
+                                <p className="text-xs text-slate-500">
+                                    {item.rut && <span>RUT: {item.rut}</span>}
+                                    {item.codigo_almacen && <span className="ml-2">· ALM: {item.codigo_almacen}</span>}
+                                </p>
+                            </button>
+                        )) : (
+                            <div className="px-4 py-3 text-sm text-slate-500">No se encontraron almacenistas</div>
+                        )}
+                    </div>
+                )}
             </div>
-          )}
-          <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-            <div>
-              <span className="text-slate-400 text-xs uppercase tracking-wide">Nombre</span>
-              <p className={`font-medium mt-0.5 ${selected.nombre ? "text-slate-800" : "text-red-500 italic"}`}>
-                {selected.nombre || "Sin nombre"}
-              </p>
-            </div>
-            <div>
-              <span className="text-slate-400 text-xs uppercase tracking-wide">RUT</span>
-              <p className={`font-medium mt-0.5 ${selected.rut ? "text-slate-800" : "text-red-500 italic"}`}>
-                {selected.rut || "Sin RUT"}
-              </p>
-            </div>
-            <div>
-              <span className="text-slate-400 text-xs uppercase tracking-wide">Nación ID</span>
-              <p className={`font-medium mt-0.5 ${selected.nacion_id ? "text-slate-800" : "text-red-500 italic"}`}>
-                {selected.nacion_id || "Sin nación"}
-              </p>
-            </div>
-            <div>
-              <span className="text-slate-400 text-xs uppercase tracking-wide">Cód. Almacén</span>
-              <p className={`font-medium mt-0.5 ${selected.codigo_almacen ? "text-slate-800" : "text-red-500 italic"}`}>
-                {selected.codigo_almacen || "Sin código"}
-              </p>
-            </div>
-          </div>
+
+            {selected && (
+                <div className={`rounded-lg border p-4 text-sm ${tieneDatosCompletos ? "bg-white border-orange-200" : "bg-yellow-50 border-yellow-300"}`}>
+                    {!tieneDatosCompletos && (
+                        <div className="flex items-center gap-2 mb-3 text-yellow-800 bg-yellow-100 border border-yellow-300 rounded-lg px-3 py-2 text-xs">
+                            <svg className="w-4 h-4 flex-shrink-0 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                            </svg>
+                            <span>Datos incompletos — ve a <strong>Mantenedores → Almacenistas</strong> para completarlos.</span>
+                        </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                        {[
+                            { label: "Nombre", value: selected.nombre },
+                            { label: "RUT", value: selected.rut },
+                            { label: "Nación ID", value: selected.nacion_id },
+                            { label: "Cód. Almacén", value: selected.codigo_almacen },
+                        ].map(({ label, value: val }) => (
+                            <div key={label}>
+                                <span className="text-slate-400 text-xs uppercase tracking-wide">{label}</span>
+                                <p className={`font-medium mt-0.5 ${val ? "text-slate-800" : "text-red-500 italic"}`}>
+                                    {val || "Sin dato"}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
-      )}
-    </div>
-  );
+    );
 };
 
     const AlmacenistaBuscador = ({ onSelect }) => {

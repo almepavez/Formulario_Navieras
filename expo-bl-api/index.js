@@ -4234,10 +4234,10 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
         );
       }
     }
-await conn.query(
-  `UPDATE manifiestos SET updated_at = NOW() WHERE id = ?`,
-  [id]
-);
+    await conn.query(
+      `UPDATE manifiestos SET updated_at = NOW() WHERE id = ?`,
+      [id]
+    );
     // Resumen de errores
     const [blsConErrores] = await conn.query(`
       SELECT
@@ -4920,27 +4920,27 @@ app.patch('/api/bls/bulk-update', async (req, res) => {
     const { blNumbers, updates } = req.body;
 
     // Justo después de: const { blNumbers, updates } = req.body;
-// ── Convertir fechas DD/MM/YYYY → YYYY-MM-DD ──
-const DATE_FIELDS = ['fecha_emision'];
-const DATETIME_FIELDS = ['fecha_embarque', 'fecha_zarpe'];
+    // ── Convertir fechas DD/MM/YYYY → YYYY-MM-DD ──
+    const DATE_FIELDS = ['fecha_emision'];
+    const DATETIME_FIELDS = ['fecha_embarque', 'fecha_zarpe'];
 
-DATE_FIELDS.forEach(f => {
-  if (updates[f]) {
-    const parts = updates[f].split('/'); // DD/MM/YYYY
-    if (parts.length === 3) {
-      updates[f] = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
-    }
-  }
-});
+    DATE_FIELDS.forEach(f => {
+      if (updates[f]) {
+        const parts = updates[f].split('/'); // DD/MM/YYYY
+        if (parts.length === 3) {
+          updates[f] = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
+        }
+      }
+    });
 
-DATETIME_FIELDS.forEach(f => {
-  if (updates[f]) {
-    const parts = updates[f].split('/'); // DD/MM/YYYY
-    if (parts.length === 3) {
-      updates[f] = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD (sin hora, igual válido para DATETIME)
-    }
-  }
-});
+    DATETIME_FIELDS.forEach(f => {
+      if (updates[f]) {
+        const parts = updates[f].split('/'); // DD/MM/YYYY
+        if (parts.length === 3) {
+          updates[f] = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD (sin hora, igual válido para DATETIME)
+        }
+      }
+    });
 
     const STATUS_MAP = {
       'ACTIVO': 'CREADO', 'INACTIVO': 'ANULADO',
@@ -4963,7 +4963,7 @@ DATETIME_FIELDS.forEach(f => {
       'peso_bruto', 'volumen', 'status', 'fecha_embarque', 'fecha_zarpe',
       'fecha_emision', 'observaciones', 'lugar_recepcion_cod', 'puerto_embarque_cod',
       'puerto_descarga_cod', 'lugar_entrega_cod', 'lugar_destino_cod', 'lugar_emision_cod',
-      'forma_pago_flete', 'cond_transporte', 'almacenador'
+      'forma_pago_flete', 'cond_transporte', 'almacenador', 'almacenador_id'
     ];
     const setClauses = [];
     const values = [];
