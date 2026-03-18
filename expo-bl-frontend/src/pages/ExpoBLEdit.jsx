@@ -919,13 +919,22 @@ const ExpoBLEdit = () => {
                                 required
                             />
 
-                            {/* Fecha Presentación — con hora DD/MM/YYYY HH:mm */}
-                            <MaskedDateTimeInput
-                                label="Fecha Presentación"
-                                value={formData.fecha_presentacion}
-                                onChange={v => updateField("fecha_presentacion", v)}
-                                required
-                            />
+                            {/* Fecha Presentación — solo lectura, se genera al momento de declarar */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Fecha Presentación</label>
+                                <input
+                                    type="text"
+                                    value={(() => {
+                                        const d = new Date();
+                                        const p = new Intl.DateTimeFormat('es-CL', { timeZone: 'America/Santiago', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d);
+                                        const get = t => p.find(x => x.type === t).value;
+                                        return `${get('day')}/${get('month')}/${get('year')} ${get('hour')}:${get('minute')}`;
+                                    })()}
+                                    disabled
+                                    className="w-full px-4 py-2 rounded-lg border border-slate-300 bg-slate-50 text-slate-500 cursor-not-allowed"
+                                />
+                                <p className="text-xs text-slate-400 mt-1">Se genera automáticamente al declarar en SIDEMAR</p>
+                            </div>
 
                             {/* Fecha Zarpe — con hora DD/MM/YYYY HH:mm */}
                             <MaskedDateTimeInput
