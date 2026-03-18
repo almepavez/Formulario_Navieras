@@ -37,30 +37,97 @@ const formatDateTime = (iso) => {
   return `${dd}-${mm}-${yyyy} ${hh}:${min}`;
 };
 
-// POLs en filas de máximo 2
+// Mapa de prefijos de país → región agrupada
+// Mapa de nombre de puerto → etiqueta agrupada
+const REGION_MAP = {
+  // Oriente
+  "SHANGHAI": "Oriente",
+  "NINGBO": "Oriente",
+  "QINGDAO": "Oriente",
+  "TIANJIN": "Oriente",
+  "TIANJIN XINGANG": "Oriente",
+  "NANJING": "Oriente",
+  "WUHAN": "Oriente",
+  "LIANYUNGANG": "Oriente",
+  "GUANGZHOU": "Oriente",
+  "SHENZHEN": "Oriente",
+  "YANTIAN": "Oriente",
+  "CHIWAN": "Oriente",
+  "NANSHA": "Oriente",
+  "XIAMEN": "Oriente",
+  "FUZHOU": "Oriente",
+  "DALIAN": "Oriente",
+  "HONG KONG": "Oriente",
+  "KAOHSIUNG": "Oriente",
+  "BUSAN": "Oriente",
+  "INCHEON": "Oriente",
+  "TOKYO": "Oriente",
+  "YOKOHAMA": "Oriente",
+  "NAGOYA": "Oriente",
+  "OSAKA": "Oriente",
+  "KOBE": "Oriente",
+  "SINGAPORE": "Oriente",
+  "PORT KELANG": "Oriente",
+  "TANJUNG PELEPAS": "Oriente",
+  "JAKARTA": "Oriente",
+  "SURABAYA": "Oriente",
+  "MANILA": "Oriente",
+  "HO CHI MINH": "Oriente",
+  "CAT LAI": "Oriente",
+  "HAIPHONG": "Oriente",
+  "BANGKOK": "Oriente",
+  "LAEM CHABANG": "Oriente",
+  "COLOMBO": "Oriente",
+  "CHENNAI": "Oriente",
+  "NHAVA SHEVA": "Oriente",
+  "MUNDRA": "Oriente",
+  "CALCUTTA": "Oriente",
+  "CALCUTTA - KOLKATA": "Oriente",
+  "KOLKATA": "Oriente",
+  "KARACHI": "Oriente",
+  "CHITTAGONG": "Oriente",
+  // México
+  "MANZANILLO": "México",
+  "LAZARO CARDENAS": "México",
+  "LÁZARO CÁRDENAS": "México",
+  "ENSENADA": "México",
+  "VERACRUZ": "México",
+  // Guatemala
+  "QUETZAL": "Guatemala",
+  "PUERTO QUETZAL": "Guatemala",
+  // Colombia
+  "BUENAVENTURA": "Colombia",
+  "CARTAGENA": "Colombia",
+  // Perú
+  "CALLAO": "Perú",
+};
+
+const getRegion = (polName) => {
+  if (!polName) return polName;
+  const key = polName.trim().toUpperCase();
+  // Buscar coincidencia exacta (case-insensitive)
+  const found = Object.keys(REGION_MAP).find(
+    (k) => k.toUpperCase() === key
+  );
+  return found ? REGION_MAP[found].toUpperCase() : polName;
+};
+
 const PolBadges = ({ pols, badgeClass }) => {
   if (!pols) return <span className="text-slate-400 text-xs">Cargando...</span>;
   if (pols.length === 0) return <span className="text-slate-400">—</span>;
 
-  // Dividir en grupos de 2
-  const rows = [];
-  for (let i = 0; i < pols.length; i += 2) {
-    rows.push(pols.slice(i, i + 2));
-  }
+  const regiones = [...new Set(pols.map(getRegion))];
 
   return (
-    <div className="flex flex-col gap-1">
-      {rows.map((row, ri) => (
-        <div key={ri} className="flex gap-1">
-          {row.map((pol) => (
-            <span
-              key={pol}
-              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badgeClass}`}
-            >
-              {pol}
-            </span>
-          ))}
-        </div>
+    <div className="flex flex-wrap gap-1">
+      {regiones.map((region) => (
+        <span
+          key={region}
+          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badgeClass}`}
+          title={pols.filter((p) => getRegion(p) === region).join(", ")}
+        >
+          {region}
+        </span>
       ))}
     </div>
   );

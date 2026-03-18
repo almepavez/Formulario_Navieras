@@ -6,6 +6,36 @@ import Swal from "sweetalert2";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
+const REGION_MAP = {
+  "SHANGHAI": "ORIENTE", "NINGBO": "ORIENTE", "QINGDAO": "ORIENTE",
+  "TIANJIN": "ORIENTE", "TIANJIN XINGANG": "ORIENTE", "NANJING": "ORIENTE",
+  "WUHAN": "ORIENTE", "LIANYUNGANG": "ORIENTE", "GUANGZHOU": "ORIENTE",
+  "SHENZHEN": "ORIENTE", "YANTIAN": "ORIENTE", "CHIWAN": "ORIENTE",
+  "NANSHA": "ORIENTE", "XIAMEN": "ORIENTE", "FUZHOU": "ORIENTE",
+  "DALIAN": "ORIENTE", "HONG KONG": "ORIENTE", "KAOHSIUNG": "ORIENTE",
+  "BUSAN": "ORIENTE", "INCHEON": "ORIENTE", "TOKYO": "ORIENTE",
+  "YOKOHAMA": "ORIENTE", "NAGOYA": "ORIENTE", "OSAKA": "ORIENTE",
+  "KOBE": "ORIENTE", "SINGAPORE": "ORIENTE", "PORT KELANG": "ORIENTE",
+  "TANJUNG PELEPAS": "ORIENTE", "JAKARTA": "ORIENTE", "SURABAYA": "ORIENTE",
+  "MANILA": "ORIENTE", "HO CHI MINH": "ORIENTE", "CAT LAI": "ORIENTE",
+  "HAIPHONG": "ORIENTE", "BANGKOK": "ORIENTE", "LAEM CHABANG": "ORIENTE",
+  "COLOMBO": "ORIENTE", "CHENNAI": "ORIENTE", "NHAVA SHEVA": "ORIENTE",
+  "MUNDRA": "ORIENTE", "CALCUTTA": "ORIENTE", "CALCUTTA - KOLKATA": "ORIENTE",
+  "KOLKATA": "ORIENTE", "KARACHI": "ORIENTE", "CHITTAGONG": "ORIENTE",
+  "MANZANILLO": "MÉXICO", "LAZARO CARDENAS": "MÉXICO",
+  "LÁZARO CÁRDENAS": "MÉXICO", "ENSENADA": "MÉXICO", "VERACRUZ": "MÉXICO",
+  "QUETZAL": "GUATEMALA", "PUERTO QUETZAL": "GUATEMALA",
+  "BUENAVENTURA": "COLOMBIA", "CARTAGENA": "COLOMBIA",
+  "CALLAO": "PERÚ",
+};
+
+const getRegion = (polName) => {
+  if (!polName) return polName;
+  const key = polName.trim().toUpperCase();
+  const found = Object.keys(REGION_MAP).find(k => k.toUpperCase() === key);
+  return found ? REGION_MAP[found] : polName.toUpperCase();
+};
+
 // 🆕 Configuración de tipos de acción
 const TIPOS_ACCION = [
   {
@@ -278,10 +308,10 @@ const GenerarXML = () => {
 
 // Justo después de los estados, antes del return
 const polesDisponibles = useMemo(() => {
-  const pols = bls
-    .map(bl => bl.puerto_embarque)
+  const regiones = bls
+    .map(bl => getRegion(bl.puerto_embarque))
     .filter(Boolean);
-  return [...new Set(pols)].sort();
+  return [...new Set(regiones)].sort();
 }, [bls]);
 
   useEffect(() => {
@@ -374,7 +404,7 @@ const filteredAndSortedBLs = useMemo(() => {
 
   // ✅ Filtro POL con multi-check
   if (filterPOL.size > 0) {
-    result = result.filter(bl => filterPOL.has(bl.puerto_embarque));
+    result = result.filter(bl => filterPOL.has(getRegion(bl.puerto_embarque)));
   }
 
   result.sort((a, b) => a.bl_number.localeCompare(b.bl_number));
