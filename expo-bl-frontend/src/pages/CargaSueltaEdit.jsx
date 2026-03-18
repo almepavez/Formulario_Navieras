@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Swal from "sweetalert2";
-import AlmacenadorSelector from '../components/AlmacenadorSelector';
+import AlmacenSelect from '../components/AlmacenSelect';
 
 const STEPS = [
     { id: 1, name: "Datos BL" },
@@ -105,155 +105,175 @@ const CargaSueltaEdit = () => {
         fetchPuertos();
     }, [blNumber]);
 
-const fetchBLData = async () => {
-    try {
-        setLoading(true);
+    const fetchBLData = async () => {
+        try {
+            setLoading(true);
 
-        const res = await fetch(`${API_BASE}/api/bls/${blNumber}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const bl = await res.json();
+            const res = await fetch(`${API_BASE}/api/bls/${blNumber}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const bl = await res.json();
 
-        if (bl.tipo_servicio_codigo !== 'BB' && bl.tipo_servicio !== 'BB') {
+            if (bl.tipo_servicio_codigo !== 'BB' && bl.tipo_servicio !== 'BB') {
+                Swal.fire({
+                    title: "Error",
+                    text: "Este BL no es de carga suelta (tipo BB)",
+                    icon: "error",
+                    confirmButtonColor: "#10b981"
+                });
+                navigate(`/expo-bl/${blNumber}`);
+                return;
+            }
+
+            const resItems = await fetch(`${API_BASE}/api/bls/${blNumber}/items-contenedores`);
+            if (!resItems.ok) throw new Error(`HTTP ${resItems.status}`);
+            const dataItems = await resItems.json();
+
+            let observacionesParsed = [
+                { nombre: 'GRAL', contenido: '' },
+                { nombre: 'MOT', contenido: 'LISTA DE ENCARGO' }
+            ];
+            if (bl.observaciones) {
+                if (typeof bl.observaciones === 'string') {
+                    try {
+                        observacionesParsed = JSON.parse(bl.observaciones);
+                    } catch (e) {
+                        console.error('Error parseando observaciones:', e);
+                    }
+                } else if (Array.isArray(bl.observaciones)) {
+                    observacionesParsed = bl.observaciones;
+                }
+            }
+
+            // "YYYY-MM-DD HH:mm:ss" o "YYYY-MM-DDTHH:mm:ss" → "DD/MM/YYYY"
+            const mysqlToDDMMYYYY = (str) => {
+                if (!str) return "";
+                const datePart = str.split('T')[0].split(' ')[0];
+                const [yyyy, mm, dd] = datePart.split('-');
+                if (!yyyy || !mm || !dd) return "";
+                return `${dd}/${mm}/${yyyy}`;
+            };
+
+            // "YYYY-MM-DD HH:mm:ss" o "YYYY-MM-DDTHH:mm:ss" → "DD/MM/YYYY HH:mm"
+            const mysqlToDDMMYYYYHHmm = (str) => {
+                if (!str) return "";
+                const clean = str.replace('T', ' ').trim();
+                const [datePart, timePart] = clean.split(' ');
+                const [yyyy, mm, dd] = datePart.split('-');
+                if (!yyyy || !mm || !dd) return "";
+
+                // Sanitizar hora: si es inválida (hh > 23 o mm > 59), usar 00:00
+                let hhmm = '00:00';
+                if (timePart) {
+                    const [hh, min] = timePart.slice(0, 5).split(':');
+                    const hhNum = parseInt(hh || '0');
+                    const minNum = parseInt(min || '0');
+                    if (hhNum <= 23 && minNum <= 59) {
+                        hhmm = `${String(hhNum).padStart(2, '0')}:${String(minNum).padStart(2, '0')}`;
+                    }
+                    // Si la hora es inválida (ej: 25:55), se queda en '00:00'
+                }
+
+                return `${dd}/${mm}/${yyyy} ${hhmm}`;
+            };
+
+            // "YYYY-MM-DD HH:mm:ss" → "YYYY-MM-DD" (para input type="date")
+            const mysqlToInputDate = (str) => {
+                if (!str) return "";
+                return str.split('T')[0].split(' ')[0];
+            };
+
+            // Resolver codigo_tatc del almacenador actual
+            let almacenadorCodigoTatc = "";
+            if (bl.almacenador_id) {
+                try {
+                    const resAlm = await fetch(`${API_BASE}/api/mantenedores/almacenistas/tatc`);
+                    if (resAlm.ok) {
+                        const listaAlm = await resAlm.json();
+                        const encontrado = listaAlm.find(a => a.id === bl.almacenador_id);
+                        if (encontrado) almacenadorCodigoTatc = encontrado.codigo_tatc || "";
+                    }
+                } catch { /* silencioso */ }
+            }
+
+            setFormData({
+                bl_number: bl.bl_number || "",
+                tipo_servicio: "BB",
+                forma_pago_flete: bl.forma_pago_flete || "PREPAID",
+                cond_transporte: bl.cond_transporte || "HH",
+                fecha_emision: mysqlToDDMMYYYY(bl.fecha_emision),         // → "DD/MM/YYYY"     para MaskedDateInput
+                fecha_presentacion: mysqlToInputDate(bl.fecha_presentacion), // → "YYYY-MM-DD"   para input type="date"
+                fecha_embarque: mysqlToDDMMYYYYHHmm(bl.fecha_embarque),   // → "DD/MM/YYYY HH:mm" para MaskedDateTimeInput
+
+                puerto_embarque: bl.puerto_embarque_cod || "",
+                puerto_descarga: bl.puerto_descarga_cod || "",
+                lugar_destino: bl.lugar_destino_cod || "",
+                lugar_entrega: bl.lugar_entrega_cod || "",
+
+                shipper: bl.shipper || "",
+                shipper_codigo_pil: bl.shipper_codigo_pil || "",
+                shipper_direccion: bl.shipper_direccion || "",
+                shipper_telefono: bl.shipper_telefono || "",
+                shipper_email: bl.shipper_email || "",
+
+                consignee: bl.consignee || "",
+                consignee_rut: bl.consignee_rut || "",
+                consignee_codigo_pil: bl.consignee_codigo_pil || "",
+                consignee_direccion: bl.consignee_direccion || "",
+                consignee_telefono: bl.consignee_telefono || "",
+                consignee_email: bl.consignee_email || "",
+
+                notify_party: bl.notify_party || "",
+                notify_rut: bl.notify_rut || "",
+                notify_codigo_pil: bl.notify_codigo_pil || "",
+                notify_direccion: bl.notify_direccion || "",
+                notify_telefono: bl.notify_telefono || "",
+                notify_email: bl.notify_email || "",
+
+                almacenador_id: bl.almacenador_id || null,
+                almacenador: bl.almacenista_nombre || bl.almacenador || "",
+                almacenador_codigo_tatc: almacenadorCodigoTatc,
+                almacenador_codigo_almacen: bl.almacenista_codigo_almacen || "",
+                almacenador_codigo_pil: bl.almacenador_codigo_pil || "",
+                almacenador_direccion: bl.almacenador_direccion || "",
+                almacenador_telefono: bl.almacenador_telefono || "",
+                almacenador_email: bl.almacenador_email || "",
+
+                items: (dataItems.items || []).map(item => ({
+                    numero_item: item.numero_item,
+                    marcas: item.marcas || "N/M",
+                    tipo_bulto: item.tipo_bulto || "80",
+                    descripcion: item.descripcion || "",
+                    cantidad: item.cantidad || 1,
+                    peso_bruto: item.peso_bruto || "",
+                    unidad_peso: item.unidad_peso || "KGM",
+                    volumen: item.volumen || 0,
+                    unidad_volumen: item.unidad_volumen || "MTQ",
+                    carga_cnt: "N"
+                })),
+                observaciones: observacionesParsed
+            });
+
+            if (bl.manifiesto_id) {
+                const resManifiesto = await fetch(`${API_BASE}/api/manifiestos/${bl.manifiesto_id}`);
+                if (resManifiesto.ok) {
+                    const jsonManifiesto = await resManifiesto.json();
+                    setManifiestoData(jsonManifiesto.manifiesto);
+                }
+            }
+
+        } catch (e) {
+            console.error("Error cargando BL:", e);
             Swal.fire({
                 title: "Error",
-                text: "Este BL no es de carga suelta (tipo BB)",
+                text: "No se pudo cargar la información del BL",
                 icon: "error",
                 confirmButtonColor: "#0F2A44"
             });
-            navigate(`/expo-bl/${blNumber}`);
-            return;
+            navigate("/expo-bl");
+        } finally {
+            setLoading(false);
         }
-
-        const resItems = await fetch(`${API_BASE}/api/bls/${blNumber}/items-contenedores`);
-        if (!resItems.ok) throw new Error(`HTTP ${resItems.status}`);
-        const dataItems = await resItems.json();
-
-        let observacionesParsed = [
-            { nombre: 'GRAL', contenido: '' },
-            { nombre: 'MOT', contenido: 'LISTA DE ENCARGO' }
-        ];
-        if (bl.observaciones) {
-            if (typeof bl.observaciones === 'string') {
-                try {
-                    observacionesParsed = JSON.parse(bl.observaciones);
-                } catch (e) {
-                    console.error('Error parseando observaciones:', e);
-                }
-            } else if (Array.isArray(bl.observaciones)) {
-                observacionesParsed = bl.observaciones;
-            }
-        }
-
-        const mysqlToDDMMYYYY = (str) => {
-            if (!str) return "";
-            const datePart = str.split('T')[0].split(' ')[0];
-            const [yyyy, mm, dd] = datePart.split('-');
-            if (!yyyy || !mm || !dd) return "";
-            return `${dd}/${mm}/${yyyy}`;
-        };
-
-       const mysqlToDDMMYYYYHHmm = (str) => {
-    if (!str) return "";
-    const clean = str.replace('T', ' ').trim();
-    const [datePart, timePart] = clean.split(' ');
-    const [yyyy, mm, dd] = datePart.split('-');
-    if (!yyyy || !mm || !dd) return "";
-
-    let hhmm = '00:00';
-    if (timePart) {
-        const [hh, min] = timePart.slice(0, 5).split(':');
-        const hhNum = parseInt(hh || '0');
-        const minNum = parseInt(min || '0');
-        if (hhNum <= 23 && minNum <= 59) {
-            hhmm = `${String(hhNum).padStart(2, '0')}:${String(minNum).padStart(2, '0')}`;
-        }
-    }
-
-    return `${dd}/${mm}/${yyyy} ${hhmm}`;
-};
-
-        const mysqlToInputDate = (str) => {
-            if (!str) return "";
-            return str.split('T')[0].split(' ')[0];
-        };
-
-        setFormData({
-            bl_number: bl.bl_number || "",
-            tipo_servicio: "BB",
-            forma_pago_flete: bl.forma_pago_flete || "PREPAID",
-            cond_transporte: bl.cond_transporte || "HH",
-            fecha_emision: mysqlToDDMMYYYY(bl.fecha_emision),
-            fecha_presentacion: mysqlToInputDate(bl.fecha_presentacion),
-            fecha_embarque: mysqlToDDMMYYYYHHmm(bl.fecha_embarque),
-
-            puerto_embarque: bl.puerto_embarque_cod || "",
-            puerto_descarga: bl.puerto_descarga_cod || "",
-            lugar_destino: bl.lugar_destino_cod || "",
-            lugar_entrega: bl.lugar_entrega_cod || "",
-
-            shipper: bl.shipper || "",
-            shipper_codigo_pil: bl.shipper_codigo_pil || "",
-            shipper_direccion: bl.shipper_direccion || "",
-            shipper_telefono: bl.shipper_telefono || "",
-            shipper_email: bl.shipper_email || "",
-
-            consignee: bl.consignee || "",
-            consignee_rut: bl.consignee_rut || "",
-            consignee_codigo_pil: bl.consignee_codigo_pil || "",
-            consignee_direccion: bl.consignee_direccion || "",
-            consignee_telefono: bl.consignee_telefono || "",
-            consignee_email: bl.consignee_email || "",
-
-            notify_party: bl.notify_party || "",
-            notify_rut: bl.notify_rut || "",
-            notify_codigo_pil: bl.notify_codigo_pil || "",
-            notify_direccion: bl.notify_direccion || "",
-            notify_telefono: bl.notify_telefono || "",
-            notify_email: bl.notify_email || "",
-
-            almacenador_id: bl.almacenador_id || null,
-            almacenador: bl.almacenador || "",
-            almacenador_codigo_pil: bl.almacenador_codigo_pil || "",
-            almacenador_direccion: bl.almacenador_direccion || "",
-            almacenador_telefono: bl.almacenador_telefono || "",
-            almacenador_email: bl.almacenador_email || "",
-
-            items: (dataItems.items || []).map(item => ({
-                numero_item: item.numero_item,
-                marcas: item.marcas || "N/M",
-                tipo_bulto: item.tipo_bulto || "80",
-                descripcion: item.descripcion || "",
-                cantidad: item.cantidad || 1,
-                peso_bruto: item.peso_bruto || "",
-                unidad_peso: item.unidad_peso || "KGM",
-                volumen: item.volumen || 0,
-                unidad_volumen: item.unidad_volumen || "MTQ",
-                carga_cnt: "N"
-            })),
-            observaciones: observacionesParsed
-        });
-
-        if (bl.manifiesto_id) {
-            const resManifiesto = await fetch(`${API_BASE}/api/manifiestos/${bl.manifiesto_id}`);
-            if (resManifiesto.ok) {
-                const jsonManifiesto = await resManifiesto.json();
-                setManifiestoData(jsonManifiesto.manifiesto);
-            }
-        }
-
-    } catch (e) {
-        console.error("Error cargando BL:", e);
-        Swal.fire({
-            title: "Error",
-            text: "No se pudo cargar la información del BL",
-            icon: "error",
-            confirmButtonColor: "#0F2A44"
-        });
-        navigate("/expo-bl");
-    } finally {
-        setLoading(false);
-    }
-};
+    };
 
     const fetchPuertos = async () => {
         try {
@@ -729,8 +749,17 @@ const Step1DatosBL = ({ formData, setFormData, manifiestoData, puertos }) => (
 
 // ==================== STEP 2: PARTICIPANTES ====================
 const Step2Participantes = ({ formData, setFormData }) => {
+
     const updateField = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
     const [emailErrors, setEmailErrors] = useState({ shipper: false, consignee: false, notify: false });
+    const [almacenistasTatcList, setAlmacenistasTatcList] = useState([]);
+
+    useEffect(() => {
+        fetch(`${API_BASE}/api/mantenedores/almacenistas/tatc`)
+            .then(r => r.ok ? r.json() : [])
+            .then(data => setAlmacenistasTatcList(Array.isArray(data) ? data : []))
+            .catch(() => setAlmacenistasTatcList([]));
+    }, []);
 
     const addObservacion = () => {
         setFormData({
@@ -972,32 +1001,61 @@ const Step2Participantes = ({ formData, setFormData }) => {
             </div>
 
             {/* ALMACENADOR */}
-            <AlmacenadorSelector
-                value={formData.almacenador_id}
-                displayValue={formData.almacenador}
-                onChange={(id, texto, datos) => {
-                    setFormData(prev => ({
-                        ...prev,
-                        almacenador_id: id,
-                        almacenador: texto,
-                        almacenador_direccion: datos.direccion || '',
-                        almacenador_telefono: datos.telefono || '',
-                        almacenador_email: datos.email || '',
-                        almacenador_codigo_pil: datos.codigo_pil || '',
-                    }));
-                }}
-                onClear={() => {
-                    setFormData(prev => ({
-                        ...prev,
-                        almacenador_id: null,
-                        almacenador: '',
-                        almacenador_direccion: '',
-                        almacenador_telefono: '',
-                        almacenador_email: '',
-                        almacenador_codigo_pil: '',
-                    }));
-                }}
-            />
+            <div className="border border-slate-300 rounded-lg p-6 bg-white">
+                <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
+                    Almacenador (ALM) <span className="text-sm text-slate-500 font-normal">(Opcional)</span>
+                </h3>
+
+                <AlmacenSelect
+                    value={formData.almacenador_codigo_tatc ?? ""}
+                    todos={almacenistasTatcList}
+                    onChange={(codigoTatc) => {
+                        const encontrado = almacenistasTatcList.find(a => a.codigo_tatc === codigoTatc);
+                        setFormData(prev => ({
+                            ...prev,
+                            almacenador_codigo_tatc: codigoTatc,
+                            almacenador: encontrado?.nombre ?? "",
+                            almacenador_id: encontrado?.id ?? null,
+                            almacenador_codigo_almacen: encontrado?.codigo_almacen ?? "",
+                        }));
+                    }}
+                    onSave={() => { }}
+                />
+
+                {(() => {
+                    const encontrado = almacenistasTatcList.find(a => a.codigo_tatc === formData.almacenador_codigo_tatc);
+                    if (!encontrado) return null;
+                    const completo = encontrado.nombre && encontrado.rut && encontrado.nacion_id && encontrado.codigo_almacen;
+                    return (
+                        <div className={`mt-3 rounded-lg border p-4 text-sm ${completo ? "bg-white border-orange-200" : "bg-yellow-50 border-yellow-300"}`}>
+                            {!completo && (
+                                <div className="flex items-center gap-2 mb-3 text-yellow-800 bg-yellow-100 border border-yellow-300 rounded-lg px-3 py-2 text-xs">
+                                    <svg className="w-4 h-4 flex-shrink-0 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                                    </svg>
+                                    <span>Datos incompletos — ve a <strong>Mantenedores → Almacenistas</strong> para completarlos.</span>
+                                </div>
+                            )}
+                            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                                {[
+                                    { label: "Nombre", value: encontrado.nombre },
+                                    { label: "RUT", value: encontrado.rut },
+                                    { label: "Nación", value: encontrado.nacion_id },
+                                    { label: "Cód. Almacén", value: encontrado.codigo_almacen },
+                                    { label: "Cód. TATC", value: encontrado.codigo_tatc },
+                                ].map(({ label, value }) => (
+                                    <div key={label}>
+                                        <span className="text-slate-400 text-xs uppercase tracking-wide">{label}</span>
+                                        <p className={`font-medium mt-0.5 text-sm ${value ? "text-slate-800" : "text-red-500 italic"}`}>
+                                            {value || "Sin dato"}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                })()}
+            </div>
 
             {/* Nota roles */}
             <div className="bg-blue-50 border-l-4 border-blue-500 p-4">

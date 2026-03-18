@@ -1233,7 +1233,7 @@ app.get("/api/puertos", async (_req, res) => {
 app.get("/api/mantenedores/almacenistas/tatc", async (_req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT id, nombre, codigo_almacen, codigo_tatc
+      `SELECT id, nombre, rut, pais AS nacion_id, codigo_almacen, codigo_tatc
        FROM participantes
        WHERE codigo_tatc IS NOT NULL AND codigo_tatc != ''
        ORDER BY codigo_tatc`
@@ -1261,12 +1261,12 @@ app.get("/api/mantenedores/almacenistas", async (_req, res) => {
 
 app.get("/api/mantenedores/almacenistas/:id", async (req, res) => {
   try {
-   const [rows] = await pool.query(
-  `SELECT id, nombre, rut, pais AS nacion_id, codigo_almacen, codigo_tatc
+    const [rows] = await pool.query(
+      `SELECT id, nombre, rut, pais AS nacion_id, codigo_almacen, codigo_tatc
    FROM participantes
    WHERE id = ? AND codigo_almacen IS NOT NULL AND codigo_almacen != ''`,
-  [req.params.id]
-);
+      [req.params.id]
+    );
     if (rows.length === 0) return res.status(404).json({ error: "Almacenista no encontrado" });
     res.json(rows[0]);
   } catch (error) {
@@ -2014,8 +2014,7 @@ app.get('/api/mantenedores/participantes', async (req, res) => {
     let query = `
       SELECT 
          p.id, 
-         p.codigo_bms, 
-         p.codigo_almacen,  -- 👈 AGREGAR ESTA COLUMNA
+         p.codigo_almacen, 
          t.codigo_pil,
          p.nombre, 
          p.rut, 
@@ -2053,8 +2052,7 @@ app.get('/api/mantenedores/participantes/:id', async (req, res) => {
     const [rows] = await pool.query(
       `SELECT 
          p.id, 
-         p.codigo_bms, 
-         t.codigo_pil,  -- 🔥 Traer desde traductor_pil_bms
+         t.codigo_pil,  
          p.nombre, 
          p.rut, 
          p.direccion, 
@@ -3840,11 +3838,11 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
 
       if (tipoOperacion !== 'S') {
         const puertoDescarga = (b.puerto_descarga_cod || '').toUpperCase();
-        const codigoBmsAlmacen = puertoDescarga === 'CLVAP' ? 'ALM-A44' : 'ALM-A56';
+        const codigoAlmacen = puertoDescarga === 'CLVAP' ? 'ALM-A44' : 'ALM-A56';
 
         const [almRows] = await conn.query(
-          `SELECT id, codigo_almacen FROM participantes WHERE codigo_bms = ? LIMIT 1`,
-          [codigoBmsAlmacen]
+          `SELECT id, codigo_almacen FROM participantes WHERE codigo_almacen = ? LIMIT 1`,
+          [codigoAlmacen]
         );
         if (almRows.length > 0) {
           almacenadorId = almRows[0].id;

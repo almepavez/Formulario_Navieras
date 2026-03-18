@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Swal from "sweetalert2";
-import AlmacenadorSelector from '../components/AlmacenadorSelector';
+import AlmacenSelect from '../components/AlmacenSelect';
 
 
 const STEPS = [
@@ -768,7 +768,13 @@ const Step1DatosBL = ({ formData, setFormData, manifiestoData, puertos }) => (
     </div>
 );
 const Step2Participantes = ({ formData, setFormData }) => {
-
+    const [almacenistasTatcList, setAlmacenistasTatcList] = useState([]);
+    useEffect(() => {
+        fetch(`${API_BASE}/api/mantenedores/almacenistas/tatc`)
+            .then(r => r.ok ? r.json() : [])
+            .then(data => setAlmacenistasTatcList(Array.isArray(data) ? data : []))
+            .catch(() => setAlmacenistasTatcList([]));
+    }, []);
     const updateField = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
@@ -839,7 +845,7 @@ const Step2Participantes = ({ formData, setFormData }) => {
                         />
                     </div>
 
-                    
+
 
                     {/* Dirección */}
                     <div className="md:col-span-2">
@@ -960,7 +966,6 @@ const Step2Participantes = ({ formData, setFormData }) => {
                             onBlur={(e) => setEmailErrors(p => ({ ...p, consignee: !validarEmail(e.target.value) }))}
                             className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none transition-colors ${emailErrors.consignee ? "border-red-400 bg-red-50" : "border-slate-300"}`}
                             placeholder="correo@ejemplo.com" />
-                        {emailErrors.consignee && <p className="text-xs text-red-600 mt-1">Formato de email inválido</p>}
 
                     </div>
                 </div>
@@ -999,18 +1004,18 @@ const Step2Participantes = ({ formData, setFormData }) => {
                     </div>
 
                     {/* RUT - Opcional */}
-<div className="md:col-span-2">
-    <label className="block text-sm font-medium text-slate-700 mb-2">
-        RUT <span className="text-slate-400 text-xs font-normal">(Opcional - solo si es empresa chilena)</span>
-    </label>
-    <input
-        type="text"
-        value={formData.notify_rut || ""}
-        onChange={(e) => updateField("notify_rut", e.target.value)}
-        className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-        placeholder="Ej: 91256000-7"
-    />
-</div>
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            RUT <span className="text-slate-400 text-xs font-normal">(Opcional - solo si es empresa chilena)</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.notify_rut || ""}
+                            onChange={(e) => updateField("notify_rut", e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            placeholder="Ej: 91256000-7"
+                        />
+                    </div>
 
                     {/* Dirección */}
                     <div className="md:col-span-2">
@@ -1052,32 +1057,68 @@ const Step2Participantes = ({ formData, setFormData }) => {
                 </div>
             </div>
 
-            <AlmacenadorSelector
-                value={formData.almacenador_id}
-                displayValue={formData.almacenador}
-                onChange={(id, texto, datos) => {
-                    setFormData(prev => ({
-                        ...prev,
-                        almacenador_id: id,
-                        almacenador: texto,
-                        almacenador_direccion: datos.direccion || '',
-                        almacenador_telefono: datos.telefono || '',
-                        almacenador_email: datos.email || '',
-                        almacenador_codigo_pil: datos.codigo_pil || '',
-                    }));
-                }}
-                onClear={() => {
-                    setFormData(prev => ({
-                        ...prev,
-                        almacenador_id: null,
-                        almacenador: '',
-                        almacenador_direccion: '',
-                        almacenador_telefono: '',
-                        almacenador_email: '',
-                        almacenador_codigo_pil: '',
-                    }));
-                }}
-            />
+            {/* ALMACENADOR */}
+            <div className="border border-slate-300 rounded-lg p-6 bg-white">
+                <h3 className="font-semibold text-slate-900 mb-4 text-lg border-b pb-2">
+                    Almacenador (ALM) <span className="text-sm text-slate-500 font-normal">(Opcional)</span>
+                </h3>
+
+              <AlmacenSelect
+    value={formData.almacenador_codigo_tatc ?? ""}
+    todos={almacenistasTatcList}
+    onChange={(codigoTatc) => {
+        const encontrado = almacenistasTatcList.find(a => a.codigo_tatc === codigoTatc);
+        setFormData(prev => ({
+            ...prev,
+            almacenador_codigo_tatc: codigoTatc,
+            almacenador: encontrado?.nombre ?? "",
+            almacenador_id: encontrado?.id ?? null,
+            almacenador_codigo_almacen: encontrado?.codigo_almacen ?? "",
+        }));
+    }}
+    onSave={() => { }}
+/>
+
+{(() => {
+    const encontrado = almacenistasTatcList.find(a => a.codigo_tatc === formData.almacenador_codigo_tatc);
+    if (!encontrado) return null;
+    const completo = encontrado.nombre && encontrado.rut && encontrado.nacion_id && encontrado.codigo_almacen;
+    return (
+        <div className={`mt-3 rounded-lg border p-4 text-sm ${completo ? "bg-white border-orange-200" : "bg-yellow-50 border-yellow-300"}`}>
+            {!completo && (
+                <div className="flex items-center gap-2 mb-3 text-yellow-800 bg-yellow-100 border border-yellow-300 rounded-lg px-3 py-2 text-xs">
+                    <svg className="w-4 h-4 flex-shrink-0 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                    </svg>
+                    <span>Datos incompletos — ve a <strong>Mantenedores → Almacenistas</strong> para completarlos.</span>
+                </div>
+            )}
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                {[
+                    { label: "Nombre", value: encontrado.nombre },
+                    { label: "RUT", value: encontrado.rut },
+                    { label: "Nación", value: encontrado.nacion_id },
+                    { label: "Cód. Almacén", value: encontrado.codigo_almacen },
+                    { label: "Cód. TATC", value: encontrado.codigo_tatc },
+                ].map(({ label, value }) => (
+                    <div key={label}>
+                        <span className="text-slate-400 text-xs uppercase tracking-wide">{label}</span>
+                        <p className={`font-medium mt-0.5 text-sm ${value ? "text-slate-800" : "text-red-500 italic"}`}>
+                            {value || "Sin dato"}
+                        </p>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+})()}
+
+                {formData.almacenador && (
+                    <p className="text-xs text-slate-500 mt-2">
+                        {formData.almacenador}
+                    </p>
+                )}
+            </div>
 
             {/* NOTA INFORMATIVA */}
             <div className="bg-blue-50 border-l-4 border-blue-500 p-4">
@@ -1375,7 +1416,7 @@ const Step4Revision = ({ formData, manifiestoData, tiposBulto }) => {
                         </div>
                     </div>
 
-            
+
                 </div>
             </div>
 
