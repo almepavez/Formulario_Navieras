@@ -1233,7 +1233,7 @@ app.get("/api/puertos", async (_req, res) => {
 app.get("/api/mantenedores/almacenistas/tatc", async (_req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT id, nombre, codigo_almacen, codigo_tatc
+      `SELECT id, nombre, rut, pais AS nacion_id, codigo_almacen, codigo_tatc
        FROM participantes
        WHERE codigo_tatc IS NOT NULL AND codigo_tatc != ''
        ORDER BY codigo_tatc`
@@ -2014,8 +2014,7 @@ app.get('/api/mantenedores/participantes', async (req, res) => {
     let query = `
       SELECT 
          p.id, 
-         p.codigo_bms, 
-         p.codigo_almacen,  -- 👈 AGREGAR ESTA COLUMNA
+         p.codigo_almacen, 
          t.codigo_pil,
          p.nombre, 
          p.rut, 
@@ -2053,8 +2052,7 @@ app.get('/api/mantenedores/participantes/:id', async (req, res) => {
     const [rows] = await pool.query(
       `SELECT 
          p.id, 
-         p.codigo_bms, 
-         t.codigo_pil,  -- 🔥 Traer desde traductor_pil_bms
+         t.codigo_pil,  
          p.nombre, 
          p.rut, 
          p.direccion, 
