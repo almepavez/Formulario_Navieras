@@ -4893,6 +4893,7 @@ app.put("/api/bls/:blNumber/contenedores", async (req, res) => {
 
     for (const cont of contenedores) {
       const esSoc = !!cont.es_soc;
+      const codigoFinal = esSoc ? null : (cont.codigo || null); // ← NULL para SOC
       const { sigla, numero, digito } = parseCodigoContenedor(cont.codigo, esSoc);
 
       if (cont._isNew) {
@@ -4904,24 +4905,30 @@ app.put("/api/bls/:blNumber/contenedores", async (req, res) => {
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             blId, cont.item_id,
-            esSoc ? '' : (cont.codigo || ''),
+            codigoFinal,           // ← NULL si SOC
             sigla, numero, digito,
             cont.tipo_cnt, cont.carga_cnt || 'S',
             esSoc ? 1 : 0,
-            esSoc ? (cont.cnt_so_numero || '') : null,
+            esSoc ? (cont.cnt_so_numero || null) : null,
             cont.peso || null, cont.unidad_peso || 'KGM',
             cont.volumen ?? null, cont.unidad_volumen || 'MTQ'
           ]
         );
         const newContId = insertResult.insertId;
-        if (cont.sellos && cont.sellos.length > 0) {
+        if (cont.sellos?.length > 0) {
           for (const sello of cont.sellos) {
-            await conn.query("INSERT INTO bl_contenedor_sellos (contenedor_id, sello) VALUES (?, ?)", [newContId, sello]);
+            await conn.query(
+              "INSERT INTO bl_contenedor_sellos (contenedor_id, sello) VALUES (?, ?)",
+              [newContId, sello]
+            );
           }
         }
-        if (cont.imos && cont.imos.length > 0) {
+        if (cont.imos?.length > 0) {
           for (const imo of cont.imos) {
-            await conn.query("INSERT INTO bl_contenedor_imo (contenedor_id, clase_imo, numero_imo) VALUES (?, ?, ?)", [newContId, imo.clase, imo.numero]);
+            await conn.query(
+              "INSERT INTO bl_contenedor_imo (contenedor_id, clase_imo, numero_imo) VALUES (?, ?, ?)",
+              [newContId, imo.clase, imo.numero]
+            );
           }
         }
       } else {
@@ -4932,25 +4939,34 @@ app.put("/api/bls/:blNumber/contenedores", async (req, res) => {
               peso = ?, unidad_peso = ?, volumen = ?, unidad_volumen = ?
           WHERE id = ?`,
           [
-            esSoc ? '' : (cont.codigo || ''),
-            sigla, numero, digito, cont.tipo_cnt,
+            codigoFinal,           // ← NULL si SOC
+            sigla, numero, digito,
+            cont.tipo_cnt,
             esSoc ? 1 : 0,
-            esSoc ? (cont.cnt_so_numero || '') : null,
+            esSoc ? (cont.cnt_so_numero || null) : null,
             cont.peso || null, cont.unidad_peso || 'KGM',
-            cont.volumen || null, cont.unidad_volumen || 'MTQ',
+            cont.volumen ?? null, cont.unidad_volumen || 'MTQ',
             cont.id
           ]
         );
+
         await conn.query("DELETE FROM bl_contenedor_sellos WHERE contenedor_id = ?", [cont.id]);
-        if (cont.sellos && cont.sellos.length > 0) {
+        if (cont.sellos?.length > 0) {
           for (const sello of cont.sellos) {
-            await conn.query("INSERT INTO bl_contenedor_sellos (contenedor_id, sello) VALUES (?, ?)", [cont.id, sello]);
+            await conn.query(
+              "INSERT INTO bl_contenedor_sellos (contenedor_id, sello) VALUES (?, ?)",
+              [cont.id, sello]
+            );
           }
         }
+
         await conn.query("DELETE FROM bl_contenedor_imo WHERE contenedor_id = ?", [cont.id]);
-        if (cont.imos && cont.imos.length > 0) {
+        if (cont.imos?.length > 0) {
           for (const imo of cont.imos) {
-            await conn.query("INSERT INTO bl_contenedor_imo (contenedor_id, clase_imo, numero_imo) VALUES (?, ?, ?)", [cont.id, imo.clase, imo.numero]);
+            await conn.query(
+              "INSERT INTO bl_contenedor_imo (contenedor_id, clase_imo, numero_imo) VALUES (?, ?, ?)",
+              [cont.id, imo.clase, imo.numero]
+            );
           }
         }
       }
@@ -4958,6 +4974,7 @@ app.put("/api/bls/:blNumber/contenedores", async (req, res) => {
 
     await conn.commit();
     res.json({ success: true, message: "Contenedores actualizados correctamente" });
+
   } catch (error) {
     await conn.rollback();
     console.error("❌ Error al actualizar contenedores:", error);
