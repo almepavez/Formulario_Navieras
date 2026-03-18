@@ -190,7 +190,10 @@ const ExpoBLEdit = () => {
                 const resTB = await fetch(`${API_BASE}/api/bls/${blNumber}/transbordos`);
                 if (resTB.ok) {
                     const data = await resTB.json();
-                    setTransbordos(data.map(tb => ({ ...tb, fecha_arribo: formatDateTime(tb.fecha_arribo) })));
+                    setTransbordos(data.map(tb => ({
+                        ...tb,
+                        fecha_arribo: formatDateTime(tb.fecha_arribo)
+                    })));
                 }
 
             } catch (e) {
@@ -481,8 +484,18 @@ const ExpoBLEdit = () => {
         setSaving(true);
         setError("");
         try {
-            const fmtDT = d => d ? d.replace("T", " ") + ":00" : null;
-            const dataToSend = {
+            const fmtDT = (d) => {
+                if (!d || d.trim() === "") return null;
+                if (d.includes("T") || /^\d{4}-\d{2}-\d{2}/.test(d)) {
+                    return d.replace("T", " ").substring(0, 16) + ":00";
+                }
+                const [datePart, timePart] = d.trim().split(" ");
+                if (!datePart) return null;
+                const [dd, mm, yyyy] = datePart.split("/");
+                if (!dd || !mm || !yyyy) return null;
+                const hhmm = timePart || "00:00";
+                return `${yyyy}-${mm}-${dd} ${hhmm}:00`;
+            }; const dataToSend = {
                 tipo_servicio: formData.tipo_servicio,
                 fecha_emision: formData.fecha_emision || null,
                 fecha_presentacion: fmtDT(formData.fecha_presentacion),
@@ -1048,8 +1061,11 @@ const ExpoBLEdit = () => {
                                                     </div>
                                                     {esImpo && (
                                                         <div>
-                                                            <input type="datetime-local" value={tb.fecha_arribo || ""} onChange={e => updateTransbordo(tb.id, "fecha_arribo", e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500" />
-                                                            <p className="text-xs text-slate-500 mt-1">Fecha de arribo <span className="text-red-500">*</span></p>
+                                                            <MaskedDateTimeInput
+                                                                label=""
+                                                                value={tb.fecha_arribo}
+                                                                onChange={v => updateTransbordo(tb.id, "fecha_arribo", v)}
+                                                            />                                                            <p className="text-xs text-slate-500 mt-1">Fecha de arribo <span className="text-red-500">*</span></p>
                                                         </div>
                                                     )}
                                                 </div>
