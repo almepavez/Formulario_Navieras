@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import { Edit3, ArrowUpRight, ArrowDownLeft, X } from "lucide-react";
@@ -22,6 +22,130 @@ const formatNumber = (num) => {
     return new Intl.NumberFormat('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 3 }).format(num);
 };
 
+// ─── Mapa de regiones POL ───────────────────────────────────────────────────
+const REGION_MAP = {
+    "SHANGHAI": "ORIENTE", "NINGBO": "ORIENTE", "QINGDAO": "ORIENTE",
+    "TIANJIN": "ORIENTE", "TIANJIN XINGANG": "ORIENTE", "NANJING": "ORIENTE",
+    "WUHAN": "ORIENTE", "LIANYUNGANG": "ORIENTE", "GUANGZHOU": "ORIENTE",
+    "SHENZHEN": "ORIENTE", "YANTIAN": "ORIENTE", "CHIWAN": "ORIENTE",
+    "NANSHA": "ORIENTE", "XIAMEN": "ORIENTE", "FUZHOU": "ORIENTE",
+    "DALIAN": "ORIENTE", "HONG KONG": "ORIENTE", "KAOHSIUNG": "ORIENTE",
+    "BUSAN": "ORIENTE", "INCHEON": "ORIENTE", "TOKYO": "ORIENTE",
+    "YOKOHAMA": "ORIENTE", "NAGOYA": "ORIENTE", "OSAKA": "ORIENTE",
+    "KOBE": "ORIENTE", "SINGAPORE": "ORIENTE", "PORT KELANG": "ORIENTE",
+    "TANJUNG PELEPAS": "ORIENTE", "JAKARTA": "ORIENTE", "SURABAYA": "ORIENTE",
+    "MANILA": "ORIENTE", "HO CHI MINH": "ORIENTE", "CAT LAI": "ORIENTE",
+    "HAIPHONG": "ORIENTE", "BANGKOK": "ORIENTE", "LAEM CHABANG": "ORIENTE",
+    "COLOMBO": "ORIENTE", "CHENNAI": "ORIENTE", "NHAVA SHEVA": "ORIENTE",
+    "MUNDRA": "ORIENTE", "CALCUTTA": "ORIENTE", "CALCUTTA - KOLKATA": "ORIENTE",
+    "KOLKATA": "ORIENTE", "KARACHI": "ORIENTE", "CHITTAGONG": "ORIENTE",
+    "MANZANILLO": "MÉXICO", "LAZARO CARDENAS": "MÉXICO",
+    "LÁZARO CÁRDENAS": "MÉXICO", "ENSENADA": "MÉXICO", "VERACRUZ": "MÉXICO",
+    "QUETZAL": "GUATEMALA", "PUERTO QUETZAL": "GUATEMALA",
+    "BUENAVENTURA": "COLOMBIA", "CARTAGENA": "COLOMBIA",
+    "CALLAO": "PERÚ",
+};
+
+const getRegion = (polName) => {
+    if (!polName) return polName;
+    const key = polName.trim().toUpperCase();
+    const found = Object.keys(REGION_MAP).find(k => k.toUpperCase() === key);
+    return found ? REGION_MAP[found] : polName.toUpperCase();
+};
+
+// ─── Combobox tipo input con autocomplete ───────────────────────────────────
+const SearchableSelect = ({ value, onChange, options, allLabel }) => {
+    const [inputVal, setInputVal] = useState(value === "TODOS" ? "" : value);
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+
+    useEffect(() => {
+        setInputVal(value === "TODOS" ? "" : value);
+    }, [value]);
+
+    useEffect(() => {
+        const handler = (e) => {
+            if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, []);
+
+    const filtered = options.filter(o =>
+        o.toLowerCase().includes(inputVal.toLowerCase())
+    );
+
+    const handleChange = (e) => {
+        setInputVal(e.target.value);
+        setOpen(true);
+        if (e.target.value === "") onChange("TODOS");
+    };
+
+    const handleSelect = (o) => {
+        setInputVal(o);
+        onChange(o);
+        setOpen(false);
+    };
+
+    const handleClear = () => {
+        setInputVal("");
+        onChange("TODOS");
+        setOpen(false);
+    };
+
+    return (
+        <div ref={ref} className="relative w-full">
+            <div className="relative">
+                <input
+                    type="text"
+                    value={inputVal}
+                    onChange={handleChange}
+                    onFocus={() => setOpen(true)}
+                    placeholder={allLabel}
+                    className={`w-full px-3 py-2 text-sm border rounded-lg outline-none transition-colors ${
+                        value !== "TODOS"
+                            ? "border-[#0F2A44] bg-[#0F2A44]/5 text-[#0F2A44]"
+                            : "border-slate-300 bg-white text-slate-700"
+                    } focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]`}
+                />
+                {value !== "TODOS" && (
+                    <button
+                        type="button"
+                        onClick={handleClear}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                        <X size={13} />
+                    </button>
+                )}
+            </div>
+
+            {open && filtered.length > 0 && (
+                <>
+                    <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+                    <div className="absolute left-0 top-full mt-1 z-50 w-full bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
+                        <div className="max-h-52 overflow-y-auto py-1">
+                            {filtered.map(o => (
+                                <button
+                                    key={o}
+                                    type="button"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => handleSelect(o)}
+                                    className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 transition-colors ${
+                                        value === o ? "font-semibold text-[#0F2A44] bg-slate-50" : "text-slate-700"
+                                    }`}
+                                >
+                                    {o}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+};
+
+// ─── Componente principal ───────────────────────────────────────────────────
 const ExpoBL = () => {
     const navigate = useNavigate();
     const [bls, setBls] = useState([]);
@@ -29,12 +153,12 @@ const ExpoBL = () => {
     const [error, setError] = useState("");
 
     // Filtros
-    const [tipoOp, setTipoOp] = useState("TODOS");   // TODOS | S | I
+    const [tipoOp, setTipoOp] = useState("TODOS");
     const [searchTerm, setSearchTerm] = useState("");
     const [viajeFilter, setViajeFilter] = useState("TODOS");
     const [servicioFilter, setServicioFilter] = useState("TODOS");
     const [naveFilter, setNaveFilter] = useState("TODOS");
-    const [statusFilter, setStatusFilter] = useState("TODOS");
+    const [polFilter, setPolFilter] = useState("TODOS");
 
     // Paginación
     const [currentPage, setCurrentPage] = useState(1);
@@ -62,6 +186,7 @@ const ExpoBL = () => {
     const viajes = [...new Set(bls.map(b => b.viaje).filter(Boolean))].sort();
     const servicios = [...new Set(bls.map(b => b.tipo_servicio).filter(Boolean))].sort();
     const naves = [...new Set(bls.map(b => b.nave).filter(Boolean))].sort();
+    const regiones = [...new Set(bls.map(b => getRegion(b.puerto_embarque)).filter(Boolean))].sort();
 
     // Contadores para pills EXPO / IMPO
     const countExpo = bls.filter(b => b.tipo_operacion === "S").length;
@@ -84,9 +209,9 @@ const ExpoBL = () => {
         const matchesViaje = viajeFilter === "TODOS" || bl.viaje === viajeFilter;
         const matchesServicio = servicioFilter === "TODOS" || bl.tipo_servicio === servicioFilter;
         const matchesNave = naveFilter === "TODOS" || bl.nave === naveFilter;
-        const matchesStatus = statusFilter === "TODOS" || bl.status === statusFilter;
+        const matchesPol = polFilter === "TODOS" || getRegion(bl.puerto_embarque) === polFilter;
 
-        return matchesTipoOp && matchesSearch && matchesViaje && matchesNave && matchesServicio && matchesStatus;
+        return matchesTipoOp && matchesSearch && matchesViaje && matchesNave && matchesServicio && matchesPol;
     });
 
     // Paginación
@@ -96,7 +221,7 @@ const ExpoBL = () => {
 
     const hayFiltrosActivos =
         tipoOp !== "TODOS" || searchTerm || viajeFilter !== "TODOS" ||
-        naveFilter !== "TODOS" || servicioFilter !== "TODOS" || statusFilter !== "TODOS";
+        naveFilter !== "TODOS" || servicioFilter !== "TODOS" || polFilter !== "TODOS";
 
     const limpiarFiltros = () => {
         setTipoOp("TODOS");
@@ -104,12 +229,12 @@ const ExpoBL = () => {
         setViajeFilter("TODOS");
         setServicioFilter("TODOS");
         setNaveFilter("TODOS");
-        setStatusFilter("TODOS");
+        setPolFilter("TODOS");
         setCurrentPage(1);
     };
 
     useEffect(() => { setCurrentPage(1); },
-        [tipoOp, searchTerm, viajeFilter, naveFilter, servicioFilter, statusFilter, itemsPerPage]);
+        [tipoOp, searchTerm, viajeFilter, naveFilter, servicioFilter, polFilter, itemsPerPage]);
 
     const getPageNumbers = () => {
         const pages = [];
@@ -138,8 +263,7 @@ const ExpoBL = () => {
             >
                 {Icon && <Icon size={15} />}
                 {label}
-                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${active ? color.badge : "bg-slate-100 text-slate-500"
-                    }`}>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${active ? color.badge : "bg-slate-100 text-slate-500"}`}>
                     {count}
                 </span>
             </button>
@@ -147,9 +271,9 @@ const ExpoBL = () => {
     };
 
     return (
-    <div className="flex min-h-screen">
-  <Sidebar />
-  <main className="flex-1 p-10 min-h-screen bg-slate-100">
+        <div className="flex min-h-screen">
+            <Sidebar />
+            <main className="flex-1 p-10 min-h-screen bg-slate-100 flex flex-col gap-5">
 
                 {/* ── Header ─────────────────────────────────────── */}
                 <div className="flex items-start justify-between gap-4">
@@ -182,7 +306,7 @@ const ExpoBL = () => {
                     />
                     <TipoOpPill
                         value="S" label="EXPO" count={countExpo} icon={ArrowUpRight}
-                        color={{ active: "bg-[#0F2A44] text-white border-[#0F2A44]", badge: "bg-white/20 text-white" }}
+                        color={{ active: "bg-orange-500 text-white border-orange-500", badge: "bg-white/20 text-white" }}
                     />
                     <TipoOpPill
                         value="I" label="IMPO" count={countImpo} icon={ArrowDownLeft}
@@ -192,60 +316,49 @@ const ExpoBL = () => {
 
                 {/* ── Filtros secundarios ─────────────────────────── */}
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3">
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-center">                        {/* Búsqueda */}
-                        <div className="relative md:col-span-1">
-                            <input
-                                type="text"
-                                placeholder="Buscar BL, Shipper, Consignee..."
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full pl-4 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44] outline-none"
-                            />
-                        </div>
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-center">
+
+                        {/* Búsqueda libre */}
+                        <input
+                            type="text"
+                            placeholder="Buscar BL, Shipper, Consignee..."
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44] outline-none"
+                        />
 
                         {/* Viaje */}
-                        <select
+                        <SearchableSelect
                             value={viajeFilter}
-                            onChange={e => setViajeFilter(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44] outline-none text-slate-700"
-                        >
-                            <option value="TODOS">Todos los viajes</option>
-                            {viajes.map(v => <option key={v} value={v}>{v}</option>)}
-                        </select>
-                        {/* después del select de viajeFilter */}
-<select
-    value={naveFilter}
-    onChange={e => setNaveFilter(e.target.value)}
-    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44] outline-none text-slate-700"
->
-    <option value="TODOS">Todas las naves</option>
-    {naves.map(n => <option key={n} value={n}>{n}</option>)}
-</select>
+                            onChange={setViajeFilter}
+                            options={viajes}
+                            allLabel="Todos los viajes"
+                        />
 
-                        {/* Tipo servicio (dinámico desde BD) */}
-                        <select
+                        {/* Nave */}
+                        <SearchableSelect
+                            value={naveFilter}
+                            onChange={setNaveFilter}
+                            options={naves}
+                            allLabel="Todas las naves"
+                        />
+
+                        {/* Tipo servicio */}
+                        <SearchableSelect
                             value={servicioFilter}
-                            onChange={e => setServicioFilter(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44] outline-none text-slate-700"
-                        >
-                            <option value="TODOS">Todos los servicios</option>
-                            {servicios.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
+                            onChange={setServicioFilter}
+                            options={servicios}
+                            allLabel="Todos los servicios"
+                        />
 
-                        {/* Estado */}
+                        {/* POL por región + Limpiar */}
                         <div className="flex gap-2">
-                            <select
-                                value={statusFilter}
-                                onChange={e => setStatusFilter(e.target.value)}
-                                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44] outline-none text-slate-700"
-                            >
-                                <option value="TODOS">Todos los estados</option>
-                                <option value="ACTIVO">Activo</option>
-                                <option value="INACTIVO">Inactivo</option>
-                                <option value="EN REVISION">En Revisión</option>
-                            </select>
-
-                            {/* Botón limpiar — aparece solo si hay filtros */}
+                            <SearchableSelect
+                                value={polFilter}
+                                onChange={setPolFilter}
+                                options={regiones}
+                                allLabel="Todos los POL"
+                            />
                             {hayFiltrosActivos && (
                                 <button
                                     onClick={limpiarFiltros}
@@ -324,10 +437,9 @@ const ExpoBL = () => {
                                             onClick={() => navigate(`/expo/${bl.bl_number}`)}
                                             className="border-t hover:bg-slate-50 cursor-pointer transition-colors"
                                         >
-                                            {/* Badge EXPO / IMPO */}
                                             <td className="px-5 py-3.5">
                                                 {bl.tipo_operacion === "S" ? (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-[#0F2A44]/10 text-[#0F2A44]">
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-700">
                                                         <ArrowUpRight size={11} /> EXPO
                                                     </span>
                                                 ) : bl.tipo_operacion === "I" ? (
@@ -357,8 +469,7 @@ const ExpoBL = () => {
                                             <td className="px-5 py-3.5 text-right font-medium">{formatNumber(bl.peso_bruto)}</td>
                                             <td className="px-5 py-3.5 text-center">{bl.bultos || 0}</td>
                                             <td className="px-5 py-3.5">
-                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs ring-1 ${estadoStyles[bl.status] ?? "bg-slate-100 text-slate-600 ring-slate-200"
-                                                    }`}>
+                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs ring-1 ${estadoStyles[bl.status] ?? "bg-slate-100 text-slate-600 ring-slate-200"}`}>
                                                     {bl.status || "—"}
                                                 </span>
                                             </td>
