@@ -317,7 +317,10 @@ const NuevoManifiesto = () => {
 
       const res = await fetch(`${API_BASE_URL}/api/manifiestos`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+       headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${localStorage.getItem("token")}` 
+    },
         body: JSON.stringify({
           ...form,
           fecha_zarpe: form.fecha_zarpe
