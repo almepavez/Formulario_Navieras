@@ -4756,6 +4756,7 @@ app.get("/api/bls/:blNumber", async (req, res) => {
         b.*,
         m.viaje,
         m.tipo_operacion,
+        m.fecha_zarpe AS manifiesto_fecha_zarpe,
         ts.codigo AS tipo_servicio_codigo,
         ts.nombre AS tipo_servicio,
         le.codigo AS lugar_emision_cod,
