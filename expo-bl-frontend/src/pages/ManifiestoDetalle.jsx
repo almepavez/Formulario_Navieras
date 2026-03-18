@@ -1012,8 +1012,31 @@ const ManifiestoDetalle = () => {
                       })()}
                     </div>
                   )}
-                </>
+               </>
               )}
+            </div>
+
+            {/* Información del Sistema */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mt-6">
+                <h2 className="text-sm font-semibold text-slate-700 mb-4">Información del sistema</h2>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                        <p className="text-xs font-medium text-slate-500 mb-1">Creado</p>
+                        <p className="text-sm font-medium text-slate-800">{formatDTCL(m.createdAt)}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                        <p className="text-xs font-medium text-slate-500 mb-1">Última actualización</p>
+                        <p className="text-sm font-medium text-slate-800">{formatDTCL(m.updatedAt)}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                        <p className="text-xs font-medium text-slate-500 mb-1">Subido por</p>
+                        <p className="text-sm font-medium text-slate-800">{m.creadoPorNombre || "—"}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                        <p className="text-xs font-medium text-slate-500 mb-1">Email</p>
+                        <p className="text-sm font-medium text-slate-800 truncate">{m.creadoPorEmail || "—"}</p>
+                    </div>
+                </div>
             </div>
           </>
         )}

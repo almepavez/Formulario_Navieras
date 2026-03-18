@@ -590,7 +590,7 @@ app.post("/api/auth/verify-code", async (req, res) => {
 
 
 // POST /api/manifiestos
-app.post("/api/manifiestos", async (req, res) => {
+app.post("/api/manifiestos", verificarToken, async (req, res) => {
   const {
     servicio, nave, puertoCentral, viaje, tipoOperacion, operadorNave, status,
     remark, emisorDocumento, representante, fechaManifiestoAduana,
@@ -623,17 +623,17 @@ app.post("/api/manifiestos", async (req, res) => {
     if (!pcRow) throw new Error(`Puerto central no existe: ${puertoCentral}`);
     const [result] = await conn.query(
       `INSERT INTO manifiestos
-       (servicio_id, nave_id, puerto_central_id, viaje, tipo_operacion, operador_nave,
-        status, remark, emisor_documento, representante, fecha_manifiesto_aduana,
-        numero_manifiesto_aduana, referencia_id, numero_referencia, fecha_referencia, fecha_zarpe)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+ (servicio_id, nave_id, puerto_central_id, viaje, tipo_operacion, operador_nave,
+  status, remark, emisor_documento, representante, fecha_manifiesto_aduana,
+  numero_manifiesto_aduana, referencia_id, numero_referencia, fecha_referencia, fecha_zarpe, created_by)
+ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         servRow.id, naveRow.id, pcRow.id, String(viaje).trim(),
         String(tipoOperacion).toUpperCase(), String(operadorNave).trim(),
         statusFinal, remark || null, String(emisorDocumento).trim(),
         String(representante).trim(), fechaManifiestoAduana,
         String(numeroManifiestoAduana).trim(), referenciaId || null,
-        numeroReferencia || null, fechaReferencia || null, fecha_zarpe || null
+        numeroReferencia || null, fechaReferencia || null, fecha_zarpe || null, req.usuario.id
       ]
     );
     const manifiestoId = result.insertId;
@@ -726,6 +726,8 @@ app.get("/api/manifiestos", async (_req, res) => {
           m.operador_nave AS operadorNave,
           m.status,
           m.remark,
+          u.nombre AS creadoPorNombre,
+          u.email AS creadoPorEmail,
           m.emisor_documento AS emisorDocumento,
           m.representante,
           m.fecha_manifiesto_aduana AS fechaManifiestoAduana,
@@ -737,6 +739,7 @@ app.get("/api/manifiestos", async (_req, res) => {
        JOIN servicios s ON s.id = m.servicio_id
        JOIN naves n ON n.id = m.nave_id
        JOIN puertos pc ON pc.id = m.puerto_central_id
+       LEFT JOIN usuarios u ON u.id = m.created_by
        ORDER BY m.created_at DESC
        LIMIT 20`
     );
@@ -847,6 +850,8 @@ app.get("/api/manifiestos/:id", async (req, res) => {
           m.operador_nave AS operadorNave,
           m.status,
           m.remark,
+          u.nombre AS creadoPorNombre,
+          u.email AS creadoPorEmail,
           m.emisor_documento AS emisorDocumento,
           m.representante,
           m.fecha_manifiesto_aduana AS fechaManifiestoAduana,
@@ -854,7 +859,7 @@ app.get("/api/manifiestos/:id", async (req, res) => {
           m.created_at AS createdAt,
           m.updated_at AS updatedAt,
           
-          -- 🆕 AGREGAR ESTOS 3 CAMPOS
+          
           m.referencia_id AS referenciaId,
           m.numero_referencia AS numeroReferencia,
           m.fecha_referencia AS fechaReferencia,
@@ -865,6 +870,7 @@ app.get("/api/manifiestos/:id", async (req, res) => {
        JOIN servicios s ON s.id = m.servicio_id
        JOIN naves n ON n.id = m.nave_id
        JOIN puertos pc ON pc.id = m.puerto_central_id
+       LEFT JOIN usuarios u ON u.id = m.created_by
        WHERE m.id = ?`,
       [id]
     );
@@ -1223,13 +1229,28 @@ app.get("/api/puertos", async (_req, res) => {
 // aquellos que tienen codigo_almacen definido.
 // ─────────────────────────────────────────────
 
+
+app.get("/api/mantenedores/almacenistas/tatc", async (_req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, nombre, codigo_almacen, codigo_tatc
+       FROM participantes
+       WHERE codigo_tatc IS NOT NULL AND codigo_tatc != ''
+       ORDER BY codigo_tatc`
+    );
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: "Error al obtener códigos TATC" });
+  }
+});
+
 app.get("/api/mantenedores/almacenistas", async (_req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT id, nombre, rut, pais AS nacion_id, codigo_almacen
-       FROM participantes
-       WHERE codigo_almacen IS NOT NULL AND codigo_almacen != ''
-       ORDER BY nombre`
+      `SELECT id, nombre, rut, pais AS nacion_id, codigo_almacen, codigo_tatc
+   FROM participantes
+   WHERE codigo_almacen IS NOT NULL AND codigo_almacen != ''
+   ORDER BY nombre`
     );
     res.json(rows);
   } catch (error) {
@@ -1240,12 +1261,12 @@ app.get("/api/mantenedores/almacenistas", async (_req, res) => {
 
 app.get("/api/mantenedores/almacenistas/:id", async (req, res) => {
   try {
-    const [rows] = await pool.query(
-      `SELECT id, nombre, rut, pais AS nacion_id, codigo_almacen
-       FROM participantes
-       WHERE id = ? AND codigo_almacen IS NOT NULL AND codigo_almacen != ''`,
-      [req.params.id]
-    );
+   const [rows] = await pool.query(
+  `SELECT id, nombre, rut, pais AS nacion_id, codigo_almacen, codigo_tatc
+   FROM participantes
+   WHERE id = ? AND codigo_almacen IS NOT NULL AND codigo_almacen != ''`,
+  [req.params.id]
+);
     if (rows.length === 0) return res.status(404).json({ error: "Almacenista no encontrado" });
     res.json(rows[0]);
   } catch (error) {
@@ -1302,7 +1323,7 @@ app.post("/api/mantenedores/almacenistas", async (req, res) => {
 
 app.put("/api/mantenedores/almacenistas/:id", async (req, res) => {
   try {
-    const { nombre, rut, nacion_id, codigo_almacen } = req.body;
+    const { nombre, rut, nacion_id, codigo_almacen, codigo_tatc } = req.body;
     const { id } = req.params;
 
     if (!nombre || !rut || !nacion_id || !codigo_almacen) {
@@ -1311,13 +1332,14 @@ app.put("/api/mantenedores/almacenistas/:id", async (req, res) => {
 
     const [result] = await pool.query(
       `UPDATE participantes
-       SET nombre = ?, rut = ?, pais = ?, codigo_almacen = ?
+       SET nombre = ?, rut = ?, pais = ?, codigo_almacen = ?, codigo_tatc = ?
        WHERE id = ?`,
       [
         nombre.trim(),
         rut.trim(),
         nacion_id.trim().toUpperCase(),
         codigo_almacen.trim(),
+        codigo_tatc?.trim() || null,
         id,
       ]
     );
@@ -1332,6 +1354,7 @@ app.put("/api/mantenedores/almacenistas/:id", async (req, res) => {
       rut: rut.trim(),
       nacion_id: nacion_id.trim().toUpperCase(),
       codigo_almacen: codigo_almacen.trim(),
+      codigo_tatc: codigo_tatc?.trim() || null,
     });
   } catch (error) {
     console.error("Error al actualizar almacenista:", error);
@@ -1339,19 +1362,7 @@ app.put("/api/mantenedores/almacenistas/:id", async (req, res) => {
   }
 });
 
-app.get("/api/mantenedores/almacenistas/tatc", async (_req, res) => {
-  try {
-    const [rows] = await pool.query(
-      `SELECT id, nombre, codigo_almacen, codigo_tatc
-       FROM participantes
-       WHERE codigo_tatc IS NOT NULL AND codigo_tatc != ''
-       ORDER BY codigo_tatc`
-    );
-    res.json(rows);
-  } catch (error) {
-    res.status(500).json({ error: "Error al obtener códigos TATC" });
-  }
-});
+
 // GET /api/tipos-bulto
 app.get("/api/tipos-bulto", async (_req, res) => {
   try {
@@ -2632,9 +2643,9 @@ function parseLine56(raw) {
   if (mExt) {
     return {
       itemNo: Number(mExt[2]),
-      seqNo:  Number(mExt[3]),
-      un:     mExt[4],
-      clase:  mExt[5],
+      seqNo: Number(mExt[3]),
+      un: mExt[4],
+      clase: mExt[5],
     };
   }
 
@@ -2643,8 +2654,8 @@ function parseLine56(raw) {
   if (!m) return null;
 
   const itemNo = Number(m[2]);
-  const seqNo  = Number(m[3]);
-  const tail   = s.slice(m[0].length);
+  const seqNo = Number(m[3]);
+  const tail = s.slice(m[0].length);
 
   let un = "";
   let clase = "";
@@ -4688,7 +4699,8 @@ app.get("/api/bls/:blNumber", async (req, res) => {
         COALESCE(p.nombre,         b.almacenista_nombre)         AS almacenista_nombre,
         COALESCE(p.rut,            b.almacenista_rut)             AS almacenista_rut,
         COALESCE(p.pais,           b.almacenista_nacion_id)       AS almacenista_nacion_id,
-        COALESCE(p.codigo_almacen, b.almacenista_codigo_almacen)  AS almacenista_codigo_almacen
+COALESCE(p.codigo_almacen, b.almacenista_codigo_almacen)  AS almacenista_codigo_almacen,
+p.codigo_tatc AS almacenista_codigo_tatc
       FROM bls b
       LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
       LEFT JOIN tipos_servicio ts ON b.tipo_servicio_id = ts.id

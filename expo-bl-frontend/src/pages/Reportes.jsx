@@ -144,146 +144,150 @@ function formatTipoCnt(isoCod) {
 
 const TIPO_OP_MAP = { IMPO: "I", EXPO: "S" };
 
-const AlmacenSelect = ({ value, onChange, onSave }) => {
+const AlmacenSelect = ({ value, onChange, onSave, todos = [] }) => {
   const [query, setQuery] = useState("");
-  const [todos, setTodos] = useState([]);
-  const [resultados, setResultados] = useState([]);
   const [open, setOpen] = useState(false);
-  const [selectedLabel, setSelectedLabel] = useState(value || "");
   const ref = useRef(null);
+  const triggerRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const [dropdownStyle, setDropdownStyle] = useState({});
+  
+useEffect(() => {
+  if (!open) return;
 
-  // Cargar todos los almacenistas con código TATC al montar
-  useEffect(() => {
-    fetch(`${API_URL}/api/mantenedores/almacenistas/tatc`)
-      .then(r => r.ok ? r.json() : [])
-      .then(data => setTodos(Array.isArray(data) ? data : []))
-      .catch(() => setTodos([]));
-  }, []);
+  const closeOnScroll = (e) => {
+    // Si el scroll ocurre dentro del dropdown, ignorarlo
+    if (dropdownRef.current && dropdownRef.current.contains(e.target)) return;
+    setOpen(false);
+    setQuery("");
+  };
 
-  // Sincronizar label cuando cambia value desde afuera
-  useEffect(() => {
-    if (value && todos.length > 0) {
-      // value puede ser nombre o codigo_tatc
-      const found = todos.find(a =>
-        a.nombre === value ||
-        a.codigo_tatc === value ||
-        a.codigo_almacen === value
-      );
-      setSelectedLabel(found ? `${found.codigo_tatc} — ${found.nombre}` : value);
-    } else {
-      setSelectedLabel(value || "");
-    }
-  }, [value, todos]);
+  window.addEventListener("scroll", closeOnScroll, true);
+  return () => window.removeEventListener("scroll", closeOnScroll, true);
+}, [open]);
 
   useEffect(() => {
     const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target)) {
+        setOpen(false);
+        setQuery("");
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const handleSearch = (q) => {
-    setQuery(q);
-    setOpen(true);
-    if (!q.trim()) {
-      setResultados(todos.slice(0, 8));
-      return;
-    }
-    const lower = q.toLowerCase();
-    setResultados(
-      todos.filter(a =>
-        a.codigo_tatc?.toLowerCase().includes(lower) ||
-        a.nombre?.toLowerCase().includes(lower) ||
-        a.codigo_almacen?.toLowerCase().includes(lower)
-      ).slice(0, 8)
-    );
-  };
+  // Recalcular posición cuando abre o cuando hay scroll
+  useEffect(() => {
+    if (!open || !triggerRef.current) return;
 
-  const handleSelect = (almacenista) => {
-    setSelectedLabel(`${almacenista.codigo_tatc} — ${almacenista.nombre}`);
-    setQuery("");
+    const updatePos = () => {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const dropdownWidth = 280;
+      const viewportWidth = window.innerWidth;
+
+      // Preferir alineado a la izquierda del trigger, pero si se sale del viewport, alinear a la derecha
+      let left = rect.left;
+      if (left + dropdownWidth > viewportWidth - 8) {
+        left = rect.right - dropdownWidth;
+      }
+      if (left < 8) left = 8;
+
+      setDropdownStyle({
+        position: "fixed",
+        top: rect.bottom + 4,
+        left,
+        width: dropdownWidth,
+        zIndex: 9999,
+      });
+    };
+
+    updatePos();
+
+
+  }, [open]);
+
+  const found = todos.find(a =>
+    a.codigo_tatc === value || a.nombre === value || a.codigo_almacen === value
+  );
+  const selectedLabel = found ? found.codigo_tatc : value || "";
+
+  const filtrados = query.trim()
+    ? todos.filter(a =>
+      a.codigo_tatc?.toLowerCase().includes(query.toLowerCase()) ||
+      a.nombre?.toLowerCase().includes(query.toLowerCase())
+    ).slice(0, 8)
+    : todos.slice(0, 8);
+
+  const handleSelect = (a) => {
     setOpen(false);
-    onChange(almacenista.nombre); // guardamos nombre para compatibilidad con lógica existente
+    setQuery("");
+    onChange(a.codigo_tatc);
     onSave?.();
   };
 
-  const handleClear = () => {
-    setSelectedLabel("");
-    setQuery("");
+  const handleClear = (e) => {
+    e.stopPropagation();
     onChange("");
     onSave?.();
   };
 
   return (
-    <div className="relative" ref={ref}>
-      {/* Si hay uno seleccionado, mostrar badge con X */}
-      {selectedLabel && !open ? (
-        <div className="flex items-center gap-1 bg-blue-50 border border-blue-200 rounded px-2 py-1 min-w-[160px]">
-          <span className="text-xs text-blue-800 truncate flex-1">{selectedLabel}</span>
-          <button
-            type="button"
-            onClick={handleClear}
-            className="text-blue-400 hover:text-red-500 flex-shrink-0 ml-1"
-          >
-            ✕
-          </button>
-        </div>
-      ) : (
-        <div className="relative">
-          <input
-            value={query}
-            onChange={e => handleSearch(e.target.value)}
-            onFocus={() => { setOpen(true); setResultados(todos.slice(0, 8)); }}
-            className="w-full min-w-[160px] bg-blue-50 border border-blue-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300"
-            placeholder="Buscar código TATC..."
-          />
-        </div>
-      )}
+    <div className="relative" ref={ref} style={{ width: "120px" }}>
+      <div
+        ref={triggerRef}
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center justify-between gap-1 bg-blue-50 border border-blue-200 rounded px-2 py-1 cursor-pointer hover:border-blue-400 transition-colors"
+        style={{ width: "120px" }}
+      >
+        <span className="text-xs font-mono font-semibold text-blue-800 truncate">
+          {selectedLabel || <span className="text-slate-400 font-normal font-sans">Seleccionar...</span>}
+        </span>
+        {selectedLabel
+          ? <span onClick={handleClear} className="text-blue-300 hover:text-red-500 flex-shrink-0 text-[10px] cursor-pointer leading-none">✕</span>
+          : <span className="text-slate-400 flex-shrink-0 text-[9px]">▼</span>
+        }
+      </div>
 
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute z-50 w-72 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
-            {/* Search dentro del dropdown */}
-            {selectedLabel && (
-              <div className="p-2 border-b border-slate-100">
-                <input
-                  autoFocus
-                  value={query}
-                  onChange={e => handleSearch(e.target.value)}
-                  className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  placeholder="Buscar código TATC o nombre..."
-                />
-              </div>
-            )}
-            <div className="max-h-48 overflow-y-auto">
-              {resultados.length === 0 && (
+          <div className="fixed inset-0 z-[9998]" onClick={() => { setOpen(false); setQuery(""); }} />
+          <div
+            ref={dropdownRef}
+            className="bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden"
+            style={dropdownStyle}
+          >
+            <div className="p-2 border-b border-slate-100">
+              <input
+                autoFocus
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Buscar TATC o nombre..."
+                className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-300"
+              />
+            </div>
+            <div className="max-h-52 overflow-y-auto flex flex-col">
+              {filtrados.length === 0 ? (
                 <div className="px-3 py-3 text-xs text-slate-400 text-center">
-                  {query ? `Sin resultados para "${query}"` : "Sin almacenistas con código TATC"}
+                  {query ? `Sin resultados para "${query}"` : "Sin almacenistas con TATC"}
                 </div>
-              )}
-              {resultados.map(a => (
-                <button
-                  key={a.id}
-                  type="button"
-                  onClick={() => handleSelect(a)}
-                  className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-0 transition-colors"
-                >
+              ) : filtrados.map(a => (
+                <button key={a.id} type="button" onClick={() => handleSelect(a)}
+                  className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-0 transition-colors">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 flex-shrink-0">
                       {a.codigo_tatc}
                     </span>
-                    <span className="text-xs text-slate-700 truncate">{a.nombre}</span>
+                    <span className="text-xs text-slate-600 truncate">{a.nombre}</span>
                   </div>
                   {a.codigo_almacen && (
-                    <p className="text-[10px] text-slate-400 mt-0.5 ml-0.5">ALM: {a.codigo_almacen}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">ALM: {a.codigo_almacen}</p>
                   )}
                 </button>
               ))}
             </div>
-            <div className="px-3 py-2 bg-slate-50 border-t border-slate-100">
-              <p className="text-[10px] text-slate-400">Solo se muestran almacenistas con código TATC registrado</p>
+            <div className="px-3 py-1.5 bg-slate-50 border-t border-slate-100">
+              <p className="text-[10px] text-slate-400">Solo almacenistas con código TATC</p>
             </div>
           </div>
         </>
@@ -309,6 +313,13 @@ export default function Reportes() {
   const [tableSearch, setTableSearch] = useState("");
   const [tableFilter, setTableFilter] = useState("todos");
   const [tipoOp, setTipoOp] = useState("IMPO");
+  const [almacenistasTatcList, setAlmacenistasTatcList] = useState([]);
+  useEffect(() => {
+    fetch(`${API_URL}/api/mantenedores/almacenistas/tatc`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setAlmacenistasTatcList(Array.isArray(data) ? data : []))
+      .catch(() => setAlmacenistasTatcList([]));
+  }, []);
 
   const filteredRows = rows.filter((r) => {
     const q = tableSearch.toLowerCase();
@@ -605,7 +616,8 @@ export default function Reportes() {
               if (!resAlm.ok) return;
               const almacenistas = await resAlm.json();
               const encontrado = almacenistas.find(
-                a => a.nombre.toLowerCase() === value.toLowerCase()
+                a => a.codigo_tatc?.toLowerCase() === value.toLowerCase() ||
+                  a.nombre.toLowerCase() === value.toLowerCase()
               );
               await fetch(`${API_URL}/api/bls/${row.bl}`, {
                 method: "PUT",
@@ -659,7 +671,8 @@ export default function Reportes() {
       const blsConAlmacen = currentRows.filter(r => r.almacen && r.bl);
       await Promise.all(blsConAlmacen.map(async (row) => {
         const encontrado = almacenistas.find(
-          a => a.nombre.toLowerCase() === row.almacen.toLowerCase()
+          a => a.codigo_tatc?.toLowerCase() === row.almacen.toLowerCase() ||
+            a.nombre.toLowerCase() === row.almacen.toLowerCase()
         );
         await fetch(`${API_URL}/api/bls/${row.bl}`, {
           method: "PUT",
@@ -719,7 +732,7 @@ export default function Reportes() {
     showToast("success", `Excel exportado para BL ${row.bl}`);
   };
 
-  const handleFileUpload = async (e) => {
+const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -757,70 +770,168 @@ export default function Reportes() {
         };
       });
 
-      // ← TODO EL BLOQUE de validación de almacenistas fue eliminado
-
-      // ✅ REEMPLAZA por esto:
-      // Obtener almacenistas con TATC para validar
       let almacenistasTatc = [];
       try {
         const resTatc = await fetch(`${API_URL}/api/mantenedores/almacenistas/tatc`);
         if (resTatc.ok) almacenistasTatc = await resTatc.json();
       } catch { /* silencioso */ }
 
-      // Validar códigos TATC inválidos en el Excel
       const codigosInvalidos = [];
       Object.values(updates).forEach(upd => {
         if (!upd.almacen) return;
         const val = upd.almacen.trim();
-        // Si parece un código TATC (todo mayúsculas, sin espacios, corto)
-        const pareceTatc = /^[A-Z0-9]{3,10}$/.test(val);
-        if (pareceTatc) {
-          const existe = almacenistasTatc.some(a =>
-            a.codigo_tatc?.toUpperCase() === val.toUpperCase()
-          );
-          if (!existe && !codigosInvalidos.includes(val)) {
-            codigosInvalidos.push(val);
-          }
+        const existe = almacenistasTatc.some(a =>
+          a.codigo_tatc?.toUpperCase() === val.toUpperCase()
+        );
+        if (!existe && !codigosInvalidos.includes(val)) {
+          codigosInvalidos.push(val);
         }
       });
 
       if (codigosInvalidos.length > 0) {
-        const validos = almacenistasTatc.map(a => a.codigo_tatc).filter(Boolean).join(", ");
-        const result = await Swal.fire({
+        const validos = almacenistasTatc
+          .map(a => ({ codigo: a.codigo_tatc, nombre: a.nombre }))
+          .filter(a => a.codigo);
+
+        const selectsHtml = codigosInvalidos.map(cod => `
+          <div style="margin-bottom:12px; text-align:left;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+              <span style="font-family:monospace; font-weight:700; font-size:13px; color:#dc2626; background:#fee2e2; padding:2px 8px; border-radius:5px; border:1px solid #fca5a5;">
+                ${cod}
+              </span>
+              <span style="color:#94a3b8; font-size:12px;">→ reemplazar por:</span>
+            </div>
+            <div style="position:relative;">
+              <input
+                id="search-${cod}"
+                type="text"
+                placeholder="Buscar código válido..."
+                autocomplete="off"
+                style="width:100%; padding:7px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;"
+              />
+              <div id="results-${cod}" style="display:none; background:white; border:1px solid #e2e8f0; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); max-height:140px; overflow-y:auto;"></div>
+              <input type="hidden" id="selected-${cod}" value="" />
+            </div>
+          </div>
+        `).join("");
+
+        const swalResult = await Swal.fire({
           icon: "warning",
-          title: "Códigos TATC no reconocidos",
-          html: `
-      <p style="color:#64748b; font-size:13px; margin-bottom:12px;">
-        Los siguientes códigos en la columna <strong>Almacén</strong> no existen en el mantenedor:
-      </p>
-      <ul style="text-align:left; padding-left:16px; margin-bottom:12px;">
-        ${codigosInvalidos.map(c =>
-            `<li style="color:#dc2626; font-size:13px; margin-bottom:4px; font-mono font-bold;">${c}</li>`
-          ).join("")}
-      </ul>
-      <p style="color:#64748b; font-size:12px;">
-        Códigos válidos disponibles:<br/>
-        <span style="font-family:monospace; color:#0F2A44;">${validos || "Ninguno registrado aún"}</span>
-      </p>
-      <p style="margin-top:12px; color:#64748b; font-size:12px;">¿Importar de todas formas? Las filas con códigos inválidos se guardarán como texto libre.</p>
-    `,
+          title: "Códigos de Almacén no reconocidos",
+          width: "560px",
           showCancelButton: true,
-          confirmButtonText: "Importar igual",
-          cancelButtonText: "Cancelar y revisar",
+          confirmButtonText: "Importar",
+          cancelButtonText: "Cancelar",
           confirmButtonColor: "#F97316",
           cancelButtonColor: "#64748b",
-          width: "520px",
+          html: `
+            <p style="color:#64748b; font-size:13px; margin-bottom:16px;">
+              Los siguientes códigos no existen. Puedes buscar el correcto o dejarlos vacíos:
+            </p>
+            ${selectsHtml}
+          `,
+          didOpen: () => {
+            codigosInvalidos.forEach(cod => {
+              const input = document.getElementById(`search-${cod}`);
+              const resultsDiv = document.getElementById(`results-${cod}`);
+              const hidden = document.getElementById(`selected-${cod}`);
+
+              document.body.appendChild(resultsDiv);
+              resultsDiv.style.position = "fixed";
+              resultsDiv.style.zIndex = "99999";
+
+              const updatePos = () => {
+                const rect = input.getBoundingClientRect();
+                resultsDiv.style.top = rect.bottom + 2 + "px";
+                resultsDiv.style.left = rect.left + "px";
+                resultsDiv.style.width = rect.width + "px";
+              };
+
+              input.addEventListener("input", () => {
+                const q = input.value.trim().toLowerCase();
+                hidden.value = "";
+                updatePos();
+
+                if (!q) {
+                  resultsDiv.style.display = "none";
+                  resultsDiv.innerHTML = "";
+                  return;
+                }
+
+                const filtrados = validos.filter(a =>
+                  a.codigo.toLowerCase().includes(q) ||
+                  a.nombre?.toLowerCase().includes(q)
+                ).slice(0, 6);
+
+                if (filtrados.length === 0) {
+                  resultsDiv.style.display = "block";
+                  resultsDiv.innerHTML = `<p style="padding:10px; text-align:center; color:#94a3b8; font-size:12px;">Sin resultados</p>`;
+                  return;
+                }
+
+                resultsDiv.style.display = "block";
+                resultsDiv.innerHTML = filtrados.map(a => `
+                  <div
+                    data-codigo="${a.codigo}"
+                    data-nombre="${a.nombre}"
+                    style="padding:8px 12px; border-bottom:1px solid #f1f5f9; cursor:pointer; display:flex; align-items:center; gap:10px; background:white;"
+                    onmouseover="this.style.background='#eff6ff'"
+                    onmouseout="this.style.background='white'"
+                  >
+                    <span style="font-family:monospace; font-weight:700; font-size:13px; color:#1d4ed8; background:#dbeafe; padding:2px 8px; border-radius:5px; border:1px solid #bfdbfe; flex-shrink:0;">
+                      ${a.codigo}
+                    </span>
+                    <span style="font-size:12px; color:#475569; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                      ${a.nombre}
+                    </span>
+                  </div>
+                `).join("");
+
+                resultsDiv.querySelectorAll("div[data-codigo]").forEach(el => {
+                  el.addEventListener("click", () => {
+                    input.value = `${el.dataset.codigo} — ${el.dataset.nombre}`;
+                    hidden.value = el.dataset.codigo;
+                    resultsDiv.style.display = "none";
+                  });
+                });
+              });
+
+              document.addEventListener("click", (ev) => {
+                if (!input.contains(ev.target) && !resultsDiv.contains(ev.target)) {
+                  resultsDiv.style.display = "none";
+                }
+              });
+            });
+          },
+          willClose: () => {
+            codigosInvalidos.forEach(cod => {
+              const el = document.getElementById(`results-${cod}`);
+              if (el && el.parentNode === document.body) document.body.removeChild(el);
+            });
+          },
         });
-        if (!result.isConfirmed) return;
+
+        if (!swalResult.isConfirmed) return;
+
+        // Aplicar correcciones
+        codigosInvalidos.forEach(cod => {
+          const hidden = document.getElementById(`selected-${cod}`);
+          const correcto = hidden?.value?.trim();
+          if (!correcto) return;
+          Object.keys(updates).forEach(key => {
+            if (updates[key].almacen?.toUpperCase() === cod.toUpperCase()) {
+              updates[key].almacen = correcto;
+            }
+          });
+        });
       }
 
-      // Resolver nombre desde código TATC si aplica
       const resolveAlmacen = (val) => {
-        if (!val) return val;
+        if (!val) return "";
         const byTatc = almacenistasTatc.find(a =>
           a.codigo_tatc?.toUpperCase() === val.trim().toUpperCase()
         );
-        return byTatc ? byTatc.nombre : val;
+        return byTatc ? byTatc.codigo_tatc : "";
       };
 
       let actualizadas = 0;
@@ -832,7 +943,6 @@ export default function Reportes() {
           return {
             ...r,
             ...upd,
-            // Si viene código TATC, resolver al nombre del almacenista
             ...(upd.almacen ? { almacen: resolveAlmacen(upd.almacen) } : {}),
           };
         })
@@ -1154,6 +1264,7 @@ export default function Reportes() {
                                     ) : c.key === "almacen" ? (
                                       <AlmacenSelect
                                         value={row[c.key] ?? ""}
+                                        todos={almacenistasTatcList}
                                         onChange={(val) => {
                                           const realIdx = rows.findIndex(r => r.bl === row.bl && r.n_contenedor === row.n_contenedor);
                                           if (realIdx !== -1) handleCellEdit(realIdx, c.key, val);
