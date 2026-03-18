@@ -438,7 +438,7 @@ const filteredAndSortedBLs = useMemo(() => {
         icon: 'warning',
         title: 'Sin BLs seleccionados',
         text: 'Debes seleccionar al menos un BL para revalidar',
-        confirmButtonColor: '#0F2A44'
+        confirmButtonColor: '#F59E0B'
       });
       return;
     }
@@ -456,7 +456,7 @@ const filteredAndSortedBLs = useMemo(() => {
       showCancelButton: true,
       confirmButtonText: 'Sí, revalidar',
       cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#3B82F6',
+      confirmButtonColor: '#0F2A44',
       cancelButtonColor: '#6B7280'
     });
 
@@ -529,7 +529,7 @@ const filteredAndSortedBLs = useMemo(() => {
             <strong>${exitosos}</strong> BL(s) revalidados correctamente
           </p>
         `,
-          confirmButtonColor: '#10B981'
+          confirmButtonColor: '#0F2A44'
         });
       } else {
         const erroresHTML = errores
@@ -564,7 +564,7 @@ const filteredAndSortedBLs = useMemo(() => {
         icon: 'error',
         title: 'Error en la revalidación',
         text: e.message || 'Ocurrió un error inesperado',
-        confirmButtonColor: '#DC2626'
+        confirmButtonColor: '#0F2A44'
       });
     } finally {
       setRevalidando(false);
@@ -577,7 +577,7 @@ const filteredAndSortedBLs = useMemo(() => {
         icon: 'warning',
         title: 'Sin BLs seleccionados',
         text: 'Debes seleccionar al menos un BL para generar XMLs',
-        confirmButtonColor: '#0F2A44'
+        confirmButtonColor: '#F59E0B'
       });
       return;
     }
@@ -621,7 +621,7 @@ const filteredAndSortedBLs = useMemo(() => {
       </div>
     `,
         confirmButtonText: 'Entendido',
-        confirmButtonColor: '#DC2626',
+        confirmButtonColor: '#0F2A44',
         width: '600px'
       });
 
@@ -688,7 +688,7 @@ const filteredAndSortedBLs = useMemo(() => {
 
           Swal.fire({
             icon: 'error',
-            title: '🚫 Error de validación en el servidor',
+            title: 'Error de validación en el servidor',
             html: `
               <div style="max-height: 300px; overflow-y: auto;">
                 ${erroresHTML}
@@ -728,7 +728,7 @@ const filteredAndSortedBLs = useMemo(() => {
             Tipo de acción: <strong>${tipoAccion} — ${tipoLabel}</strong>
           </p>
         `,
-        confirmButtonColor: '#10B981'
+        confirmButtonColor: '#0F2A44'
       });
     } catch (e) {
       Swal.fire({
@@ -960,7 +960,7 @@ const filteredAndSortedBLs = useMemo(() => {
         confirmButtonText: 'Descargar XML',
         denyButtonText: 'Editar BL',
         cancelButtonText: 'Cerrar',
-        confirmButtonColor: '#10B981',
+        confirmButtonColor: '#16a34a',
         denyButtonColor: '#3B82F6',
         cancelButtonColor: '#6B7280',
         customClass: {
@@ -994,7 +994,7 @@ const filteredAndSortedBLs = useMemo(() => {
         icon: 'error',
         title: 'Error al generar preview',
         text: e?.message || 'Ocurrió un error inesperado',
-        confirmButtonColor: '#DC2626'
+        confirmButtonColor: '#0F2A44'
       });
     }
   };

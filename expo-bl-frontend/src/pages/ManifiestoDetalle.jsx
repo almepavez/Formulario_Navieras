@@ -227,8 +227,8 @@ const ManifiestoDetalle = () => {
         text: "Los cambios no guardados se perderán",
         icon: "warning",
         showCancelButton: true,
-        confirmButtonColor: "#e43a3aff",
-        cancelButtonColor: "#10b981",
+        confirmButtonColor: "#dc2626",
+        cancelButtonColor: "#64748b",
         confirmButtonText: "Sí, cancelar",
         cancelButtonText: "No, continuar editando",
       });
@@ -245,7 +245,7 @@ const ManifiestoDetalle = () => {
         title: "Cancelado",
         text: "Se han descartado los cambios",
         icon: "info",
-        confirmButtonColor: "#10b981",
+        confirmButtonColor: "#0F2A44",
         timer: 2000,
       });
     }
@@ -258,7 +258,7 @@ const ManifiestoDetalle = () => {
         title: "Puerto no válido",
         text: "El puerto ingresado no existe en el catálogo. Por favor selecciona un puerto válido de la lista o deja el campo vacío.",
         icon: "error",
-        confirmButtonColor: "#10b981",
+        confirmButtonColor: "#0F2A44",
       });
       return;
     }
@@ -268,8 +268,8 @@ const ManifiestoDetalle = () => {
       text: "Se actualizará el manifiesto con la información editada",
       icon: "question",
       showCancelButton: true,
-      confirmButtonColor: "#10b981",
-      cancelButtonColor: "#e43a3aff",
+      confirmButtonColor: "#16a34a",
+      cancelButtonColor: "#64748b",
       confirmButtonText: "Sí, guardar",
       cancelButtonText: "Cancelar",
     });
@@ -315,7 +315,7 @@ const ManifiestoDetalle = () => {
         title: "¡Guardado!",
         text: "El manifiesto ha sido actualizado correctamente",
         icon: "success",
-        confirmButtonColor: "#10b981",
+        confirmButtonColor: "#0F2A44",
         timer: 2000,
       });
 
@@ -329,7 +329,7 @@ const ManifiestoDetalle = () => {
         title: "Error",
         text: e?.message || "No se pudo guardar el manifiesto",
         icon: "error",
-        confirmButtonColor: "#10b981",
+        confirmButtonColor: "#0F2A44",
       });
     }
   };
@@ -342,7 +342,7 @@ const ManifiestoDetalle = () => {
         icon: "warning",
         showCancelButton: true,
         confirmButtonColor: "#dc2626",
-        cancelButtonColor: "#0F2A44",
+        cancelButtonColor: "#64748b",
         confirmButtonText: "Sí, salir sin guardar",
         cancelButtonText: "No, quedarme aquí",
       });
@@ -370,7 +370,14 @@ const ManifiestoDetalle = () => {
         icon: "warning",
         html: `
           <div style="text-align:left; font-size:13px; color:#334155; display:grid; gap:12px;">
-          
+
+            <div style="background:#fef3c7; border:1px solid #fcd34d; border-radius:10px; padding:12px 14px;">
+              <p style="font-weight:700; color:#92400e; margin-bottom:4px;">Los BLs anteriores serán eliminados</p>
+              <p style="color:#78350f; font-size:12px; line-height:1.5;">
+                Se crearán los BLs desde el archivo. Los BLs anteriores serán eliminados.
+              </p>
+            </div>
+
             <div style="background:#eff6ff; border:1px solid #93c5fd; border-radius:10px; padding:12px 14px; display:flex; gap:10px;">
               <div>
                 <p style="font-weight:700; color:#1e40af; margin-bottom:4px;">Fecha de Zarpe se actualizará</p>
@@ -382,8 +389,8 @@ const ManifiestoDetalle = () => {
           </div>
         `,
         showCancelButton: true,
-        confirmButtonColor: "#10b981",
-        cancelButtonColor: "#e43a3aff",
+        confirmButtonColor: "#F59E0B",
+        cancelButtonColor: "#64748b",
         confirmButtonText: "Entendido, procesar igual",
         cancelButtonText: "Cancelar",
         width: "500px",
@@ -396,8 +403,8 @@ const ManifiestoDetalle = () => {
         text: "Se crearán los BLs desde el archivo. Los BLs anteriores serán eliminados.",
         icon: "question",
         showCancelButton: true,
-        confirmButtonColor: "#10b981",
-        cancelButtonColor: "#e43a3aff",
+        confirmButtonColor: "#F59E0B",
+        cancelButtonColor: "#64748b",
         confirmButtonText: "Sí, procesar",
         cancelButtonText: "Cancelar",
       });
@@ -427,7 +434,7 @@ const ManifiestoDetalle = () => {
             title: "BLs con errores",
             html: `<ul style="text-align: left">${errorList}</ul>`,
             icon: "error",
-            confirmButtonColor: "#10b981",
+            confirmButtonColor: "#0F2A44",
           });
 
           setPmsFile(null);
@@ -472,7 +479,7 @@ const ManifiestoDetalle = () => {
             ${erroresHtml}
           </div>
         `,
-        confirmButtonColor: "#10b981",
+        confirmButtonColor: "#0F2A44",
       });
 
       setPmsFile(null);
@@ -489,7 +496,7 @@ const ManifiestoDetalle = () => {
         title: "Error",
         text: e?.message || "No se pudo procesar el PMS",
         icon: "error",
-        confirmButtonColor: "#10b981",
+        confirmButtonColor: "#0F2A44",
       });
 
       setPmsFile(null);

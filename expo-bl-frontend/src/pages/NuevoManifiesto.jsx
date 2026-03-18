@@ -281,7 +281,7 @@ const NuevoManifiesto = () => {
           </ul>
         `,
         icon: "warning",
-        confirmButtonColor: "#0F2A44",
+        confirmButtonColor: "#F59E0B",
         confirmButtonText: "Entendido",
       });
       return;
@@ -300,8 +300,8 @@ const NuevoManifiesto = () => {
       `,
       icon: "question",
       showCancelButton: true,
-      confirmButtonColor: "#10b981",
-      cancelButtonColor: "#eb4e4eff",
+      confirmButtonColor: "#16a34a",
+      cancelButtonColor: "#64748b",
       confirmButtonText: "Sí, crear manifiesto",
       cancelButtonText: "Cancelar",
       width: "600px",
@@ -358,6 +358,7 @@ const NuevoManifiesto = () => {
         `,
         icon: "success",
         confirmButtonColor: "#0F2A44",
+        cancelButtonColor: "#64748b",
         showCancelButton: true,
         confirmButtonText: "Ver manifiesto",
         cancelButtonText: "Volver a lista",
