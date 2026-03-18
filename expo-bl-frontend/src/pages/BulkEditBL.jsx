@@ -401,7 +401,7 @@ const BulkEditBL = () => {
                 icon: "warning",
                 title: "Ningún BL encontrado",
                 text: "Los números pegados no coinciden con BLs de este manifiesto y tipo.",
-                confirmButtonColor: "#0F2A44",
+                confirmButtonColor: "#F59E0B",
             });
             return;
         }
@@ -431,8 +431,8 @@ const BulkEditBL = () => {
             showCancelButton: true,
             confirmButtonText: "Sí, seleccionar estos BLs",
             cancelButtonText: "Cancelar",
-            confirmButtonColor: "#0F2A44",
-            cancelButtonColor: "#94a3b8",
+            confirmButtonColor: "#16a34a",
+            cancelButtonColor: "#64748b",
             reverseButtons: true,
         }).then(result => {
             if (result.isConfirmed) {

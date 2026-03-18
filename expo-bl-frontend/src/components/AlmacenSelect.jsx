@@ -81,7 +81,7 @@ const AlmacenSelect = ({ value, onChange, onSave }) => {
       showCancelButton: true,
       confirmButtonText: "Sí, crear",
       cancelButtonText: "No, solo guardar el nombre",
-      confirmButtonColor: "#0F2A44",
+      confirmButtonColor: "#16a34a",
       cancelButtonColor: "#64748b",
       width: "480px",
       preConfirm: () => {

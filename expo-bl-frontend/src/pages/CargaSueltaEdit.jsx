@@ -118,7 +118,7 @@ const fetchBLData = async () => {
                 title: "Error",
                 text: "Este BL no es de carga suelta (tipo BB)",
                 icon: "error",
-                confirmButtonColor: "#10b981"
+                confirmButtonColor: "#0F2A44"
             });
             navigate(`/expo-bl/${blNumber}`);
             return;
@@ -144,7 +144,6 @@ const fetchBLData = async () => {
             }
         }
 
-        // "YYYY-MM-DD HH:mm:ss" o "YYYY-MM-DDTHH:mm:ss" → "DD/MM/YYYY"
         const mysqlToDDMMYYYY = (str) => {
             if (!str) return "";
             const datePart = str.split('T')[0].split(' ')[0];
@@ -153,7 +152,6 @@ const fetchBLData = async () => {
             return `${dd}/${mm}/${yyyy}`;
         };
 
-        // "YYYY-MM-DD HH:mm:ss" o "YYYY-MM-DDTHH:mm:ss" → "DD/MM/YYYY HH:mm"
        const mysqlToDDMMYYYYHHmm = (str) => {
     if (!str) return "";
     const clean = str.replace('T', ' ').trim();
@@ -161,7 +159,6 @@ const fetchBLData = async () => {
     const [yyyy, mm, dd] = datePart.split('-');
     if (!yyyy || !mm || !dd) return "";
 
-    // Sanitizar hora: si es inválida (hh > 23 o mm > 59), usar 00:00
     let hhmm = '00:00';
     if (timePart) {
         const [hh, min] = timePart.slice(0, 5).split(':');
@@ -170,13 +167,11 @@ const fetchBLData = async () => {
         if (hhNum <= 23 && minNum <= 59) {
             hhmm = `${String(hhNum).padStart(2, '0')}:${String(minNum).padStart(2, '0')}`;
         }
-        // Si la hora es inválida (ej: 25:55), se queda en '00:00'
     }
 
     return `${dd}/${mm}/${yyyy} ${hhmm}`;
 };
 
-        // "YYYY-MM-DD HH:mm:ss" → "YYYY-MM-DD" (para input type="date")
         const mysqlToInputDate = (str) => {
             if (!str) return "";
             return str.split('T')[0].split(' ')[0];
@@ -187,9 +182,9 @@ const fetchBLData = async () => {
             tipo_servicio: "BB",
             forma_pago_flete: bl.forma_pago_flete || "PREPAID",
             cond_transporte: bl.cond_transporte || "HH",
-            fecha_emision: mysqlToDDMMYYYY(bl.fecha_emision),         // → "DD/MM/YYYY"     para MaskedDateInput
-            fecha_presentacion: mysqlToInputDate(bl.fecha_presentacion), // → "YYYY-MM-DD"   para input type="date"
-            fecha_embarque: mysqlToDDMMYYYYHHmm(bl.fecha_embarque),   // → "DD/MM/YYYY HH:mm" para MaskedDateTimeInput
+            fecha_emision: mysqlToDDMMYYYY(bl.fecha_emision),
+            fecha_presentacion: mysqlToInputDate(bl.fecha_presentacion),
+            fecha_embarque: mysqlToDDMMYYYYHHmm(bl.fecha_embarque),
 
             puerto_embarque: bl.puerto_embarque_cod || "",
             puerto_descarga: bl.puerto_descarga_cod || "",
@@ -252,7 +247,7 @@ const fetchBLData = async () => {
             title: "Error",
             text: "No se pudo cargar la información del BL",
             icon: "error",
-            confirmButtonColor: "#10b981"
+            confirmButtonColor: "#0F2A44"
         });
         navigate("/expo-bl");
     } finally {
@@ -276,97 +271,97 @@ const fetchBLData = async () => {
         switch (step) {
             case 1:
                 if (!formData.bl_number?.trim()) {
-                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar el N° de BL", icon: "warning", confirmButtonColor: "#10b981" });
+                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar el N° de BL", icon: "warning", confirmButtonColor: "#F59E0B" });
                     return false;
                 }
                 if (!formData.puerto_embarque?.trim()) {
-                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar el Puerto de Embarque", icon: "warning", confirmButtonColor: "#10b981" });
+                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar el Puerto de Embarque", icon: "warning", confirmButtonColor: "#F59E0B" });
                     return false;
                 }
                 if (!formData.puerto_descarga?.trim()) {
-                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar el Puerto de Descarga", icon: "warning", confirmButtonColor: "#10b981" });
+                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar el Puerto de Descarga", icon: "warning", confirmButtonColor: "#F59E0B" });
                     return false;
                 }
                 if (!formData.lugar_destino?.trim()) {
-                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar el Lugar de Destino", icon: "warning", confirmButtonColor: "#10b981" });
+                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar el Lugar de Destino", icon: "warning", confirmButtonColor: "#F59E0B" });
                     return false;
                 }
                 if (!formData.lugar_entrega?.trim()) {
-                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar el Lugar de Entrega (LEM)", icon: "warning", confirmButtonColor: "#10b981" });
+                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar el Lugar de Entrega (LEM)", icon: "warning", confirmButtonColor: "#F59E0B" });
                     return false;
                 }
                 if (!formData.fecha_emision) {
-                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar la Fecha de Emisión", icon: "warning", confirmButtonColor: "#10b981" });
+                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar la Fecha de Emisión", icon: "warning", confirmButtonColor: "#F59E0B" });
                     return false;
                 }
                 if (!formData.fecha_presentacion) {
-                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar la Fecha de Presentación", icon: "warning", confirmButtonColor: "#10b981" });
+                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar la Fecha de Presentación", icon: "warning", confirmButtonColor: "#F59E0B" });
                     return false;
                 }
                 if (!formData.fecha_embarque) {
-                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar la Fecha de Embarque", icon: "warning", confirmButtonColor: "#10b981" });
+                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar la Fecha de Embarque", icon: "warning", confirmButtonColor: "#F59E0B" });
                     return false;
                 }
                 return true;
 
             case 2:
                 if (!formData.shipper || formData.shipper.trim().length < 3) {
-                    Swal.fire({ title: "Campo requerido", text: "El Shipper/Embarcador debe tener al menos 3 caracteres", icon: "warning", confirmButtonColor: "#10b981" });
+                    Swal.fire({ title: "Campo requerido", text: "El Shipper/Embarcador debe tener al menos 3 caracteres", icon: "warning", confirmButtonColor: "#F59E0B" });
                     return false;
                 }
                 if (!formData.shipper_direccion?.trim()) {
-                    Swal.fire({ title: "Campo requerido", text: "La dirección del Shipper es obligatoria", icon: "warning", confirmButtonColor: "#10b981" });
+                    Swal.fire({ title: "Campo requerido", text: "La dirección del Shipper es obligatoria", icon: "warning", confirmButtonColor: "#F59E0B" });
                     return false;
                 }
                 if (!formData.consignee || formData.consignee.trim().length < 3) {
-                    Swal.fire({ title: "Campo requerido", text: "El Consignee debe tener al menos 3 caracteres", icon: "warning", confirmButtonColor: "#10b981" });
+                    Swal.fire({ title: "Campo requerido", text: "El Consignee debe tener al menos 3 caracteres", icon: "warning", confirmButtonColor: "#F59E0B" });
                     return false;
                 }
                 if (!formData.consignee_direccion?.trim()) {
-                    Swal.fire({ title: "Campo requerido", text: "La dirección del Consignee es obligatoria", icon: "warning", confirmButtonColor: "#10b981" });
+                    Swal.fire({ title: "Campo requerido", text: "La dirección del Consignee es obligatoria", icon: "warning", confirmButtonColor: "#F59E0B" });
                     return false;
                 }
                 return true;
 
             case 3:
                 if (formData.items.length === 0) {
-                    Swal.fire({ title: "Sin items", text: "Debes tener al menos 1 item de carga", icon: "warning", confirmButtonColor: "#10b981" });
+                    Swal.fire({ title: "Sin items", text: "Debes tener al menos 1 item de carga", icon: "warning", confirmButtonColor: "#F59E0B" });
                     return false;
                 }
                 for (const item of formData.items) {
                     if (!item.descripcion || item.descripcion.trim() === '') {
-                        Swal.fire({ title: "Descripción requerida", text: `El item #${item.numero_item} debe tener descripción`, icon: "warning", confirmButtonColor: "#10b981" });
+                        Swal.fire({ title: "Descripción requerida", text: `El item #${item.numero_item} debe tener descripción`, icon: "warning", confirmButtonColor: "#F59E0B" });
                         return false;
                     }
                     if (!item.tipo_bulto?.trim()) {
-                        Swal.fire({ title: "Tipo de bulto requerido", text: `El item #${item.numero_item} debe tener tipo de bulto`, icon: "warning", confirmButtonColor: "#10b981" });
+                        Swal.fire({ title: "Tipo de bulto requerido", text: `El item #${item.numero_item} debe tener tipo de bulto`, icon: "warning", confirmButtonColor: "#F59E0B" });
                         return false;
                     }
                     const peso = parseFloat(item.peso_bruto);
                     if (isNaN(peso) || peso <= 0) {
-                        Swal.fire({ title: "Peso inválido", text: `El item #${item.numero_item} debe tener peso mayor a 0`, icon: "warning", confirmButtonColor: "#10b981" });
+                        Swal.fire({ title: "Peso inválido", text: `El item #${item.numero_item} debe tener peso mayor a 0`, icon: "warning", confirmButtonColor: "#F59E0B" });
                         return false;
                     }
                     if (!item.unidad_peso?.trim()) {
-                        Swal.fire({ title: "Unidad de peso requerida", text: `El item #${item.numero_item} debe tener unidad de peso`, icon: "warning", confirmButtonColor: "#10b981" });
+                        Swal.fire({ title: "Unidad de peso requerida", text: `El item #${item.numero_item} debe tener unidad de peso`, icon: "warning", confirmButtonColor: "#F59E0B" });
                         return false;
                     }
                     const volumen = parseFloat(item.volumen);
                     if (isNaN(volumen) || volumen < 0) {
-                        Swal.fire({ title: "Volumen inválido", text: `El item #${item.numero_item} debe tener volumen mayor o igual a 0`, icon: "warning", confirmButtonColor: "#10b981" });
+                        Swal.fire({ title: "Volumen inválido", text: `El item #${item.numero_item} debe tener volumen mayor o igual a 0`, icon: "warning", confirmButtonColor: "#F59E0B" });
                         return false;
                     }
                     if (!item.unidad_volumen?.trim()) {
-                        Swal.fire({ title: "Unidad de volumen requerida", text: `El item #${item.numero_item} debe tener unidad de volumen`, icon: "warning", confirmButtonColor: "#10b981" });
+                        Swal.fire({ title: "Unidad de volumen requerida", text: `El item #${item.numero_item} debe tener unidad de volumen`, icon: "warning", confirmButtonColor: "#F59E0B" });
                         return false;
                     }
                     const cantidad = parseInt(item.cantidad);
                     if (isNaN(cantidad) || cantidad <= 0) {
-                        Swal.fire({ title: "Cantidad inválida", text: `El item #${item.numero_item} debe tener cantidad mayor a 0`, icon: "warning", confirmButtonColor: "#10b981" });
+                        Swal.fire({ title: "Cantidad inválida", text: `El item #${item.numero_item} debe tener cantidad mayor a 0`, icon: "warning", confirmButtonColor: "#F59E0B" });
                         return false;
                     }
                     if (!item.marcas?.trim()) {
-                        Swal.fire({ title: "Marcas requeridas", text: `El item #${item.numero_item} debe tener marcas (usa "N/M" si no aplica)`, icon: "warning", confirmButtonColor: "#10b981" });
+                        Swal.fire({ title: "Marcas requeridas", text: `El item #${item.numero_item} debe tener marcas (usa "N/M" si no aplica)`, icon: "warning", confirmButtonColor: "#F59E0B" });
                         return false;
                     }
                 }
@@ -413,8 +408,8 @@ const fetchBLData = async () => {
     `,
             icon: "question",
             showCancelButton: true,
-            confirmButtonColor: "#10b981",
-            cancelButtonColor: "#e43a3a",
+            confirmButtonColor: "#16a34a",
+            cancelButtonColor: "#64748b",
             confirmButtonText: "Sí, actualizar",
             cancelButtonText: "Cancelar",
             width: '500px'
@@ -445,7 +440,6 @@ const fetchBLData = async () => {
                 title: "¡Actualizado!",
                 html: `<div class="text-center"><p class="text-lg mb-2">BL <strong class="text-green-600">${data.bl_number}</strong></p><p class="text-sm text-gray-600">actualizado exitosamente</p></div>`,
                 icon: "success",
-                confirmButtonColor: "#10b981",
                 timer: 2000,
                 showConfirmButton: false
             });
@@ -462,7 +456,7 @@ const fetchBLData = async () => {
 
         } catch (e) {
             console.error('Error:', e);
-            Swal.fire({ title: "Error", text: e?.message || "No se pudo actualizar la carga suelta", icon: "error", confirmButtonColor: "#10b981" });
+            Swal.fire({ title: "Error", text: e?.message || "No se pudo actualizar la carga suelta", icon: "error", confirmButtonColor: "#0F2A44" });
         } finally {
             setIsSubmitting(false);
         }
@@ -491,7 +485,7 @@ const fetchBLData = async () => {
 
     const removeItem = (index) => {
         if (formData.items.length === 1) {
-            Swal.fire({ title: "Atención", text: "Debe haber al menos 1 item", icon: "warning", confirmButtonColor: "#10b981" });
+            Swal.fire({ title: "Atención", text: "Debe haber al menos 1 item", icon: "warning", confirmButtonColor: "#F59E0B" });
             return;
         }
         const newItems = formData.items.filter((_, idx) => idx !== index);
@@ -758,7 +752,6 @@ const Step2Participantes = ({ formData, setFormData }) => {
     return (
         <div className="space-y-6">
             <h2 className="text-lg font-semibold text-slate-800 mb-4">Participantes del BL</h2>
-
 
             {/* SHIPPER */}
             <div className="border border-slate-300 rounded-lg p-6 bg-white relative">

@@ -370,7 +370,7 @@ const CRUDMantenedor = () => {
           </ul>
         `,
         icon: "warning",
-        confirmButtonColor: "#0F2A44",
+        confirmButtonColor: "#F59E0B",
         confirmButtonText: "Entendido",
       });
       return false;
@@ -416,8 +416,8 @@ const CRUDMantenedor = () => {
       `,
       icon: "question",
       showCancelButton: true,
-      confirmButtonColor: "#62c755ff",
-      cancelButtonColor: "#ff5353ff",
+      confirmButtonColor: "#16a34a",
+      cancelButtonColor: "#64748b",
       confirmButtonText: `Sí, ${action}`,
       cancelButtonText: "Cancelar",
       width: "500px",

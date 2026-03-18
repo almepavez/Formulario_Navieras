@@ -53,7 +53,7 @@ const fetchParticipantes = async () => {
                 icon: 'error',
                 title: 'Error',
                 text: 'No se pudieron cargar los participantes',
-                confirmButtonColor: '#3b82f6'
+                confirmButtonColor: '#0F2A44'
             });
         }
     };
@@ -136,7 +136,7 @@ const fetchParticipantes = async () => {
                 icon: 'warning',
                 title: 'Campo requerido',
                 text: 'El Código BMS es obligatorio',
-                confirmButtonColor: '#3b82f6'
+                confirmButtonColor: '#F59E0B'
             });
             return false;
         }
@@ -146,7 +146,7 @@ const fetchParticipantes = async () => {
                 icon: 'warning',
                 title: 'Campo requerido',
                 text: 'El Nombre es obligatorio',
-                confirmButtonColor: '#3b82f6'
+                confirmButtonColor: '#F59E0B'
             });
             return false;
         }
@@ -156,7 +156,7 @@ const fetchParticipantes = async () => {
                 icon: 'warning',
                 title: 'Campo requerido',
                 text: 'El RUT es obligatorio',
-                confirmButtonColor: '#3b82f6'
+                confirmButtonColor: '#F59E0B'
             });
             return false;
         }
@@ -166,7 +166,7 @@ const fetchParticipantes = async () => {
                 icon: 'warning',
                 title: 'Campo requerido',
                 text: 'La Ciudad es obligatoria',
-                confirmButtonColor: '#3b82f6'
+                confirmButtonColor: '#F59E0B'
             });
             return false;
         }
@@ -176,7 +176,7 @@ const fetchParticipantes = async () => {
                 icon: 'warning',
                 title: 'Campo requerido',
                 text: 'El País es obligatorio',
-                confirmButtonColor: '#3b82f6'
+                confirmButtonColor: '#F59E0B'
             });
             return false;
         }
@@ -186,7 +186,7 @@ const fetchParticipantes = async () => {
                 icon: 'warning',
                 title: 'Campo requerido',
                 text: 'El Contacto es obligatorio',
-                confirmButtonColor: '#3b82f6'
+                confirmButtonColor: '#F59E0B'
             });
             return false;
         }
@@ -196,7 +196,7 @@ const fetchParticipantes = async () => {
                 icon: 'warning',
                 title: 'Campo requerido',
                 text: 'El Matchcode es obligatorio',
-                confirmButtonColor: '#3b82f6'
+                confirmButtonColor: '#F59E0B'
             });
             return false;
         }
@@ -210,7 +210,7 @@ const fetchParticipantes = async () => {
                 icon: 'warning',
                 title: 'Información de contacto requerida',
                 text: 'Debe ingresar al menos un Email o un Teléfono',
-                confirmButtonColor: '#3b82f6'
+                confirmButtonColor: '#F59E0B'
             });
             return false;
         }
@@ -226,7 +226,7 @@ const fetchParticipantes = async () => {
                     icon: 'error',
                     title: 'Código duplicado',
                     text: `El Código BMS "${p.codigo_bms}" ya existe`,
-                    confirmButtonColor: '#3b82f6'
+                    confirmButtonColor: '#0F2A44'
                 });
                 return false;
             }
@@ -316,7 +316,7 @@ const fetchParticipantes = async () => {
                 icon: 'error',
                 title: 'Error',
                 text: error.message || 'No se pudo guardar el participante',
-                confirmButtonColor: '#3b82f6'
+                confirmButtonColor: '#0F2A44'
             });
         } finally {
             setLoading(false);

@@ -229,15 +229,15 @@ const ExpoBLEdit = () => {
         }));
     };
     const removeTransbordo = id => {
-        Swal.fire({ title: "¿Eliminar transbordo?", text: "Esta acción no se puede deshacer", icon: "warning", showCancelButton: true, confirmButtonText: "Sí, eliminar", cancelButtonText: "Cancelar", confirmButtonColor: "#ef4444", cancelButtonColor: "#64748b" })
+        Swal.fire({ title: "¿Eliminar transbordo?", text: "Esta acción no se puede deshacer", icon: "warning", showCancelButton: true, confirmButtonText: "Sí, eliminar", cancelButtonText: "Cancelar", confirmButtonColor: "#dc2626", cancelButtonColor: "#64748b" })
             .then(r => { if (r.isConfirmed) setTransbordos(prev => prev.filter(tb => tb.id !== id).map((tb, i) => ({ ...tb, sec: i + 1 }))); });
     };
 
     const addContenedorToItem = async (itemId, itemNumero) => {
         const item = items.find(i => i.id === itemId);
-        if (!item?.tipo_bulto) return Swal.fire({ icon: "error", title: "Error", text: "El ítem no tiene tipo_bulto definido", confirmButtonColor: "#ef4444" });
+        if (!item?.tipo_bulto) return Swal.fire({ icon: "error", title: "Error", text: "El ítem no tiene tipo_bulto definido", confirmButtonColor: "#0F2A44" });
         const mapeo = tipoCntTipoBulto.find(m => m.tipo_bulto === item.tipo_bulto);
-        if (!mapeo) return Swal.fire({ icon: "error", title: "Error de configuración", text: `No se encontró tipo_cnt para tipo_bulto "${item.tipo_bulto}"`, confirmButtonColor: "#ef4444" });
+        if (!mapeo) return Swal.fire({ icon: "error", title: "Error de configuración", text: `No se encontró tipo_cnt para tipo_bulto "${item.tipo_bulto}"`, confirmButtonColor: "#0F2A44" });
         const tipoCntAsignado = mapeo.tipo_cnt;
 
         const { value: fv } = await Swal.fire({
@@ -272,7 +272,7 @@ const ExpoBLEdit = () => {
                     document.getElementById("campo_soc").style.display = e.target.checked ? "block" : "none";
                 });
             },
-            showCancelButton: true, confirmButtonText: "Agregar", cancelButtonText: "Cancelar", confirmButtonColor: "#10b981", width: "600px",
+            showCancelButton: true, confirmButtonText: "Agregar", cancelButtonText: "Cancelar", confirmButtonColor: "#16a34a", width: "600px",
             preConfirm: () => {
                 const esSoc = document.getElementById("es_soc_new").checked;
                 const codigo = !esSoc ? document.getElementById("codigo_contenedor").value.trim().toUpperCase() : null;
@@ -321,7 +321,7 @@ const ExpoBLEdit = () => {
     };
 
     const addSelloToContenedor = cId => {
-        Swal.fire({ title: "Agregar Sello", input: "text", inputLabel: "Número de sello (máx. 35 caracteres)", inputPlaceholder: "Ej: BZ023785", showCancelButton: true, confirmButtonText: "Agregar", cancelButtonText: "Cancelar", confirmButtonColor: "#10b981", inputValidator: v => !v ? "Debes ingresar un número de sello" : v.length > 35 ? "Máximo 35 caracteres" : null })
+        Swal.fire({ title: "Agregar Sello", input: "text", inputLabel: "Número de sello (máx. 35 caracteres)", inputPlaceholder: "Ej: BZ023785", showCancelButton: true, confirmButtonText: "Agregar", cancelButtonText: "Cancelar", confirmButtonColor: "#16a34a", inputValidator: v => !v ? "Debes ingresar un número de sello" : v.length > 35 ? "Máximo 35 caracteres" : null })
             .then(r => {
                 if (r.isConfirmed) setContenedores(prev => prev.map(c => {
                     if (c.id !== cId) return c;
@@ -331,7 +331,7 @@ const ExpoBLEdit = () => {
             });
     };
     const removeSelloFromContenedor = (cId, sello) => {
-        Swal.fire({ title: "¿Eliminar sello?", text: `Sello: ${sello}`, icon: "warning", showCancelButton: true, confirmButtonText: "Sí, eliminar", cancelButtonText: "Cancelar", confirmButtonColor: "#ef4444" })
+        Swal.fire({ title: "¿Eliminar sello?", text: `Sello: ${sello}`, icon: "warning", showCancelButton: true, confirmButtonText: "Sí, eliminar", cancelButtonText: "Cancelar", confirmButtonColor: "#dc2626", cancelButtonColor: "#64748b" })
             .then(r => { if (r.isConfirmed) setContenedores(prev => prev.map(c => c.id === cId ? { ...c, sellos: (c.sellos || []).filter(s => s !== sello) } : c)); });
     };
 
@@ -340,7 +340,7 @@ const ExpoBLEdit = () => {
         Swal.fire({
             title: "Agregar IMO",
             html: `<input id="clase_imo" class="swal2-input" placeholder="Clase IMO (ej: 9)" maxlength="5"><input id="numero_imo" class="swal2-input" placeholder="Número IMO (ej: 3077)" maxlength="10">`,
-            showCancelButton: true, confirmButtonText: "Agregar", cancelButtonText: "Cancelar", confirmButtonColor: "#10b981",
+            showCancelButton: true, confirmButtonText: "Agregar", cancelButtonText: "Cancelar", confirmButtonColor: "#16a34a", cancelButtonColor: "#64748b",
             preConfirm: () => {
                 const clase = document.getElementById("clase_imo").value.trim();
                 const numero = document.getElementById("numero_imo").value.trim();
@@ -350,7 +350,7 @@ const ExpoBLEdit = () => {
         }).then(r => { if (r.isConfirmed && r.value) setContenedores(prev => prev.map(c => c.id === cId ? { ...c, imos: [...(c.imos || []), r.value] } : c)); });
     };
     const removeImoFromContenedor = (cId, index) => {
-        Swal.fire({ title: "¿Eliminar dato IMO?", icon: "warning", showCancelButton: true, confirmButtonText: "Sí, eliminar", cancelButtonText: "Cancelar", confirmButtonColor: "#ef4444" })
+        Swal.fire({ title: "¿Eliminar dato IMO?", icon: "warning", showCancelButton: true, confirmButtonText: "Sí, eliminar", cancelButtonText: "Cancelar", confirmButtonColor: "#dc2626", cancelButtonColor: "#64748b" })
             .then(r => { if (r.isConfirmed) setContenedores(prev => prev.map(c => c.id === cId ? { ...c, imos: (c.imos || []).filter((_, i) => i !== index) } : c)); });
     };
 
@@ -451,7 +451,7 @@ const ExpoBLEdit = () => {
             const inc = validarCantidadContenedores();
             if (inc.length > 0) {
                 const mensajeHTML = inc.map(i => `<div class="text-left mb-2 p-2 bg-gray-50 rounded"><strong>Item ${i.numeroItem}:</strong><br>Esperados: ${i.esperada} | Actuales: ${i.actual}<br>${i.faltanContenedores ? `<span class="text-red-600 font-bold">Faltan ${i.diferencia} contenedor(es)</span>` : `<span class="text-orange-600 font-bold">Sobran ${Math.abs(i.diferencia)} contenedor(es)</span>`}</div>`).join("");
-                Swal.fire({ icon: "error", title: "Cantidad inconsistente", html: `<div class="text-sm">${mensajeHTML}</div>`, confirmButtonText: "Entendido", confirmButtonColor: "#ef4444", width: "600px" });
+                Swal.fire({ icon: "error", title: "Cantidad inconsistente", html: `<div class="text-sm">${mensajeHTML}</div>`, confirmButtonText: "Entendido", confirmButtonColor: "#0F2A44", width: "600px" });
                 return;
             }
         }
@@ -462,7 +462,7 @@ const ExpoBLEdit = () => {
         if (currentStep === 5 && targetStep !== 5) {
             const inc = validarCantidadContenedores();
             if (inc.length > 0) {
-                Swal.fire({ icon: "error", title: "Cantidad inconsistente", html: inc.map(i => `<div class="text-left mb-2 p-2 bg-gray-50 rounded"><strong>Item ${i.numeroItem}:</strong> Esperados ${i.esperada} | Actuales ${i.actual}</div>`).join(""), confirmButtonText: "Entendido", confirmButtonColor: "#ef4444" });
+                Swal.fire({ icon: "error", title: "Cantidad inconsistente", html: inc.map(i => `<div class="text-left mb-2 p-2 bg-gray-50 rounded"><strong>Item ${i.numeroItem}:</strong> Esperados ${i.esperada} | Actuales ${i.actual}</div>`).join(""), confirmButtonText: "Entendido", confirmButtonColor: "#0F2A44" });
                 return;
             }
         }
@@ -475,7 +475,7 @@ const ExpoBLEdit = () => {
             title: "¿Guardar cambios?",
             html: `<p class="text-sm text-gray-600 mb-3">Estás por guardar los cambios del BL:</p><p class="font-semibold text-lg">${formData.bl_number}</p>`,
             showCancelButton: true, confirmButtonText: "Sí, guardar", cancelButtonText: "Cancelar",
-            confirmButtonColor: "#10b981", cancelButtonColor: "#e43a3aff", reverseButtons: true
+            confirmButtonColor: "#16a34a", cancelButtonColor: "#64748b", reverseButtons: true
         });
         if (!result.isConfirmed) return;
         setSaving(true);
@@ -575,7 +575,7 @@ const ExpoBLEdit = () => {
         } catch (e) {
             console.error("Error al guardar:", e);
             setError(e?.message || "Error al guardar");
-            Swal.fire({ icon: "error", title: "Error al guardar", text: e?.message, confirmButtonColor: "#ef4444" });
+            Swal.fire({ icon: "error", title: "Error al guardar", text: e?.message, confirmButtonColor: "#0F2A44" });
         } finally {
             setSaving(false);
         }
