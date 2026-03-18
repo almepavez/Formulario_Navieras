@@ -1362,6 +1362,77 @@ app.put("/api/mantenedores/almacenistas/:id", async (req, res) => {
   }
 });
 
+app.put("/api/manifiestos/:id/depositos/bulk", async (req, res) => {
+  const { id } = req.params;
+  const payload = req.body;
+
+  if (!Array.isArray(payload) || payload.length === 0) {
+    return res.status(400).json({ error: "Payload inválido" });
+  }
+
+  const conn = await pool.getConnection();
+  await conn.beginTransaction();
+
+  try {
+    for (const row of payload) {
+      // 1. Guardar/actualizar en tabla reportes
+      await conn.query(
+        `INSERT INTO reportes (manifiesto_id, bl, n_contenedor, almacen, deposito)
+         VALUES (?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE 
+           almacen = VALUES(almacen),
+           deposito = VALUES(deposito)`,
+        [id, row.bl, row.n_contenedor ?? "", row.almacen ?? "", row.deposito ?? ""]
+      );
+
+      // 2. Sincronizar tabla bls si viene almacen
+      if (row.almacen && row.bl) {
+        const [participante] = await conn.query(
+          `SELECT id, nombre, rut, pais AS nacion_id, codigo_almacen
+           FROM participantes 
+           WHERE codigo_tatc = ?`,
+          [row.almacen]
+        );
+
+        if (participante.length > 0) {
+          const p = participante[0];
+          await conn.query(
+            `UPDATE bls SET
+               almacenador_id = ?,
+               almacenista_nombre = ?,
+               almacenista_rut = ?,
+               almacenista_nacion_id = ?,
+               almacenista_codigo_almacen = ?
+             WHERE bl_number = ? AND manifiesto_id = ?`,
+            [p.id, p.nombre, p.rut, p.nacion_id, p.codigo_almacen, row.bl, id]
+          );
+        } else {
+          // Si no existe en participantes, guardar solo el nombre
+          await conn.query(
+            `UPDATE bls SET
+               almacenador_id = NULL,
+               almacenista_nombre = ?,
+               almacenista_rut = NULL,
+               almacenista_nacion_id = NULL,
+               almacenista_codigo_almacen = NULL
+             WHERE bl_number = ? AND manifiesto_id = ?`,
+            [row.almacen, row.bl, id]
+          );
+        }
+      }
+    }
+
+    await conn.commit();
+    res.json({ ok: true, actualizadas: payload.length });
+
+  } catch (err) {
+    await conn.rollback();
+    console.error("Error en bulk depositos:", err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    conn.release();
+  }
+});
 
 // GET /api/tipos-bulto
 app.get("/api/tipos-bulto", async (_req, res) => {
@@ -6924,33 +6995,7 @@ app.put("/api/manifiestos/:id/depositos", async (req, res) => {
 });
 
 
-app.put("/api/manifiestos/:id/depositos/bulk", async (req, res) => {
-  const filas = req.body;
-  if (!Array.isArray(filas) || filas.length === 0)
-    return res.status(400).json({ error: "Se esperaba un array de filas" });
-  try {
-    const values = filas.map((f) => [
-      req.params.id,
-      f.bl || "",
-      f.n_contenedor || "",
-      f.deposito || "",
-      f.almacen || "",
-    ]);
-    await pool.query(
-      `INSERT INTO reportes (manifiesto_id, bl, n_contenedor, deposito, almacen)
-       VALUES ?
-       ON DUPLICATE KEY UPDATE
-         deposito   = VALUES(deposito),
-         almacen    = VALUES(almacen),
-         updated_at = CURRENT_TIMESTAMP`,
-      [values]
-    );
-    res.json({ ok: true, actualizadas: filas.length });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error al guardar en bulk" });
-  }
-});
+
 
 app.get("/api/bls/:blNumber/observaciones", async (req, res) => {
   try {
