@@ -587,115 +587,56 @@ export default function Reportes() {
     latestRows.current = rows;
   }, [rows]);
 
-  const handleCellEdit = (rowIdx, key, value) => {
-    setRows((prev) => prev.map((r, i) => (i === rowIdx ? { ...r, [key]: value } : r)));
-    if (!selectedId) return;
+const handleCellEdit = (rowIdx, key, value) => {
+  setRows((prev) => prev.map((r, i) => (i === rowIdx ? { ...r, [key]: value } : r)));
+  if (!selectedId) return;
 
-    clearTimeout(autoSaveTimers.current[rowIdx]);
-    autoSaveTimers.current[rowIdx] = setTimeout(async () => {
-      setRows((prev) => {
-        const row = prev[rowIdx];
-        if (!row) return prev;
-        const token = localStorage.getItem("token");
+  clearTimeout(autoSaveTimers.current[rowIdx]);
+  autoSaveTimers.current[rowIdx] = setTimeout(async () => {
+    const row = latestRows.current[rowIdx];
+    if (!row) return;
+    const token = localStorage.getItem("token");
 
-        fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            bl: row.bl,
-            n_contenedor: row.n_contenedor ?? "",
-            deposito: row.deposito ?? "",
-            almacen: row.almacen ?? "",
-          }),
-        }).catch(() => { });
+    fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos/bulk`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify([{
+        bl: row.bl,
+        n_contenedor: row.n_contenedor ?? "",
+        deposito: row.deposito ?? "",
+        almacen: row.almacen ?? "",
+      }]),
+    }).catch(() => {});
+  }, 800);
+};
 
-        if (key === "almacen" && value && row.bl) {
-          (async () => {
-            try {
-              const resAlm = await fetch(`${API_URL}/api/mantenedores/almacenistas`);
-              if (!resAlm.ok) return;
-              const almacenistas = await resAlm.json();
-              const encontrado = almacenistas.find(
-                a => a.codigo_tatc?.toLowerCase() === value.toLowerCase() ||
-                  a.nombre.toLowerCase() === value.toLowerCase()
-              );
-              await fetch(`${API_URL}/api/bls/${row.bl}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(encontrado ? {
-                  almacenista_id: encontrado.id,
-                  almacenista_nombre: encontrado.nombre,
-                  almacenista_rut: encontrado.rut,
-                  almacenista_nacion_id: encontrado.nacion_id,
-                  almacenista_codigo_almacen: encontrado.codigo_almacen,
-                } : {
-                  almacenista_nombre: value,
-                }),
-              });
-            } catch (err) {
-              console.warn("No se pudo actualizar el almacenista en el BL:", err);
-            }
-          })();
-        }
+const handleSaveAll = async () => {
+  if (!selectedId || !latestRows.current.length) return;
+  setSaving(true);
+  try {
+    const token = localStorage.getItem("token");
+    const payload = latestRows.current.map((r) => ({
+      bl: r.bl,
+      n_contenedor: r.n_contenedor ?? "",
+      deposito: r.deposito ?? "",
+      almacen: r.almacen ?? "",
+    }));
 
-        return prev;
-      });
-    }, 800);
-  };
+    const res = await fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos/bulk`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(payload),
+    });
 
-  const handleSaveAll = async () => {
-    if (!selectedId || !latestRows.current.length) return;
-    setSaving(true);
-    try {
-      const token = localStorage.getItem("token");
-      const currentRows = latestRows.current;
-
-      const payload = currentRows.map((r) => ({
-        bl: r.bl,
-        n_contenedor: r.n_contenedor ?? "",
-        deposito: r.deposito ?? "",
-        almacen: r.almacen ?? "",
-      }));
-
-      const res = await fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos/bulk`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-
-      const almacenistas = await fetch(`${API_URL}/api/mantenedores/almacenistas`)
-        .then(r => r.ok ? r.json() : [])
-        .catch(() => []);
-
-      const blsConAlmacen = currentRows.filter(r => r.almacen && r.bl);
-      await Promise.all(blsConAlmacen.map(async (row) => {
-        const encontrado = almacenistas.find(
-          a => a.codigo_tatc?.toLowerCase() === row.almacen.toLowerCase() ||
-            a.nombre.toLowerCase() === row.almacen.toLowerCase()
-        );
-        await fetch(`${API_URL}/api/bls/${row.bl}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(encontrado ? {
-            almacenista_id: encontrado.id,
-            almacenista_nombre: encontrado.nombre,
-            almacenista_rut: encontrado.rut,
-            almacenista_nacion_id: encontrado.nacion_id,
-            almacenista_codigo_almacen: encontrado.codigo_almacen,
-          } : {
-            almacenista_nombre: row.almacen,
-          }),
-        }).catch(() => { });
-      }));
-
-      showToast("success", `${data.actualizadas ?? currentRows.length} filas guardadas y BLs actualizados`);
-    } catch {
-      showToast("error", "Error al guardar");
-    } finally {
-      setSaving(false);
-    }
-  };
+    if (!res.ok) throw new Error("Error del servidor");
+    const data = await res.json();
+    showToast("success", `${data.actualizadas} filas guardadas`);
+  } catch {
+    showToast("error", "Error al guardar");
+  } finally {
+    setSaving(false);
+  }
+};
 
   const checkEmptyColumns = async (rowsToCheck, columnsToCheck) => {
     const emptyLabels = columnsToCheck
