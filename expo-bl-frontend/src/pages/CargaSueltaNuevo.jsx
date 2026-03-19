@@ -25,18 +25,32 @@ const TIPOS_BULTO = [
     { value: "75", label: "75 - Envases/Packages" }
 ];
 
-// UNIDADES DE PESO
 const UNIDADES_PESO = [
-    { value: "KGM", label: "KGM - Kilogramos" },
-    { value: "TNE", label: "TNE - Toneladas" },
-    { value: "LBR", label: "LBR - Libras" }
+    { value: "KGM", label: "KGM - Kilogramo" },
+    { value: "TNE", label: "TNE - Tonelada métrica" },
+    { value: "GRM", label: "GRM - Gramo" },
+    { value: "LBR", label: "LBR - Libra" },
+    { value: "ONZ", label: "ONZ - Onza" },
+    { value: "STN", label: "STN - Tonelada corta" },
+    { value: "KTN", label: "KTN - Kilotonelada" },
+    { value: "MTQ", label: "MTQ - Metro cúbico" },
+    { value: "LTR", label: "LTR - Litro" },
+    { value: "FTQ", label: "FTQ - Pie cúbico" },
+    { value: "CMQ", label: "CMQ - Centímetro cúbico" },
+    { value: "GLL", label: "GLL - Galón" },
+    { value: "INQ", label: "INQ - Pulgada cúbica" },
 ];
 
 // UNIDADES DE VOLUMEN
 const UNIDADES_VOLUMEN = [
-    { value: "MTQ", label: "MTQ - Metros cúbicos" },
-    { value: "FTQ", label: "FTQ - Pies cúbicos" },
-    { value: "LTR", label: "LTR - Litros" }
+    { value: "MTQ", label: "MTQ - Metro cúbico" },
+    { value: "LTR", label: "LTR - Litro" },
+    { value: "FTQ", label: "FTQ - Pie cúbico" },
+    { value: "INQ", label: "INQ - Pulgada cúbica" },
+    { value: "CMQ", label: "CMQ - Centímetro cúbico" },
+    { value: "GLL", label: "GLL - Galón" },
+    { value: "GLD", label: "GLD - Galón seco" },
+    { value: "HLT", label: "HLT - Hectolitro" },
 ];
 
 const validarEmail = (email) => {
@@ -1063,55 +1077,55 @@ const Step2Participantes = ({ formData, setFormData }) => {
                     Almacenador (ALM) <span className="text-sm text-slate-500 font-normal">(Opcional)</span>
                 </h3>
 
-              <AlmacenSelect
-    value={formData.almacenador_codigo_tatc ?? ""}
-    todos={almacenistasTatcList}
-    onChange={(codigoTatc) => {
-        const encontrado = almacenistasTatcList.find(a => a.codigo_tatc === codigoTatc);
-        setFormData(prev => ({
-            ...prev,
-            almacenador_codigo_tatc: codigoTatc,
-            almacenador: encontrado?.nombre ?? "",
-            almacenador_id: encontrado?.id ?? null,
-            almacenador_codigo_almacen: encontrado?.codigo_almacen ?? "",
-        }));
-    }}
-    onSave={() => { }}
-/>
+                <AlmacenSelect
+                    value={formData.almacenador_codigo_tatc ?? ""}
+                    todos={almacenistasTatcList}
+                    onChange={(codigoTatc) => {
+                        const encontrado = almacenistasTatcList.find(a => a.codigo_tatc === codigoTatc);
+                        setFormData(prev => ({
+                            ...prev,
+                            almacenador_codigo_tatc: codigoTatc,
+                            almacenador: encontrado?.nombre ?? "",
+                            almacenador_id: encontrado?.id ?? null,
+                            almacenador_codigo_almacen: encontrado?.codigo_almacen ?? "",
+                        }));
+                    }}
+                    onSave={() => { }}
+                />
 
-{(() => {
-    const encontrado = almacenistasTatcList.find(a => a.codigo_tatc === formData.almacenador_codigo_tatc);
-    if (!encontrado) return null;
-    const completo = encontrado.nombre && encontrado.rut && encontrado.nacion_id && encontrado.codigo_almacen;
-    return (
-        <div className={`mt-3 rounded-lg border p-4 text-sm ${completo ? "bg-white border-orange-200" : "bg-yellow-50 border-yellow-300"}`}>
-            {!completo && (
-                <div className="flex items-center gap-2 mb-3 text-yellow-800 bg-yellow-100 border border-yellow-300 rounded-lg px-3 py-2 text-xs">
-                    <svg className="w-4 h-4 flex-shrink-0 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                    </svg>
-                    <span>Datos incompletos — ve a <strong>Mantenedores → Almacenistas</strong> para completarlos.</span>
-                </div>
-            )}
-            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-                {[
-                    { label: "Nombre", value: encontrado.nombre },
-                    { label: "RUT", value: encontrado.rut },
-                    { label: "Nación", value: encontrado.nacion_id },
-                    { label: "Cód. Almacén", value: encontrado.codigo_almacen },
-                    { label: "Cód. TATC", value: encontrado.codigo_tatc },
-                ].map(({ label, value }) => (
-                    <div key={label}>
-                        <span className="text-slate-400 text-xs uppercase tracking-wide">{label}</span>
-                        <p className={`font-medium mt-0.5 text-sm ${value ? "text-slate-800" : "text-red-500 italic"}`}>
-                            {value || "Sin dato"}
-                        </p>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-})()}
+                {(() => {
+                    const encontrado = almacenistasTatcList.find(a => a.codigo_tatc === formData.almacenador_codigo_tatc);
+                    if (!encontrado) return null;
+                    const completo = encontrado.nombre && encontrado.rut && encontrado.nacion_id && encontrado.codigo_almacen;
+                    return (
+                        <div className={`mt-3 rounded-lg border p-4 text-sm ${completo ? "bg-white border-orange-200" : "bg-yellow-50 border-yellow-300"}`}>
+                            {!completo && (
+                                <div className="flex items-center gap-2 mb-3 text-yellow-800 bg-yellow-100 border border-yellow-300 rounded-lg px-3 py-2 text-xs">
+                                    <svg className="w-4 h-4 flex-shrink-0 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                                    </svg>
+                                    <span>Datos incompletos — ve a <strong>Mantenedores → Almacenistas</strong> para completarlos.</span>
+                                </div>
+                            )}
+                            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                                {[
+                                    { label: "Nombre", value: encontrado.nombre },
+                                    { label: "RUT", value: encontrado.rut },
+                                    { label: "Nación", value: encontrado.nacion_id },
+                                    { label: "Cód. Almacén", value: encontrado.codigo_almacen },
+                                    { label: "Cód. TATC", value: encontrado.codigo_tatc },
+                                ].map(({ label, value }) => (
+                                    <div key={label}>
+                                        <span className="text-slate-400 text-xs uppercase tracking-wide">{label}</span>
+                                        <p className={`font-medium mt-0.5 text-sm ${value ? "text-slate-800" : "text-red-500 italic"}`}>
+                                            {value || "Sin dato"}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                })()}
 
                 {formData.almacenador && (
                     <p className="text-xs text-slate-500 mt-2">
@@ -1320,12 +1334,13 @@ const Step3Items = ({ formData, setFormData, addItem, removeItem, tiposBulto }) 
                                 placeholder="Ej: 1500.500"
                             />
 
-                            <SelectField
+                            <UnidadCombobox
                                 label="Unidad de Peso"
                                 value={item.unidad_peso}
                                 onChange={(v) => updateItem(idx, 'unidad_peso', v)}
-                                options={UNIDADES_PESO}
+                                opciones={UNIDADES_PESO}
                                 required
+                                placeholder="KGM"
                             />
                         </div>
 
@@ -1341,12 +1356,13 @@ const Step3Items = ({ formData, setFormData, addItem, removeItem, tiposBulto }) 
                                 required
                             />
 
-                            <SelectField
+                            <UnidadCombobox
                                 label="Unidad de Volumen"
                                 value={item.unidad_volumen}
                                 onChange={(v) => updateItem(idx, 'unidad_volumen', v)}
-                                options={UNIDADES_VOLUMEN}
+                                opciones={UNIDADES_VOLUMEN}
                                 required
+                                placeholder="MTQ"
                             />
                         </div>
                     </div>
@@ -1814,3 +1830,61 @@ const MaskedDateTimeInput = ({ label, value, onChange, required }) => {
 };
 
 export default CargaSueltaNuevo;
+
+// Agregar este componente al final de CargaSueltaEdit.jsx, antes del export
+const UnidadCombobox = ({ label, value, onChange, opciones, required, placeholder }) => {
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+
+    useEffect(() => {
+        const handler = (e) => {
+            if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, []);
+
+    const filtradas = value?.length >= 1
+        ? opciones.filter(o => o.value.includes(value.toUpperCase()) || o.label.toUpperCase().includes(value.toUpperCase()))
+        : opciones;
+
+    return (
+        <div className="relative" ref={ref}>
+            {label && (
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                    {label} {required && <span className="text-red-500">*</span>}
+                </label>
+            )}
+            <input
+                type="text"
+                value={value || ""}
+                onChange={e => { onChange(e.target.value.toUpperCase()); setOpen(true); }}
+                onFocus={() => setOpen(true)}
+                placeholder={placeholder || "KGM"}
+                maxLength={3}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F2A44] transition-colors text-sm font-mono uppercase"
+            />
+            {open && filtradas.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-200">
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Unidades sugeridas</p>
+                    </div>
+                    {filtradas.map(op => (
+                        <button
+                            key={op.value}
+                            type="button"
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => { onChange(op.value); setOpen(false); }}
+                            className={`w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-slate-50 border-b border-slate-100 last:border-0 transition-colors ${value === op.value ? 'bg-slate-100' : ''}`}
+                        >
+                            <span className="font-mono font-bold text-xs text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded w-12 text-center flex-shrink-0">
+                                {op.value}
+                            </span>
+                            <span className="text-xs text-slate-600 truncate">{op.label.split(' - ')[1]}</span>
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
