@@ -3844,9 +3844,19 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
         };
         const codigoAlmacen = almacenMap[puertoDescarga] ?? null;
 
-        const [almRows] = codigoAlmacen ? await conn.query(
-          `SELECT id, codigo_almacen, codigo_tatc FROM participantes WHERE codigo_almacen = ? LIMIT 1`,
-          [codigoAlmacen]
+        // Verificar si ya hay un almacén asignado manualmente en reportes
+        const [reporteExistente] = await conn.query(
+          `SELECT almacen FROM reportes WHERE manifiesto_id = ? AND bl = ? AND almacen != '' LIMIT 1`,
+          [id, blNumber]
+        );
+
+        const codigoAlmacenFinal = reporteExistente.length > 0
+          ? reporteExistente[0].almacen  // respetar el manual (es codigo_tatc)
+          : codigoAlmacen;               // usar el por defecto
+
+        const [almRows] = codigoAlmacenFinal ? await conn.query(
+          `SELECT id, codigo_almacen, codigo_tatc FROM participantes WHERE codigo_tatc = ? LIMIT 1`,
+          [codigoAlmacenFinal]
         ) : [[]];
 
         if (almRows.length > 0) {
@@ -3861,17 +3871,15 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
             for (const cnt of contenedoresDelBl) {
               const nroCnt = (cnt.cnt_so_numero || `${cnt.sigla || ''} ${String(cnt.numero || '').padStart(6,'0')}-${cnt.digito || ''}`).trim();
               await conn.query(
-                `INSERT INTO reportes (manifiesto_id, bl, n_contenedor, deposito, almacen)
-                 VALUES (?, ?, ?, '', ?)
-                 ON DUPLICATE KEY UPDATE almacen = VALUES(almacen), deposito = ''`,
+                `INSERT IGNORE INTO reportes (manifiesto_id, bl, n_contenedor, deposito, almacen)
+                 VALUES (?, ?, ?, '', ?)`,
                 [id, blNumber, nroCnt, codigoTatc]
               );
             }
           } else {
             await conn.query(
-              `INSERT INTO reportes (manifiesto_id, bl, n_contenedor, deposito, almacen)
-               VALUES (?, ?, '', '', ?)
-               ON DUPLICATE KEY UPDATE almacen = VALUES(almacen), deposito = ''`,
+              `INSERT IGNORE INTO reportes (manifiesto_id, bl, n_contenedor, deposito, almacen)
+               VALUES (?, ?, '', '', ?)`,
               [id, blNumber, codigoTatc]
             );
           }

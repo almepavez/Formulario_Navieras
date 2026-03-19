@@ -374,7 +374,7 @@ const ManifiestoDetalle = () => {
             <div style="background:#fef3c7; border:1px solid #fcd34d; border-radius:10px; padding:12px 14px;">
               <p style="font-weight:700; color:#92400e; margin-bottom:4px;">Los BLs anteriores serán eliminados</p>
               <p style="color:#78350f; font-size:12px; line-height:1.5;">
-                Se crearán los BLs desde el archivo. Los BLs anteriores serán eliminados.
+                Se crearán los BLs desde cero usando la información del archivo PMS.
               </p>
             </div>
 
@@ -385,6 +385,13 @@ const ManifiestoDetalle = () => {
                   La fecha de zarpe se calculará en base a la <strong>información</strong> del PMS.
                 </p>
               </div>
+            </div>
+
+            <div style="background:#f0fdf4; border:1px solid #86efac; border-radius:10px; padding:12px 14px;">
+              <p style="font-weight:700; color:#166534; margin-bottom:4px;">Los almacenes editados se mantendrán</p>
+              <p style="color:#14532d; font-size:12px; line-height:1.5;">
+                Si los almacenes fueron modificados manualmente, se respetarán los cambios al reprocesar.
+              </p>
             </div>
           </div>
         `,
@@ -399,14 +406,24 @@ const ManifiestoDetalle = () => {
       if (!advertencia.isConfirmed) return;
     } else {
       const result = await Swal.fire({
-        title: "¿Procesar PMS?",
-        text: "Se crearán los BLs desde el archivo. Los BLs anteriores serán eliminados.",
-        icon: "question",
+        title: "Advertencia antes de procesar",
+        icon: "warning",
+        html: `
+          <div style="text-align:left; font-size:13px; color:#334155; display:grid; gap:12px;">
+            <div style="background:#fef3c7; border:1px solid #fcd34d; border-radius:10px; padding:12px 14px;">
+              <p style="font-weight:700; color:#92400e; margin-bottom:4px;">Los BLs anteriores serán eliminados</p>
+              <p style="color:#78350f; font-size:12px; line-height:1.5;">
+                Se crearán los BLs desde cero usando la información del archivo PMS.
+              </p>
+            </div>
+          </div>
+        `,
         showCancelButton: true,
         confirmButtonColor: "#F59E0B",
         cancelButtonColor: "#64748b",
-        confirmButtonText: "Sí, procesar",
+        confirmButtonText: "Entendido, procesar igual",
         cancelButtonText: "Cancelar",
+        width: "500px",
       });
 
       if (!result.isConfirmed) return;
