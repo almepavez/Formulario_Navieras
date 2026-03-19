@@ -75,6 +75,7 @@ const CargaSueltaEdit = () => {
         fecha_emision: "",
         fecha_presentacion: "",
         fecha_embarque: "",
+        fecha_zarpe: "",
         puerto_embarque: "",
         puerto_descarga: "",
         lugar_destino: "",
@@ -272,6 +273,8 @@ const CargaSueltaEdit = () => {
                 const resManifiesto = await fetch(`${API_BASE}/api/manifiestos/${bl.manifiesto_id}`);
                 if (resManifiesto.ok) {
                     const jsonManifiesto = await resManifiesto.json();
+                            console.log("MANIFIESTO DATA:", jsonManifiesto); // ← AGREGA ESTO
+
                     setManifiestoData(jsonManifiesto.manifiesto);
                 }
             }
@@ -708,19 +711,56 @@ const Step1DatosBL = ({ formData, setFormData, manifiestoData, puertos }) => (
                 onChange={(v) => setFormData({ ...formData, fecha_emision: v })}
                 required
             />
-            <InputField
-                label="Fecha Presentación"
-                type="date"
-                value={formData.fecha_presentacion}
-                onChange={(v) => setFormData({ ...formData, fecha_presentacion: v })}
-                required
-            />
+
+            {/* Fecha Presentación — solo lectura, hora actual */}
+            <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Fecha Presentación</label>
+                <input
+                    type="text"
+                    value={(() => {
+                        const d = new Date();
+                        const p = new Intl.DateTimeFormat('es-CL', {
+                            timeZone: 'America/Santiago',
+                            day: '2-digit', month: '2-digit', year: 'numeric',
+                            hour: '2-digit', minute: '2-digit', hour12: false
+                        }).formatToParts(d);
+                        const get = t => p.find(x => x.type === t).value;
+                        return `${get('day')}/${get('month')}/${get('year')} ${get('hour')}:${get('minute')}`;
+                    })()}
+                    disabled
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-50 text-slate-500 cursor-not-allowed text-sm"
+                />
+                <p className="text-xs text-slate-400 mt-1">Se genera automáticamente al declarar</p>
+            </div>
+
             <MaskedDateTimeInput
                 label="Fecha Embarque"
                 value={formData.fecha_embarque}
                 onChange={(v) => setFormData({ ...formData, fecha_embarque: v })}
                 required
             />
+
+            {/* Fecha Zarpe — del manifiesto */}
+            <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Fecha Zarpe</label>
+                <input
+                    type="text"
+                    value={manifiestoData?.fechaZarpe
+                        ? (() => {
+                            const str = manifiestoData.fechaZarpe;
+                            const clean = str.replace('T', ' ').trim();
+                            const [datePart, timePart] = clean.split(' ');
+                            const [yyyy, mm, dd] = datePart.split('-');
+                            const hhmm = timePart ? timePart.slice(0, 5) : '00:00';
+                            return `${dd}/${mm}/${yyyy} ${hhmm}`;
+                        })()
+                        : "Sin fecha zarpe en manifiesto"
+                    }
+                    disabled
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-50 text-slate-500 cursor-not-allowed text-sm"
+                />
+                <p className="text-xs text-slate-400 mt-1">Definida en el manifiesto</p>
+            </div>
         </div>
 
         <h3 className="text-md font-semibold text-slate-700 mt-6 mb-3">Locaciones</h3>
