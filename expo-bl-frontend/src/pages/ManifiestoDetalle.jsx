@@ -2,6 +2,8 @@ import { useEffect, useState, useRef, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import Sidebar from "../components/Sidebar";
+import ComboSelect from "../components/ComboSelect";
+import SearchSelect from "../components/SearchSelect";
 
 const formatDateCL = (iso) => {
   if (!iso) return "—";
@@ -90,7 +92,7 @@ const ManifiestoDetalle = () => {
     setFormData(prev => ({
       ...prev,
       numeroReferencia: prev.numeroManifiestoAduana,
-      fechaReferencia: formData.fechaManifiestoAduana || prev.fechaReferencia,
+      fechaReferencia: prev.fechaManifiestoAduana || prev.fechaReferencia,
     }));
   }, [formData.numeroManifiestoAduana, formData.fechaManifiestoAduana]);
 
@@ -362,7 +364,7 @@ const ManifiestoDetalle = () => {
       return;
     }
 
-   const esIMPO = (m?.tipoOperacion || "").toString().trim().toUpperCase() === "I";
+    const esIMPO = (m?.tipoOperacion || "").toString().trim().toUpperCase() === "I";
 
     if (esIMPO) {
       const advertencia = await Swal.fire({
@@ -641,39 +643,23 @@ const ManifiestoDetalle = () => {
                   />
                 ) : (
                   <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
-                    <div className="text-xs font-medium text-slate-700">Puerto central</div>
-                    <input
-                      type="text"
-                      list="puertos-list"
+                    <div className="text-xs font-medium text-slate-700 mb-1">Puerto central</div>
+                    <SearchSelect
                       value={puertoSearch}
-                      onChange={(e) => {
-                        const valorIngresado = e.target.value;
-                        setPuertoSearch(valorIngresado);
-
-                        // ✅ Buscar por código exacto O por "CODIGO - NOMBRE"
+                      onChange={(v) => {
+                        setPuertoSearch(v);
                         const puertoEncontrado = puertos.find(p =>
-                          p.codigo.toUpperCase() === valorIngresado.toUpperCase() ||
-                          `${p.codigo} - ${p.nombre}`.toUpperCase() === valorIngresado.toUpperCase()
+                          p.codigo.toUpperCase() === v.toUpperCase()
                         );
-
                         if (puertoEncontrado) {
                           handleInputChange("puertoCentralId", puertoEncontrado.id.toString());
                         } else {
                           handleInputChange("puertoCentralId", "");
                         }
                       }}
+                      options={puertos.map(p => ({ value: p.codigo, label: p.nombre }))}
                       placeholder="Escribe o selecciona un puerto..."
-                      className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                     />
-                    <datalist id="puertos-list">
-                      {puertos.map((puerto) => (
-                        <option key={puerto.id} value={puerto.codigo}>
-                          {puerto.nombre}
-                        </option>
-                      ))}
-                    </datalist>
-
-
                   </div>
                 )}
                 {!isEditing ? (
@@ -715,7 +701,6 @@ const ManifiestoDetalle = () => {
                       label="Fecha Zarpe"
                       value={formatDTCL(m.fechaZarpe)}
                     />
-                    <InfoReadOnly label="Remark" value={m.remark || "—"} />
                   </>
 
                 ) : (
@@ -731,68 +716,29 @@ const ManifiestoDetalle = () => {
                       ]}
                     />
 
-                    <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
-                      <div className="text-xs font-medium text-slate-700">Emisor (Agente que presenta el mensaje) </div>
-                      <select
-                        value={formData.operadorNave}
-                        onChange={(e) => handleInputChange("operadorNave", e.target.value)}
-                        className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                      >
-                        <option value="">-- Selecciona --</option>
-                        {referencias.map((ref) => (
-                          <option key={ref.id} value={ref.customer_id}>
-                            {ref.nombre_emisor}
-                          </option>
-                        ))}
-                      </select>
-                      {operadorNaveSeleccionado && (
-                        <p className="mt-1 text-[10px] text-slate-500">
-                          Customer ID: {operadorNaveSeleccionado.customer_id} | RUT: {operadorNaveSeleccionado.rut}
-                        </p>
-                      )}
-                    </div>
+                    <InfoEditableSearchSelect
+                      label="Emisor (Agente que presenta el mensaje)"
+                      value={formData.operadorNave}
+                      onChange={(v) => handleInputChange("operadorNave", v)}
+                      options={referencias.map(ref => ({ value: ref.customer_id, label: ref.nombre_emisor }))}
+                      hint={operadorNaveSeleccionado ? `Customer ID: ${operadorNaveSeleccionado.customer_id} | RUT: ${operadorNaveSeleccionado.rut}` : null}
+                    />
 
-                    <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
-                      <div className="text-xs font-medium text-slate-700">Emisor doc</div>
-                      <select
-                        value={formData.emisorDocumento}
-                        onChange={(e) => handleInputChange("emisorDocumento", e.target.value)}
-                        className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                      >
-                        <option value="">-- Selecciona --</option>
-                        {referencias.map((ref) => (
-                          <option key={ref.id} value={ref.customer_id}>
-                            {ref.nombre_emisor}
-                          </option>
-                        ))}
-                      </select>
-                      {emisorSeleccionado && (
-                        <p className="mt-1 text-[10px] text-slate-500">
-                          Customer ID: {emisorSeleccionado.customer_id} | RUT: {emisorSeleccionado.rut}
-                        </p>
-                      )}
-                    </div>
+                    <InfoEditableSearchSelect
+                      label="Emisor doc"
+                      value={formData.emisorDocumento}
+                      onChange={(v) => handleInputChange("emisorDocumento", v)}
+                      options={referencias.map(ref => ({ value: ref.customer_id, label: ref.nombre_emisor }))}
+                      hint={emisorSeleccionado ? `Customer ID: ${emisorSeleccionado.customer_id} | RUT: ${emisorSeleccionado.rut}` : null}
+                    />
 
-                    <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
-                      <div className="text-xs font-medium text-slate-700">Representante</div>
-                      <select
-                        value={formData.representante}
-                        onChange={(e) => handleInputChange("representante", e.target.value)}
-                        className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                      >
-                        <option value="">-- Selecciona --</option>
-                        {referencias.map((ref) => (
-                          <option key={ref.id} value={ref.match_code}>
-                            {ref.match_code} — {ref.nombre_emisor}
-                          </option>
-                        ))}
-                      </select>
-                      {representanteSeleccionado && (
-                        <p className="mt-1 text-[10px] text-slate-500">
-                          Customer ID: {representanteSeleccionado.customer_id} | RUT: {representanteSeleccionado.rut}
-                        </p>
-                      )}
-                    </div>
+                    <InfoEditableSearchSelect
+                      label="Representante"
+                      value={formData.representante}
+                      onChange={(v) => handleInputChange("representante", v)}
+                      options={referencias.map(ref => ({ value: ref.match_code, label: `${ref.match_code} — ${ref.nombre_emisor}` }))}
+                      hint={representanteSeleccionado ? `Customer ID: ${representanteSeleccionado.customer_id} | RUT: ${representanteSeleccionado.rut}` : null}
+                    />
 
                     <InfoEditableDate
                       label="Fecha Mfto Aduana CL"
@@ -809,11 +755,7 @@ const ManifiestoDetalle = () => {
                       value={formData.fechaZarpe}
                       onChange={(v) => handleInputChange("fechaZarpe", v)}
                     />
-                    <InfoEditable
-                      label="Remark"
-                      value={formData.remark}
-                      onChange={(v) => handleInputChange("remark", v)}
-                    />
+
                   </>
                 )}
               </div>
@@ -963,32 +905,22 @@ const ManifiestoDetalle = () => {
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-4">
                     <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
-                      <div className="text-xs font-medium text-slate-700">Operador Nave</div>
-                      <select
-                        value={formData.referenciaId || ""}
-                        onChange={(e) => {
-                          const refId = e.target.value;
-                          handleInputChange("referenciaId", refId);
-
-                          if (refId) {
-                            const ref = referencias.find(r => r.id === parseInt(refId));
-                            if (ref) {
-                              handleInputChange("numeroReferencia", ref.match_code);
-                            }
+                      <div className="text-xs font-medium text-slate-700 mb-1">Operador Nave</div>
+                      <ComboSelect
+                        value={formData.referenciaId ? String(formData.referenciaId) : ""}
+                        onChange={(v) => {
+                          handleInputChange("referenciaId", v);
+                          if (v) {
+                            const ref = referencias.find(r => String(r.id) === String(v));
+                            if (ref) handleInputChange("numeroReferencia", ref.match_code);
                           } else {
                             handleInputChange("numeroReferencia", "");
                             handleInputChange("fechaReferencia", "");
                           }
                         }}
-                        className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">Sin referencia</option>
-                        {referencias.map(r => (
-                          <option key={r.id} value={r.id}>
-                            {r.match_code} - {r.nombre_emisor}
-                          </option>
-                        ))}
-                      </select>
+                        options={referencias.map(r => ({ value: String(r.id), label: `${r.match_code} - ${r.nombre_emisor}` }))}
+                        placeholder="Seleccionar..."
+                      />
                     </div>
 
                     <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
@@ -1036,31 +968,31 @@ const ManifiestoDetalle = () => {
                       })()}
                     </div>
                   )}
-               </>
+                </>
               )}
             </div>
 
             {/* Información del Sistema */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mt-6">
-                <h2 className="text-sm font-semibold text-slate-700 mb-4">Información del sistema</h2>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                        <p className="text-xs font-medium text-slate-500 mb-1">Creado</p>
-                        <p className="text-sm font-medium text-slate-800">{formatDTCL(m.createdAt)}</p>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                        <p className="text-xs font-medium text-slate-500 mb-1">Última actualización</p>
-                        <p className="text-sm font-medium text-slate-800">{formatDTCL(m.updatedAt)}</p>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                        <p className="text-xs font-medium text-slate-500 mb-1">Subido por</p>
-                        <p className="text-sm font-medium text-slate-800">{m.creadoPorNombre || "—"}</p>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                        <p className="text-xs font-medium text-slate-500 mb-1">Email</p>
-                        <p className="text-sm font-medium text-slate-800 truncate">{m.creadoPorEmail || "—"}</p>
-                    </div>
+              <h2 className="text-sm font-semibold text-slate-700 mb-4">Información del sistema</h2>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-xs font-medium text-slate-500 mb-1">Creado</p>
+                  <p className="text-sm font-medium text-slate-800">{formatDTCL(m.createdAt)}</p>
                 </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-xs font-medium text-slate-500 mb-1">Última actualización</p>
+                  <p className="text-sm font-medium text-slate-800">{formatDTCL(m.updatedAt)}</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-xs font-medium text-slate-500 mb-1">Subido por</p>
+                  <p className="text-sm font-medium text-slate-800">{m.creadoPorNombre || "—"}</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-xs font-medium text-slate-500 mb-1">Email</p>
+                  <p className="text-sm font-medium text-slate-800 truncate">{m.creadoPorEmail || "—"}</p>
+                </div>
+              </div>
             </div>
           </>
         )}
@@ -1114,18 +1046,26 @@ const InfoEditableDatetime = ({ label, value, onChange }) => (
 
 const InfoEditableSelect = ({ label, value, onChange, options }) => (
   <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
-    <div className="text-xs font-medium text-slate-700">{label}</div>
-    <select
+    <div className="text-xs font-medium text-slate-700 mb-1">{label}</div>
+    <ComboSelect
       value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-    >
-      {options.map(opt => (
-        <option key={opt.value} value={opt.value}>
-          {opt.label}
-        </option>
-      ))}
-    </select>
+      onChange={onChange}
+      options={options}
+      placeholder="Seleccionar..."
+    />
+  </div>
+);
+
+const InfoEditableSearchSelect = ({ label, value, onChange, options, hint }) => (
+  <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
+    <div className="text-xs font-medium text-slate-700 mb-1">{label}</div>
+    <ComboSelect
+      value={value}
+      onChange={onChange}
+      options={options}
+      placeholder="-- Selecciona --"
+    />
+    {hint && <p className="mt-1 text-[10px] text-slate-500">{hint}</p>}
   </div>
 );
 

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import { Edit3, ArrowUpRight, ArrowDownLeft, X } from "lucide-react";
+import ComboSelect from "../components/ComboSelect";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -102,11 +103,10 @@ const SearchableSelect = ({ value, onChange, options, allLabel }) => {
                     onChange={handleChange}
                     onFocus={() => setOpen(true)}
                     placeholder={allLabel}
-                    className={`w-full px-3 py-2 text-sm border rounded-lg outline-none transition-colors ${
-                        value !== "TODOS"
-                            ? "border-[#0F2A44] bg-[#0F2A44]/5 text-[#0F2A44]"
-                            : "border-slate-300 bg-white text-slate-700"
-                    } focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]`}
+                    className={`w-full px-3 py-2 text-sm border rounded-lg outline-none transition-colors ${value !== "TODOS"
+                        ? "border-[#0F2A44] bg-[#0F2A44]/5 text-[#0F2A44]"
+                        : "border-slate-300 bg-white text-slate-700"
+                        } focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44]`}
                 />
                 {value !== "TODOS" && (
                     <button
@@ -130,9 +130,8 @@ const SearchableSelect = ({ value, onChange, options, allLabel }) => {
                                     type="button"
                                     onMouseDown={(e) => e.preventDefault()}
                                     onClick={() => handleSelect(o)}
-                                    className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 transition-colors ${
-                                        value === o ? "font-semibold text-[#0F2A44] bg-slate-50" : "text-slate-700"
-                                    }`}
+                                    className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 transition-colors ${value === o ? "font-semibold text-[#0F2A44] bg-slate-50" : "text-slate-700"
+                                        }`}
                                 >
                                     {o}
                                 </button>
@@ -316,60 +315,54 @@ const ExpoBL = () => {
 
                 {/* ── Filtros secundarios ─────────────────────────── */}
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3">
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-center">
-
+                    <div className="flex items-center gap-3">
                         {/* Búsqueda libre */}
                         <input
                             type="text"
                             placeholder="Buscar BL, Shipper, Consignee..."
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44] outline-none"
+                            className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44] outline-none"
                         />
 
-                        {/* Viaje */}
-                        <SearchableSelect
-                            value={viajeFilter}
-                            onChange={setViajeFilter}
-                            options={viajes}
-                            allLabel="Todos los viajes"
+                        <ComboSelect
+                            value={viajeFilter === "TODOS" ? "" : viajeFilter}
+                            onChange={v => setViajeFilter(v || "TODOS")}
+                            options={[{ value: "", label: "Todos los viajes" }, ...viajes.map(v => ({ value: v, label: v }))]}
+                            placeholder="Todos los viajes"
                         />
 
-                        {/* Nave */}
-                        <SearchableSelect
-                            value={naveFilter}
-                            onChange={setNaveFilter}
-                            options={naves}
-                            allLabel="Todas las naves"
+                        <ComboSelect
+                            value={naveFilter === "TODOS" ? "" : naveFilter}
+                            onChange={v => setNaveFilter(v || "TODOS")}
+                            options={[{ value: "", label: "Todas las naves" }, ...naves.map(n => ({ value: n, label: n }))]}
+                            placeholder="Todas las naves"
                         />
 
-                        {/* Tipo servicio */}
-                        <SearchableSelect
-                            value={servicioFilter}
-                            onChange={setServicioFilter}
-                            options={servicios}
-                            allLabel="Todos los servicios"
+                        <ComboSelect
+                            value={servicioFilter === "TODOS" ? "" : servicioFilter}
+                            onChange={v => setServicioFilter(v || "TODOS")}
+                            options={[{ value: "", label: "Todos los servicios" }, ...servicios.map(s => ({ value: s, label: s }))]}
+                            placeholder="Todos los servicios"
                         />
 
-                        {/* POL por región + Limpiar */}
-                        <div className="flex gap-2">
-                            <SearchableSelect
-                                value={polFilter}
-                                onChange={setPolFilter}
-                                options={regiones}
-                                allLabel="Todos los POL"
-                            />
-                            {hayFiltrosActivos && (
-                                <button
-                                    onClick={limpiarFiltros}
-                                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-red-200 text-red-500 bg-red-50 hover:bg-red-100 transition-colors whitespace-nowrap"
-                                    title="Limpiar filtros"
-                                >
-                                    <X size={14} />
-                                    Limpiar
-                                </button>
-                            )}
-                        </div>
+                        <ComboSelect
+                            value={polFilter === "TODOS" ? "" : polFilter}
+                            onChange={v => setPolFilter(v || "TODOS")}
+                            options={[{ value: "", label: "Todos los POL" }, ...regiones.map(r => ({ value: r, label: r }))]}
+                            placeholder="Todos los POL"
+                        />
+
+                        {/* Botón limpiar — solo si hay filtros activos */}
+                        {hayFiltrosActivos && (
+                            <button
+                                onClick={limpiarFiltros}
+                                title="Limpiar filtros"
+                                className="flex-shrink-0 p-2 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition-colors"
+                            >
+                                <X size={16} />
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -396,13 +389,16 @@ const ExpoBL = () => {
                         </span>
                         <div className="flex items-center gap-2">
                             <label>Mostrar:</label>
-                            <select
-                                value={itemsPerPage}
-                                onChange={e => setItemsPerPage(Number(e.target.value))}
-                                className="px-3 py-1 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] outline-none"
-                            >
-                                {[10, 25, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
-                            </select>
+                            <ComboSelect
+                                value={String(itemsPerPage)}
+                                onChange={v => setItemsPerPage(Number(v))}
+                                options={[
+                                    { value: "10", label: "10" },
+                                    { value: "25", label: "25" },
+                                    { value: "50", label: "50" },
+                                    { value: "100", label: "100" },
+                                ]}
+                            />
                         </div>
                     </div>
                 )}

@@ -5243,6 +5243,12 @@ app.put("/api/bls/:blNumber/carga-suelta", async (req, res) => {
     }
     const blId = blRows[0].id;
 
+    const [manifRows] = await conn.query(
+      `SELECT fecha_zarpe FROM manifiestos WHERE id = (SELECT manifiesto_id FROM bls WHERE id = ?)`,
+      [blId]
+    );
+
+    const fecha_zarpe_manifiesto = manifRows.length > 0 ? manifRows[0].fecha_zarpe : null;
     // ─── Convertir fecha DD/MM/YYYY → YYYY-MM-DD ───────────────────────────
     // Reemplaza parseFecha por esta:
     const parseFechaCLtoMySQL = (str) => {
@@ -5276,7 +5282,7 @@ app.put("/api/bls/:blNumber/carga-suelta", async (req, res) => {
       UPDATE bls SET
         forma_pago_flete=?, cond_transporte=?,
         fecha_emision=?, fecha_presentacion=?, fecha_embarque=?,
-        fecha_zarpe=NULL, lugar_emision_id=NULL, lugar_recepcion_id=NULL,
+        fecha_zarpe=?, lugar_emision_id=NULL, lugar_recepcion_id=NULL,
         puerto_embarque_id=?, puerto_descarga_id=?,
         lugar_destino_id=?, lugar_entrega_id=?,
         almacenador_id=?,
@@ -5289,6 +5295,7 @@ app.put("/api/bls/:blNumber/carga-suelta", async (req, res) => {
     `, [
       forma_pago_flete, cond_transporte,
       fecha_emision_sql, fecha_presentacion_sql, fecha_embarque_sql,
+      fecha_zarpe_manifiesto,
       puerto_embarque_id, puerto_descarga_id,
       lugar_destino_id, lugar_entrega_id,
       almacenador_id || null,
@@ -6802,10 +6809,12 @@ app.post("/api/manifiestos/:id/carga-suelta", async (req, res) => {
     }
 
     const [manifiestos] = await connection.query(
-      'SELECT id, viaje FROM manifiestos WHERE id = ?',
+      'SELECT id, viaje, fecha_zarpe FROM manifiestos WHERE id = ?'
       [manifiestoId]
     );
     if (manifiestos.length === 0) throw new Error('Manifiesto no encontrado');
+
+    const fecha_zarpe_manifiesto = manifiestos[0].fecha_zarpe || null;
 
     const [blsExistentes] = await connection.query(
       'SELECT id FROM bls WHERE bl_number = ?',
@@ -6914,7 +6923,7 @@ app.post("/api/manifiestos/:id/carga-suelta", async (req, res) => {
         consignee, consignee_rut, consignee_direccion, consignee_telefono, consignee_email, consignee_codigo_pil,
         notify_party, notify_rut, notify_direccion, notify_telefono, notify_email, notify_codigo_pil,
         almacenador,
-        fecha_emision, fecha_presentacion, fecha_embarque,
+        fecha_emision, fecha_presentacion, fecha_embarque, fecha_zarpe,
         puerto_embarque_id, puerto_embarque_cod,
         puerto_descarga_id, puerto_descarga_cod,
         lugar_destino_id,   lugar_destino_cod,
@@ -6948,7 +6957,7 @@ app.post("/api/manifiestos/:id/carga-suelta", async (req, res) => {
         consigneeNombre, consignee_rut || null, consignee_direccion || null, consignee_telefono || null, consignee_email || null, consignee_codigo_pil || null,
         notifyNombre, notify_rut || null, notify_direccion || null, notify_telefono || null, notify_email || null, notify_codigo_pil || null,
         almacenadorNombre,
-        fechaEmisionSQL, fechaPresentacionSQL, fechaEmbarqueSQL,  // ✅ fechas convertidas
+        fechaEmisionSQL, fechaPresentacionSQL, fechaEmbarqueSQL, fecha_zarpe_manifiesto,
         puertoEmbarque.id, puertoEmbarque.codigo,
         puertoDescarga.id, puertoDescarga.codigo,
         lugarDestino.id, lugarDestino.codigo,
