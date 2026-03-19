@@ -894,16 +894,51 @@ const handleFileUpload = async (e) => {
         return byTatc ? byTatc.codigo_tatc : "";
       };
 
+      // Verificar que no haya almacenes distintos para contenedores del mismo BL
+      const almacenesPorBl = {};
+      Object.entries(updates).forEach(([key, upd]) => {
+        if (!upd.almacen) return;
+        const bl = key.split("||")[0];
+        if (!almacenesPorBl[bl]) almacenesPorBl[bl] = new Set();
+        almacenesPorBl[bl].add(resolveAlmacen(upd.almacen) || upd.almacen);
+      });
+
+      const blsConConflicto = Object.entries(almacenesPorBl)
+        .filter(([, set]) => set.size > 1)
+        .map(([bl, set]) => `<li style="font-size:13px; color:#dc2626; margin-bottom:4px;"><strong>${bl}</strong>: ${[...set].join(", ")}</li>`)
+        .join("");
+
+      if (blsConConflicto) {
+        await Swal.fire({
+          title: "Almacenes inconsistentes",
+          icon: "error",
+          html: `
+            <p style="color:#64748b; font-size:13px; margin-bottom:12px;">
+              Los siguientes BLs tienen contenedores con almacenes distintos en el Excel. El almacén debe ser el mismo para todos los contenedores de un BL.
+            </p>
+            <ul style="text-align:center; padding-left:0; list-style:none;">
+              ${blsConConflicto}
+            </ul>
+          `,
+          confirmButtonColor: "#0F2A44",
+          confirmButtonText: "Entendido",
+          width: "480px",
+        });
+        return;
+      }
+
       let actualizadas = 0;
       setRows((prev) =>
         prev.map((r) => {
           const upd = updates[`${String(r.bl ?? "").trim()}||${String(r.n_contenedor ?? "").trim()}`];
           if (!upd) return r;
           actualizadas++;
+          // Propagar almacen a todos los contenedores del mismo BL
+          const almacenResuelto = upd.almacen ? resolveAlmacen(upd.almacen) : null;
           return {
             ...r,
             ...upd,
-            ...(upd.almacen ? { almacen: resolveAlmacen(upd.almacen) } : {}),
+            ...(almacenResuelto ? { almacen: almacenResuelto } : {}),
           };
         })
       );
