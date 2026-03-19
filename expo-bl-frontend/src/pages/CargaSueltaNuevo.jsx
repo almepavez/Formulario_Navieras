@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Swal from "sweetalert2";
 import AlmacenSelect from '../components/AlmacenSelect';
-
+import ComboSelect from "../components/ComboSelect";
 
 const STEPS = [
     { id: 1, name: "Datos BL" },
@@ -225,15 +225,7 @@ const CargaSueltaNuevo = () => {
                     });
                     return false;
                 }
-                if (!formData.fecha_presentacion) {
-                    Swal.fire({
-                        title: "Campo requerido",
-                        text: "Debes ingresar la Fecha de Presentación",
-                        icon: "warning",
-                        confirmButtonColor: "#10b981"
-                    });
-                    return false;
-                }
+            
                 if (!formData.fecha_embarque) {
                     Swal.fire({
                         title: "Campo requerido",
@@ -715,65 +707,65 @@ const Step1DatosBL = ({ formData, setFormData, manifiestoData, puertos }) => (
             />
         </div>
 
-<h3 className="text-md font-semibold text-slate-700 mt-6 mb-3">Fechas</h3>
-<div className="grid grid-cols-2 gap-4">
-    <MaskedDateInput
-        label="Fecha Emisión"
-        value={formData.fecha_emision}
-        onChange={(v) => setFormData({ ...formData, fecha_emision: v })}
-        required
-    />
+        <h3 className="text-md font-semibold text-slate-700 mt-6 mb-3">Fechas</h3>
+        <div className="grid grid-cols-2 gap-4">
+            <MaskedDateInput
+                label="Fecha Emisión"
+                value={formData.fecha_emision}
+                onChange={(v) => setFormData({ ...formData, fecha_emision: v })}
+                required
+            />
 
-    {/* Fecha Presentación — solo lectura, hora actual */}
-    <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Fecha Presentación</label>
-        <input
-            type="text"
-            value={(() => {
-                const d = new Date();
-                const p = new Intl.DateTimeFormat('es-CL', {
-                    timeZone: 'America/Santiago',
-                    day: '2-digit', month: '2-digit', year: 'numeric',
-                    hour: '2-digit', minute: '2-digit', hour12: false
-                }).formatToParts(d);
-                const get = t => p.find(x => x.type === t).value;
-                return `${get('day')}/${get('month')}/${get('year')} ${get('hour')}:${get('minute')}`;
-            })()}
-            disabled
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-50 text-slate-500 cursor-not-allowed text-sm"
-        />
-        <p className="text-xs text-slate-400 mt-1">Se genera automáticamente al declarar</p>
-    </div>
+            {/* Fecha Presentación — solo lectura, hora actual */}
+            <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Fecha Presentación</label>
+                <input
+                    type="text"
+                    value={(() => {
+                        const d = new Date();
+                        const p = new Intl.DateTimeFormat('es-CL', {
+                            timeZone: 'America/Santiago',
+                            day: '2-digit', month: '2-digit', year: 'numeric',
+                            hour: '2-digit', minute: '2-digit', hour12: false
+                        }).formatToParts(d);
+                        const get = t => p.find(x => x.type === t).value;
+                        return `${get('day')}/${get('month')}/${get('year')} ${get('hour')}:${get('minute')}`;
+                    })()}
+                    disabled
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-50 text-slate-500 cursor-not-allowed text-sm"
+                />
+                <p className="text-xs text-slate-400 mt-1">Se genera automáticamente al declarar</p>
+            </div>
 
-    <MaskedDateTimeInput
-        label="Fecha Embarque"
-        value={formData.fecha_embarque}
-        onChange={(v) => setFormData({ ...formData, fecha_embarque: v })}
-        required
-    />
+            <MaskedDateTimeInput
+                label="Fecha Embarque"
+                value={formData.fecha_embarque}
+                onChange={(v) => setFormData({ ...formData, fecha_embarque: v })}
+                required
+            />
 
-    {/* Fecha Zarpe — del manifiesto */}
-    <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Fecha Zarpe</label>
-        <input
-            type="text"
-            value={manifiestoData?.fechaZarpe
-                ? (() => {
-                    const str = manifiestoData.fechaZarpe;
-                    const clean = str.replace('T', ' ').trim();
-                    const [datePart, timePart] = clean.split(' ');
-                    const [yyyy, mm, dd] = datePart.split('-');
-                    const hhmm = timePart ? timePart.slice(0, 5) : '00:00';
-                    return `${dd}/${mm}/${yyyy} ${hhmm}`;
-                })()
-                : "Sin fecha zarpe en manifiesto"
-            }
-            disabled
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-50 text-slate-500 cursor-not-allowed text-sm"
-        />
-        <p className="text-xs text-slate-400 mt-1">Definida en el manifiesto</p>
-    </div>
-</div>
+            {/* Fecha Zarpe — del manifiesto */}
+            <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Fecha Zarpe</label>
+                <input
+                    type="text"
+                    value={manifiestoData?.fechaZarpe
+                        ? (() => {
+                            const str = manifiestoData.fechaZarpe;
+                            const clean = str.replace('T', ' ').trim();
+                            const [datePart, timePart] = clean.split(' ');
+                            const [yyyy, mm, dd] = datePart.split('-');
+                            const hhmm = timePart ? timePart.slice(0, 5) : '00:00';
+                            return `${dd}/${mm}/${yyyy} ${hhmm}`;
+                        })()
+                        : "Sin fecha zarpe en manifiesto"
+                    }
+                    disabled
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-50 text-slate-500 cursor-not-allowed text-sm"
+                />
+                <p className="text-xs text-slate-400 mt-1">Definida en el manifiesto</p>
+            </div>
+        </div>
 
         <h3 className="text-md font-semibold text-slate-700 mt-6 mb-3">Locaciones</h3>
         {manifiestoData?.puertoCentral && (
@@ -1232,15 +1224,15 @@ const Step2Participantes = ({ formData, setFormData }) => {
                                     <label className="block text-xs font-medium text-slate-600 mb-1">
                                         Tipo
                                     </label>
-                                    <select
+                                    <ComboSelect
                                         value={obs.nombre}
-                                        onChange={(e) => updateObservacion(idx, 'nombre', e.target.value)}
-                                        className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    >
-                                        <option value="GRAL">GRAL</option>
-                                        <option value="MOT">MOT</option>
-                                        <option value="OBS">OBS</option>
-                                    </select>
+                                        onChange={(v) => updateObservacion(idx, 'nombre', v)}
+                                        options={[
+                                            { value: "GRAL", label: "GRAL" },
+                                            { value: "MOT", label: "MOT" },
+                                            { value: "OBS", label: "OBS" },
+                                        ]}
+                                    />
                                 </div>
 
                                 <div className="col-span-3">
@@ -1639,20 +1631,18 @@ const InputField = ({ label, type = "text", value, onChange, placeholder, requir
     </div>
 );
 
+// ✅ DESPUÉS
 const SelectField = ({ label, value, onChange, options, required }) => (
     <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">
             {label} {required && <span className="text-red-500">*</span>}
         </label>
-        <select
+        <ComboSelect
             value={value}
-            onChange={(e) => onChange(e.target.value)}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F2A44] transition-colors"
-        >
-            {options.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-        </select>
+            onChange={onChange}
+            options={options}
+            placeholder="Seleccionar..."
+        />
     </div>
 );
 

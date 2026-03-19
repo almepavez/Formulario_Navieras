@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Swal from "sweetalert2";
 import AlmacenSelect from '../components/AlmacenSelect';
+import ComboSelect from "../components/ComboSelect";
 
 const STEPS = [
     { id: 1, name: "Datos BL" },
@@ -273,7 +274,7 @@ const CargaSueltaEdit = () => {
                 const resManifiesto = await fetch(`${API_BASE}/api/manifiestos/${bl.manifiesto_id}`);
                 if (resManifiesto.ok) {
                     const jsonManifiesto = await resManifiesto.json();
-                            console.log("MANIFIESTO DATA:", jsonManifiesto); // ← AGREGA ESTO
+                    console.log("MANIFIESTO DATA:", jsonManifiesto); // ← AGREGA ESTO
 
                     setManifiestoData(jsonManifiesto.manifiesto);
                 }
@@ -330,10 +331,6 @@ const CargaSueltaEdit = () => {
                 }
                 if (!formData.fecha_emision) {
                     Swal.fire({ title: "Campo requerido", text: "Debes ingresar la Fecha de Emisión", icon: "warning", confirmButtonColor: "#F59E0B" });
-                    return false;
-                }
-                if (!formData.fecha_presentacion) {
-                    Swal.fire({ title: "Campo requerido", text: "Debes ingresar la Fecha de Presentación", icon: "warning", confirmButtonColor: "#F59E0B" });
                     return false;
                 }
                 if (!formData.fecha_embarque) {
@@ -1169,15 +1166,15 @@ const Step2Participantes = ({ formData, setFormData }) => {
                             <div className="grid grid-cols-4 gap-3">
                                 <div className="col-span-1">
                                     <label className="block text-xs font-medium text-slate-600 mb-1">Tipo</label>
-                                    <select
+                                    <ComboSelect
                                         value={obs.nombre}
-                                        onChange={(e) => updateObservacion(idx, 'nombre', e.target.value)}
-                                        className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    >
-                                        <option value="GRAL">GRAL</option>
-                                        <option value="MOT">MOT</option>
-                                        <option value="OBS">OBS</option>
-                                    </select>
+                                        onChange={(v) => updateObservacion(idx, 'nombre', v)}
+                                        options={[
+                                            { value: "GRAL", label: "GRAL" },
+                                            { value: "MOT", label: "MOT" },
+                                            { value: "OBS", label: "OBS" },
+                                        ]}
+                                    />
                                 </div>
                                 <div className="col-span-3">
                                     <label className="block text-xs font-medium text-slate-600 mb-1">Contenido</label>
@@ -1476,9 +1473,12 @@ const SelectField = ({ label, value, onChange, options, required }) => (
         <label className="block text-sm font-medium text-slate-700 mb-1">
             {label} {required && <span className="text-red-500">*</span>}
         </label>
-        <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F2A44] transition-colors">
-            {options.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-        </select>
+        <ComboSelect
+            value={value}
+            onChange={onChange}
+            options={options}
+            placeholder="Seleccionar..."
+        />
     </div>
 );
 

@@ -3,8 +3,24 @@ import { useParams, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import Sidebar from "../components/Sidebar";
 import CrearPuertoModal from "../components/CrearPuertoModal";
+import ComboSelect from "../components/ComboSelect";
+import SearchSelect from "../components/SearchSelect";
 
 const API_BASE = import.meta.env.VITE_API_URL;
+
+const InputField = ({ label, value, onChange, required, ...props }) => (
+    <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">
+            {label} {required && <span className="text-red-500">*</span>}
+        </label>
+        <input
+            value={value ?? ""}
+            onChange={e => onChange(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#0F2A44] text-sm"
+            {...props}
+        />
+    </div>
+);
 
 const steps = [
     { id: 1, name: "General", description: "Información básica del BL" },
@@ -324,7 +340,33 @@ const ExpoBLEdit = () => {
             setItems(prev => prev.map(i => i.id === itemId ? { ...i, contenedores: [...(i.contenedores || []), { codigo: codigoDisplay }] } : i));
         }
     };
+    const UNIDADES_PESO = [
+        { value: "KGM", label: "KGM - Kilogramo" },
+        { value: "TNE", label: "TNE - Tonelada métrica" },
+        { value: "GRM", label: "GRM - Gramo" },
+        { value: "LBR", label: "LBR - Libra" },
+        { value: "ONZ", label: "ONZ - Onza" },
+        { value: "STN", label: "STN - Tonelada corta" },
+        { value: "KTN", label: "KTN - Kilotonelada" },
+        { value: "MTQ", label: "MTQ - Metro cúbico" },
+        { value: "LTR", label: "LTR - Litro" },
+        { value: "FTQ", label: "FTQ - Pie cúbico" },
+        { value: "CMQ", label: "CMQ - Centímetro cúbico" },
+        { value: "GLL", label: "GLL - Galón" },
+        { value: "INQ", label: "INQ - Pulgada cúbica" },
+    ];
 
+    // UNIDADES DE VOLUMEN
+    const UNIDADES_VOLUMEN = [
+        { value: "MTQ", label: "MTQ - Metro cúbico" },
+        { value: "LTR", label: "LTR - Litro" },
+        { value: "FTQ", label: "FTQ - Pie cúbico" },
+        { value: "INQ", label: "INQ - Pulgada cúbica" },
+        { value: "CMQ", label: "CMQ - Centímetro cúbico" },
+        { value: "GLL", label: "GLL - Galón" },
+        { value: "GLD", label: "GLD - Galón seco" },
+        { value: "HLT", label: "HLT - Hectolitro" },
+    ];
     const addSelloToContenedor = cId => {
         Swal.fire({ title: "Agregar Sello", input: "text", inputLabel: "Número de sello (máx. 35 caracteres)", inputPlaceholder: "Ej: BZ023785", showCancelButton: true, confirmButtonText: "Agregar", cancelButtonText: "Cancelar", confirmButtonColor: "#16a34a", inputValidator: v => !v ? "Debes ingresar un número de sello" : v.length > 35 ? "Máximo 35 caracteres" : null })
             .then(r => {
@@ -445,46 +487,46 @@ const ExpoBLEdit = () => {
                     Swal.fire({ icon: "error", title: "Datos IMO faltantes", html: `Contenedores con carga peligrosa sin IMO:<br><strong>${sinIMO.map(c => getCodigoContenedor(c)).join(", ")}</strong>`, confirmButtonColor: "#0F2A44" });
                     return false;
                 }
-                 // ← AGREGAR ESTO
-    const desfases = items.map(item => {
-        const contsDelItem = contenedores.filter(c => c.item_id === item.id);
-        if (contsDelItem.length === 0) return null;
-        const sumaPeso = contsDelItem.reduce((s, c) => s + (parseFloat(c.peso) || 0), 0);
-        const sumaVol  = contsDelItem.reduce((s, c) => s + (parseFloat(c.volumen) || 0), 0);
-        const pesoBL   = parseFloat(item.peso_bruto) || 0;
-        const volBL    = parseFloat(item.volumen) || 0;
-        const pesoOk   = Math.abs(sumaPeso - pesoBL) <= 1;
-        const volOk    = Math.abs(sumaVol - volBL) <= 0.01;
-        if (pesoOk && volOk) return null;
-        return {
-            numeroItem: item.numero_item,
-            pesoBL, sumaPeso, pesoOk,
-            volBL, sumaVol, volOk
-        };
-    }).filter(Boolean);
+                // ← AGREGAR ESTO
+                const desfases = items.map(item => {
+                    const contsDelItem = contenedores.filter(c => c.item_id === item.id);
+                    if (contsDelItem.length === 0) return null;
+                    const sumaPeso = contsDelItem.reduce((s, c) => s + (parseFloat(c.peso) || 0), 0);
+                    const sumaVol = contsDelItem.reduce((s, c) => s + (parseFloat(c.volumen) || 0), 0);
+                    const pesoBL = parseFloat(item.peso_bruto) || 0;
+                    const volBL = parseFloat(item.volumen) || 0;
+                    const pesoOk = Math.abs(sumaPeso - pesoBL) <= 1;
+                    const volOk = Math.abs(sumaVol - volBL) <= 0.01;
+                    if (pesoOk && volOk) return null;
+                    return {
+                        numeroItem: item.numero_item,
+                        pesoBL, sumaPeso, pesoOk,
+                        volBL, sumaVol, volOk
+                    };
+                }).filter(Boolean);
 
-    if (desfases.length > 0) {
-        Swal.fire({
-            icon: "warning",
-            title: "Desfase en peso/volumen",
-            html: `<div class="text-left text-sm space-y-3">
+                if (desfases.length > 0) {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "Desfase en peso/volumen",
+                        html: `<div class="text-left text-sm space-y-3">
                 ${desfases.map(d => `
                     <div class="p-3 bg-red-50 border border-red-200 rounded-lg">
                         <p class="font-semibold text-red-800 mb-2">Item ${d.numeroItem}</p>
                         ${!d.pesoOk ? `<p class="text-slate-700">⚠ Peso: item <strong>${d.pesoBL.toFixed(3)}</strong> ≠ Σ contenedores <strong>${d.sumaPeso.toFixed(3)}</strong> (diff ${(d.sumaPeso - d.pesoBL).toFixed(3)})</p>` : ''}
-                        ${!d.volOk  ? `<p class="text-slate-700 mt-1">⚠ Vol: item <strong>${d.volBL.toFixed(3)}</strong> ≠ Σ contenedores <strong>${d.sumaVol.toFixed(3)}</strong> (diff ${(d.sumaVol - d.volBL).toFixed(3)})</p>` : ''}
+                        ${!d.volOk ? `<p class="text-slate-700 mt-1">⚠ Vol: item <strong>${d.volBL.toFixed(3)}</strong> ≠ Σ contenedores <strong>${d.sumaVol.toFixed(3)}</strong> (diff ${(d.sumaVol - d.volBL).toFixed(3)})</p>` : ''}
                     </div>
                 `).join('')}
                 <p class="text-slate-500 text-xs">Corrige los valores antes de continuar.</p>
             </div>`,
-            confirmButtonText: "Entendido",
-            confirmButtonColor: "#F59E0B",
-        });
-        return false;
-    }
+                        confirmButtonText: "Entendido",
+                        confirmButtonColor: "#F59E0B",
+                    });
+                    return false;
+                }
 
-    break;
-                
+                break;
+
         }
         return true;
     };
@@ -945,11 +987,16 @@ const ExpoBLEdit = () => {
                             <div><label className="block text-sm font-medium text-slate-700 mb-2">Viaje</label><input type="text" value={formData.viaje} disabled className="w-full px-4 py-2 rounded-lg border border-slate-300 bg-slate-50 text-slate-500" /></div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-2">Tipo de Servicio <span className="text-red-500">*</span></label>
-                                <select value={formData.tipo_servicio} onChange={e => { updateField("tipo_servicio", e.target.value); if (e.target.value === "MM") updateField("forma_pago_flete", ""); }} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500">
-                                    <option value="">Seleccionar tipo de servicio...</option>
-                                    <option value="FF">FCL/FCL (FF)</option>
-                                    <option value="MM">EMPTY (MM)</option>
-                                </select>
+                                <ComboSelect
+                                    value={formData.tipo_servicio}
+                                    onChange={v => { updateField("tipo_servicio", v); if (v === "MM") updateField("forma_pago_flete", ""); }}
+                                    options={[
+                                        { value: "", label: "Seleccionar tipo de servicio..." },
+                                        { value: "FF", label: "FCL/FCL (FF)" },
+                                        { value: "MM", label: "EMPTY (MM)" },
+                                    ]}
+                                    placeholder="Seleccionar tipo de servicio..."
+                                />
                             </div>
 
                             {/* Fecha Emisión — solo fecha DD/MM/YYYY */}
@@ -1031,11 +1078,17 @@ const ExpoBLEdit = () => {
 
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-2">Forma de Pago Flete {formData.tipo_servicio !== "MM" && <span className="text-red-500">*</span>}</label>
-                                <select value={formData.forma_pago_flete} onChange={e => updateField("forma_pago_flete", e.target.value)} disabled={formData.tipo_servicio === "MM"} className={`w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 ${formData.tipo_servicio === "MM" ? "bg-slate-100 text-slate-400 cursor-not-allowed" : ""}`}>
-                                    <option value="">Seleccionar forma de pago...</option>
-                                    <option value="PREPAID">Prepaid</option>
-                                    <option value="COLLECT">Collect</option>
-                                </select>
+                                <ComboSelect
+                                    value={formData.forma_pago_flete}
+                                    onChange={v => updateField("forma_pago_flete", v)}
+                                    options={[
+                                        { value: "", label: "Seleccionar forma de pago..." },
+                                        { value: "PREPAID", label: "Prepaid" },
+                                        { value: "COLLECT", label: "Collect" },
+                                    ]}
+                                    placeholder="Seleccionar forma de pago..."
+                                    disabled={formData.tipo_servicio === "MM"}
+                                />
                                 {formData.tipo_servicio === "MM" && <p className="text-xs text-slate-500 mt-1">No aplica para tipo EMPTY</p>}
                             </div>
                         </div>
@@ -1064,7 +1117,7 @@ const ExpoBLEdit = () => {
                             <div className="border-b pb-6">
                                 <h3 className="font-semibold text-slate-800 mb-4">Puertos Principales</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {esImpo && transbordos.length > 0 ? (
+                                    {esImpo && transbordos.length > 0 ? (
                                         <div>
                                             <label className="block text-sm font-medium text-slate-700 mb-1">PE - Puerto Embarque</label>
                                             <input
@@ -1187,15 +1240,15 @@ const ExpoBLEdit = () => {
                                                 <div className="grid grid-cols-4 gap-3">
                                                     <div className="col-span-1">
                                                         <label className="block text-xs font-medium text-slate-600 mb-1">Tipo</label>
-                                                        <select
+                                                        <ComboSelect
                                                             value={obs.nombre}
-                                                            onChange={e => updateField("observaciones", formData.observaciones.map((o, i) => i === idx ? { ...o, nombre: e.target.value } : o))}
-                                                            className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                        >
-                                                            <option value="MOT">MOT</option>
-                                                            <option value="GRAL">GRAL</option>
-                                                            <option value="OBS">OBS</option>
-                                                        </select>
+                                                            onChange={v => updateField("observaciones", formData.observaciones.map((o, i) => i === idx ? { ...o, nombre: v } : o))}
+                                                            options={[
+                                                                { value: "MOT", label: "MOT" },
+                                                                { value: "GRAL", label: "GRAL" },
+                                                                { value: "OBS", label: "OBS" },
+                                                            ]}
+                                                        />
                                                     </div>
                                                     <div className="col-span-3">
                                                         <label className="block text-xs font-medium text-slate-600 mb-1">Contenido</label>
@@ -1309,12 +1362,58 @@ const ExpoBLEdit = () => {
                     {/* ════ STEP 4: MERCANCÍA ════ */}
                     {currentStep === 4 && (
                         <div className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-2">Peso Bruto <span className="text-red-500">*</span></label><input type="number" step="0.001" min={formData.tipo_servicio === "MM" ? "0" : "0.001"} value={formData.peso_bruto} onChange={e => updateField("peso_bruto", e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500" /></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-2">Unidad <span className="text-red-500">*</span></label><input type="text" value={formData.unidad_peso} onChange={e => updateField("unidad_peso", e.target.value.toUpperCase())} placeholder="KGM" className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500" /></div>
-                                <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-2">Volumen <span className="text-red-500">*</span></label><input type="number" step="0.001" min="0" value={formData.volumen ?? ""} onChange={e => updateField("volumen", e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500" /></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-2">Unidad <span className="text-red-500">*</span></label><input type="text" value={formData.unidad_volumen} onChange={e => updateField("unidad_volumen", e.target.value.toUpperCase())} placeholder="MTQ" className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500" /></div>
-                                <div className="md:col-span-3"><label className="block text-sm font-medium text-slate-700 mb-2">Cantidad de Bultos <span className="text-red-500">*</span></label><input type="number" min="1" value={formData.bultos} onChange={e => updateField("bultos", e.target.value)} className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500" /></div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                                <InputField
+                                    label="Peso Bruto"
+                                    type="number"
+                                    step="0.001"
+                                    min={formData.tipo_servicio === "MM" ? "0" : "0.001"}
+                                    placeholder="Ej: 1500.500"
+                                    value={formData.peso_bruto ?? ""}
+                                    onChange={v => updateField("peso_bruto", v)}
+                                    required
+                                />
+                                <SearchSelect
+                                    label="Unidad de Peso"
+                                    value={formData.unidad_peso || "KGM"}
+                                    onChange={v => updateField("unidad_peso", v)}
+                                    options={UNIDADES_PESO}
+                                    required
+                                    placeholder="KGM"
+                                />
+
+                                <InputField
+                                    label="Volumen"
+                                    type="number"
+                                    step="0.001"
+                                    min="0"
+                                    placeholder="0 si no aplica"
+                                    value={formData.volumen ?? ""}
+                                    onChange={v => updateField("volumen", v)}
+                                    required
+                                />
+                                <SearchSelect
+                                    label="Unidad de Volumen"
+                                    value={formData.unidad_volumen || "MTQ"}
+                                    onChange={v => updateField("unidad_volumen", v)}
+                                    options={UNIDADES_VOLUMEN}
+                                    required
+                                    placeholder="MTQ"
+                                />
+
+                                <div className="md:col-span-2">
+                                    <InputField
+                                        label="Cantidad de Bultos"
+                                        type="number"
+                                        min="1"
+                                        placeholder="Ej: 10"
+                                        value={formData.bultos ?? ""}
+                                        onChange={v => updateField("bultos", v)}
+                                        required
+                                    />
+                                </div>
+
                             </div>
                         </div>
                     )}
@@ -1346,12 +1445,57 @@ const ExpoBLEdit = () => {
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 <div className="md:col-span-2"><label className="block text-sm font-medium text-slate-700 mb-2">Descripción</label><textarea rows={3} value={item.descripcion || ""} onChange={e => updateItem(item.id, "descripcion", e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm" /></div>
                                                 <div><label className="block text-sm font-medium text-slate-700 mb-2">Marcas</label><input type="text" value={item.marcas || ""} onChange={e => updateItem(item.id, "marcas", e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm" /></div>
-                                                <div><label className="block text-sm font-medium text-slate-700 mb-2">Tipo Bulto</label><select value={item.tipo_bulto || ""} onChange={e => updateItem(item.id, "tipo_bulto", e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm"><option value="">Seleccionar...</option>{tiposBulto.map(t => <option key={t.id} value={t.tipo_bulto}>{t.tipo_bulto}</option>)}</select></div>
+                                                <div><label className="block text-sm font-medium text-slate-700 mb-2">Tipo Bulto</label><ComboSelect
+                                                    value={item.tipo_bulto || ""}
+                                                    onChange={v => updateItem(item.id, "tipo_bulto", v)}
+                                                    options={[
+                                                        { value: "", label: "Seleccionar..." },
+                                                        ...tiposBulto.map(t => ({ value: t.tipo_bulto, label: t.tipo_bulto }))
+                                                    ]}
+                                                    placeholder="Seleccionar..."
+                                                /></div>
                                                 <div><label className="block text-sm font-medium text-slate-700 mb-2">Cantidad</label><input type="number" value={item.cantidad || ""} onChange={e => updateItem(item.id, "cantidad", e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm" /></div>
-                                                <div><label className="block text-sm font-medium text-slate-700 mb-2">Peso Bruto</label><input type="number" step="0.001" value={item.peso_bruto ?? ""} onChange={e => updateItem(item.id, "peso_bruto", e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm" /></div>
-                                                <div><label className="block text-sm font-medium text-slate-700 mb-2">Unidad Peso</label><input type="text" value={item.unidad_peso || ""} onChange={e => updateItem(item.id, "unidad_peso", e.target.value.toUpperCase())} placeholder="KGM" maxLength="3" className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm uppercase" /></div>
-                                                <div><label className="block text-sm font-medium text-slate-700 mb-2">Volumen</label><input type="number" step="0.001" value={item.volumen || ""} onChange={e => updateItem(item.id, "volumen", e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm" /></div>
-                                                <div><label className="block text-sm font-medium text-slate-700 mb-2">Unidad Volumen</label><input type="text" value={item.unidad_volumen || ""} onChange={e => updateItem(item.id, "unidad_volumen", e.target.value.toUpperCase())} placeholder="MTQ" maxLength="3" className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm uppercase" /></div>
+                                                <div className="md:col-span-2 grid grid-cols-2 gap-4">
+                                                    <InputField
+                                                        label="Peso Bruto"
+                                                        type="number"
+                                                        step="0.001"
+                                                        min="0.001"
+                                                        placeholder="Ej: 1500.500"
+                                                        value={item.peso_bruto ?? ""}
+                                                        onChange={v => updateItem(item.id, "peso_bruto", v)}
+                                                        required
+                                                    />
+                                                    <SearchSelect
+                                                        label="Unidad de Peso"
+                                                        value={item.unidad_peso || "KGM"}
+                                                        onChange={v => updateItem(item.id, "unidad_peso", v)}
+                                                        options={UNIDADES_PESO}
+                                                        required
+                                                        placeholder="KGM"
+                                                    />
+                                                </div>
+
+                                                <div className="md:col-span-2 grid grid-cols-2 gap-4">
+                                                    <InputField
+                                                        label="Volumen"
+                                                        type="number"
+                                                        step="0.001"
+                                                        min="0"
+                                                        placeholder="0 si no aplica"
+                                                        value={item.volumen ?? ""}
+                                                        onChange={v => updateItem(item.id, "volumen", v)}
+                                                        required
+                                                    />
+                                                    <SearchSelect
+                                                        label="Unidad de Volumen"
+                                                        value={item.unidad_volumen || "MTQ"}
+                                                        onChange={v => updateItem(item.id, "unidad_volumen", v)}
+                                                        options={UNIDADES_VOLUMEN}
+                                                        required
+                                                        placeholder="MTQ"
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
@@ -1492,52 +1636,49 @@ const ExpoBLEdit = () => {
                                                     )}
 
                                                     {/* ← PEGA AQUÍ */}
-                                                    <div className="md:col-span-2 bg-white border border-slate-200 rounded-lg p-3">
-                                                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Peso y Volumen</p>
-                                                       
-                                                        <div className="grid grid-cols-4 gap-3">
-                                                            <div>
-                                                                <label className="block text-xs font-medium text-slate-600 mb-1">Peso Bruto <span className="text-red-500">*</span></label>
-                                                                <input
-                                                                    type="number" step="0.001" min="0"
-                                                                    value={cont.peso ?? ""}
-                                                                    onChange={e => updateContenedor(cont.id, "peso", parseFloat(e.target.value) || null)}
-                                                                    placeholder="0.000"
-                                                                    className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm font-mono"
-                                                                />
-                                                            </div>
-                                                            <div>
-                                                                <label className="block text-xs font-medium text-slate-600 mb-1">Unidad Peso <span className="text-red-500">*</span></label>
-                                                                <input
-                                                                    type="text" maxLength="3"
-                                                                    value={cont.unidad_peso || "KGM"}
-                                                                    onChange={e => updateContenedor(cont.id, "unidad_peso", e.target.value.toUpperCase())}
-                                                                    placeholder="KGM"
-                                                                    className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm font-mono uppercase"
-                                                                />
-                                                            </div>
-                                                            <div>
-                                                                <label className="block text-xs font-medium text-slate-600 mb-1">Unidad Vol. <span className="text-red-500">*</span></label>
-                                                                <input
-                                                                    type="text" maxLength="3"
-                                                                    value={cont.unidad_volumen || "MTQ"}
-                                                                    onChange={e => updateContenedor(cont.id, "unidad_volumen", e.target.value.toUpperCase())}
-                                                                    placeholder="MTQ"
-                                                                    className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm font-mono uppercase"
-                                                                />
-                                                            </div>
-                                                            <div>
-                                                                <label className="block text-xs font-medium text-slate-600 mb-1">Unidad Vol. <span className="text-red-500">*</span></label>
-                                                                <select
-                                                                    value={cont.unidad_volumen || "MTQ"}
-                                                                    onChange={e => updateContenedor(cont.id, "unidad_volumen", e.target.value)}
-                                                                    className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm"
-                                                                >
-                                                                    <option value="MTQ">MTQ</option>
-                                                                    <option value="FTQ">FTQ</option>
-                                                                    <option value="LTR">LTR</option>
-                                                                </select>
-                                                            </div>
+                                                    <div className="md:col-span-2 bg-white border border-slate-200 rounded-lg p-4">
+                                                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Peso y Volumen</p>
+
+                                                        <div className="grid grid-cols-2 gap-4 mb-4">
+                                                            <InputField
+                                                                label="Peso Bruto"
+                                                                type="number"
+                                                                step="0.001"
+                                                                min="0.001"
+                                                                placeholder="Ej: 1500.500"
+                                                                value={cont.peso ?? ""}
+                                                                onChange={v => updateContenedor(cont.id, "peso", parseFloat(v) || null)}
+                                                                required
+                                                            />
+                                                            <SearchSelect
+                                                                label="Unidad de Peso"
+                                                                value={cont.unidad_peso || "KGM"}
+                                                                onChange={v => updateContenedor(cont.id, "unidad_peso", v)}
+                                                                options={UNIDADES_PESO}
+                                                                required
+                                                                placeholder="KGM"
+                                                            />
+                                                        </div>
+
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <InputField
+                                                                label="Volumen"
+                                                                type="number"
+                                                                step="0.001"
+                                                                min="0"
+                                                                placeholder="0 si no aplica"
+                                                                value={cont.volumen ?? ""}
+                                                                onChange={v => updateContenedor(cont.id, "volumen", parseFloat(v) || null)}
+                                                                required
+                                                            />
+                                                            <SearchSelect
+                                                                label="Unidad de Volumen"
+                                                                value={cont.unidad_volumen || "MTQ"}
+                                                                onChange={v => updateContenedor(cont.id, "unidad_volumen", v)}
+                                                                options={UNIDADES_VOLUMEN}
+                                                                required
+                                                                placeholder="MTQ"
+                                                            />
                                                         </div>
                                                     </div>
                                                     <div className="md:col-span-2">
