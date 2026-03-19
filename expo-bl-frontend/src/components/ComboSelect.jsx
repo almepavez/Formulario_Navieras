@@ -124,8 +124,7 @@ const ComboSelect = ({
                 >
                     <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-200 sticky top-0">
                         <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
-                            {filtradas.length} opción{filtradas.length !== 1 ? "es" : ""}
-                        </p>
+                            {filtradas.length} opci{filtradas.length !== 1 ? "ones" : "ón"}                        </p>
                     </div>
                     {filtradas.map(op => (
                         <button
