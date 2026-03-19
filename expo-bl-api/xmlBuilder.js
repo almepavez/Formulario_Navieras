@@ -426,15 +426,14 @@ const buildXML = (bl, items, contenedores, transbordos, tipoAccion = 'I') => {
         fecha: (() => {
           if (esCargaSuelta) {
             return [
-              { nombre: 'FPRES', valor: formatDateTimeCL(new Date().toISOString()) },
-              { nombre: 'FEM', valor: parseFechaCL(bl.fecha_emision) },
+              { nombre: 'FPRES', valor: (() => { const d = new Date(); const opts = { timeZone: 'America/Santiago', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }; const p = new Intl.DateTimeFormat('es-CL', opts).formatToParts(d); const get = t => p.find(x => x.type === t).value; return `${get('day')}-${get('month')}-${get('year')} ${get('hour')}:${get('minute')}`; })() },              { nombre: 'FEM', valor: parseFechaCL(bl.fecha_emision) },
               bl.fecha_embarque && { nombre: 'FEMB', valor: parseFechaCL(bl.fecha_embarque) },
               bl.manifiesto_fecha_zarpe && { nombre: 'FZARPE', valor: formatDateTimeCL(bl.manifiesto_fecha_zarpe) }
             ].filter(Boolean);
           }
           // IMPO/EXPO — sin cambios
           return [
-            { nombre: 'FPRES', valor: formatDateTimeCL(new Date().toISOString()) },
+            { nombre: 'FPRES', valor: (() => { const d = new Date(); const opts = { timeZone: 'America/Santiago', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }; const p = new Intl.DateTimeFormat('es-CL', opts).formatToParts(d); const get = t => p.find(x => x.type === t).value; return `${get('day')}-${get('month')}-${get('year')} ${get('hour')}:${get('minute')}`; })() },
             { nombre: 'FEM', valor: formatDateCL(esImpo ? bl.fecha_emision : bl.manifiesto_fecha_zarpe) },
             { nombre: 'FZARPE', valor: formatDateTimeCL(bl.manifiesto_fecha_zarpe) },
             bl.fecha_embarque && { nombre: 'FEMB', valor: formatDateTimeCL(bl.fecha_embarque) }

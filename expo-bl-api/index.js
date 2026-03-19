@@ -3838,17 +3838,46 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
 
       if (tipoOperacion !== 'S') {
         const puertoDescarga = (b.puerto_descarga_cod || '').toUpperCase();
-        const codigoAlmacen = puertoDescarga === 'CLVAP' ? 'ALM-A44' : 'ALM-A56';
+        const almacenMap = {
+          CLVAP: esEmpty ? 'A-34' : 'A-44',
+          CLSAI: esEmpty ? 'A-36' : 'A-56',
+        };
+        const codigoAlmacen = almacenMap[puertoDescarga] ?? null;
 
-        const [almRows] = await conn.query(
-          `SELECT id, codigo_almacen FROM participantes WHERE codigo_almacen = ? LIMIT 1`,
+        const [almRows] = codigoAlmacen ? await conn.query(
+          `SELECT id, codigo_almacen, codigo_tatc FROM participantes WHERE codigo_almacen = ? LIMIT 1`,
           [codigoAlmacen]
-        );
+        ) : [[]];
+
         if (almRows.length > 0) {
           almacenadorId = almRows[0].id;
           almacenadorCodigo = almRows[0].codigo_almacen;
+
+          // Insertar en reportes: un registro por contenedor del BL
+          const codigoTatc = almRows[0].codigo_tatc || null;
+          const contenedoresDelBl = b.contenedores || [];
+
+          if (contenedoresDelBl.length > 0) {
+            for (const cnt of contenedoresDelBl) {
+              const nroCnt = (cnt.cnt_so_numero || `${cnt.sigla || ''} ${String(cnt.numero || '').padStart(6,'0')}-${cnt.digito || ''}`).trim();
+              await conn.query(
+                `INSERT INTO reportes (manifiesto_id, bl, n_contenedor, deposito, almacen)
+                 VALUES (?, ?, ?, '', ?)
+                 ON DUPLICATE KEY UPDATE almacen = VALUES(almacen), deposito = ''`,
+                [id, blNumber, nroCnt, codigoTatc]
+              );
+            }
+          } else {
+            await conn.query(
+              `INSERT INTO reportes (manifiesto_id, bl, n_contenedor, deposito, almacen)
+               VALUES (?, ?, '', '', ?)
+               ON DUPLICATE KEY UPDATE almacen = VALUES(almacen), deposito = ''`,
+              [id, blNumber, codigoTatc]
+            );
+          }
         }
-      }
+
+      } // cierre if (tipoOperacion !== 'S')
 
       // Pre-calcular tipo_bulto para items
       for (const it of (b.items || [])) {
@@ -4756,6 +4785,7 @@ app.get("/api/bls/:blNumber", async (req, res) => {
         b.*,
         m.viaje,
         m.tipo_operacion,
+        m.fecha_zarpe AS manifiesto_fecha_zarpe,
         ts.codigo AS tipo_servicio_codigo,
         ts.nombre AS tipo_servicio,
         le.codigo AS lugar_emision_cod,

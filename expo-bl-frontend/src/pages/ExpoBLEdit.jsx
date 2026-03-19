@@ -9,7 +9,7 @@ const API_BASE = import.meta.env.VITE_API_URL;
 const steps = [
     { id: 1, name: "General", description: "Información básica del BL" },
     { id: 2, name: "Rutas", description: "" },
-    { id: 3, name: "Addr.", description: "Shipper, Consignee, Notify" },
+    { id: 3, name: "Participantes", description: "Shipper, Consignee, Notify" },
     { id: 4, name: "Mercancía", description: "Descripción general de carga" },
     { id: 5, name: "Items", description: "Detalle de ítems" },
     { id: 6, name: "Contenedores", description: "Contenedores, sellos e IMO" },
@@ -54,6 +54,7 @@ const ExpoBLEdit = () => {
     const [formData, setFormData] = useState({
         bl_number: "", viaje: "", tipo_servicio: "",
         fecha_emision: "", fecha_presentacion: "", fecha_zarpe: "", fecha_embarque: "",
+        manifiesto_fecha_zarpe: "",
         fecha_recepcion_bl: "",
         lugar_emision: "", forma_pago_flete: "",
         puerto_embarque: "", puerto_descarga: "", lugar_destino: "", lugar_entrega: "", lugar_recepcion: "",
@@ -128,6 +129,7 @@ const ExpoBLEdit = () => {
                     fecha_emision: formatDate(dataBL.fecha_emision),
                     fecha_presentacion: formatDateTime(dataBL.fecha_presentacion),
                     fecha_zarpe: formatDateTime(dataBL.fecha_zarpe),
+                    manifiesto_fecha_zarpe: formatDateTime(dataBL.manifiesto_fecha_zarpe),
                     fecha_embarque: formatDateTime(dataBL.fecha_embarque),
                     fecha_recepcion_bl: formatDateTime(dataBL.fecha_recepcion_bl),
                     forma_pago_flete: dataBL.forma_pago_flete || "",
@@ -232,15 +234,15 @@ const ExpoBLEdit = () => {
         }));
     };
     const removeTransbordo = id => {
-        Swal.fire({ title: "¿Eliminar transbordo?", text: "Esta acción no se puede deshacer", icon: "warning", showCancelButton: true, confirmButtonText: "Sí, eliminar", cancelButtonText: "Cancelar", confirmButtonColor: "#ef4444", cancelButtonColor: "#64748b" })
+        Swal.fire({ title: "¿Eliminar transbordo?", text: "Esta acción no se puede deshacer", icon: "warning", showCancelButton: true, confirmButtonText: "Sí, eliminar", cancelButtonText: "Cancelar", confirmButtonColor: "#dc2626", cancelButtonColor: "#64748b" })
             .then(r => { if (r.isConfirmed) setTransbordos(prev => prev.filter(tb => tb.id !== id).map((tb, i) => ({ ...tb, sec: i + 1 }))); });
     };
 
     const addContenedorToItem = async (itemId, itemNumero) => {
         const item = items.find(i => i.id === itemId);
-        if (!item?.tipo_bulto) return Swal.fire({ icon: "error", title: "Error", text: "El ítem no tiene tipo_bulto definido", confirmButtonColor: "#ef4444" });
+        if (!item?.tipo_bulto) return Swal.fire({ icon: "error", title: "Error", text: "El ítem no tiene tipo_bulto definido", confirmButtonColor: "#0F2A44" });
         const mapeo = tipoCntTipoBulto.find(m => m.tipo_bulto === item.tipo_bulto);
-        if (!mapeo) return Swal.fire({ icon: "error", title: "Error de configuración", text: `No se encontró tipo_cnt para tipo_bulto "${item.tipo_bulto}"`, confirmButtonColor: "#ef4444" });
+        if (!mapeo) return Swal.fire({ icon: "error", title: "Error de configuración", text: `No se encontró tipo_cnt para tipo_bulto "${item.tipo_bulto}"`, confirmButtonColor: "#0F2A44" });
         const tipoCntAsignado = mapeo.tipo_cnt;
 
         const { value: fv } = await Swal.fire({
@@ -275,7 +277,7 @@ const ExpoBLEdit = () => {
                     document.getElementById("campo_soc").style.display = e.target.checked ? "block" : "none";
                 });
             },
-            showCancelButton: true, confirmButtonText: "Agregar", cancelButtonText: "Cancelar", confirmButtonColor: "#10b981", width: "600px",
+            showCancelButton: true, confirmButtonText: "Agregar", cancelButtonText: "Cancelar", confirmButtonColor: "#16a34a", width: "600px",
             preConfirm: () => {
                 const esSoc = document.getElementById("es_soc_new").checked;
                 const codigo = !esSoc ? document.getElementById("codigo_contenedor").value.trim().toUpperCase() : null;
@@ -324,7 +326,7 @@ const ExpoBLEdit = () => {
     };
 
     const addSelloToContenedor = cId => {
-        Swal.fire({ title: "Agregar Sello", input: "text", inputLabel: "Número de sello (máx. 35 caracteres)", inputPlaceholder: "Ej: BZ023785", showCancelButton: true, confirmButtonText: "Agregar", cancelButtonText: "Cancelar", confirmButtonColor: "#10b981", inputValidator: v => !v ? "Debes ingresar un número de sello" : v.length > 35 ? "Máximo 35 caracteres" : null })
+        Swal.fire({ title: "Agregar Sello", input: "text", inputLabel: "Número de sello (máx. 35 caracteres)", inputPlaceholder: "Ej: BZ023785", showCancelButton: true, confirmButtonText: "Agregar", cancelButtonText: "Cancelar", confirmButtonColor: "#16a34a", inputValidator: v => !v ? "Debes ingresar un número de sello" : v.length > 35 ? "Máximo 35 caracteres" : null })
             .then(r => {
                 if (r.isConfirmed) setContenedores(prev => prev.map(c => {
                     if (c.id !== cId) return c;
@@ -334,7 +336,7 @@ const ExpoBLEdit = () => {
             });
     };
     const removeSelloFromContenedor = (cId, sello) => {
-        Swal.fire({ title: "¿Eliminar sello?", text: `Sello: ${sello}`, icon: "warning", showCancelButton: true, confirmButtonText: "Sí, eliminar", cancelButtonText: "Cancelar", confirmButtonColor: "#ef4444" })
+        Swal.fire({ title: "¿Eliminar sello?", text: `Sello: ${sello}`, icon: "warning", showCancelButton: true, confirmButtonText: "Sí, eliminar", cancelButtonText: "Cancelar", confirmButtonColor: "#dc2626", cancelButtonColor: "#64748b" })
             .then(r => { if (r.isConfirmed) setContenedores(prev => prev.map(c => c.id === cId ? { ...c, sellos: (c.sellos || []).filter(s => s !== sello) } : c)); });
     };
 
@@ -343,7 +345,7 @@ const ExpoBLEdit = () => {
         Swal.fire({
             title: "Agregar IMO",
             html: `<input id="clase_imo" class="swal2-input" placeholder="Clase IMO (ej: 9)" maxlength="5"><input id="numero_imo" class="swal2-input" placeholder="Número IMO (ej: 3077)" maxlength="10">`,
-            showCancelButton: true, confirmButtonText: "Agregar", cancelButtonText: "Cancelar", confirmButtonColor: "#10b981",
+            showCancelButton: true, confirmButtonText: "Agregar", cancelButtonText: "Cancelar", confirmButtonColor: "#16a34a", cancelButtonColor: "#64748b",
             preConfirm: () => {
                 const clase = document.getElementById("clase_imo").value.trim();
                 const numero = document.getElementById("numero_imo").value.trim();
@@ -353,7 +355,7 @@ const ExpoBLEdit = () => {
         }).then(r => { if (r.isConfirmed && r.value) setContenedores(prev => prev.map(c => c.id === cId ? { ...c, imos: [...(c.imos || []), r.value] } : c)); });
     };
     const removeImoFromContenedor = (cId, index) => {
-        Swal.fire({ title: "¿Eliminar dato IMO?", icon: "warning", showCancelButton: true, confirmButtonText: "Sí, eliminar", cancelButtonText: "Cancelar", confirmButtonColor: "#ef4444" })
+        Swal.fire({ title: "¿Eliminar dato IMO?", icon: "warning", showCancelButton: true, confirmButtonText: "Sí, eliminar", cancelButtonText: "Cancelar", confirmButtonColor: "#dc2626", cancelButtonColor: "#64748b" })
             .then(r => { if (r.isConfirmed) setContenedores(prev => prev.map(c => c.id === cId ? { ...c, imos: (c.imos || []).filter((_, i) => i !== index) } : c)); });
     };
 
@@ -493,7 +495,7 @@ const ExpoBLEdit = () => {
             const inc = validarCantidadContenedores();
             if (inc.length > 0) {
                 const mensajeHTML = inc.map(i => `<div class="text-left mb-2 p-2 bg-gray-50 rounded"><strong>Item ${i.numeroItem}:</strong><br>Esperados: ${i.esperada} | Actuales: ${i.actual}<br>${i.faltanContenedores ? `<span class="text-red-600 font-bold">Faltan ${i.diferencia} contenedor(es)</span>` : `<span class="text-orange-600 font-bold">Sobran ${Math.abs(i.diferencia)} contenedor(es)</span>`}</div>`).join("");
-                Swal.fire({ icon: "error", title: "Cantidad inconsistente", html: `<div class="text-sm">${mensajeHTML}</div>`, confirmButtonText: "Entendido", confirmButtonColor: "#ef4444", width: "600px" });
+                Swal.fire({ icon: "error", title: "Cantidad inconsistente", html: `<div class="text-sm">${mensajeHTML}</div>`, confirmButtonText: "Entendido", confirmButtonColor: "#0F2A44", width: "600px" });
                 return;
             }
         }
@@ -504,7 +506,7 @@ const ExpoBLEdit = () => {
         if (currentStep === 5 && targetStep !== 5) {
             const inc = validarCantidadContenedores();
             if (inc.length > 0) {
-                Swal.fire({ icon: "error", title: "Cantidad inconsistente", html: inc.map(i => `<div class="text-left mb-2 p-2 bg-gray-50 rounded"><strong>Item ${i.numeroItem}:</strong> Esperados ${i.esperada} | Actuales ${i.actual}</div>`).join(""), confirmButtonText: "Entendido", confirmButtonColor: "#ef4444" });
+                Swal.fire({ icon: "error", title: "Cantidad inconsistente", html: inc.map(i => `<div class="text-left mb-2 p-2 bg-gray-50 rounded"><strong>Item ${i.numeroItem}:</strong> Esperados ${i.esperada} | Actuales ${i.actual}</div>`).join(""), confirmButtonText: "Entendido", confirmButtonColor: "#0F2A44" });
                 return;
             }
         }
@@ -517,7 +519,7 @@ const ExpoBLEdit = () => {
             title: "¿Guardar cambios?",
             html: `<p class="text-sm text-gray-600 mb-3">Estás por guardar los cambios del BL:</p><p class="font-semibold text-lg">${formData.bl_number}</p>`,
             showCancelButton: true, confirmButtonText: "Sí, guardar", cancelButtonText: "Cancelar",
-            confirmButtonColor: "#10b981", cancelButtonColor: "#e43a3aff", reverseButtons: true
+            confirmButtonColor: "#16a34a", cancelButtonColor: "#64748b", reverseButtons: true
         });
         if (!result.isConfirmed) return;
         setSaving(true);
@@ -538,7 +540,7 @@ const ExpoBLEdit = () => {
                 tipo_servicio: formData.tipo_servicio,
                 fecha_emision: formData.fecha_emision || null,
                 fecha_presentacion: fmtDT(formData.fecha_presentacion),
-                fecha_zarpe: fmtDT(formData.fecha_zarpe),
+                fecha_zarpe: esImpo ? undefined : fmtDT(formData.fecha_zarpe),
                 fecha_embarque: fmtDT(formData.fecha_embarque),
                 fecha_recepcion_bl: esImpo ? fmtDT(formData.fecha_recepcion_bl) : null,
                 forma_pago_flete: formData.forma_pago_flete || null,
@@ -627,7 +629,7 @@ const ExpoBLEdit = () => {
         } catch (e) {
             console.error("Error al guardar:", e);
             setError(e?.message || "Error al guardar");
-            Swal.fire({ icon: "error", title: "Error al guardar", text: e?.message, confirmButtonColor: "#ef4444" });
+            Swal.fire({ icon: "error", title: "Error al guardar", text: e?.message, confirmButtonColor: "#0F2A44" });
         } finally {
             setSaving(false);
         }
@@ -958,22 +960,34 @@ const ExpoBLEdit = () => {
                                 required
                             />
 
-                            {/* Fecha Presentación — con hora DD/MM/YYYY HH:mm */}
-                            <MaskedDateTimeInput
-                                label="Fecha Presentación"
-                                value={formData.fecha_presentacion}
-                                onChange={v => updateField("fecha_presentacion", v)}
-                                required
-                            />
+                            {/* Fecha Presentación — solo lectura, se genera al momento de declarar */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Fecha Presentación</label>
+                                <input
+                                    type="text"
+                                    value={(() => {
+                                        const d = new Date();
+                                        const p = new Intl.DateTimeFormat('es-CL', { timeZone: 'America/Santiago', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d);
+                                        const get = t => p.find(x => x.type === t).value;
+                                        return `${get('day')}/${get('month')}/${get('year')} ${get('hour')}:${get('minute')}`;
+                                    })()}
+                                    disabled
+                                    className="w-full px-4 py-2 rounded-lg border border-slate-300 bg-slate-50 text-slate-500 cursor-not-allowed"
+                                />
+                                <p className="text-xs text-slate-400 mt-1">Se genera automáticamente al declarar en SIDEMAR</p>
+                            </div>
 
-                            {/* Fecha Zarpe — con hora DD/MM/YYYY HH:mm */}
-                            <MaskedDateTimeInput
-                                label="Fecha Zarpe"
-                                value={formData.fecha_zarpe}
-                                onChange={v => updateField("fecha_zarpe", v)}
-                                required
-                            />
-
+                            {/* Fecha Zarpe — siempre del manifiesto */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Fecha Zarpe</label>
+                                <input
+                                    type="text"
+                                    value={formData.manifiesto_fecha_zarpe}
+                                    disabled
+                                    className="w-full px-4 py-2 rounded-lg border border-slate-300 bg-slate-50 text-slate-500 cursor-not-allowed"
+                                />
+                                <p className="text-xs text-slate-400 mt-1">Definida en el manifiesto</p>
+                            </div>
                             {/* Fecha Embarque — con hora DD/MM/YYYY HH:mm */}
                             <MaskedDateTimeInput
                                 label="Fecha Embarque"
@@ -1050,8 +1064,20 @@ const ExpoBLEdit = () => {
                             <div className="border-b pb-6">
                                 <h3 className="font-semibold text-slate-800 mb-4">Puertos Principales</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <PuertoAutocomplete label="PE - Puerto Embarque" value={formData.puerto_embarque} onChange={v => updateField('puerto_embarque', v)} puertos={puertos} required />
-                                    <PuertoAutocomplete label="PD - Puerto Descarga" value={formData.puerto_descarga} onChange={v => updateField('puerto_descarga', v)} puertos={puertos} required />
+                                {esImpo && transbordos.length > 0 ? (
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-1">PE - Puerto Embarque</label>
+                                            <input
+                                                type="text"
+                                                value={transbordos[transbordos.length - 1].puerto_cod}
+                                                disabled
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-50 text-slate-500 cursor-not-allowed"
+                                            />
+                                            <p className="text-xs text-slate-400 mt-1">Definido por el último transbordo</p>
+                                        </div>
+                                    ) : (
+                                        <PuertoAutocomplete label="PE - Puerto Embarque" value={formData.puerto_embarque} onChange={v => updateField('puerto_embarque', v)} puertos={puertos} required />
+                                    )}                                    <PuertoAutocomplete label="PD - Puerto Descarga" value={formData.puerto_descarga} onChange={v => updateField('puerto_descarga', v)} puertos={puertos} required />
                                 </div>
                             </div>
                             <div className="border-b pb-6">

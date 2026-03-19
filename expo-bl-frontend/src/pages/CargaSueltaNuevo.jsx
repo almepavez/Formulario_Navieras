@@ -164,7 +164,7 @@ const CargaSueltaNuevo = () => {
                 title: "Error",
                 text: "No se pudo cargar la información del manifiesto",
                 icon: "error",
-                confirmButtonColor: "#10b981"
+                confirmButtonColor: "#0F2A44"
             });
         }
     };
@@ -193,7 +193,7 @@ const CargaSueltaNuevo = () => {
                         title: "Campo requerido",
                         text: "Debes ingresar el N° de BL",
                         icon: "warning",
-                        confirmButtonColor: "#10b981"
+                        confirmButtonColor: "#F59E0B"
                     });
                     return false;
                 }
@@ -414,8 +414,8 @@ const CargaSueltaNuevo = () => {
       `,
             icon: "question",
             showCancelButton: true,
-            confirmButtonColor: "#10b981",
-            cancelButtonColor: "#e43a3a",
+            confirmButtonColor: "#16a34a",
+            cancelButtonColor: "#64748b",
             confirmButtonText: "Sí, crear",
             cancelButtonText: "Cancelar",
             width: '500px'
@@ -461,7 +461,7 @@ const CargaSueltaNuevo = () => {
           </div>
         `,
                 icon: "success",
-                confirmButtonColor: "#10b981",
+                confirmButtonColor: "#0F2A44",
                 timer: 4000
             });
 
@@ -471,7 +471,7 @@ const CargaSueltaNuevo = () => {
                 title: "Error",
                 text: e?.message || "No se pudo crear la carga suelta",
                 icon: "error",
-                confirmButtonColor: "#10b981"
+                confirmButtonColor: "#0F2A44"
             });
         } finally {
             setIsSubmitting(false);
@@ -505,7 +505,7 @@ const CargaSueltaNuevo = () => {
                 title: "Atención",
                 text: "Debe haber al menos 1 item",
                 icon: "warning",
-                confirmButtonColor: "#10b981"
+                confirmButtonColor: "#F59E0B"
             });
             return;
         }
@@ -823,7 +823,7 @@ const Step2Participantes = ({ formData, setFormData }) => {
             {/* 📌 NOTA INFORMATIVA */}
             <div className="bg-slate-50 border border-slate-300 rounded-lg p-4">
                 <p className="text-sm text-slate-700">
-                    ℹ️ <strong>Información de los participantes.</strong> Completa los datos de contacto de cada participante. Al menos uno de los campos (teléfono o email) es obligatorio.
+                    <strong>Información de los participantes.</strong> Completa los datos de contacto de cada participante. Al menos uno de los campos (teléfono o email) es obligatorio.
                 </p>
             </div>
 

@@ -401,7 +401,7 @@ const BulkEditBL = () => {
                 icon: "warning",
                 title: "Ningún BL encontrado",
                 text: "Los números pegados no coinciden con BLs de este manifiesto y tipo.",
-                confirmButtonColor: "#0F2A44",
+                confirmButtonColor: "#F59E0B",
             });
             return;
         }
@@ -431,8 +431,8 @@ const BulkEditBL = () => {
             showCancelButton: true,
             confirmButtonText: "Sí, seleccionar estos BLs",
             cancelButtonText: "Cancelar",
-            confirmButtonColor: "#0F2A44",
-            cancelButtonColor: "#94a3b8",
+            confirmButtonColor: "#16a34a",
+            cancelButtonColor: "#64748b",
             reverseButtons: true,
         }).then(result => {
             if (result.isConfirmed) {
@@ -632,7 +632,7 @@ const BulkEditBL = () => {
                                                     </div>
                                                 </div>
                                                 {m.tipo_operacion === "S" ? (
-                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#0F2A44]/10 text-[#0F2A44]">
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
                                                         <ArrowUpRight size={11} /> EXPO
                                                     </span>
                                                 ) : m.tipo_operacion === "I" ? (
@@ -660,7 +660,7 @@ const BulkEditBL = () => {
                                             <span className="text-sm text-slate-500">Manifiesto:</span>
                                             <span className="text-sm font-medium text-slate-700">{selectedViaje}</span>
                                             {manifiestoSel?.tipo_operacion === "S" ? (
-                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-[#0F2A44]/10 text-[#0F2A44]">
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
                                                     <ArrowUpRight size={10} /> EXPO
                                                 </span>
                                             ) : (

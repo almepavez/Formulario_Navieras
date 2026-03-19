@@ -6,6 +6,36 @@ import Swal from "sweetalert2";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
+const REGION_MAP = {
+  "SHANGHAI": "ORIENTE", "NINGBO": "ORIENTE", "QINGDAO": "ORIENTE",
+  "TIANJIN": "ORIENTE", "TIANJIN XINGANG": "ORIENTE", "NANJING": "ORIENTE",
+  "WUHAN": "ORIENTE", "LIANYUNGANG": "ORIENTE", "GUANGZHOU": "ORIENTE",
+  "SHENZHEN": "ORIENTE", "YANTIAN": "ORIENTE", "CHIWAN": "ORIENTE",
+  "NANSHA": "ORIENTE", "XIAMEN": "ORIENTE", "FUZHOU": "ORIENTE",
+  "DALIAN": "ORIENTE", "HONG KONG": "ORIENTE", "KAOHSIUNG": "ORIENTE",
+  "BUSAN": "ORIENTE", "INCHEON": "ORIENTE", "TOKYO": "ORIENTE",
+  "YOKOHAMA": "ORIENTE", "NAGOYA": "ORIENTE", "OSAKA": "ORIENTE",
+  "KOBE": "ORIENTE", "SINGAPORE": "ORIENTE", "PORT KELANG": "ORIENTE",
+  "TANJUNG PELEPAS": "ORIENTE", "JAKARTA": "ORIENTE", "SURABAYA": "ORIENTE",
+  "MANILA": "ORIENTE", "HO CHI MINH": "ORIENTE", "CAT LAI": "ORIENTE",
+  "HAIPHONG": "ORIENTE", "BANGKOK": "ORIENTE", "LAEM CHABANG": "ORIENTE",
+  "COLOMBO": "ORIENTE", "CHENNAI": "ORIENTE", "NHAVA SHEVA": "ORIENTE",
+  "MUNDRA": "ORIENTE", "CALCUTTA": "ORIENTE", "CALCUTTA - KOLKATA": "ORIENTE",
+  "KOLKATA": "ORIENTE", "KARACHI": "ORIENTE", "CHITTAGONG": "ORIENTE",
+  "MANZANILLO": "MÉXICO", "LAZARO CARDENAS": "MÉXICO",
+  "LÁZARO CÁRDENAS": "MÉXICO", "ENSENADA": "MÉXICO", "VERACRUZ": "MÉXICO",
+  "QUETZAL": "GUATEMALA", "PUERTO QUETZAL": "GUATEMALA",
+  "BUENAVENTURA": "COLOMBIA", "CARTAGENA": "COLOMBIA",
+  "CALLAO": "PERÚ",
+};
+
+const getRegion = (polName) => {
+  if (!polName) return polName;
+  const key = polName.trim().toUpperCase();
+  const found = Object.keys(REGION_MAP).find(k => k.toUpperCase() === key);
+  return found ? REGION_MAP[found] : polName.toUpperCase();
+};
+
 // 🆕 Configuración de tipos de acción
 const TIPOS_ACCION = [
   {
@@ -278,10 +308,10 @@ const GenerarXML = () => {
 
 // Justo después de los estados, antes del return
 const polesDisponibles = useMemo(() => {
-  const pols = bls
-    .map(bl => bl.puerto_embarque)
+  const regiones = bls
+    .map(bl => getRegion(bl.puerto_embarque))
     .filter(Boolean);
-  return [...new Set(pols)].sort();
+  return [...new Set(regiones)].sort();
 }, [bls]);
 
   useEffect(() => {
@@ -374,7 +404,7 @@ const filteredAndSortedBLs = useMemo(() => {
 
   // ✅ Filtro POL con multi-check
   if (filterPOL.size > 0) {
-    result = result.filter(bl => filterPOL.has(bl.puerto_embarque));
+    result = result.filter(bl => filterPOL.has(getRegion(bl.puerto_embarque)));
   }
 
   result.sort((a, b) => a.bl_number.localeCompare(b.bl_number));
@@ -408,7 +438,7 @@ const filteredAndSortedBLs = useMemo(() => {
         icon: 'warning',
         title: 'Sin BLs seleccionados',
         text: 'Debes seleccionar al menos un BL para revalidar',
-        confirmButtonColor: '#0F2A44'
+        confirmButtonColor: '#F59E0B'
       });
       return;
     }
@@ -426,7 +456,7 @@ const filteredAndSortedBLs = useMemo(() => {
       showCancelButton: true,
       confirmButtonText: 'Sí, revalidar',
       cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#3B82F6',
+      confirmButtonColor: '#0F2A44',
       cancelButtonColor: '#6B7280'
     });
 
@@ -499,7 +529,7 @@ const filteredAndSortedBLs = useMemo(() => {
             <strong>${exitosos}</strong> BL(s) revalidados correctamente
           </p>
         `,
-          confirmButtonColor: '#10B981'
+          confirmButtonColor: '#0F2A44'
         });
       } else {
         const erroresHTML = errores
@@ -534,7 +564,7 @@ const filteredAndSortedBLs = useMemo(() => {
         icon: 'error',
         title: 'Error en la revalidación',
         text: e.message || 'Ocurrió un error inesperado',
-        confirmButtonColor: '#DC2626'
+        confirmButtonColor: '#0F2A44'
       });
     } finally {
       setRevalidando(false);
@@ -547,7 +577,7 @@ const filteredAndSortedBLs = useMemo(() => {
         icon: 'warning',
         title: 'Sin BLs seleccionados',
         text: 'Debes seleccionar al menos un BL para generar XMLs',
-        confirmButtonColor: '#0F2A44'
+        confirmButtonColor: '#F59E0B'
       });
       return;
     }
@@ -591,7 +621,7 @@ const filteredAndSortedBLs = useMemo(() => {
       </div>
     `,
         confirmButtonText: 'Entendido',
-        confirmButtonColor: '#DC2626',
+        confirmButtonColor: '#0F2A44',
         width: '600px'
       });
 
@@ -658,7 +688,7 @@ const filteredAndSortedBLs = useMemo(() => {
 
           Swal.fire({
             icon: 'error',
-            title: '🚫 Error de validación en el servidor',
+            title: 'Error de validación en el servidor',
             html: `
               <div style="max-height: 300px; overflow-y: auto;">
                 ${erroresHTML}
@@ -698,7 +728,7 @@ const filteredAndSortedBLs = useMemo(() => {
             Tipo de acción: <strong>${tipoAccion} — ${tipoLabel}</strong>
           </p>
         `,
-        confirmButtonColor: '#10B981'
+        confirmButtonColor: '#0F2A44'
       });
     } catch (e) {
       Swal.fire({
@@ -930,7 +960,7 @@ const filteredAndSortedBLs = useMemo(() => {
         confirmButtonText: 'Descargar XML',
         denyButtonText: 'Editar BL',
         cancelButtonText: 'Cerrar',
-        confirmButtonColor: '#10B981',
+        confirmButtonColor: '#16a34a',
         denyButtonColor: '#3B82F6',
         cancelButtonColor: '#6B7280',
         customClass: {
@@ -964,7 +994,7 @@ const filteredAndSortedBLs = useMemo(() => {
         icon: 'error',
         title: 'Error al generar preview',
         text: e?.message || 'Ocurrió un error inesperado',
-        confirmButtonColor: '#DC2626'
+        confirmButtonColor: '#0F2A44'
       });
     }
   };

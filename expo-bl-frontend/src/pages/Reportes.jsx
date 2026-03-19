@@ -380,8 +380,8 @@ export default function Reportes() {
         `,
         icon: "warning",
         showCancelButton: true,
-        confirmButtonColor: "#0F2A44",
-        cancelButtonColor: "#ef4444",
+        confirmButtonColor: "#F59E0B",
+        cancelButtonColor: "#64748b",
         confirmButtonText: "Sí, exportar igual",
         cancelButtonText: "Cancelar",
         width: "480px",
@@ -443,7 +443,7 @@ export default function Reportes() {
       `,
         icon: "warning",
         showCancelButton: true,
-        confirmButtonColor: "#F97316",
+        confirmButtonColor: "#F59E0B",
         cancelButtonColor: "#64748b",
         confirmButtonText: `Exportar ${rowsSinSoc.length} contenedor(es)`,
         cancelButtonText: "Cancelar",
@@ -763,7 +763,7 @@ const handleFileUpload = async (e) => {
           showCancelButton: true,
           confirmButtonText: "Importar",
           cancelButtonText: "Cancelar",
-          confirmButtonColor: "#F97316",
+          confirmButtonColor: "#F59E0B",
           cancelButtonColor: "#64748b",
           html: `
             <p style="color:#64748b; font-size:13px; margin-bottom:16px;">
