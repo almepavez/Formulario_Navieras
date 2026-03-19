@@ -248,9 +248,9 @@ const Manifiestos = () => {
       const { resultados } = data;
       let mensaje = "";
       if (resultados.eliminados.length > 0)
-        mensaje += `✅ <strong>${resultados.eliminados.length} eliminado(s)</strong><br>`;
+        mensaje += `<strong>${resultados.eliminados.length} eliminado(s)</strong><br>`;
       if (resultados.conBLs.length > 0) {
-        mensaje += `⚠️ <strong>${resultados.conBLs.length} no se pudieron eliminar</strong> (tienen BLs asociados)<br>`;
+        mensaje += `<strong>${resultados.conBLs.length} no se pudieron eliminar</strong> (tienen BLs asociados)<br>`;
         mensaje += `<ul class="text-left text-sm mt-2 ml-4">`;
         resultados.conBLs.forEach(({ id, totalBLs }) => {
           mensaje += `<li>Manifiesto #${id}: ${totalBLs} BL(s)</li>`;
@@ -258,7 +258,7 @@ const Manifiestos = () => {
         mensaje += `</ul>`;
       }
       if (resultados.noEncontrados.length > 0)
-        mensaje += `❌ <strong>${resultados.noEncontrados.length} no encontrado(s)</strong><br>`;
+        mensaje += `<strong>${resultados.noEncontrados.length} no encontrado(s)</strong><br>`;
 
       await Swal.fire({
         title: resultados.eliminados.length > 0 ? "Operación completada" : "No se eliminó nada",
