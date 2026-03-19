@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Check, AlertCircle, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import Swal from "sweetalert2";
+import ComboSelect from "../components/ComboSelect";
+import SearchSelect from "../components/SearchSelect";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -63,18 +65,21 @@ const FieldRow = ({ field, fieldsToEdit, setFieldsToEdit, children }) => (
         ? "border-[#0F2A44]/30 bg-[#0F2A44]/5"
         : "border-slate-200 bg-white hover:border-slate-300"
         }`}>
-        <label className="flex items-start gap-3 cursor-pointer">
+        <div className="flex items-start gap-3">
             <input type="checkbox" checked={fieldsToEdit[field]}
                 onChange={() => setFieldsToEdit(p => ({ ...p, [field]: !p[field] }))}
-                className="mt-0.5 w-4 h-4 text-[#0F2A44] rounded focus:ring-2 focus:ring-[#0F2A44]" />
+                className="mt-0.5 w-4 h-4 text-[#0F2A44] rounded focus:ring-2 focus:ring-[#0F2A44] cursor-pointer flex-shrink-0" />
             <div className="flex-1">
-                <div className="font-medium text-slate-800 text-sm mb-2">
+                <div
+                    className="font-medium text-slate-800 text-sm mb-2 cursor-pointer select-none"
+                    onClick={() => setFieldsToEdit(p => ({ ...p, [field]: !p[field] }))}
+                >
                     {getFieldLabel(field)}
                     {fieldsToEdit[field] && <span className="text-red-400 ml-1 font-normal">*</span>}
                 </div>
                 {fieldsToEdit[field] && children}
             </div>
-        </label>
+        </div>
     </div>
 );
 
@@ -221,15 +226,18 @@ const AlmacenadorSelector = ({ value, onSelect, selectedBLsCount = 0 }) => {
 const PuertoSelect = ({ label, value, onChange, puertosDisponibles }) => (
     <div>
         <label className="block text-xs font-medium text-slate-600 mb-1.5">{label}</label>
-        <select value={value} onChange={e => onChange(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] focus:border-[#0F2A44] outline-none">
-            <option value="">Sin cambios</option>
-            {puertosDisponibles.map(p => (
-                <option key={p.id} value={p.codigo}>
-                    {p.nombre} ({p.codigo}){p.pais ? ` · ${p.pais}` : ""}
-                </option>
-            ))}
-        </select>
+        <SearchSelect
+            value={value}
+            onChange={onChange}
+            options={[
+                { value: "", label: "Sin cambios" },
+                ...puertosDisponibles.map(p => ({
+                    value: p.codigo,
+                    label: p.nombre
+                }))
+            ]}
+            placeholder="Sin cambios"
+        />
     </div>
 );
 
@@ -874,12 +882,15 @@ const BulkEditBL = () => {
                                         />
                                     </FieldRow>
                                     <FieldRow field="forma_pago_flete" fieldsToEdit={fieldsToEdit} setFieldsToEdit={setFieldsToEdit}>
-                                        <select value={editValues.forma_pago_flete}
-                                            onChange={e => setEditValues(p => ({ ...p, forma_pago_flete: e.target.value }))}
-                                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] outline-none">
-                                            <option value="PREPAID">PREPAID — Pagado en origen</option>
-                                            <option value="COLLECT">COLLECT — Por cobrar en destino</option>
-                                        </select>
+                                        <SearchSelect
+                                            value={editValues.forma_pago_flete}
+                                            onChange={v => setEditValues(p => ({ ...p, forma_pago_flete: v }))}
+                                            options={[
+                                                { value: "PREPAID", label: "PREPAID — Pagado en origen" },
+                                                { value: "COLLECT", label: "COLLECT — Por cobrar en destino" },
+                                            ]}
+                                            placeholder="Seleccionar..."
+                                        />
                                     </FieldRow>
                                     {manifiestoSel?.tipo_operacion === "I" &&
                                         (<div className="space-y-2 pt-2">

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import ComboSelect from "../components/ComboSelect";
 import Swal from "sweetalert2";
 import {
   PlusCircle,
@@ -582,16 +583,16 @@ const CRUDMantenedor = () => {
 
             <div className="flex items-center gap-2">
               <span className="text-sm text-slate-600">Mostrar:</span>
-              <select
-                value={itemsPerPage}
-                onChange={(e) => handleItemsPerPageChange(e.target.value)}
-                className="px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F2A44] text-sm"
-              >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
+              <ComboSelect
+                value={String(itemsPerPage)}
+                onChange={v => handleItemsPerPageChange(v)}
+                options={[
+                  { value: "10", label: "10" },
+                  { value: "25", label: "25" },
+                  { value: "50", label: "50" },
+                  { value: "100", label: "100" },
+                ]}
+              />
               <span className="text-sm text-slate-600">por página</span>
             </div>
           </div>
@@ -764,21 +765,21 @@ const CRUDMantenedor = () => {
                             rows={3}
                           />
                         ) : field.type === "select" ? (
-                          <select
-                            value={formData[field.key] ?? ""}
-                            onChange={(e) => {
-                              const val = field.key === "activo" ? Number(e.target.value) : e.target.value;
+                          <ComboSelect
+                            value={String(formData[field.key] ?? "")}
+                            onChange={(v) => {
+                              const val = field.key === "activo" ? Number(v) : v;
                               setFormData({ ...formData, [field.key]: val });
                             }}
-                            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0F2A44] focus:border-transparent transition"
-                          >
-                            <option value="">Seleccione...</option>
-                            {field.options?.map((opt) => (
-                              <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
+                            options={[
+                              { value: "", label: "Seleccione..." },
+                              ...(field.options?.map(opt => ({
+                                value: String(opt.value),
+                                label: opt.label
+                              })) || [])
+                            ]}
+                            placeholder="Seleccione..."
+                          />
                         ) : (
                           <input
                             type={field.type || "text"}

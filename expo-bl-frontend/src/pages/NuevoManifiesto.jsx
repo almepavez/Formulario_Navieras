@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import Sidebar from "../components/Sidebar";
+import ComboSelect from "../components/ComboSelect";
+import SearchSelect from "../components/SearchSelect";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
@@ -74,6 +76,8 @@ const NuevoManifiesto = () => {
           fetch(`${API_BASE_URL}/api/mantenedores/naves`),
           fetch(`${API_BASE_URL}/api/mantenedores/puertos`),
           fetch(`${API_BASE_URL}/api/mantenedores/referencias`),
+
+
         ]);
 
         if (!sRes.ok) throw new Error(`Error servicios HTTP ${sRes.status}`);
@@ -92,7 +96,8 @@ const NuevoManifiesto = () => {
         setNaves(Array.isArray(nData) ? nData : []);
         setPuertos(Array.isArray(pData) ? pData : []);
         setReferencias(Array.isArray(rData) ? rData : []);
-
+        console.log("SERVICIO ejemplo:", sData[0]);
+        console.log("NAVE ejemplo:", nData[0]);
         const hasCLVAP = Array.isArray(pData) && pData.some((x) => x.codigo === "CLVAP");
         setForm((prev) => ({
           ...prev,
@@ -236,9 +241,9 @@ const NuevoManifiesto = () => {
 </span>`
       : '<span style="color: #ef4444;">No seleccionada</span>';
 
-   const emisorHtml = emisorSeleccionado
-    ? emisorSeleccionado.nombre_emisor
-    : form.emisorDocumento;
+    const emisorHtml = emisorSeleccionado
+      ? emisorSeleccionado.nombre_emisor
+      : form.emisorDocumento;
 
     const representanteHtml = representanteSeleccionado
       ? `${form.representante} (${representanteSeleccionado.nombre_emisor})`
@@ -317,10 +322,10 @@ const NuevoManifiesto = () => {
 
       const res = await fetch(`${API_BASE_URL}/api/manifiestos`, {
         method: "POST",
-       headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${localStorage.getItem("token")}` 
-    },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("token")}`
+        },
         body: JSON.stringify({
           ...form,
           fecha_zarpe: form.fecha_zarpe
@@ -471,34 +476,33 @@ const NuevoManifiesto = () => {
           {/* ── CAMPOS PRINCIPALES ── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Field label="Servicio *">
-              <input
-                list="serviciosList"
+              <SearchSelect
                 value={form.servicio}
-                onChange={onChange("servicio")}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                onChange={(v) => onChange("servicio")({ target: { value: v } })}
+                options={servicios.map(s => ({ value: s.codigo, label: s.nombre }))}
                 placeholder="Escribe para buscar (ej: WSACL)"
               />
               <Hint text="Tip: escribe el código (WSACL) y te sugiere el nombre." />
             </Field>
 
-            <Field label="Operación *">
-              <select
-                value={form.tipoOperacion}
-                onChange={onChange("tipoOperacion")}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
-              >
-                <option value="S">S (Salida/Exportación)</option>
-                <option value="I">I (Ingreso/Importación)</option>
 
-              </select>
+            <Field label="Operación *">
+              <ComboSelect
+                value={form.tipoOperacion}
+                onChange={(v) => onChange("tipoOperacion")({ target: { value: v } })}
+                options={[
+                  { value: "S", label: "S (Salida/Exportación)" },
+                  { value: "I", label: "I (Ingreso/Importación)" },
+                ]}
+                placeholder="Seleccionar operación..."
+              />
             </Field>
 
             <Field label="Nave *">
-              <input
-                list="navesList"
+              <SearchSelect
                 value={form.nave}
-                onChange={onChange("nave")}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                onChange={(v) => onChange("nave")({ target: { value: v } })}
+                options={naves.map(n => ({ value: n.nombre, label: n.codigo }))}
                 placeholder="Escribe para buscar (ej: EVLOY)"
               />
             </Field>
@@ -513,64 +517,52 @@ const NuevoManifiesto = () => {
             </Field>
 
             <Field label="Puerto central *">
-              <input
-                list="puertosList"
+              <SearchSelect
                 value={form.puertoCentral}
-                onChange={onChange("puertoCentral")}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                onChange={(v) => onChange("puertoCentral")({ target: { value: v } })}
+                options={puertos.map(p => ({ value: p.codigo, label: p.nombre }))}
                 placeholder="Escribe para buscar (ej: CLVAP)"
               />
             </Field>
 
             <Field label="Emisor (Agente que presenta el mensaje) *">
-              <select
+              <ComboSelect
                 value={form.operadorNave}
-                onChange={onChange("operadorNave")}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
-              >
-                <option value="">-- Selecciona un operador --</option>
-                {referencias.map((ref) => (
-                  <option key={ref.id} value={ref.customer_id}>
-                    {ref.nombre_emisor}
-                  </option>
-                ))}
-              </select>
-              {operadorNaveSeleccionado && (
-                <Hint text={`Customer ID: ${operadorNaveSeleccionado.customer_id} | RUT: ${operadorNaveSeleccionado.rut}`} />
-              )}
+                onChange={(v) => onChange("operadorNave")({ target: { value: v } })}
+                options={[
+                  { value: "", label: "-- Selecciona un operador --" },
+                  ...referencias.map(ref => ({ value: ref.customer_id, label: ref.nombre_emisor }))
+                ]}
+                placeholder="-- Selecciona un operador --"
+              />
+              {operadorNaveSeleccionado && <Hint text={`Customer ID: ${operadorNaveSeleccionado.customer_id} | RUT: ${operadorNaveSeleccionado.rut}`} />}
             </Field>
 
             <Field label="Emisor Doc *">
-              <select
+              <ComboSelect
                 value={form.emisorDocumento}
-                onChange={onChange("emisorDocumento")}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
-              >
-                <option value="">-- Selecciona un emisor --</option>
-                {referencias.map((ref) => (
-                  <option key={ref.id} value={ref.customer_id}>
-                    {ref.nombre_emisor}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => onChange("emisorDocumento")({ target: { value: v } })}
+                options={[
+                  { value: "", label: "-- Selecciona un emisor --" },
+                  ...referencias.map(ref => ({ value: ref.customer_id, label: ref.nombre_emisor }))
+                ]}
+                placeholder="-- Selecciona un emisor --"
+              />
               {emisorSeleccionado && (
                 <Hint text={`Customer ID: ${emisorSeleccionado.customer_id} | Match: ${emisorSeleccionado.match_code} | RUT: ${emisorSeleccionado.rut}`} />
               )}
             </Field>
 
             <Field label="Representante *">
-              <select
+              <ComboSelect
                 value={form.representante}
-                onChange={onChange("representante")}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
-              >
-                <option value="">-- Selecciona un representante --</option>
-                {referencias.map((ref) => (
-                  <option key={ref.id} value={ref.match_code}>
-                    {ref.match_code} - {ref.nombre_emisor}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => onChange("representante")({ target: { value: v } })}
+                options={[
+                  { value: "", label: "-- Selecciona un representante --" },
+                  ...referencias.map(ref => ({ value: ref.match_code, label: `${ref.match_code} - ${ref.nombre_emisor}` }))
+                ]}
+                placeholder="-- Selecciona un representante --"
+              />
               {representanteSeleccionado && (
                 <Hint text={`Customer ID: ${representanteSeleccionado.customer_id} | RUT: ${representanteSeleccionado.rut}`} />
               )}
@@ -606,28 +598,21 @@ const NuevoManifiesto = () => {
             </Field>
 
             <Field label="Status *">
-              <select
+              <ComboSelect
                 value={form.status}
-                onChange={onChange("status")}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
-              >
-                <option value="Activo">Activo</option>
-                <option value="Inactivo">Inactivo</option>
-                <option value="Enviado">Enviado</option>
-              </select>
-            </Field>
-
-            <Field label="Remark">
-              <textarea
-                value={form.remark}
-                onChange={onChange("remark")}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm min-h-[42px]"
-                placeholder="Observaciones (opcional)"
+                onChange={(v) => onChange("status")({ target: { value: v } })}
+                options={[
+                  { value: "Activo", label: "Activo" },
+                  { value: "Inactivo", label: "Inactivo" },
+                  { value: "Enviado", label: "Enviado" },
+                ]}
+                placeholder="Seleccionar status..."
               />
             </Field>
+
           </div>
 
-      
+
 
           {/* ── REFERENCIA (simplificada) ── */}
           <div className="mt-10">
@@ -652,18 +637,15 @@ const NuevoManifiesto = () => {
               </Field>
 
               <Field label="Operador Nave *">
-                <select
+                <ComboSelect
                   value={referencia.referenciaId}
-                  onChange={(e) => updateReferencia("referenciaId", e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
-                >
-                  <option value="">-- Selecciona un emisor --</option>
-                  {referencias.map((ref) => (
-                    <option key={ref.id} value={ref.id}>
-                      {ref.match_code} - {ref.nombre_emisor}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => updateReferencia("referenciaId", v)}
+                  options={[
+                    { value: "", label: "-- Selecciona un emisor --" },
+                    ...referencias.map(ref => ({ value: ref.id, label: `${ref.match_code} - ${ref.nombre_emisor}` }))
+                  ]}
+                  placeholder="-- Selecciona un emisor --"
+                />
                 {referenciaSeleccionada && (
                   <Hint text={`RUT: ${referenciaSeleccionada.rut}`} />
                 )}
