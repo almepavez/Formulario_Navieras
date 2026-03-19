@@ -150,7 +150,7 @@ const AlmacenSelect = ({ value, onChange, onSave, todos = [] }) => {
   const ref = useRef(null);
   const triggerRef = useRef(null);
   const dropdownRef = useRef(null);
-  const [dropdownStyle, setDropdownStyle] = useState({});
+  const [dropdownStyle, setDropdownStyle] = useState({ position: "fixed", top: -9999, left: -9999, visibility: "hidden" });
   
 useEffect(() => {
   if (!open) return;
@@ -193,12 +193,17 @@ useEffect(() => {
       }
       if (left < 8) left = 8;
 
+      const dropdownHeight = 260; // altura aproximada del dropdown
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const showAbove = spaceBelow < dropdownHeight && rect.top > dropdownHeight;
+
       setDropdownStyle({
         position: "fixed",
-        top: rect.bottom + 4,
+        top: showAbove ? rect.top - dropdownHeight : rect.bottom + 4,
         left,
         width: dropdownWidth,
         zIndex: 9999,
+        visibility: "visible",
       });
     };
 
@@ -588,24 +593,38 @@ export default function Reportes() {
   }, [rows]);
 
 const handleCellEdit = (rowIdx, key, value) => {
-  setRows((prev) => prev.map((r, i) => (i === rowIdx ? { ...r, [key]: value } : r)));
+  const blAfectado = rows[rowIdx]?.bl;
+
+  setRows((prev) => prev.map((r, i) => {
+    if (i === rowIdx) return { ...r, [key]: value };
+    // Si es almacen, propagar a todos los contenedores del mismo BL
+    if (key === "almacen" && r.bl === blAfectado) return { ...r, almacen: value };
+    return r;
+  }));
+
   if (!selectedId) return;
 
   clearTimeout(autoSaveTimers.current[rowIdx]);
   autoSaveTimers.current[rowIdx] = setTimeout(async () => {
-    const row = latestRows.current[rowIdx];
-    if (!row) return;
+    const allRows = latestRows.current;
     const token = localStorage.getItem("token");
+
+    // Si es almacen, guardar todas las filas del mismo BL
+    const rowsToSave = key === "almacen"
+      ? allRows.filter(r => r.bl === blAfectado)
+      : [allRows[rowIdx]];
+
+    if (!rowsToSave.length) return;
 
     fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos/bulk`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify([{
-        bl: row.bl,
-        n_contenedor: row.n_contenedor ?? "",
-        deposito: row.deposito ?? "",
-        almacen: row.almacen ?? "",
-      }]),
+      body: JSON.stringify(rowsToSave.map(r => ({
+        bl: r.bl,
+        n_contenedor: r.n_contenedor ?? "",
+        deposito: r.deposito ?? "",
+        almacen: r.almacen ?? "",
+      }))),
     }).catch(() => {});
   }, 800);
 };
@@ -1221,10 +1240,6 @@ const handleFileUpload = async (e) => {
                                         onChange={(val) => {
                                           const realIdx = rows.findIndex(r => r.bl === row.bl && r.n_contenedor === row.n_contenedor);
                                           if (realIdx !== -1) handleCellEdit(realIdx, c.key, val);
-                                        }}
-                                        onSave={() => {
-                                          const realIdx = rows.findIndex(r => r.bl === row.bl && r.n_contenedor === row.n_contenedor);
-                                          if (realIdx !== -1) handleCellEdit(realIdx, "almacen", row.almacen ?? "");
                                         }}
                                       />
                                     ) : (
