@@ -3869,7 +3869,7 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
 
           if (contenedoresDelBl.length > 0) {
             for (const cnt of contenedoresDelBl) {
-              const nroCnt = (cnt.cnt_so_numero || `${cnt.sigla || ''} ${String(cnt.numero || '').padStart(6,'0')}-${cnt.digito || ''}`).trim();
+              const nroCnt = (cnt.cnt_so_numero || `${cnt.sigla || ''} ${String(cnt.numero || '').padStart(6, '0')}-${cnt.digito || ''}`).trim();
               await conn.query(
                 `INSERT IGNORE INTO reportes (manifiesto_id, bl, n_contenedor, deposito, almacen)
                  VALUES (?, ?, ?, '', ?)`,
@@ -5119,6 +5119,24 @@ app.patch('/api/bls/bulk-update', async (req, res) => {
     const placeholders = blNumbers.map(() => '?').join(',');
     const query = `UPDATE bls SET ${setClauses.join(', ')} WHERE bl_number IN (${placeholders})`;
     const [result] = await connection.query(query, values);
+
+    // Sincronizar almacen en reportes si se cambió almacenador_id
+    if (updates.almacenador_id) {
+      const [[participante]] = await connection.query(
+        `SELECT codigo_tatc FROM participantes WHERE id = ? LIMIT 1`,
+        [updates.almacenador_id]
+      );
+      console.log('[SYNC REPORTES] almacenador_id:', updates.almacenador_id, '→ participante:', participante);
+      if (participante?.codigo_tatc) {
+        const placeholders2 = blNumbers.map(() => '?').join(',');
+        const [resUpdate] = await connection.query(
+          `UPDATE reportes SET almacen = ? WHERE bl IN (${placeholders2})`,
+          [participante.codigo_tatc, ...blNumbers]
+        );
+        console.log('[SYNC REPORTES] filas afectadas:', resUpdate.affectedRows, 'bls:', blNumbers);
+      }
+    }
+
     await connection.commit();
     res.json({ success: true, message: `${result.affectedRows} BL(s) actualizados correctamente`, affectedRows: result.affectedRows, blNumbers });
   } catch (error) {
@@ -6581,9 +6599,22 @@ app.put("/api/bls/:blNumber", async (req, res) => {
       return res.status(404).json({ error: 'BL no encontrado' });
     }
 
+    // Sincronizar almacen en reportes si se cambió almacenador_id
+    const almacenadorIdParaSync = updates.almacenista_id || updates.almacenador_id || null;
+    if (almacenadorIdParaSync) {
+      const [[participante]] = await connection.query(
+        `SELECT codigo_tatc FROM participantes WHERE id = ? LIMIT 1`,
+        [almacenadorIdParaSync]
+      );
+      if (participante?.codigo_tatc) {
+        await connection.query(
+          `UPDATE reportes SET almacen = ? WHERE bl = ?`,
+          [participante.codigo_tatc, blNumber]
+        );
+      }
+    }
+
     await connection.commit();
-
-
     res.json({ success: true, message: 'BL actualizado exitosamente', bl_number: blNumber });
 
   } catch (error) {

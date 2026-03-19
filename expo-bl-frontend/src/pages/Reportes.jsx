@@ -371,9 +371,9 @@ export default function Reportes() {
         title: "Datos incompletos",
         html: `
           <p style="color:#64748b; margin-bottom:12px; font-size:14px;">Algunas filas no tienen datos completos:</p>
-          <ul style="text-align:left; padding-left:20px; margin-bottom:8px;">
+          <ul style="text-align:center; padding-left:0; margin-bottom:8px;">
             ${colsConVacios.map(({ label, count }) =>
-          `<li style="color:#dc2626; font-size:13px; margin-bottom:4px;">• <strong>${label}</strong>: ${count} fila(s) vacía(s)</li>`
+          `<li style="color:#dc2626; font-size:13px; margin-bottom:4px; text-align:center; list-style:none;"><strong>${label}</strong>: ${count} fila(s) vacía(s)</li>`
         ).join("")}
           </ul>
           <p style="color:#64748b; font-size:13px;">¿Exportar de todas formas?</p>
