@@ -445,7 +445,46 @@ const ExpoBLEdit = () => {
                     Swal.fire({ icon: "error", title: "Datos IMO faltantes", html: `Contenedores con carga peligrosa sin IMO:<br><strong>${sinIMO.map(c => getCodigoContenedor(c)).join(", ")}</strong>`, confirmButtonColor: "#0F2A44" });
                     return false;
                 }
-                break;
+                 // ← AGREGAR ESTO
+    const desfases = items.map(item => {
+        const contsDelItem = contenedores.filter(c => c.item_id === item.id);
+        if (contsDelItem.length === 0) return null;
+        const sumaPeso = contsDelItem.reduce((s, c) => s + (parseFloat(c.peso) || 0), 0);
+        const sumaVol  = contsDelItem.reduce((s, c) => s + (parseFloat(c.volumen) || 0), 0);
+        const pesoBL   = parseFloat(item.peso_bruto) || 0;
+        const volBL    = parseFloat(item.volumen) || 0;
+        const pesoOk   = Math.abs(sumaPeso - pesoBL) <= 1;
+        const volOk    = Math.abs(sumaVol - volBL) <= 0.01;
+        if (pesoOk && volOk) return null;
+        return {
+            numeroItem: item.numero_item,
+            pesoBL, sumaPeso, pesoOk,
+            volBL, sumaVol, volOk
+        };
+    }).filter(Boolean);
+
+    if (desfases.length > 0) {
+        Swal.fire({
+            icon: "warning",
+            title: "Desfase en peso/volumen",
+            html: `<div class="text-left text-sm space-y-3">
+                ${desfases.map(d => `
+                    <div class="p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <p class="font-semibold text-red-800 mb-2">Item ${d.numeroItem}</p>
+                        ${!d.pesoOk ? `<p class="text-slate-700">⚠ Peso: item <strong>${d.pesoBL.toFixed(3)}</strong> ≠ Σ contenedores <strong>${d.sumaPeso.toFixed(3)}</strong> (diff ${(d.sumaPeso - d.pesoBL).toFixed(3)})</p>` : ''}
+                        ${!d.volOk  ? `<p class="text-slate-700 mt-1">⚠ Vol: item <strong>${d.volBL.toFixed(3)}</strong> ≠ Σ contenedores <strong>${d.sumaVol.toFixed(3)}</strong> (diff ${(d.sumaVol - d.volBL).toFixed(3)})</p>` : ''}
+                    </div>
+                `).join('')}
+                <p class="text-slate-500 text-xs">Corrige los valores antes de continuar.</p>
+            </div>`,
+            confirmButtonText: "Entendido",
+            confirmButtonColor: "#F59E0B",
+        });
+        return false;
+    }
+
+    break;
+                
         }
         return true;
     };
@@ -1334,7 +1373,56 @@ const ExpoBLEdit = () => {
                                 <div className="text-center py-8 text-slate-500"><p>Este BL no tiene contenedores cargados</p></div>
                             ) : (
                                 <div className="space-y-6">
-                                    {contenedores.map((cont, idx) => {
+                                    {/* Indicador global de desfase — fuera del loop */}
+                                    {items.map(item => {
+                                        const contsDelItem = contenedores.filter(c => c.item_id === item.id);
+                                        if (contsDelItem.length === 0) return null;
+                                        const sumaPeso = contsDelItem.reduce((s, c) => s + (parseFloat(c.peso) || 0), 0);
+                                        const sumaVol = contsDelItem.reduce((s, c) => s + (parseFloat(c.volumen) || 0), 0);
+                                        const pesoBL = parseFloat(item.peso_bruto) || 0;
+                                        const volBL = parseFloat(item.volumen) || 0;
+                                        const pesoOk = Math.abs(sumaPeso - pesoBL) <= 1;
+                                        const volOk = Math.abs(sumaVol - volBL) <= 0.01;
+                                        if (pesoOk && volOk) return null;
+                                        return (
+                                            <div key={item.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border bg-red-50 border-red-300 text-red-800 text-xs">
+                                                <div className="flex gap-4">
+                                                    <span className="font-semibold">Item {item.numero_item}:</span>
+                                                    {!pesoOk && <span>⚠ Peso item {pesoBL.toFixed(3)} ≠ Σ {sumaPeso.toFixed(3)} (diff {(sumaPeso - pesoBL).toFixed(3)})</span>}
+                                                    {!volOk && <span>⚠ Vol item {volBL.toFixed(3)} ≠ Σ {sumaVol.toFixed(3)} (diff {(sumaVol - volBL).toFixed(3)})</span>}
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => Swal.fire({
+                                                        icon: "warning",
+                                                        title: `Desfase en Item ${item.numero_item}`,
+                                                        html: `<div class="text-left text-sm space-y-3">
+                        ${!pesoOk ? `<div class="p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <p class="font-semibold text-red-800">⚠ Peso Bruto</p>
+                            <p class="text-slate-700 mt-1">Item declara: <strong>${pesoBL.toFixed(3)}</strong></p>
+                            <p class="text-slate-700">Suma contenedores: <strong>${sumaPeso.toFixed(3)}</strong></p>
+                            <p class="text-red-700 font-bold">Diferencia: ${(sumaPeso - pesoBL).toFixed(3)}</p>
+                        </div>` : ''}
+                        ${!volOk ? `<div class="p-3 bg-red-50 border border-red-200 rounded-lg mt-2">
+                            <p class="font-semibold text-red-800">⚠ Volumen</p>
+                            <p class="text-slate-700 mt-1">Item declara: <strong>${volBL.toFixed(3)}</strong></p>
+                            <p class="text-slate-700">Suma contenedores: <strong>${sumaVol.toFixed(3)}</strong></p>
+                            <p class="text-red-700 font-bold">Diferencia: ${(sumaVol - volBL).toFixed(3)}</p>
+                        </div>` : ''}
+                        <p class="text-slate-500 text-xs mt-2">Ajusta los valores de los contenedores para que coincidan con el ítem.</p>
+                    </div>`,
+                                                        confirmButtonText: "Entendido",
+                                                        confirmButtonColor: "#0F2A44",
+                                                    })}
+                                                    className="flex-shrink-0 px-2 py-1 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700"
+                                                >
+                                                    Ver detalle
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+
+                                    {contenedores.map((cont, idx) => { // ← el loop que ya existe
                                         const esPeligrosa = esContenedorCargaPeligrosa(cont);
                                         const itemsAsoc = getItemsAsociados(cont);
                                         const labelCont = cont.es_soc ? (cont.cnt_so_numero || "SOC sin número") : (cont.codigo || "—");
@@ -1402,6 +1490,56 @@ const ExpoBLEdit = () => {
                                                             <p className="text-xs text-slate-500 mt-1">No editable (asignado automáticamente)</p>
                                                         </div>
                                                     )}
+
+                                                    {/* ← PEGA AQUÍ */}
+                                                    <div className="md:col-span-2 bg-white border border-slate-200 rounded-lg p-3">
+                                                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Peso y Volumen</p>
+                                                       
+                                                        <div className="grid grid-cols-4 gap-3">
+                                                            <div>
+                                                                <label className="block text-xs font-medium text-slate-600 mb-1">Peso Bruto <span className="text-red-500">*</span></label>
+                                                                <input
+                                                                    type="number" step="0.001" min="0"
+                                                                    value={cont.peso ?? ""}
+                                                                    onChange={e => updateContenedor(cont.id, "peso", parseFloat(e.target.value) || null)}
+                                                                    placeholder="0.000"
+                                                                    className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm font-mono"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-xs font-medium text-slate-600 mb-1">Unidad Peso <span className="text-red-500">*</span></label>
+                                                                <input
+                                                                    type="text" maxLength="3"
+                                                                    value={cont.unidad_peso || "KGM"}
+                                                                    onChange={e => updateContenedor(cont.id, "unidad_peso", e.target.value.toUpperCase())}
+                                                                    placeholder="KGM"
+                                                                    className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm font-mono uppercase"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-xs font-medium text-slate-600 mb-1">Unidad Vol. <span className="text-red-500">*</span></label>
+                                                                <input
+                                                                    type="text" maxLength="3"
+                                                                    value={cont.unidad_volumen || "MTQ"}
+                                                                    onChange={e => updateContenedor(cont.id, "unidad_volumen", e.target.value.toUpperCase())}
+                                                                    placeholder="MTQ"
+                                                                    className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm font-mono uppercase"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-xs font-medium text-slate-600 mb-1">Unidad Vol. <span className="text-red-500">*</span></label>
+                                                                <select
+                                                                    value={cont.unidad_volumen || "MTQ"}
+                                                                    onChange={e => updateContenedor(cont.id, "unidad_volumen", e.target.value)}
+                                                                    className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-slate-500 text-sm"
+                                                                >
+                                                                    <option value="MTQ">MTQ</option>
+                                                                    <option value="FTQ">FTQ</option>
+                                                                    <option value="LTR">LTR</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                     <div className="md:col-span-2">
                                                         <div className="flex items-center justify-between mb-2">
                                                             <label className="block text-sm font-medium text-slate-700">Sellos ({(cont.sellos || []).length})</label>
