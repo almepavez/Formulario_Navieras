@@ -24,15 +24,30 @@ const TIPOS_BULTO = [
 ];
 
 const UNIDADES_PESO = [
-    { value: "KGM", label: "KGM - Kilogramos" },
-    { value: "TNE", label: "TNE - Toneladas" },
-    { value: "LBR", label: "LBR - Libras" }
+    { value: "KGM", label: "KGM - Kilogramo" },
+    { value: "TNE", label: "TNE - Tonelada métrica" },
+    { value: "GRM", label: "GRM - Gramo" },
+    { value: "LBR", label: "LBR - Libra" },
+    { value: "ONZ", label: "ONZ - Onza" },
+    { value: "STN", label: "STN - Tonelada corta" },
+    { value: "KTN", label: "KTN - Kilotonelada" },
+    { value: "MTQ", label: "MTQ - Metro cúbico" },
+    { value: "LTR", label: "LTR - Litro" },
+    { value: "FTQ", label: "FTQ - Pie cúbico" },
+    { value: "CMQ", label: "CMQ - Centímetro cúbico" },
+    { value: "GLL", label: "GLL - Galón" },
+    { value: "INQ", label: "INQ - Pulgada cúbica" },
 ];
 
 const UNIDADES_VOLUMEN = [
-    { value: "MTQ", label: "MTQ - Metros cúbicos" },
-    { value: "FTQ", label: "FTQ - Pies cúbicos" },
-    { value: "LTR", label: "LTR - Litros" }
+    { value: "MTQ", label: "MTQ - Metro cúbico" },
+    { value: "LTR", label: "LTR - Litro" },
+    { value: "FTQ", label: "FTQ - Pie cúbico" },
+    { value: "INQ", label: "INQ - Pulgada cúbica" },
+    { value: "CMQ", label: "CMQ - Centímetro cúbico" },
+    { value: "GLL", label: "GLL - Galón" },
+    { value: "GLD", label: "GLD - Galón seco" },
+    { value: "HLT", label: "HLT - Hectolitro" },
 ];
 
 const validarEmail = (email) => {
@@ -1210,11 +1225,25 @@ const Step3Items = ({ formData, setFormData, addItem, removeItem, tiposBulto }) 
                         <InputField label="Cantidad de Bultos" type="number" value={item.cantidad} onChange={(v) => updateItem(idx, 'cantidad', v)} required min="1" step="1" />
                         <div className="col-span-2 grid grid-cols-2 gap-4">
                             <InputField label="Peso Bruto" type="number" step="0.001" value={item.peso_bruto} onChange={(v) => updateItem(idx, 'peso_bruto', v)} required min="0.001" placeholder="Ej: 1500.500" />
-                            <SelectField label="Unidad de Peso" value={item.unidad_peso} onChange={(v) => updateItem(idx, 'unidad_peso', v)} options={UNIDADES_PESO} required />
+                            <UnidadCombobox
+                                label="Unidad de Peso"
+                                value={item.unidad_peso}
+                                onChange={(v) => updateItem(idx, 'unidad_peso', v)}
+                                opciones={UNIDADES_PESO}
+                                required
+                                placeholder="KGM"
+                            />
                         </div>
                         <div className="col-span-2 grid grid-cols-2 gap-4">
                             <InputField label="Volumen" type="number" step="0.001" value={item.volumen} onChange={(v) => updateItem(idx, 'volumen', v)} min="0" placeholder="0 si no aplica" required />
-                            <SelectField label="Unidad de Volumen" value={item.unidad_volumen} onChange={(v) => updateItem(idx, 'unidad_volumen', v)} options={UNIDADES_VOLUMEN} required />
+                            <UnidadCombobox
+                                label="Unidad de Volumen"
+                                value={item.unidad_volumen}
+                                onChange={(v) => updateItem(idx, 'unidad_volumen', v)}
+                                opciones={UNIDADES_VOLUMEN}
+                                required
+                                placeholder="MTQ"
+                            />
                         </div>
                     </div>
                 </div>
@@ -1569,3 +1598,61 @@ const MaskedDateTimeInput = ({ label, value, onChange, required }) => {
 };
 
 export default CargaSueltaEdit;
+
+// Agregar este componente al final de CargaSueltaEdit.jsx, antes del export
+const UnidadCombobox = ({ label, value, onChange, opciones, required, placeholder }) => {
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+
+    useEffect(() => {
+        const handler = (e) => {
+            if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, []);
+
+    const filtradas = value?.length >= 1
+        ? opciones.filter(o => o.value.includes(value.toUpperCase()) || o.label.toUpperCase().includes(value.toUpperCase()))
+        : opciones;
+
+    return (
+        <div className="relative" ref={ref}>
+            {label && (
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                    {label} {required && <span className="text-red-500">*</span>}
+                </label>
+            )}
+            <input
+                type="text"
+                value={value || ""}
+                onChange={e => { onChange(e.target.value.toUpperCase()); setOpen(true); }}
+                onFocus={() => setOpen(true)}
+                placeholder={placeholder || "KGM"}
+                maxLength={3}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F2A44] transition-colors text-sm font-mono uppercase"
+            />
+            {open && filtradas.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-200">
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Unidades sugeridas</p>
+                    </div>
+                    {filtradas.map(op => (
+                        <button
+                            key={op.value}
+                            type="button"
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => { onChange(op.value); setOpen(false); }}
+                            className={`w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-slate-50 border-b border-slate-100 last:border-0 transition-colors ${value === op.value ? 'bg-slate-100' : ''}`}
+                        >
+                            <span className="font-mono font-bold text-xs text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded w-12 text-center flex-shrink-0">
+                                {op.value}
+                            </span>
+                            <span className="text-xs text-slate-600 truncate">{op.label.split(' - ')[1]}</span>
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
