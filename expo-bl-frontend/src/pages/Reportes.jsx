@@ -982,20 +982,32 @@ const handleFileUpload = async (e) => {
 
                 <div className="flex items-center gap-2 mb-5">
                   <span className="text-xs font-medium text-slate-500 mr-1">Tipo de operación:</span>
-                  {["IMPO", "EXPO"].map((tipo) => (
-                    <button
-                      key={tipo}
-                      onClick={() => { setTipoOp(tipo); setComboSearch(""); setComboOpen(false); }}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${tipoOp === tipo
-                        ? tipo === "IMPO"
-                          ? "bg-[#0F2A44] text-white border-[#0F2A44]"
-                          : "bg-emerald-600 text-white border-emerald-600"
-                        : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
-                        }`}
-                    >
-                      {tipo}
-                    </button>
-                  ))}
+                  {["IMPO", "EXPO"].map((tipo) => {
+                    const isExpo = tipo === "EXPO";
+                    return (
+                      <div key={tipo} className="relative group">
+                        <button
+                          disabled={isExpo}
+                          onClick={() => { if (!isExpo) { setTipoOp(tipo); setComboSearch(""); setComboOpen(false); } }}
+                          className={`px-4 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                            isExpo
+                              ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                              : tipoOp === tipo
+                                ? "bg-[#0F2A44] text-white border-[#0F2A44]"
+                                : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
+                          }`}
+                        >
+                          {tipo}
+                          {isExpo && <span className="ml-1.5 text-[10px]"></span>}
+                        </button>
+                        {isExpo && (
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-slate-800 text-white text-[11px] rounded-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-center leading-relaxed shadow-xl">
+                            Los reportes de contenedores solo aplican a importación
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                   {!loadingAll && (
                     <span className="ml-auto text-[11px] text-slate-400">
                       {manifiestosTipo.length} manifiestos de {tipoOp}
