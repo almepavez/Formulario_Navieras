@@ -111,10 +111,9 @@ const ManifiestoDetalle = () => {
     if (puertoMatch) {
       setFormData(prev => ({ ...prev, puertoCentralId: puertoMatch.id.toString() }));
       setPuertoSearch(puertoMatch.codigo); // Mostrar el código, ej: "CLVAP"
-      console.log("✅ Puerto sincronizado:", puertoMatch.codigo, "→ ID:", puertoMatch.id);
     } else {
       setPuertoSearch(m.puertoCentral || "");
-      console.warn("⚠️ No se encontró puerto con nombre/código:", m.puertoCentral);
+      console.warn("No se encontró puerto con nombre/código:", m.puertoCentral);
     }
   }, [data, puertos]);
 
@@ -125,18 +124,16 @@ const ManifiestoDetalle = () => {
         const resRef = await fetch(`${API_BASE}/api/mantenedores/referencias`);
         if (resRef.ok) {
           const dataRef = await resRef.json();
-          console.log("✅ Referencias cargadas:", dataRef);
           setReferencias(Array.isArray(dataRef) ? dataRef : []);
         }
 
         const resPuertos = await fetch(`${API_BASE}/api/mantenedores/puertos`);
         if (resPuertos.ok) {
           const dataPuertos = await resPuertos.json();
-          console.log("✅ Puertos cargados:", dataPuertos);
           setPuertos(Array.isArray(dataPuertos) ? dataPuertos : []);
         }
       } catch (e) {
-        console.error("❌ Error cargando catálogos:", e);
+        console.error("Error cargando catálogos:", e);
       }
     };
 
@@ -152,11 +149,7 @@ const ManifiestoDetalle = () => {
       const json = await res.json();
       setData(json);
 
-      console.log("📥 Datos recibidos del servidor:", json);
-      console.log("🏝️ Puerto Central recibido:", json.manifiesto?.puertoCentral);
-
       setBlCount(json.bls?.length || 0);
-      console.log("🔍 BLs cargados:", json.bls?.length || 0, json.bls);
 
       const m = json.manifiesto;
       setFormData({
@@ -311,7 +304,7 @@ const ManifiestoDetalle = () => {
       }
 
       const responseData = await res.json();
-      console.log("✅ Respuesta del servidor:", responseData);
+      console.log("Respuesta del servidor:", responseData);
 
       await Swal.fire({
         title: "¡Guardado!",

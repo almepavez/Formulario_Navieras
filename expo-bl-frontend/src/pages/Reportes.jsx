@@ -504,7 +504,6 @@ export default function Reportes() {
       ]);
 
       const bls = await resBls.json();
-      console.log("BL raw data:", JSON.stringify(bls[0], null, 2));
 
       const depositosGuardados = resDepositos.ok ? await resDepositos.json() : [];
 

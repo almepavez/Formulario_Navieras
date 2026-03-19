@@ -940,7 +940,7 @@ app.get("/api/manifiestos/:id", async (req, res) => {
     res.json(response);
 
   } catch (err) {
-    console.error(`❌ Error:`, err);
+    console.error(`Error:`, err);
     res.status(500).json({ error: "Error al obtener manifiesto" });
   }
 });
@@ -1776,7 +1776,7 @@ app.put('/api/mantenedores/tipo-bulto/:id', async (req, res) => {
       activo: activoValue
     });
   } catch (error) {
-    console.error('❌ Error al actualizar tipo de bulto:', error);
+    console.error('Error al actualizar tipo de bulto:', error);
 
     if (error.code === 'ER_DUP_ENTRY') {
       return res.status(400).json({ error: 'El tipo de contenedor ya existe' });
@@ -1929,7 +1929,7 @@ app.put('/api/mantenedores/empaque-contenedores/:id', async (req, res) => {
       activo: activoValue
     });
   } catch (error) {
-    console.error('❌ Error al actualizar token:', error);
+    console.error('Error al actualizar token:', error);
 
     if (error.code === 'ER_DUP_ENTRY') {
       return res.status(400).json({ error: 'El token ya existe' });
@@ -2218,7 +2218,7 @@ app.put('/api/mantenedores/participantes/:id', async (req, res) => {
       tiene_contacto_valido: tiene_contacto_valido  // 🔥 Devolver valor calculado
     });
   } catch (error) {
-    console.error('❌ Error al actualizar participante:', error);
+    console.error('Error al actualizar participante:', error);
 
     if (error.code === 'ER_DUP_ENTRY') {
       return res.status(400).json({ error: 'El código BMS ya existe' });
@@ -2402,7 +2402,7 @@ app.put('/api/mantenedores/traductor-pil-bms/:id', async (req, res) => {
       activo: activoValue
     });
   } catch (error) {
-    console.error('❌ Error al actualizar traducción:', error);
+    console.error('Error al actualizar traducción:', error);
 
     if (error.code === 'ER_DUP_ENTRY') {
       return res.status(400).json({ error: 'El código PIL ya existe' });
@@ -2808,7 +2808,7 @@ function parseLine51(raw, esEmpty = false) {
       }
     }
 
-    // ❌ No es EMPTY o no matcheó patrón → token faltante real
+    // No es EMPTY o no matcheó patrón → token faltante real
     const mToken = line.match(/[A-Z]{4}\d{7}[A-Z0-9\s]+?([A-Z]{2,10})\s+\d{6}/);
     const tokenDesconocido = mToken ? mToken[1] : 'DESCONOCIDO';
 
@@ -2851,7 +2851,8 @@ function parseLine51(raw, esEmpty = false) {
   const sellos = [];
   if (tail) {
     // MÁS SEGURO: ampliar prefijos conocidos
-    const mSeal = tail.match(/\b[A-Z]{1,4}[0-9A-Z]{4,}\b|\b\d{5,10}\b/g); if (mSeal) for (const s of mSeal) if (!sellos.includes(s)) sellos.push(s);
+    const tailNorm = tail.replace(/\b\d{3}(?=[A-Z])/g, ' ');
+    const mSeal = tailNorm.match(/\b[A-Z]{1,4}[0-9A-Z]{4,}\b|\b\d{5,10}\b/g); if (mSeal) for (const s of mSeal) if (!sellos.includes(s)) sellos.push(s);
   }
 
   return {
@@ -3838,11 +3839,11 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
 
       if (tipoOperacion !== 'S') {
         const puertoDescarga = (b.puerto_descarga_cod || '').toUpperCase();
-        const almacenMap = {
-          CLVAP: esEmpty ? 'A-34' : 'A-44',
-          CLSAI: esEmpty ? 'A-36' : 'A-56',
+        const tatcMap = {
+          CLVAP: esEmpty ? 'TPS' : 'SITRAN',
+          CLSAI: esEmpty ? 'STI' : 'SITSAI',
         };
-        const codigoAlmacen = almacenMap[puertoDescarga] ?? null;
+        const codigoTatcDefault = tatcMap[puertoDescarga] ?? null;
 
         // Verificar si ya hay un almacén asignado manualmente en reportes
         const [reporteExistente] = await conn.query(
@@ -3850,13 +3851,13 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
           [id, blNumber]
         );
 
-        const codigoAlmacenFinal = reporteExistente.length > 0
-          ? reporteExistente[0].almacen  // respetar el manual (es codigo_tatc)
-          : codigoAlmacen;               // usar el por defecto
+        const codigoTatcFinal = reporteExistente.length > 0
+          ? reporteExistente[0].almacen
+          : codigoTatcDefault;
 
-        const [almRows] = codigoAlmacenFinal ? await conn.query(
+        const [almRows] = codigoTatcFinal ? await conn.query(
           `SELECT id, codigo_almacen, codigo_tatc FROM participantes WHERE codigo_tatc = ? LIMIT 1`,
-          [codigoAlmacenFinal]
+          [codigoTatcFinal]
         ) : [[]];
 
         if (almRows.length > 0) {
@@ -4408,7 +4409,7 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
       return res.status(409).json({ ok: false, error: "Duplicado (UNIQUE)", detail: err.sqlMessage });
     }
 
-    console.error("❌ Error procesando PMS:", err);
+    console.error("Error procesando PMS:", err);
     return res.status(500).json({ ok: false, error: err?.message || "Error procesando PMS" });
   } finally {
     conn.release();
@@ -5015,7 +5016,7 @@ app.put("/api/bls/:blNumber/contenedores", async (req, res) => {
 
   } catch (error) {
     await conn.rollback();
-    console.error("❌ Error al actualizar contenedores:", error);
+    console.error("Error al actualizar contenedores:", error);
     res.status(500).json({ error: "Error al actualizar contenedores", details: error.message });
   } finally {
     conn.release();
@@ -5044,7 +5045,7 @@ app.get('/api/bls/:blNumber/items-contenedores', async (req, res) => {
     }
     res.json({ items, contenedores });
   } catch (error) {
-    console.error('❌ Error al obtener items y contenedores:', error);
+    console.error('Error al obtener items y contenedores:', error);
     res.status(500).json({ error: 'Error al obtener datos' });
   }
 });
@@ -5211,7 +5212,7 @@ app.patch('/api/bls/:blNumber', async (req, res) => {
     res.json({ success: true, message: 'BL actualizado exitosamente', bl_number: blNumber });
   } catch (error) {
     await connection.rollback();
-    console.error('❌ Error al actualizar BL:', error);
+    console.error('Error al actualizar BL:', error);
     res.status(500).json({ error: 'Error al actualizar BL', details: error.message });
   } finally {
     connection.release();
@@ -5540,7 +5541,7 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
 
     res.json(rows);
   } catch (error) {
-    console.error("❌ Error al obtener BLs para XML:", error);
+    console.error("Error al obtener BLs para XML:", error);
     res.status(500).json({ error: "Error al obtener BLs" });
   } finally {
     conn.release();
@@ -6626,7 +6627,7 @@ app.put("/api/bls/:blNumber", async (req, res) => {
 
   } catch (error) {
     await connection.rollback();
-    console.error('❌ Error al actualizar BL:', error);
+    console.error('Error al actualizar BL:', error);
     res.status(500).json({ error: 'Error al actualizar BL', details: error.message });
   } finally {
     connection.release();

@@ -324,7 +324,6 @@ const polesDisponibles = useMemo(() => {
     fetchBLs();
     fetchManifiestoInfo();
     const handleFocus = () => {
-      console.log('🔄 Ventana recuperó el foco - Recargando BLs...');
       fetchBLs();
     };
 
@@ -363,14 +362,6 @@ const polesDisponibles = useMemo(() => {
       }
 
       const data = await res.json();
-
-      console.log('📊 BLs cargados:', data.length);
-      console.log('🔍 Estados de validación:', data.map(bl => ({
-        bl: bl.bl_number,
-        status: bl.valid_status,
-        errores: bl.valid_count_error,
-        obs: bl.valid_count_obs
-      })));
 
       setBls(Array.isArray(data) ? data : []);
     } catch (e) {
