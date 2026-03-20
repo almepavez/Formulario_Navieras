@@ -5962,7 +5962,7 @@ async function revalidarBLCompleto(conn, blId) {
   if (esImpoValidacion && isBlank(bl.fecha_emision)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_emision", mensaje: "Falta fecha_emision (Linea 74)", valorCrudo: bl.fecha_emision || null });
 
 
-  if (!manifiesto || !manifiesto.fecha_zarpe) {
+  if (!manifiesto || (!esImpoValidacion && !manifiesto.fecha_zarpe)) {
     vals.push({
       nivel: "BL", severidad: "ERROR", campo: "manifiesto_fecha_zarpe",
       mensaje: "El manifiesto no tiene fecha de zarpe configurada. Es requerida para generar el XML.",

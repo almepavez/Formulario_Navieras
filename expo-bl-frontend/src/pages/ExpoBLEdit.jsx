@@ -1046,17 +1046,26 @@ const ExpoBLEdit = () => {
                                 <p className="text-xs text-slate-400 mt-1">FPRES se genera desde la hora y fecha actual</p>
                             </div>
 
-                            {/* Fecha Zarpe — siempre del manifiesto */}
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">Fecha Zarpe (FZARPE)</label>
-                                <input
-                                    type="text"
-                                    value={formData.manifiesto_fecha_zarpe}
-                                    disabled
-                                    className="w-full px-4 py-2 rounded-lg border border-slate-300 bg-slate-50 text-slate-500 cursor-not-allowed"
+                            {/* Fecha Zarpe */}
+                            {esImpo ? (
+                                <MaskedDateTimeInput
+                                    label="Fecha Zarpe"
+                                    value={formData.fecha_zarpe}
+                                    onChange={v => updateField("fecha_zarpe", v)}
+                                    required
                                 />
-                                <p className="text-xs text-slate-400 mt-1">Definida en el manifiesto</p>
-                            </div>
+                            ) : (
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">Fecha Zarpe</label>
+                                    <input
+                                        type="text"
+                                        value={formData.manifiesto_fecha_zarpe}
+                                        disabled
+                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 bg-slate-50 text-slate-500 cursor-not-allowed"
+                                    />
+                                    <p className="text-xs text-slate-400 mt-1">Definida en el manifiesto</p>
+                                </div>
+                            )}
                             {/* Fecha Embarque — con hora DD/MM/YYYY HH:mm */}
                             <MaskedDateTimeInput
                                 label="Fecha Embarque (FEMB)"

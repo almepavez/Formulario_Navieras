@@ -435,7 +435,7 @@ const buildXML = (bl, items, contenedores, transbordos, tipoAccion = 'I') => {
           return [
             { nombre: 'FPRES', valor: (() => { const d = new Date(); const opts = { timeZone: 'America/Santiago', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }; const p = new Intl.DateTimeFormat('es-CL', opts).formatToParts(d); const get = t => p.find(x => x.type === t).value; return `${get('day')}-${get('month')}-${get('year')} ${get('hour')}:${get('minute')}`; })() },
             { nombre: 'FEM', valor: formatDateCL(esImpo ? bl.fecha_emision : bl.manifiesto_fecha_zarpe) },
-            { nombre: 'FZARPE', valor: formatDateTimeCL(bl.manifiesto_fecha_zarpe) },
+            { nombre: 'FZARPE', valor: formatDateTimeCL(esImpo ? bl.fecha_zarpe : bl.manifiesto_fecha_zarpe) },
             bl.fecha_embarque && { nombre: 'FEMB', valor: formatDateTimeCL(bl.fecha_embarque) }
           ].filter(Boolean);
         })()
@@ -496,6 +496,7 @@ const getBLQuery = () => `
   SELECT
     b.*,
     DATE_FORMAT(b.fecha_embarque, '%d/%m/%Y %H:%i') AS fecha_embarque,
+    DATE_FORMAT(b.fecha_zarpe,    '%d/%m/%Y %H:%i') AS fecha_zarpe,
     DATE_FORMAT(b.fecha_emision,  '%d/%m/%Y')        AS fecha_emision,
     m.viaje,
     m.tipo_operacion,
