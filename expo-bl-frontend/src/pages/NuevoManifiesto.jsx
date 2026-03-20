@@ -487,7 +487,8 @@ const NuevoManifiesto = () => {
             </Field>
 
 
-            <Field label="Operación *">
+          <Field label="Operación *">
+            <div className="flex items-center gap-2">
               <ComboSelect
                 value={form.tipoOperacion}
                 onChange={(v) => onChange("tipoOperacion")({ target: { value: v } })}
@@ -498,16 +499,17 @@ const NuevoManifiesto = () => {
                 placeholder="Seleccionar operación..."
               />
               {form.tipoOperacion === "S" && (
-                <span className="mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-700">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-700 whitespace-nowrap">
                   <ArrowUpRight size={11} /> EXPO
                 </span>
               )}
               {form.tipoOperacion === "I" && (
-                <span className="mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-indigo-100 text-indigo-700">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-indigo-100 text-indigo-700 whitespace-nowrap">
                   <ArrowDownLeft size={11} /> IMPO
                 </span>
               )}
-            </Field>
+            </div>
+          </Field>
 
             <Field label="Nave *">
               <SearchSelect

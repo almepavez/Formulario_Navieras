@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from "react";
+import { ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import Sidebar from "../components/Sidebar";
@@ -606,7 +607,22 @@ const ManifiestoDetalle = () => {
                 <InfoReadOnly label="Servicio" value={m.servicio} />
                 <InfoReadOnly label="Nave" value={m.nave} />
                 <InfoReadOnly label="Viaje" value={m.viaje} />
-                <InfoReadOnly label="Operación" value={m.tipoOperacion} />
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="text-xs font-medium text-slate-500">Operación</div>
+                    <div className="mt-1">
+                        {m.tipoOperacion === "S" && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-700">
+                                <ArrowUpRight size={11} /> EXPO
+                            </span>
+                        )}
+                        {(m.tipoOperacion === "I" || m.tipoOperacion === "TR" || m.tipoOperacion === "TRB") && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-indigo-100 text-indigo-700">
+                                <ArrowDownLeft size={11} /> IMPO
+                            </span>
+                        )}
+                        {!m.tipoOperacion && <span className="text-slate-400">—</span>}
+                    </div>
+                </div>
                 {!isEditing ? (
                   <InfoReadOnly
                     label="Puerto central"
