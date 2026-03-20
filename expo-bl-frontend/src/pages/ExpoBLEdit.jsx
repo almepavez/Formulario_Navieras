@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import Sidebar from "../components/Sidebar";
@@ -424,7 +425,7 @@ const ExpoBLEdit = () => {
                 if (esImpo && !formData.fecha_emision) return warn("La fecha de emisión es obligatoria");
                 if (!formData.fecha_presentacion) return warn("La fecha de presentación es obligatoria");
                 if (!formData.fecha_zarpe) return warn("La fecha de zarpe es obligatoria");
-                if (!formData.fecha_embarque) return warn("La fecha de embarque es obligatoria");
+                if (esImpo && !formData.fecha_embarque) return warn("La fecha de embarque es obligatoria");
                 if (!formData.forma_pago_flete && formData.tipo_servicio !== "MM") return warn("La forma de pago del flete es obligatoria");
                 if (!formData.cond_transporte) return warn("La condición de transporte es obligatoria");
                 break;
@@ -963,7 +964,15 @@ const ExpoBLEdit = () => {
                     }} className="text-sm text-slate-500 hover:text-slate-800 mb-2">← Volver</button>
                     <div className="flex items-center gap-3">
                         <h1 className="text-2xl font-semibold text-slate-900">Editar BL: {formData.bl_number}</h1>
-                        <span className={`px-3 py-1 text-xs font-bold rounded-full uppercase tracking-wide ${esImpo ? "bg-blue-100 text-blue-800" : "bg-emerald-100 text-emerald-800"}`}>{esImpo ? "IMPORTACIÓN" : "EXPORTACIÓN"}</span>
+                        {esImpo ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-indigo-100 text-indigo-700">
+                                <ArrowDownLeft size={11} /> IMPO
+                            </span>
+                        ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-700">
+                                <ArrowUpRight size={11} /> EXPO
+                            </span>
+                        )}                    
                     </div>
                     <p className="text-sm text-slate-500 mt-1">Viaje: <strong>{formData.viaje || "—"}</strong></p>
                 </div>
@@ -1066,13 +1075,27 @@ const ExpoBLEdit = () => {
                                     <p className="text-xs text-slate-400 mt-1">Definida en el manifiesto</p>
                                 </div>
                             )}
+
                             {/* Fecha Embarque — con hora DD/MM/YYYY HH:mm */}
-                            <MaskedDateTimeInput
-                                label="Fecha Embarque (FEMB)"
-                                value={formData.fecha_embarque}
-                                onChange={v => updateField("fecha_embarque", v)}
-                                required
-                            />
+                            {esImpo ? (
+                                <MaskedDateTimeInput
+                                    label="Fecha Embarque (FEMB)"
+                                    value={formData.fecha_embarque}
+                                    onChange={v => updateField("fecha_embarque", v)}
+                                    required
+                                />
+                            ) : (
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">Fecha Embarque (FEMB)</label>
+                                    <input
+                                        type="text"
+                                        value={formData.manifiesto_fecha_zarpe}
+                                        disabled
+                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 bg-slate-50 text-slate-500 cursor-not-allowed"
+                                    />
+                                    <p className="text-xs text-slate-400 mt-1">En exportación, FEMB se genera desde la fecha zarpe del manifiesto</p>
+                                </div>
+                            )}
 
                             {/* Fecha Recepción BL — opcional, con hora, solo IMPO */}
                             {esImpo && (
