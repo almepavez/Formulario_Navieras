@@ -1983,6 +1983,10 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
 });
 
+// Multer en memoria — solo para adjuntos de soporte (no necesita guardar en disco)
+const uploadMemory = multer({ storage: multer.memoryStorage() });
+
+
 
 let PMS51_TOKENS = [];
 
@@ -6638,98 +6642,206 @@ app.put("/api/bls/:blNumber", async (req, res) => {
 // Pegar este bloque en server.js junto al resto de rutas, antes del app.listen
 // ─────────────────────────────────────────────────────────────────────────────
 
-app.post("/api/soporte/error-mantenedor", verificarToken, async (req, res) => {
+// REEMPLAZA el endpoint completo por este:
+app.post("/api/soporte/error-mantenedor", verificarToken, uploadMemory.single("pms"), async (req, res) => {
   try {
-    const { manifiestoId, campo, mensaje, valorCrudo, blsAfectados, tipoError } = req.body;
+    // Ahora viene como FormData — parsear los campos
+    const manifiestoId = req.body.manifiestoId;
+    const campo = req.body.campo;
+    const mensaje = req.body.mensaje;
+    const valorCrudo = req.body.valorCrudo || null;
+    const blsAfectados = JSON.parse(req.body.blsAfectados || "[]");
+    const tipoError = req.body.tipoError;
+    const archivoAdjunto = req.file || null; // PMS adjunto (opcional)
 
     if (!manifiestoId || !campo || !mensaje) {
       return res.status(400).json({ error: "manifiestoId, campo y mensaje son obligatorios" });
     }
 
-    const usuario   = req.usuario; // viene del JWT: { id, email, nombre, rol }
-    const blsTexto  = Array.isArray(blsAfectados) && blsAfectados.length > 0
+    const [mRows] = await pool.query(
+      `SELECT m.viaje, m.tipo_operacion, n.nombre AS nave
+   FROM manifiestos m
+   LEFT JOIN naves n ON n.id = m.nave_id
+   WHERE m.id = ?`,
+      [manifiestoId]
+    );
+    const nave = mRows[0]?.nave || `Manifiesto #${manifiestoId}`;
+    const viaje = mRows[0]?.viaje || "";
+    const tipoOp = mRows[0]?.tipo_operacion;
+    const tipoOpLabel = tipoOp === "S" ? "EXPORTACIÓN" : tipoOp === "I" ? "IMPORTACIÓN" : "";
+    const tipoOpColor = tipoOp === "S" ? "#EA580C" : "#4F46E5";
+    const tipoOpBg = tipoOp === "S" ? "#FFF7ED" : "#EEF2FF";
+
+    const usuario = req.usuario;
+    const blsTexto = Array.isArray(blsAfectados) && blsAfectados.length > 0
       ? blsAfectados.join(", ")
       : "No especificados";
-    const blsCount  = Array.isArray(blsAfectados) ? blsAfectados.length : 0;
+    const blsCount = Array.isArray(blsAfectados) ? blsAfectados.length : 0;
 
-    // P1 (REPROCESO): soporte debe agregar al mantenedor → usuario reprocesa PMS.
-    // Este paso debe completarse antes de cualquier otra corrección en el manifiesto,
-    // ya que al reprocesar el PMS se revertirán los cambios realizados posteriormente.
     const tipoLabel = tipoError === "REPROCESO"
       ? "Requiere agregar al mantenedor y reprocesar el PMS (Prioridad 1 — resolver antes que cualquier otra corrección)"
       : "Requiere corrección en mantenedor";
     const colorTipo = tipoError === "REPROCESO" ? "#DC2626" : "#D97706";
-    const bgTipo    = tipoError === "REPROCESO" ? "#FEE2E2" : "#FEF3C7";
+    const bgTipo = tipoError === "REPROCESO" ? "#FEE2E2" : "#FEF3C7";
 
     const accionRequerida = tipoError === "REPROCESO"
       ? `Por favor agrega el valor al mantenedor correspondiente y notifica a <strong>${usuario.nombre}</strong> (${usuario.email}) para que reprocese el PMS. Este paso debe completarse antes de cualquier otra corrección en el manifiesto, ya que al reprocesar el PMS se revertirán los cambios realizados posteriormente.`
       : `Por favor agrega el valor al mantenedor correspondiente y notifica a <strong>${usuario.nombre}</strong> (${usuario.email}) para que verifique los BLs afectados.`;
 
+    // Logo embebido en base64 (si está disponible)
+    const logoHtml = `<img src="https://sga.broomgroup.com/assets/SGA%20Logo%203-DfLVNUVV.png" alt="SGA Logo" style="height:36px;width:auto;" />`;
     const html = `
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
-    .container { max-width: 620px; margin: 0 auto; }
-    .header  { background: #0F2A44; color: white; padding: 20px 28px; }
-    .header h1 { margin: 0; font-size: 18px; font-weight: 600; }
-    .header p  { margin: 4px 0 0; font-size: 13px; opacity: .75; }
-    .body    { padding: 24px 28px; background: #f9fafb; }
-    .card    { background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 20px; margin-bottom: 16px; }
-    .card-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #9ca3af; margin: 0 0 12px; }
-    .field   { display: flex; gap: 12px; margin-bottom: 8px; font-size: 14px; }
-    .label   { color: #6b7280; min-width: 140px; flex-shrink: 0; }
-    .value   { color: #111827; font-weight: 500; }
-    .badge   { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; background: ${bgTipo}; color: ${colorTipo}; }
-    .mono    { font-family: monospace; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
-    .bls     { font-size: 13px; color: #374151; line-height: 1.8; }
-    .action  { background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px; padding: 14px 18px; }
-    .action p { margin: 0; font-size: 14px; color: #1D4ED8; }
-    .footer  { padding: 16px 28px; background: #f3f4f6; font-size: 12px; color: #9ca3af; border-top: 1px solid #e5e7eb; }
-  </style>
-</head>
-<body>
-<div class="container">
-  <div class="header">
-    <h1>Solicitud de soporte — Error en mantenedor</h1>
-    <p>Sistema SGA · Broom Group</p>
-  </div>
-  <div class="body">
-    <div class="card">
-      <p class="card-title">Detalle del error</p>
-      <div class="field"><span class="label">Manifiesto</span><span class="value">#${manifiestoId}</span></div>
-      <div class="field"><span class="label">Campo afectado</span><span class="value"><span class="mono">${campo}</span></span></div>
-      <div class="field"><span class="label">Error</span><span class="value">${mensaje}</span></div>
-      ${valorCrudo ? `<div class="field"><span class="label">Valor recibido</span><span class="value"><span class="mono">${valorCrudo}</span></span></div>` : ""}
-      <div class="field"><span class="label">BLs afectados</span><span class="value">${blsCount} BL${blsCount !== 1 ? "s" : ""}</span></div>
-      <div class="field"><span class="label">Tipo de resolución</span><span class="value"><span class="badge">${tipoLabel}</span></span></div>
-    </div>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 0;">
+  <tr><td align="center">
+  <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
+
+    <!-- HEADER -->
+    <tr>
+      <td style="background:#0F2A44;padding:24px 28px;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td>
+<img src="https://sga.broomgroup.com/assets/SGA%20Logo%203-DfLVNUVV.png" alt="SGA" style="height:44px;width:auto;display:block;" />              <div style="margin-top:4px;font-size:12px;color:rgba(255,255,255,0.5);">Sistema SGA · Broom Group</div>
+            </td>
+            <td align="right" valign="top">
+              <span style="display:inline-block;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;background:${tipoOpBg};color:${tipoOpColor};">${tipoOpLabel}</span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- NAVE + VIAJE -->
+    <tr>
+      <td style="background:#1a3a5c;padding:14px 28px;">
+        <div style="font-size:16px;font-weight:700;color:#ffffff;">${nave}</div>
+        ${viaje ? `<div style="font-size:12px;color:rgba(255,255,255,0.55);margin-top:2px;">Viaje: ${viaje}</div>` : ""}
+      </td>
+    </tr>
+
+    <!-- TÍTULO -->
+    <tr>
+      <td style="background:#ffffff;padding:20px 28px 0;">
+        <div style="font-size:15px;font-weight:700;color:#0F2A44;border-left:4px solid #0F2A44;padding-left:12px;">
+          Solicitud de soporte — Error en mantenedor
+        </div>
+      </td>
+    </tr>
+
+    <!-- DETALLE DEL ERROR -->
+    <tr>
+      <td style="background:#ffffff;padding:16px 28px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+          <tr>
+            <td colspan="2" style="background:#f9fafb;padding:10px 16px;border-bottom:1px solid #e5e7eb;">
+              <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af;">Detalle del error</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:10px 16px;font-size:13px;color:#6b7280;width:140px;border-bottom:1px solid #f3f4f6;">Campo afectado</td>
+            <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:600;font-family:monospace;background:#f9fafb;border-bottom:1px solid #f3f4f6;">${campo}</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;">Error</td>
+            <td style="padding:10px 16px;font-size:13px;color:#111827;border-bottom:1px solid #f3f4f6;">${mensaje}</td>
+          </tr>
+          ${valorCrudo ? `
+          <tr>
+            <td style="padding:10px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;">Valor recibido</td>
+            <td style="padding:10px 16px;font-size:13px;color:#111827;font-family:monospace;background:#f9fafb;border-bottom:1px solid #f3f4f6;">${valorCrudo}</td>
+          </tr>` : ""}
+          <tr>
+            <td style="padding:10px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;">BLs afectados</td>
+            <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:600;border-bottom:1px solid #f3f4f6;">${blsCount} BL${blsCount !== 1 ? "s" : ""}</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 16px;font-size:13px;color:#6b7280;">Tipo de resolución</td>
+            <td style="padding:10px 16px;">
+              <span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;background:${bgTipo};color:${colorTipo};">${tipoLabel}</span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- BLS AFECTADOS -->
     ${blsCount > 0 ? `
-    <div class="card">
-      <p class="card-title">BLs afectados (${blsCount})</p>
-      <div class="bls">${blsTexto}</div>
-    </div>` : ""}
-    <div class="action">
-      <p><strong>Acción requerida:</strong> ${accionRequerida}</p>
-    </div>
-  </div>
-  <div class="footer">
-    Enviado por <strong>${usuario.nombre}</strong> (${usuario.email}) · ${new Date().toLocaleString("es-CL", { timeZone: "America/Santiago" })}
-  </div>
-</div>
+    <tr>
+      <td style="background:#ffffff;padding:0 28px 16px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+          <tr>
+            <td style="background:#f9fafb;padding:10px 16px;border-bottom:1px solid #e5e7eb;">
+              <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af;">BLs afectados (${blsCount})</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:12px 16px;font-size:13px;color:#374151;line-height:1.9;">${blsTexto}</td>
+          </tr>
+        </table>
+      </td>
+    </tr>` : ""}
+
+    <!-- ACCIÓN REQUERIDA -->
+    <tr>
+      <td style="background:#ffffff;padding:0 28px 24px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;">
+          <tr>
+            <td style="padding:14px 18px;font-size:13px;color:#1D4ED8;">
+              <strong>Acción requerida:</strong> ${accionRequerida}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- FOOTER -->
+    <tr>
+      <td style="background:#f8fafc;padding:14px 28px;border-top:1px solid #e5e7eb;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="font-size:12px;color:#9ca3af;">
+              Enviado por <strong style="color:#6b7280;">${usuario.nombre}</strong> · ${usuario.email}
+            </td>
+            <td align="right" style="font-size:12px;color:#9ca3af;">
+              ${new Date().toLocaleString("es-CL", { timeZone: "America/Santiago" })}
+            </td>
+          </tr>
+          ${archivoAdjunto ? `
+          <tr>
+            <td colspan="2" style="padding-top:6px;font-size:12px;color:#9ca3af;">
+              📎 PMS adjunto: <strong style="color:#6b7280;">${archivoAdjunto.originalname}</strong>
+            </td>
+          </tr>` : ""}
+        </table>
+      </td>
+    </tr>
+
+  </table>
+  </td></tr>
+</table>
 </body>
 </html>`;
 
-    await transporter.sendMail({
-      from:    process.env.EMAIL_FROM || '"SGA Broom Group" <noreply@broomgroup.cl>',
-      to:      "soporte.sga@broomgroup.com",
-      cc:      usuario.email,
+    // Armar el correo — adjuntar PMS si vino
+    const mailOptions = {
+      from: process.env.EMAIL_FROM || '"SGA Broom Group" <noreply@broomgroup.cl>',
+      to: "soporte.sga@broomgroup.com",
+      cc: usuario.email,
       replyTo: usuario.email,
-      subject: `[SGA] Error en mantenedor — Manifiesto #${manifiestoId} · ${blsCount} BL${blsCount !== 1 ? "s" : ""} afectados`,
-      html,
-    });
+      subject: `[SGA] ${tipoOpLabel || "SGA"} — ${nave}${viaje ? " · Viaje " + viaje : ""} · ${blsCount} BL${blsCount !== 1 ? "s" : ""} afectados`, html,
+      ...(archivoAdjunto ? {
+        attachments: [{
+          filename: archivoAdjunto.originalname,
+          content: archivoAdjunto.buffer,   // multer memoryStorage
+        }]
+      } : {}),
+    };
+
+    await transporter.sendMail(mailOptions);
 
     res.json({ success: true });
   } catch (error) {

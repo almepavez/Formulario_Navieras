@@ -64,17 +64,28 @@ const BULK_EDITABLE_FIELDS = new Set([
 // P3 — edición directa en el BL (algunos via edición masiva)
 // ─────────────────────────────────────────────────────────────────────────────
 const TIPO_RESOLUCION_MAP = {
-  tipo_embalaje:      { prioridad: 1, tipo: "REPROCESO",  mantenedorPath: "/mantenedores/empaque-contenedores" },
-  embalaje:           { prioridad: 1, tipo: "REPROCESO",  mantenedorPath: "/mantenedores/empaque-contenedores" },
-  almacenador:        { prioridad: 1, tipo: "REPROCESO",  mantenedorPath: "/mantenedores/almacenistas"         },
-  peso:               { prioridad: 1, tipo: "REPROCESO",  mantenedorPath: null },
-  volumen:            { prioridad: 1, tipo: "REPROCESO",  mantenedorPath: null },
-  shipper_contacto:   { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/participantes" },
-  consignee_contacto: { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/participantes" },
-  notify_contacto:    { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/participantes" },
-  puerto:             { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos"       },
-  puerto_embarque:    { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos"       },
-  puerto_descarga:    { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos"       },
+  // P1 — ÚNICO que requiere reprocesar el PMS
+  tipo_bulto:         { prioridad: 1, tipo: "REPROCESO", mantenedorPath: "/mantenedores/empaque-contenedores" },
+  token_bulto:        { prioridad: 1, tipo: "REPROCESO", mantenedorPath: "/mantenedores/empaque-contenedores" },
+  tipo_embalaje:      { prioridad: 1, tipo: "REPROCESO", mantenedorPath: "/mantenedores/empaque-contenedores" },
+  embalaje:           { prioridad: 1, tipo: "REPROCESO", mantenedorPath: "/mantenedores/empaque-contenedores" },
+
+  // P2 — corrección en mantenedor (sin reproceso)
+  almacenador:        { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/almacenistas"    },
+  shipper_contacto:   { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/participantes"  },
+  consignee_contacto: { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/participantes"  },
+  notify_contacto:    { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/participantes"  },
+  lugar_emision_id:   { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos"        },
+  puerto_embarque_id: { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos"        },
+  puerto_descarga_id: { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos"        },
+  lugar_destino_id:   { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos"        },
+  lugar_entrega_id:   { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos"        },
+  lugar_recepcion_id: { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos"        },
+  puerto:             { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos"        },
+  puerto_embarque:    { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos"        },
+  puerto_descarga:    { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos"        },
+
+  // P3 — edición directa en BL (algunos via bulk-edit)
   fecha_emision:      { prioridad: 3, tipo: "BL_DIRECTO", mantenedorPath: null },
   fecha_embarque:     { prioridad: 3, tipo: "BL_DIRECTO", mantenedorPath: null },
   fecha_zarpe:        { prioridad: 3, tipo: "BL_DIRECTO", mantenedorPath: null },
@@ -110,7 +121,6 @@ const ResumenErroresModal = ({ manifiestoId, bls, onClose }) => {
   const construirResumen = async () => {
     setLoading(true);
     try {
-      // Solo BLs con ERROR crítico — las observaciones no se incluyen en este resumen
       const blsConError = bls.filter(bl => bl.valid_status === "ERROR");
 
       const resultados = await Promise.all(
@@ -119,7 +129,6 @@ const ResumenErroresModal = ({ manifiestoId, bls, onClose }) => {
             const res = await fetch(`${API_BASE}/api/bls/${bl.bl_number}/validaciones`);
             if (!res.ok) return [];
             const data = await res.json();
-            // Solo severidad ERROR, descartar OBS
             return data
               .filter(v => v.severidad === "ERROR")
               .map(v => ({ ...v, bl_number: bl.bl_number }));
@@ -157,11 +166,15 @@ const ResumenErroresModal = ({ manifiestoId, bls, onClose }) => {
     }
   };
 
+  // porPrioridad DEBE ir antes de tieneP1
   const porPrioridad = useMemo(() => {
     const g = { 1: [], 2: [], 3: [] };
     resumen.forEach(e => g[e.prioridad]?.push(e));
     return g;
   }, [resumen]);
+
+  // tieneP1 DESPUÉS de porPrioridad
+  const tieneP1 = (porPrioridad[1]?.length ?? 0) > 0;
 
   const blsConError = bls.filter(bl => bl.valid_status === "ERROR").length;
   const blsListos   = bls.filter(bl => bl.valid_status === "OK").length;
@@ -172,42 +185,80 @@ const ResumenErroresModal = ({ manifiestoId, bls, onClose }) => {
     navigate(item.mantenedorPath);
   };
 
-  const enviarSoporte = async (item) => {
-    const key = `${item.campo}||${item.mensaje}`;
-    setEnviando(key);
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`${API_BASE}/api/soporte/error-mantenedor`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          manifiestoId,
-          campo:        item.campo,
-          mensaje:      item.mensaje,
-          valorCrudo:   item.valor_crudo,
-          blsAfectados: item.bls,
-          tipoError:    item.tipo,
-        }),
-      });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Error al enviar"); }
-      Swal.fire({
-        icon: "success", title: "Correo enviado",
-        html: `<p>Se notificó a <strong>soporte.sga@broomgroup.com</strong>.</p><p style="margin-top:8px;font-size:13px;color:#6B7280;">Recibirás una copia y la respuesta llegará directo a ti.</p>`,
-        timer: 3500, showConfirmButton: false,
-      });
-    } catch (e) {
-      Swal.fire({ icon: "error", title: "No se pudo enviar", text: e.message, confirmButtonColor: "#0F2A44" });
-    } finally {
-      setEnviando(null);
-    }
-  };
+const enviarSoporte = async (item) => {
+  // Paso previo: pedir el archivo PMS
+  const { value: archivo, isConfirmed } = await Swal.fire({
+    title: "Adjuntar PMS",
+    html: `
+      <p style="font-size:13px;color:#6B7280;margin-bottom:12px;">
+        Adjunta el archivo PMS que generó este error para que soporte pueda revisarlo.
+      </p>
+      <input 
+        type="file" 
+        id="swal-pms-file"
+        accept=".txt,.pms,.csv"
+        style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;cursor:pointer;"
+      />
+      <p style="font-size:11px;color:#9ca3af;margin-top:8px;">Opcional — puedes enviar sin adjuntar</p>
+    `,
+    showCancelButton: true,
+    confirmButtonText: "Enviar correo",
+    cancelButtonText: "Cancelar",
+    confirmButtonColor: "#0F2A44",
+    cancelButtonColor: "#6B7280",
+    preConfirm: () => {
+      const fileInput = document.getElementById("swal-pms-file");
+      return fileInput?.files?.[0] || null; // null si no adjuntó nada
+    },
+  });
 
-  // ── Navegar a edición masiva pasando BLs y campo via URL params ──────────
-  // Al guardar, bulk-edit vuelve a returnTo con ?revalidar=BL1,BL2
-  // y GenerarXML revalida automáticamente esos BLs al montar
+  if (!isConfirmed) return; // canceló
+
+  const key = `${item.campo}||${item.mensaje}`;
+  setEnviando(key);
+
+  try {
+    const token = localStorage.getItem("token");
+
+    // Usar FormData para poder adjuntar el archivo
+    const formData = new FormData();
+    formData.append("manifiestoId",  manifiestoId);
+    formData.append("campo",         item.campo);
+    formData.append("mensaje",       item.mensaje);
+    formData.append("valorCrudo",    item.valor_crudo ?? "");
+    formData.append("blsAfectados",  JSON.stringify(item.bls));
+    formData.append("tipoError",     item.tipo);
+    if (archivo) formData.append("pms", archivo); // adjunto opcional
+
+    const res = await fetch(`${API_BASE}/api/soporte/error-mantenedor`, {
+      method: "POST",
+      headers: {
+        // NO poner Content-Type aquí — el browser lo setea solo con el boundary correcto
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+
+    if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Error al enviar"); }
+
+    Swal.fire({
+      icon: "success",
+      title: "Correo enviado",
+      html: `
+        <p>Se notificó a <strong>soporte.sga@broomgroup.com</strong>.</p>
+        ${archivo ? `<p style="margin-top:8px;font-size:13px;color:#6B7280;">PMS adjunto: <strong>${archivo.name}</strong></p>` : ""}
+        <p style="margin-top:8px;font-size:13px;color:#6B7280;">Recibirás una copia y la respuesta llegará directo a ti.</p>
+      `,
+      timer: 3500,
+      showConfirmButton: false,
+    });
+  } catch (e) {
+    Swal.fire({ icon: "error", title: "No se pudo enviar", text: e.message, confirmButtonColor: "#0F2A44" });
+  } finally {
+    setEnviando(null);
+  }
+};
+
   const irABulkEdit = (item) => {
     const params = new URLSearchParams({
       bls:      item.bls.join(","),
@@ -215,9 +266,9 @@ const ResumenErroresModal = ({ manifiestoId, bls, onClose }) => {
       returnTo: `/manifiestos/${manifiestoId}/generar-xml`,
     });
     onClose();
-navigate(`/expo/bulk-edit?${params.toString()}`);  };
+    navigate(`/expo/bulk-edit?${params.toString()}`);
+  };
 
-  // ── Config visual por prioridad ──────────────────────────────────────────
   const CFG = {
     1: {
       label:    "Prioridad 1 — Resolver primero: requieren agregar al mantenedor y reprocesar el PMS",
@@ -239,7 +290,7 @@ navigate(`/expo/bulk-edit?${params.toString()}`);  };
       btnClass: "text-amber-700 border-amber-300 hover:bg-amber-50",
       accion: (item) => item.mantenedorPath
         ? { label: "Ir a mantenedor", Icon: ChevronRight, fn: () => irAMantenedor(item) }
-        : { label: "Solicitar soporte", Icon: Send,        fn: () => enviarSoporte(item) },
+        : { label: "Solicitar soporte", Icon: Send, fn: () => enviarSoporte(item) },
     },
     3: {
       label:    "Prioridad 3 — Edición directa en los BLs",
@@ -249,9 +300,8 @@ navigate(`/expo/bulk-edit?${params.toString()}`);  };
       border:   "border-emerald-200",
       countBg:  "bg-emerald-100 text-emerald-800",
       btnClass: "text-emerald-700 border-emerald-300 hover:bg-emerald-50",
-      // Si el campo es bulk-editable → botón edición masiva; si no → label informativo
       accion: (item) => BULK_EDITABLE_FIELDS.has(item.campo)
-        ? { label: "Editar en masa", Icon: Edit2, fn: () => irABulkEdit(item) }
+        ? { label: "Editar Masiva", Icon: Edit2, fn: () => irABulkEdit(item) }
         : null,
     },
   };
@@ -284,7 +334,7 @@ navigate(`/expo/bulk-edit?${params.toString()}`);  };
           </button>
         </div>
 
-        {/* Stats — solo errores críticos y BLs listos, sin columna de observaciones */}
+        {/* Stats */}
         <div className="grid grid-cols-2 gap-3 px-6 py-4 border-b border-slate-100 flex-shrink-0">
           <div className="bg-red-50 rounded-xl p-3 text-center">
             <div className="text-2xl font-semibold text-red-600">{blsConError}</div>
@@ -313,14 +363,18 @@ navigate(`/expo/bulk-edit?${params.toString()}`);  };
             [1, 2, 3].map((p) => {
               const items = porPrioridad[p];
               if (!items?.length) return null;
-              const cfg = CFG[p];
+              const cfg       = CFG[p];
               const isCollapsed = collapsed[p];
+              const bloqueado = tieneP1 && p > 1; // P2 y P3 bloqueados mientras haya P1
 
               return (
-                <div key={p} className={`rounded-xl border ${cfg.border} overflow-hidden`}>
+                <div
+                  key={p}
+                  className={`rounded-xl border ${cfg.border} overflow-hidden transition-opacity ${bloqueado ? "opacity-40" : ""}`}
+                >
                   <button
-                    onClick={() => setCollapsed(prev => ({ ...prev, [p]: !prev[p] }))}
-                    className={`w-full flex items-center justify-between px-4 py-3 ${cfg.head} hover:brightness-95 transition-all`}
+                    onClick={() => { if (!bloqueado) setCollapsed(prev => ({ ...prev, [p]: !prev[p] })); }}
+                    className={`w-full flex items-center justify-between px-4 py-3 ${cfg.head} transition-all ${bloqueado ? "cursor-not-allowed" : "hover:brightness-95"}`}
                   >
                     <div className="flex items-center gap-2.5">
                       <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${cfg.pill}`}>
@@ -328,11 +382,18 @@ navigate(`/expo/bulk-edit?${params.toString()}`);  };
                       </span>
                       <span className="text-sm font-medium text-slate-700">{cfg.label}</span>
                       <span className="text-xs text-slate-400">({items.length})</span>
+                      {/* Badge de bloqueo — solo visible si hay P1 pendiente */}
+                      {bloqueado && (
+                        <span className="text-xs bg-slate-200 text-slate-500 rounded-full px-2 py-0.5 font-medium flex items-center gap-1">
+                          🔒 Resolver P1 primero
+                        </span>
+                      )}
                     </div>
-                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isCollapsed ? "-rotate-90" : ""}`} />
+                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isCollapsed || bloqueado ? "-rotate-90" : ""}`} />
                   </button>
 
-                  {!isCollapsed && (
+                  {/* Contenido solo visible si no está bloqueado y no está colapsado */}
+                  {!isCollapsed && !bloqueado && (
                     <div className="divide-y divide-slate-100">
                       {items.map((item, idx) => {
                         const key     = `${item.campo}||${item.mensaje}`;
@@ -410,7 +471,6 @@ navigate(`/expo/bulk-edit?${params.toString()}`);  };
     </div>
   );
 };
-
 // ─────────────────────────────────────────────────────────────────────────────
 // TipoAccionSelector
 // ─────────────────────────────────────────────────────────────────────────────
