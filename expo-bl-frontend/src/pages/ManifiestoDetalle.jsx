@@ -111,10 +111,9 @@ const ManifiestoDetalle = () => {
     if (puertoMatch) {
       setFormData(prev => ({ ...prev, puertoCentralId: puertoMatch.id.toString() }));
       setPuertoSearch(puertoMatch.codigo); // Mostrar el código, ej: "CLVAP"
-      console.log("✅ Puerto sincronizado:", puertoMatch.codigo, "→ ID:", puertoMatch.id);
     } else {
       setPuertoSearch(m.puertoCentral || "");
-      console.warn("⚠️ No se encontró puerto con nombre/código:", m.puertoCentral);
+      console.warn("No se encontró puerto con nombre/código:", m.puertoCentral);
     }
   }, [data, puertos]);
 
@@ -125,18 +124,16 @@ const ManifiestoDetalle = () => {
         const resRef = await fetch(`${API_BASE}/api/mantenedores/referencias`);
         if (resRef.ok) {
           const dataRef = await resRef.json();
-          console.log("✅ Referencias cargadas:", dataRef);
           setReferencias(Array.isArray(dataRef) ? dataRef : []);
         }
 
         const resPuertos = await fetch(`${API_BASE}/api/mantenedores/puertos`);
         if (resPuertos.ok) {
           const dataPuertos = await resPuertos.json();
-          console.log("✅ Puertos cargados:", dataPuertos);
           setPuertos(Array.isArray(dataPuertos) ? dataPuertos : []);
         }
       } catch (e) {
-        console.error("❌ Error cargando catálogos:", e);
+        console.error("Error cargando catálogos:", e);
       }
     };
 
@@ -152,11 +149,7 @@ const ManifiestoDetalle = () => {
       const json = await res.json();
       setData(json);
 
-      console.log("📥 Datos recibidos del servidor:", json);
-      console.log("🏝️ Puerto Central recibido:", json.manifiesto?.puertoCentral);
-
       setBlCount(json.bls?.length || 0);
-      console.log("🔍 BLs cargados:", json.bls?.length || 0, json.bls);
 
       const m = json.manifiesto;
       setFormData({
@@ -311,7 +304,7 @@ const ManifiestoDetalle = () => {
       }
 
       const responseData = await res.json();
-      console.log("✅ Respuesta del servidor:", responseData);
+      console.log("Respuesta del servidor:", responseData);
 
       await Swal.fire({
         title: "¡Guardado!",
@@ -376,7 +369,7 @@ const ManifiestoDetalle = () => {
             <div style="background:#fef3c7; border:1px solid #fcd34d; border-radius:10px; padding:12px 14px;">
               <p style="font-weight:700; color:#92400e; margin-bottom:4px;">Los BLs anteriores serán eliminados</p>
               <p style="color:#78350f; font-size:12px; line-height:1.5;">
-                Se crearán los BLs desde el archivo. Los BLs anteriores serán eliminados.
+                Se crearán los BLs desde cero usando la información del archivo PMS.
               </p>
             </div>
 
@@ -387,6 +380,13 @@ const ManifiestoDetalle = () => {
                   La fecha de zarpe se calculará en base a la <strong>información</strong> del PMS.
                 </p>
               </div>
+            </div>
+
+            <div style="background:#f0fdf4; border:1px solid #86efac; border-radius:10px; padding:12px 14px;">
+              <p style="font-weight:700; color:#166534; margin-bottom:4px;">Los almacenes editados se mantendrán</p>
+              <p style="color:#14532d; font-size:12px; line-height:1.5;">
+                Si los almacenes fueron modificados manualmente, se respetarán los cambios al reprocesar.
+              </p>
             </div>
           </div>
         `,
@@ -401,14 +401,24 @@ const ManifiestoDetalle = () => {
       if (!advertencia.isConfirmed) return;
     } else {
       const result = await Swal.fire({
-        title: "¿Procesar PMS?",
-        text: "Se crearán los BLs desde el archivo. Los BLs anteriores serán eliminados.",
-        icon: "question",
+        title: "Advertencia antes de procesar",
+        icon: "warning",
+        html: `
+          <div style="text-align:left; font-size:13px; color:#334155; display:grid; gap:12px;">
+            <div style="background:#fef3c7; border:1px solid #fcd34d; border-radius:10px; padding:12px 14px;">
+              <p style="font-weight:700; color:#92400e; margin-bottom:4px;">Los BLs anteriores serán eliminados</p>
+              <p style="color:#78350f; font-size:12px; line-height:1.5;">
+                Se crearán los BLs desde cero usando la información del archivo PMS.
+              </p>
+            </div>
+          </div>
+        `,
         showCancelButton: true,
         confirmButtonColor: "#F59E0B",
         cancelButtonColor: "#64748b",
-        confirmButtonText: "Sí, procesar",
+        confirmButtonText: "Entendido, procesar igual",
         cancelButtonText: "Cancelar",
+        width: "500px",
       });
 
       if (!result.isConfirmed) return;

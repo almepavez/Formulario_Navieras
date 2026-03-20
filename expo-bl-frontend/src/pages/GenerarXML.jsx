@@ -596,9 +596,15 @@ const GenerarXML = () => {
     if (!id) { setError("ID de manifiesto no válido"); setLoading(false); return; }
     fetchBLs();
     fetchManifiestoInfo();
-    const onFocus = () => fetchBLs();
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
+    const handleFocus = () => {
+      fetchBLs();
+    };
+
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [id]);
 
   const fetchManifiestoInfo = async () => {

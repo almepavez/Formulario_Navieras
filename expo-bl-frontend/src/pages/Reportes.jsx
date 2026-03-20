@@ -150,7 +150,7 @@ const AlmacenSelect = ({ value, onChange, onSave, todos = [] }) => {
   const ref = useRef(null);
   const triggerRef = useRef(null);
   const dropdownRef = useRef(null);
-  const [dropdownStyle, setDropdownStyle] = useState({});
+  const [dropdownStyle, setDropdownStyle] = useState({ position: "fixed", top: -9999, left: -9999, visibility: "hidden" });
   
 useEffect(() => {
   if (!open) return;
@@ -193,12 +193,17 @@ useEffect(() => {
       }
       if (left < 8) left = 8;
 
+      const dropdownHeight = 260; // altura aproximada del dropdown
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const showAbove = spaceBelow < dropdownHeight && rect.top > dropdownHeight;
+
       setDropdownStyle({
         position: "fixed",
-        top: rect.bottom + 4,
+        top: showAbove ? rect.top - dropdownHeight : rect.bottom + 4,
         left,
         width: dropdownWidth,
         zIndex: 9999,
+        visibility: "visible",
       });
     };
 
@@ -371,9 +376,9 @@ export default function Reportes() {
         title: "Datos incompletos",
         html: `
           <p style="color:#64748b; margin-bottom:12px; font-size:14px;">Algunas filas no tienen datos completos:</p>
-          <ul style="text-align:left; padding-left:20px; margin-bottom:8px;">
+          <ul style="text-align:center; padding-left:0; margin-bottom:8px;">
             ${colsConVacios.map(({ label, count }) =>
-          `<li style="color:#dc2626; font-size:13px; margin-bottom:4px;">• <strong>${label}</strong>: ${count} fila(s) vacía(s)</li>`
+          `<li style="color:#dc2626; font-size:13px; margin-bottom:4px; text-align:center; list-style:none;"><strong>${label}</strong>: ${count} fila(s) vacía(s)</li>`
         ).join("")}
           </ul>
           <p style="color:#64748b; font-size:13px;">¿Exportar de todas formas?</p>
@@ -499,7 +504,6 @@ export default function Reportes() {
       ]);
 
       const bls = await resBls.json();
-      console.log("BL raw data:", JSON.stringify(bls[0], null, 2));
 
       const depositosGuardados = resDepositos.ok ? await resDepositos.json() : [];
 
@@ -588,24 +592,38 @@ export default function Reportes() {
   }, [rows]);
 
 const handleCellEdit = (rowIdx, key, value) => {
-  setRows((prev) => prev.map((r, i) => (i === rowIdx ? { ...r, [key]: value } : r)));
+  const blAfectado = rows[rowIdx]?.bl;
+
+  setRows((prev) => prev.map((r, i) => {
+    if (i === rowIdx) return { ...r, [key]: value };
+    // Si es almacen, propagar a todos los contenedores del mismo BL
+    if (key === "almacen" && r.bl === blAfectado) return { ...r, almacen: value };
+    return r;
+  }));
+
   if (!selectedId) return;
 
   clearTimeout(autoSaveTimers.current[rowIdx]);
   autoSaveTimers.current[rowIdx] = setTimeout(async () => {
-    const row = latestRows.current[rowIdx];
-    if (!row) return;
+    const allRows = latestRows.current;
     const token = localStorage.getItem("token");
+
+    // Si es almacen, guardar todas las filas del mismo BL
+    const rowsToSave = key === "almacen"
+      ? allRows.filter(r => r.bl === blAfectado)
+      : [allRows[rowIdx]];
+
+    if (!rowsToSave.length) return;
 
     fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos/bulk`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify([{
-        bl: row.bl,
-        n_contenedor: row.n_contenedor ?? "",
-        deposito: row.deposito ?? "",
-        almacen: row.almacen ?? "",
-      }]),
+      body: JSON.stringify(rowsToSave.map(r => ({
+        bl: r.bl,
+        n_contenedor: r.n_contenedor ?? "",
+        deposito: r.deposito ?? "",
+        almacen: r.almacen ?? "",
+      }))),
     }).catch(() => {});
   }, 800);
 };
@@ -875,16 +893,51 @@ const handleFileUpload = async (e) => {
         return byTatc ? byTatc.codigo_tatc : "";
       };
 
+      // Verificar que no haya almacenes distintos para contenedores del mismo BL
+      const almacenesPorBl = {};
+      Object.entries(updates).forEach(([key, upd]) => {
+        if (!upd.almacen) return;
+        const bl = key.split("||")[0];
+        if (!almacenesPorBl[bl]) almacenesPorBl[bl] = new Set();
+        almacenesPorBl[bl].add(resolveAlmacen(upd.almacen) || upd.almacen);
+      });
+
+      const blsConConflicto = Object.entries(almacenesPorBl)
+        .filter(([, set]) => set.size > 1)
+        .map(([bl, set]) => `<li style="font-size:13px; color:#dc2626; margin-bottom:4px;"><strong>${bl}</strong>: ${[...set].join(", ")}</li>`)
+        .join("");
+
+      if (blsConConflicto) {
+        await Swal.fire({
+          title: "Almacenes inconsistentes",
+          icon: "error",
+          html: `
+            <p style="color:#64748b; font-size:13px; margin-bottom:12px;">
+              Los siguientes BLs tienen contenedores con almacenes distintos en el Excel. El almacén debe ser el mismo para todos los contenedores de un BL.
+            </p>
+            <ul style="text-align:center; padding-left:0; list-style:none;">
+              ${blsConConflicto}
+            </ul>
+          `,
+          confirmButtonColor: "#0F2A44",
+          confirmButtonText: "Entendido",
+          width: "480px",
+        });
+        return;
+      }
+
       let actualizadas = 0;
       setRows((prev) =>
         prev.map((r) => {
           const upd = updates[`${String(r.bl ?? "").trim()}||${String(r.n_contenedor ?? "").trim()}`];
           if (!upd) return r;
           actualizadas++;
+          // Propagar almacen a todos los contenedores del mismo BL
+          const almacenResuelto = upd.almacen ? resolveAlmacen(upd.almacen) : null;
           return {
             ...r,
             ...upd,
-            ...(upd.almacen ? { almacen: resolveAlmacen(upd.almacen) } : {}),
+            ...(almacenResuelto ? { almacen: almacenResuelto } : {}),
           };
         })
       );
@@ -982,20 +1035,32 @@ const handleFileUpload = async (e) => {
 
                 <div className="flex items-center gap-2 mb-5">
                   <span className="text-xs font-medium text-slate-500 mr-1">Tipo de operación:</span>
-                  {["IMPO", "EXPO"].map((tipo) => (
-                    <button
-                      key={tipo}
-                      onClick={() => { setTipoOp(tipo); setComboSearch(""); setComboOpen(false); }}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${tipoOp === tipo
-                        ? tipo === "IMPO"
-                          ? "bg-[#0F2A44] text-white border-[#0F2A44]"
-                          : "bg-emerald-600 text-white border-emerald-600"
-                        : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
-                        }`}
-                    >
-                      {tipo}
-                    </button>
-                  ))}
+                  {["IMPO", "EXPO"].map((tipo) => {
+                    const isExpo = tipo === "EXPO";
+                    return (
+                      <div key={tipo} className="relative group">
+                        <button
+                          disabled={isExpo}
+                          onClick={() => { if (!isExpo) { setTipoOp(tipo); setComboSearch(""); setComboOpen(false); } }}
+                          className={`px-4 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                            isExpo
+                              ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                              : tipoOp === tipo
+                                ? "bg-[#0F2A44] text-white border-[#0F2A44]"
+                                : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
+                          }`}
+                        >
+                          {tipo}
+                          {isExpo && <span className="ml-1.5 text-[10px]"></span>}
+                        </button>
+                        {isExpo && (
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-slate-800 text-white text-[11px] rounded-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-center leading-relaxed shadow-xl">
+                            Los reportes de contenedores solo aplican a importación
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                   {!loadingAll && (
                     <span className="ml-auto text-[11px] text-slate-400">
                       {manifiestosTipo.length} manifiestos de {tipoOp}
@@ -1209,10 +1274,6 @@ const handleFileUpload = async (e) => {
                                         onChange={(val) => {
                                           const realIdx = rows.findIndex(r => r.bl === row.bl && r.n_contenedor === row.n_contenedor);
                                           if (realIdx !== -1) handleCellEdit(realIdx, c.key, val);
-                                        }}
-                                        onSave={() => {
-                                          const realIdx = rows.findIndex(r => r.bl === row.bl && r.n_contenedor === row.n_contenedor);
-                                          if (realIdx !== -1) handleCellEdit(realIdx, "almacen", row.almacen ?? "");
                                         }}
                                       />
                                     ) : (
