@@ -763,6 +763,7 @@ app.get("/api/manifiestos/:id/bls", async (req, res) => {
     le.nombre AS lugar_emision,
     pe.nombre AS puerto_embarque,
     pe.codigo AS codigo_puerto_embarque,
+    pe.region AS region_puerto_embarque,
     pd.nombre AS puerto_descarga,
     pd.codigo AS codigo_puerto_descarga,
     pd.codigo_aduana AS aduana_descarga,
@@ -977,7 +978,7 @@ app.get("/api/manifiestos/siguiente-numero-referencia", async (req, res) => {
 app.get("/api/mantenedores/puertos", async (_req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT id, codigo, codigo_sidemar, nombre, created_at, updated_at FROM puertos ORDER BY codigo");
+      "SELECT id, codigo, codigo_sidemar, codigo_aduana, nombre, region, created_at, updated_at FROM puertos ORDER BY codigo");
     res.json(rows);
   } catch (error) {
     console.error("Error al obtener puertos:", error);
@@ -988,7 +989,7 @@ app.get("/api/mantenedores/puertos", async (_req, res) => {
 app.get("/api/mantenedores/puertos/:id", async (req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT id, codigo, codigo_sidemar, nombre, created_at, updated_at FROM puertos WHERE id = ?",
+      "SELECT id, codigo, codigo_sidemar, codigo_aduana, nombre, region, created_at, updated_at FROM puertos WHERE id = ?",
       [req.params.id]
     );
     if (rows.length === 0) return res.status(404).json({ error: "Puerto no encontrado" });
@@ -1005,7 +1006,7 @@ app.post("/api/mantenedores/puertos", async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    const { codigo, nombre, codigo_sidemar } = req.body;
+    const { codigo, nombre, codigo_sidemar, codigo_aduana, region } = req.body;
 
     if (!codigo || !nombre) {
       return res.status(400).json({ error: "codigo y nombre son obligatorios" });
@@ -1015,8 +1016,8 @@ app.post("/api/mantenedores/puertos", async (req, res) => {
 
     // 1️⃣ Insertar el puerto
     const [result] = await conn.query(
-      "INSERT INTO puertos (codigo, codigo_sidemar, nombre) VALUES (?, ?, ?)",
-      [codigoUpper, (codigo_sidemar?.trim() || null), nombre.trim()]
+      "INSERT INTO puertos (codigo, codigo_sidemar, codigo_aduana, nombre, region) VALUES (?, ?, ?, ?, ?)",
+      [codigoUpper, (codigo_sidemar?.trim() || null), (codigo_aduana?.trim() || null), nombre.trim(), (region?.trim().toUpperCase() || null)]
     );
 
     const puertoId = result.insertId;
@@ -1103,7 +1104,7 @@ app.put("/api/mantenedores/puertos/:id", async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    const { codigo, nombre, codigo_sidemar } = req.body;
+    const { codigo, nombre, codigo_sidemar, codigo_aduana, region } = req.body;
     const { id } = req.params;
 
     if (!codigo || !nombre) {
@@ -1114,8 +1115,8 @@ app.put("/api/mantenedores/puertos/:id", async (req, res) => {
 
     // 1️⃣ Actualizar el puerto
     const [result] = await conn.query(
-      "UPDATE puertos SET codigo = ?, codigo_sidemar = ?, nombre = ? WHERE id = ?",
-      [codigoUpper, (codigo_sidemar?.trim() || null), nombre.trim(), id]
+      "UPDATE puertos SET codigo = ?, codigo_sidemar = ?, codigo_aduana = ?, nombre = ?, region = ? WHERE id = ?",
+      [codigoUpper, (codigo_sidemar?.trim() || null), (codigo_aduana?.trim() || null), nombre.trim(), (region?.trim().toUpperCase() || null), id]
     );
 
     if (result.affectedRows === 0) {
@@ -1213,7 +1214,7 @@ app.delete("/api/mantenedores/puertos/:id", async (req, res) => {
 app.get("/api/puertos", async (_req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT id, codigo, codigo_sidemar, nombre, pais FROM puertos ORDER BY nombre"
+      "SELECT id, codigo, codigo_sidemar, codigo_aduana, nombre, region FROM puertos ORDER BY nombre"
     );
     res.json(rows);
   } catch (error) {

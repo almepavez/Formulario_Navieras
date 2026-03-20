@@ -75,7 +75,9 @@ const CRUDMantenedor = () => {
       fields: [
         { key: "codigo", label: "Código", type: "text", required: true, placeholder: "CLVAP, CNHKG" },
         { key: "codigo_sidemar", label: "Código Sidemar", type: "text", required: false, placeholder: "CNNBO" },
+        { key: "codigo_aduana", label: "Código Aduana", type: "text", required: false, placeholder: "Ej: 34" },
         { key: "nombre", label: "Nombre", type: "text", required: true, placeholder: "VALPARAISO" },
+        { key: "region", label: "Región (agrupación POL)", type: "text", required: false, placeholder: "Ej: Oriente, México, Perú" },
       ],
     },
     servicios: {

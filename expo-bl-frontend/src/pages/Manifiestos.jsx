@@ -39,94 +39,29 @@ const formatDateTime = (iso) => {
 
 // Mapa de prefijos de país → región agrupada
 // Mapa de nombre de puerto → etiqueta agrupada
-const REGION_MAP = {
-  // Oriente
-  "SHANGHAI": "Oriente",
-  "NINGBO": "Oriente",
-  "QINGDAO": "Oriente",
-  "TIANJIN": "Oriente",
-  "TIANJIN XINGANG": "Oriente",
-  "NANJING": "Oriente",
-  "WUHAN": "Oriente",
-  "LIANYUNGANG": "Oriente",
-  "GUANGZHOU": "Oriente",
-  "SHENZHEN": "Oriente",
-  "YANTIAN": "Oriente",
-  "CHIWAN": "Oriente",
-  "NANSHA": "Oriente",
-  "XIAMEN": "Oriente",
-  "FUZHOU": "Oriente",
-  "DALIAN": "Oriente",
-  "HONG KONG": "Oriente",
-  "KAOHSIUNG": "Oriente",
-  "BUSAN": "Oriente",
-  "INCHEON": "Oriente",
-  "TOKYO": "Oriente",
-  "YOKOHAMA": "Oriente",
-  "NAGOYA": "Oriente",
-  "OSAKA": "Oriente",
-  "KOBE": "Oriente",
-  "SINGAPORE": "Oriente",
-  "PORT KELANG": "Oriente",
-  "TANJUNG PELEPAS": "Oriente",
-  "JAKARTA": "Oriente",
-  "SURABAYA": "Oriente",
-  "MANILA": "Oriente",
-  "HO CHI MINH": "Oriente",
-  "CAT LAI": "Oriente",
-  "HAIPHONG": "Oriente",
-  "BANGKOK": "Oriente",
-  "LAEM CHABANG": "Oriente",
-  "COLOMBO": "Oriente",
-  "CHENNAI": "Oriente",
-  "NHAVA SHEVA": "Oriente",
-  "MUNDRA": "Oriente",
-  "CALCUTTA": "Oriente",
-  "CALCUTTA - KOLKATA": "Oriente",
-  "KOLKATA": "Oriente",
-  "KARACHI": "Oriente",
-  "CHITTAGONG": "Oriente",
-  // México
-  "MANZANILLO": "México",
-  "LAZARO CARDENAS": "México",
-  "LÁZARO CÁRDENAS": "México",
-  "ENSENADA": "México",
-  "VERACRUZ": "México",
-  // Guatemala
-  "QUETZAL": "Guatemala",
-  "PUERTO QUETZAL": "Guatemala",
-  // Colombia
-  "BUENAVENTURA": "Colombia",
-  "CARTAGENA": "Colombia",
-  // Perú
-  "CALLAO": "Perú",
-};
-
-const getRegion = (polName) => {
-  if (!polName) return polName;
-  const key = polName.trim().toUpperCase();
-  // Buscar coincidencia exacta (case-insensitive)
-  const found = Object.keys(REGION_MAP).find(
-    (k) => k.toUpperCase() === key
-  );
-  return found ? REGION_MAP[found].toUpperCase() : polName;
-};
+const getRegion = (region, nombre) => region ? region.toUpperCase() : (nombre || "");
 
 const PolBadges = ({ pols, badgeClass }) => {
   if (!pols) return <span className="text-slate-400 text-xs">Cargando...</span>;
   if (pols.length === 0) return <span className="text-slate-400">—</span>;
 
-  const regiones = [...new Set(pols.map(getRegion))];
+  // Agrupar por etiqueta (región si existe, nombre si no)
+  const grupos = {};
+  pols.forEach(({ region, nombre }) => {
+    const label = getRegion(region, nombre);
+    if (!grupos[label]) grupos[label] = [];
+    grupos[label].push(nombre);
+  });
 
   return (
     <div className="flex flex-wrap gap-1">
-      {regiones.map((region) => (
+      {Object.entries(grupos).map(([label, nombres]) => (
         <span
-          key={region}
+          key={label}
           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badgeClass}`}
-          title={pols.filter((p) => getRegion(p) === region).join(", ")}
+          title={nombres.join(", ")}
         >
-          {region}
+          {label}
         </span>
       ))}
     </div>
@@ -159,13 +94,15 @@ const Manifiestos = () => {
             fetch(`${API_BASE}/api/manifiestos/${m.id}/bls`)
               .then((r) => r.ok ? r.json() : [])
               .then((bls) => {
-                const pols = [
-                  ...new Set(
-                    (Array.isArray(bls) ? bls : [])
-                      .map((bl) => bl.puerto_embarque)
-                      .filter(Boolean)
-                  ),
-                ];
+                const pols = (Array.isArray(bls) ? bls : [])
+                  .map((bl) => ({
+                    region: bl.region_puerto_embarque || null,
+                    nombre: bl.puerto_embarque || null,
+                  }))
+                  .filter((p) => p.nombre)
+                  .filter((p, i, arr) =>
+                    arr.findIndex((x) => (x.region || x.nombre) === (p.region || p.nombre)) === i
+                  );
                 return { id: m.id, pols };
               })
           )
