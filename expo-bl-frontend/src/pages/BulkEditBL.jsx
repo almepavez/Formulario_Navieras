@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, Check, AlertCircle, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import Swal from "sweetalert2";
@@ -244,6 +244,7 @@ const PuertoSelect = ({ label, value, onChange, puertosDisponibles }) => (
 // ── Componente principal ──────────────────────────────────────────────────────
 const BulkEditBL = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [currentStep, setCurrentStep] = useState(1);
     const [loading, setLoading] = useState(true);
     const [allBLs, setAllBLs] = useState([]);
@@ -296,7 +297,36 @@ const BulkEditBL = () => {
     const [saving, setSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
 
-    useEffect(() => { fetchBLs(); fetchPuertos(); fetchManifestos(); }, []);
+const paramsCargadosRef = useRef(false);
+
+useEffect(() => {
+    if (!allBLs.length || paramsCargadosRef.current) return;
+
+    const params    = new URLSearchParams(location.search);
+    const blsParam  = params.get("bls");
+    const field     = params.get("field");
+
+    if (!blsParam) return;
+
+    paramsCargadosRef.current = true; // evitar que se ejecute dos veces
+
+    const blNumbers = blsParam.split(",").filter(Boolean);
+    if (!blNumbers.length) return;
+
+    const blRef = allBLs.find(b => b.bl_number === blNumbers[0]);
+    if (!blRef?.viaje) return;
+
+    // Pre-seleccionar todo y saltar al step 3
+    setSelectedViaje(blRef.viaje);
+    setModoTipo((blRef.tipo_servicio || "").toUpperCase() === "BB" ? "BB" : "CONTENEDOR");
+    setSelectedBLs(blNumbers);
+
+    if (field && field in fieldsToEdit) {
+        setFieldsToEdit(prev => ({ ...prev, [field]: true }));
+    }
+
+    setCurrentStep(3);
+}, [allBLs]);
 
     const fetchBLs = async () => {
         setLoading(true);
@@ -323,7 +353,11 @@ const BulkEditBL = () => {
             setManifestosData(Array.isArray(data) ? data : []);
         } catch { setManifestosData([]); }
     };
-
+useEffect(() => { 
+    fetchBLs(); 
+    fetchPuertos(); 
+    fetchManifestos(); 
+}, []);
     const manifiestos = Object.values(
         allBLs.reduce((acc, bl) => {
             if (!bl.viaje || acc[bl.viaje]) return acc;
@@ -342,16 +376,20 @@ const BulkEditBL = () => {
         }, {})
     ).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));  // ← más reciente primero
 
-    useEffect(() => {
-        if (!selectedViaje) { setFilteredBLs([]); return; }
-        setFilteredBLs(allBLs.filter(bl => bl.viaje === selectedViaje));
-        setSelectedBLs([]);
-        setModoTipo(null);
-        setSearchBL("");
-        setFieldsToEdit(p => ({ ...p, almacenador: false }));
-        setEditValues(p => ({ ...p, almacenador: "", almacenador_id: null }));
-        setAlmacenistaPreview(null);
-    }, [selectedViaje, allBLs]);
+// POR ESTO:
+useEffect(() => {
+    if (!selectedViaje) { setFilteredBLs([]); return; }
+    setFilteredBLs(allBLs.filter(bl => bl.viaje === selectedViaje));
+
+    if (paramsCargadosRef.current) return; // ← venimos de URL params, no resetear
+
+    setSelectedBLs([]);
+    setModoTipo(null);
+    setSearchBL("");
+    setFieldsToEdit(p => ({ ...p, almacenador: false }));
+    setEditValues(p => ({ ...p, almacenador: "", almacenador_id: null }));
+    setAlmacenistaPreview(null);
+}, [selectedViaje, allBLs]);
 
     const blsVisibles = modoTipo
         ? filteredBLs.filter(bl => {
@@ -540,7 +578,15 @@ const BulkEditBL = () => {
             }
 
             setSaveSuccess(true);
-            setTimeout(() => navigate("/expo-bl"), 2000);
+            const returnTo = new URLSearchParams(location.search).get("returnTo");
+            setTimeout(() => {
+                if (returnTo) {
+                    const sep = returnTo.includes("?") ? "&" : "?";
+                    navigate(`${returnTo}${sep}revalidar=${selectedBLs.join(",")}`);
+                } else {
+                    navigate("/expo-bl");
+                }
+            }, 1500);
         } catch (e) {
             setError(e?.message || "Error al guardar");
         } finally {

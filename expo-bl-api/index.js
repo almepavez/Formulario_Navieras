@@ -6594,6 +6594,110 @@ app.put("/api/bls/:blNumber", async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Pegar este bloque en server.js junto al resto de rutas, antes del app.listen
+// ─────────────────────────────────────────────────────────────────────────────
+
+app.post("/api/soporte/error-mantenedor", verificarToken, async (req, res) => {
+  try {
+    const { manifiestoId, campo, mensaje, valorCrudo, blsAfectados, tipoError } = req.body;
+
+    if (!manifiestoId || !campo || !mensaje) {
+      return res.status(400).json({ error: "manifiestoId, campo y mensaje son obligatorios" });
+    }
+
+    const usuario   = req.usuario; // viene del JWT: { id, email, nombre, rol }
+    const blsTexto  = Array.isArray(blsAfectados) && blsAfectados.length > 0
+      ? blsAfectados.join(", ")
+      : "No especificados";
+    const blsCount  = Array.isArray(blsAfectados) ? blsAfectados.length : 0;
+
+    // P1 (REPROCESO): soporte debe agregar al mantenedor → usuario reprocesa PMS.
+    // Este paso debe completarse antes de cualquier otra corrección en el manifiesto,
+    // ya que al reprocesar el PMS se revertirán los cambios realizados posteriormente.
+    const tipoLabel = tipoError === "REPROCESO"
+      ? "Requiere agregar al mantenedor y reprocesar el PMS (Prioridad 1 — resolver antes que cualquier otra corrección)"
+      : "Requiere corrección en mantenedor";
+    const colorTipo = tipoError === "REPROCESO" ? "#DC2626" : "#D97706";
+    const bgTipo    = tipoError === "REPROCESO" ? "#FEE2E2" : "#FEF3C7";
+
+    const accionRequerida = tipoError === "REPROCESO"
+      ? `Por favor agrega el valor al mantenedor correspondiente y notifica a <strong>${usuario.nombre}</strong> (${usuario.email}) para que reprocese el PMS. Este paso debe completarse antes de cualquier otra corrección en el manifiesto, ya que al reprocesar el PMS se revertirán los cambios realizados posteriormente.`
+      : `Por favor agrega el valor al mantenedor correspondiente y notifica a <strong>${usuario.nombre}</strong> (${usuario.email}) para que verifique los BLs afectados.`;
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+    .container { max-width: 620px; margin: 0 auto; }
+    .header  { background: #0F2A44; color: white; padding: 20px 28px; }
+    .header h1 { margin: 0; font-size: 18px; font-weight: 600; }
+    .header p  { margin: 4px 0 0; font-size: 13px; opacity: .75; }
+    .body    { padding: 24px 28px; background: #f9fafb; }
+    .card    { background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 20px; margin-bottom: 16px; }
+    .card-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #9ca3af; margin: 0 0 12px; }
+    .field   { display: flex; gap: 12px; margin-bottom: 8px; font-size: 14px; }
+    .label   { color: #6b7280; min-width: 140px; flex-shrink: 0; }
+    .value   { color: #111827; font-weight: 500; }
+    .badge   { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; background: ${bgTipo}; color: ${colorTipo}; }
+    .mono    { font-family: monospace; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+    .bls     { font-size: 13px; color: #374151; line-height: 1.8; }
+    .action  { background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px; padding: 14px 18px; }
+    .action p { margin: 0; font-size: 14px; color: #1D4ED8; }
+    .footer  { padding: 16px 28px; background: #f3f4f6; font-size: 12px; color: #9ca3af; border-top: 1px solid #e5e7eb; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Solicitud de soporte — Error en mantenedor</h1>
+    <p>Sistema SGA · Broom Group</p>
+  </div>
+  <div class="body">
+    <div class="card">
+      <p class="card-title">Detalle del error</p>
+      <div class="field"><span class="label">Manifiesto</span><span class="value">#${manifiestoId}</span></div>
+      <div class="field"><span class="label">Campo afectado</span><span class="value"><span class="mono">${campo}</span></span></div>
+      <div class="field"><span class="label">Error</span><span class="value">${mensaje}</span></div>
+      ${valorCrudo ? `<div class="field"><span class="label">Valor recibido</span><span class="value"><span class="mono">${valorCrudo}</span></span></div>` : ""}
+      <div class="field"><span class="label">BLs afectados</span><span class="value">${blsCount} BL${blsCount !== 1 ? "s" : ""}</span></div>
+      <div class="field"><span class="label">Tipo de resolución</span><span class="value"><span class="badge">${tipoLabel}</span></span></div>
+    </div>
+    ${blsCount > 0 ? `
+    <div class="card">
+      <p class="card-title">BLs afectados (${blsCount})</p>
+      <div class="bls">${blsTexto}</div>
+    </div>` : ""}
+    <div class="action">
+      <p><strong>Acción requerida:</strong> ${accionRequerida}</p>
+    </div>
+  </div>
+  <div class="footer">
+    Enviado por <strong>${usuario.nombre}</strong> (${usuario.email}) · ${new Date().toLocaleString("es-CL", { timeZone: "America/Santiago" })}
+  </div>
+</div>
+</body>
+</html>`;
+
+    await transporter.sendMail({
+      from:    process.env.EMAIL_FROM || '"SGA Broom Group" <noreply@broomgroup.cl>',
+      to:      "soporte.sga@broomgroup.com",
+      cc:      usuario.email,
+      replyTo: usuario.email,
+      subject: `[SGA] Error en mantenedor — Manifiesto #${manifiestoId} · ${blsCount} BL${blsCount !== 1 ? "s" : ""} afectados`,
+      html,
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error enviando correo de soporte:", error);
+    res.status(500).json({ error: "Error al enviar el correo de soporte" });
+  }
+});
+
 // GET /api/bls/:blNumber - Obtener datos de un BL específico
 app.get("/api/bls/:blNumber", async (req, res) => {
   const { blNumber } = req.params;
