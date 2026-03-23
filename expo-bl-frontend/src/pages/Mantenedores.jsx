@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Anchor, Globe, Package, Box, PackageSearch, Warehouse, Users } from "lucide-react";
+import { Anchor, Globe, Ship, Box, PackageSearch, Warehouse, Users } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 
 const Mantenedores = () => {
@@ -28,7 +28,7 @@ const Mantenedores = () => {
       id: "naves",
       title: "Naves",
       description: "Registro y control de embarcaciones",
-      icon: Package,
+      icon: Ship,
       color: "from-orange-500 to-orange-600",
       bgColor: "bg-orange-50",
       iconColor: "text-orange-600",
