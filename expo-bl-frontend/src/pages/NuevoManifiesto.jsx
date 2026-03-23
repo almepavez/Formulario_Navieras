@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import Sidebar from "../components/Sidebar";
@@ -205,7 +206,7 @@ const NuevoManifiesto = () => {
     if (!form.representante.trim()) missing.push("Representante");
     if (!form.fechaManifiestoAduana) missing.push("Fecha Mfto Aduana CL");
     if (!form.numeroManifiestoAduana.trim()) missing.push("Nro Mfto Aduana CL");
-    if (!form.fecha_zarpe) missing.push("Fecha Zarpe");
+    if (form.tipoOperacion !== "I" && !form.fecha_zarpe) missing.push("Fecha Zarpe");
     // Referencia es obligatoria
     if (!referencia.referenciaId) missing.push("Referencia: Emisor");
 
@@ -486,7 +487,8 @@ const NuevoManifiesto = () => {
             </Field>
 
 
-            <Field label="Operación *">
+          <Field label="Operación *">
+            <div className="flex items-center gap-2">
               <ComboSelect
                 value={form.tipoOperacion}
                 onChange={(v) => onChange("tipoOperacion")({ target: { value: v } })}
@@ -496,13 +498,24 @@ const NuevoManifiesto = () => {
                 ]}
                 placeholder="Seleccionar operación..."
               />
-            </Field>
+              {form.tipoOperacion === "S" && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-700 whitespace-nowrap">
+                  <ArrowUpRight size={11} /> EXPO
+                </span>
+              )}
+              {form.tipoOperacion === "I" && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-indigo-100 text-indigo-700 whitespace-nowrap">
+                  <ArrowDownLeft size={11} /> IMPO
+                </span>
+              )}
+            </div>
+          </Field>
 
             <Field label="Nave *">
               <SearchSelect
                 value={form.nave}
                 onChange={(v) => onChange("nave")({ target: { value: v } })}
-                options={naves.map(n => ({ value: n.nombre, label: n.codigo }))}
+                options={naves.map(n => ({ value: n.codigo, label: n.nombre }))}
                 placeholder="Escribe para buscar (ej: EVLOY)"
               />
             </Field>
@@ -587,15 +600,25 @@ const NuevoManifiesto = () => {
             </Field>
 
             {/* 🆕 FECHA ZARPE */}
-            <Field label="Fecha Zarpe *">
-              <input
-                type="datetime-local"
-                value={form.fecha_zarpe}
-                onChange={onChange("fecha_zarpe")}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
-              />
-              <Hint text="Fecha y hora de zarpe del manifiesto" />
-            </Field>
+            {form.tipoOperacion !== "I" && (
+              <Field label="Fecha Zarpe *">
+                <input
+                  type="datetime-local"
+                  value={form.fecha_zarpe}
+                  onChange={onChange("fecha_zarpe")}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                />
+                <Hint text="Fecha y hora de zarpe del manifiesto" />
+              </Field>
+            )}
+            {form.tipoOperacion === "I" && (
+              <Field label="Fecha Zarpe">
+                <div className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-400 flex items-center gap-2">
+                  <ArrowDownLeft size={13} className="text-indigo-400 flex-shrink-0" />
+                  Se obtiene desde el PMS para cada BL
+                </div>
+              </Field>
+            )}
 
             <Field label="Status *">
               <ComboSelect

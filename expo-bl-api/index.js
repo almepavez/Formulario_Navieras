@@ -764,6 +764,7 @@ app.get("/api/manifiestos/:id/bls", async (req, res) => {
     le.nombre AS lugar_emision,
     pe.nombre AS puerto_embarque,
     pe.codigo AS codigo_puerto_embarque,
+    pe.region AS region_puerto_embarque,
     pd.nombre AS puerto_descarga,
     pd.codigo AS codigo_puerto_descarga,
     pd.codigo_aduana AS aduana_descarga,
@@ -978,7 +979,7 @@ app.get("/api/manifiestos/siguiente-numero-referencia", async (req, res) => {
 app.get("/api/mantenedores/puertos", async (_req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT id, codigo, codigo_sidemar, nombre, created_at, updated_at FROM puertos ORDER BY codigo");
+      "SELECT id, codigo, codigo_sidemar, codigo_aduana, nombre, region, created_at, updated_at FROM puertos ORDER BY codigo");
     res.json(rows);
   } catch (error) {
     console.error("Error al obtener puertos:", error);
@@ -989,7 +990,7 @@ app.get("/api/mantenedores/puertos", async (_req, res) => {
 app.get("/api/mantenedores/puertos/:id", async (req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT id, codigo, codigo_sidemar, nombre, created_at, updated_at FROM puertos WHERE id = ?",
+      "SELECT id, codigo, codigo_sidemar, codigo_aduana, nombre, region, created_at, updated_at FROM puertos WHERE id = ?",
       [req.params.id]
     );
     if (rows.length === 0) return res.status(404).json({ error: "Puerto no encontrado" });
@@ -1006,7 +1007,7 @@ app.post("/api/mantenedores/puertos", async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    const { codigo, nombre, codigo_sidemar } = req.body;
+    const { codigo, nombre, codigo_sidemar, codigo_aduana, region } = req.body;
 
     if (!codigo || !nombre) {
       return res.status(400).json({ error: "codigo y nombre son obligatorios" });
@@ -1016,8 +1017,8 @@ app.post("/api/mantenedores/puertos", async (req, res) => {
 
     // 1️⃣ Insertar el puerto
     const [result] = await conn.query(
-      "INSERT INTO puertos (codigo, codigo_sidemar, nombre) VALUES (?, ?, ?)",
-      [codigoUpper, (codigo_sidemar?.trim() || null), nombre.trim()]
+      "INSERT INTO puertos (codigo, codigo_sidemar, codigo_aduana, nombre, region) VALUES (?, ?, ?, ?, ?)",
+      [codigoUpper, (codigo_sidemar?.trim() || null), (codigo_aduana?.trim() || null), nombre.trim(), (region?.trim().toUpperCase() || null)]
     );
 
     const puertoId = result.insertId;
@@ -1104,7 +1105,7 @@ app.put("/api/mantenedores/puertos/:id", async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    const { codigo, nombre, codigo_sidemar } = req.body;
+    const { codigo, nombre, codigo_sidemar, codigo_aduana, region } = req.body;
     const { id } = req.params;
 
     if (!codigo || !nombre) {
@@ -1115,8 +1116,8 @@ app.put("/api/mantenedores/puertos/:id", async (req, res) => {
 
     // 1️⃣ Actualizar el puerto
     const [result] = await conn.query(
-      "UPDATE puertos SET codigo = ?, codigo_sidemar = ?, nombre = ? WHERE id = ?",
-      [codigoUpper, (codigo_sidemar?.trim() || null), nombre.trim(), id]
+      "UPDATE puertos SET codigo = ?, codigo_sidemar = ?, codigo_aduana = ?, nombre = ?, region = ? WHERE id = ?",
+      [codigoUpper, (codigo_sidemar?.trim() || null), (codigo_aduana?.trim() || null), nombre.trim(), (region?.trim().toUpperCase() || null), id]
     );
 
     if (result.affectedRows === 0) {
@@ -1214,7 +1215,7 @@ app.delete("/api/mantenedores/puertos/:id", async (req, res) => {
 app.get("/api/puertos", async (_req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT id, codigo, codigo_sidemar, nombre, pais FROM puertos ORDER BY nombre"
+      "SELECT id, codigo, codigo_sidemar, codigo_aduana, nombre, region FROM puertos ORDER BY nombre"
     );
     res.json(rows);
   } catch (error) {
@@ -4749,6 +4750,7 @@ app.get("/api/bls", async (req, res) => {
         b.lugar_destino_cod,
         le.nombre  AS lugar_emision,
         pe.nombre  AS puerto_embarque,
+        pe.region  AS region_puerto_embarque,
         pd.nombre  AS puerto_descarga,
         b.fecha_emision,
         b.fecha_presentacion,
@@ -5527,6 +5529,7 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
         b.created_at,
         pe.codigo AS puerto_embarque_cod,
         pe.nombre AS puerto_embarque,
+        pe.region AS region_puerto_embarque,
         pd.codigo AS puerto_descarga_cod,
         pd.nombre AS puerto_descarga,
         le.codigo AS lugar_emision_cod,
@@ -5967,7 +5970,7 @@ async function revalidarBLCompleto(conn, blId) {
   if (esImpoValidacion && isBlank(bl.fecha_emision)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_emision", mensaje: "Falta fecha_emision (Linea 74)", valorCrudo: bl.fecha_emision || null });
 
 
-  if (!manifiesto || !manifiesto.fecha_zarpe) {
+  if (!manifiesto || (!esImpoValidacion && !manifiesto.fecha_zarpe)) {
     vals.push({
       nivel: "BL", severidad: "ERROR", campo: "manifiesto_fecha_zarpe",
       mensaje: "El manifiesto no tiene fecha de zarpe configurada. Es requerida para generar el XML.",
@@ -6248,6 +6251,42 @@ async function revalidarBLCompleto(conn, blId) {
     }
     if (isBlank(it.unidad_volumen)) {
       vals.push({ nivel: "ITEM", ref_id: refId, sec: itemNum, severidad: "ERROR", campo: "unidad_volumen", mensaje: "Falta unidad_volumen (Linea 41)", valorCrudo: it.unidad_volumen ?? null });
+    }
+
+    // 🔥 VALIDAR: suma de pesos de contenedores del item vs peso_bruto del item
+    if (!esEmpty && contsDelItem.length > 0) {
+      const sumaPesoConts = contsDelItem.reduce((s, c) => s + (parseFloat(c.peso) || 0), 0);
+      const pesoItem = parseFloat(it.peso_bruto) || 0;
+      const difPeso = Math.abs(pesoItem - sumaPesoConts);
+
+      if (difPeso > 1) {
+        vals.push({
+          nivel: "ITEM",
+          ref_id: refId,
+          sec: itemNum,
+          severidad: "ERROR",
+          campo: "peso_bruto",
+          mensaje: `Peso del item (${pesoItem.toFixed(3)}) difiere de la suma de pesos de sus contenedores (${sumaPesoConts.toFixed(3)}). Diferencia: ${difPeso.toFixed(3)}.`,
+          valorCrudo: String(it.peso_bruto)
+        });
+      }
+
+      // 🔥 VALIDAR: suma de volúmenes de contenedores del item vs volumen del item
+      const sumaVolConts = contsDelItem.reduce((s, c) => s + (parseFloat(c.volumen) || 0), 0);
+      const volItem = parseFloat(it.volumen) || 0;
+      const difVol = Math.abs(volItem - sumaVolConts);
+
+      if (difVol > 0.01) {
+        vals.push({
+          nivel: "ITEM",
+          ref_id: refId,
+          sec: itemNum,
+          severidad: "ERROR",
+          campo: "volumen",
+          mensaje: `Volumen del item (${volItem.toFixed(3)}) difiere de la suma de volúmenes de sus contenedores (${sumaVolConts.toFixed(3)}). Diferencia: ${difVol.toFixed(3)}.`,
+          valorCrudo: String(it.volumen)
+        });
+      }
     }
   }
 

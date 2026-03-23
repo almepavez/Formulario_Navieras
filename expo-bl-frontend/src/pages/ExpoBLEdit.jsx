@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import Sidebar from "../components/Sidebar";
@@ -72,12 +73,12 @@ const ExpoBLEdit = () => {
         fecha_emision: "", fecha_presentacion: "", fecha_zarpe: "", fecha_embarque: "",
         manifiesto_fecha_zarpe: "",
         fecha_recepcion_bl: "",
-        lugar_emision: "", forma_pago_flete: "",
+        lugar_emision: "", forma_pago_flete: "", cond_transporte: "",
         puerto_embarque: "", puerto_descarga: "", lugar_destino: "", lugar_entrega: "", lugar_recepcion: "",
         shipper: "", shipper_codigo_pil: "", shipper_direccion: "", shipper_telefono: "", shipper_email: "",
-        consignee: "", consignee_codigo_pil: "", consignee_rut: "", consignee_nacion_id: "CL",
+        consignee: "", consignee_codigo_pil: "", consignee_rut: "", consignee_nacion_id: "",
         consignee_direccion: "", consignee_telefono: "", consignee_email: "",
-        notify_party: "", notify_codigo_pil: "", notify_rut: "", notify_nacion_id: "CL",
+        notify_party: "", notify_codigo_pil: "", notify_rut: "", notify_nacion_id: "",
         notify_direccion: "", notify_telefono: "", notify_email: "",
         almacenista_nombre: "", almacenista_rut: "", almacenista_nacion_id: "CL",
         almacenista_codigo_almacen: "", almacenista_id: null,
@@ -149,6 +150,7 @@ const ExpoBLEdit = () => {
                     fecha_embarque: formatDateTime(dataBL.fecha_embarque),
                     fecha_recepcion_bl: formatDateTime(dataBL.fecha_recepcion_bl),
                     forma_pago_flete: dataBL.forma_pago_flete || "",
+                    cond_transporte: dataBL.cond_transporte || "",
                     lugar_emision: dataBL.lugar_emision_cod || "",
                     puerto_embarque: dataBL.puerto_embarque_cod || "",
                     puerto_descarga: dataBL.puerto_descarga_cod || "",
@@ -159,11 +161,11 @@ const ExpoBLEdit = () => {
                     shipper_direccion: dataBL.shipper_direccion || "", shipper_telefono: dataBL.shipper_telefono || "",
                     shipper_email: dataBL.shipper_email || "",
                     consignee: dataBL.consignee || "", consignee_codigo_pil: dataBL.consignee_codigo_pil || "",
-                    consignee_rut: dataBL.consignee_rut || "", consignee_nacion_id: dataBL.consignee_nacion_id || "CL",
+                    consignee_rut: dataBL.consignee_rut || "", consignee_nacion_id: dataBL.consignee_nacion_id ?? "",
                     consignee_direccion: dataBL.consignee_direccion || "", consignee_telefono: dataBL.consignee_telefono || "",
                     consignee_email: dataBL.consignee_email || "",
                     notify_party: dataBL.notify_party || "", notify_codigo_pil: dataBL.notify_codigo_pil || "",
-                    notify_rut: dataBL.notify_rut || "", notify_nacion_id: dataBL.notify_nacion_id || "CL",
+                    notify_rut: dataBL.notify_rut || "", notify_nacion_id: dataBL.notify_nacion_id ?? "",
                     notify_direccion: dataBL.notify_direccion || "", notify_telefono: dataBL.notify_telefono || "",
                     notify_email: dataBL.notify_email || "",
                     almacenista_nombre: dataBL.almacenista_nombre || "",
@@ -420,11 +422,12 @@ const ExpoBLEdit = () => {
         switch (step) {
             case 1:
                 if (!formData.tipo_servicio) return warn("Debes seleccionar un tipo de servicio");
-                if (!formData.fecha_emision) return warn("La fecha de emisión es obligatoria");
+                if (esImpo && !formData.fecha_emision) return warn("La fecha de emisión es obligatoria");
                 if (!formData.fecha_presentacion) return warn("La fecha de presentación es obligatoria");
                 if (!formData.fecha_zarpe) return warn("La fecha de zarpe es obligatoria");
-                if (!formData.fecha_embarque) return warn("La fecha de embarque es obligatoria");
+                if (esImpo && !formData.fecha_embarque) return warn("La fecha de embarque es obligatoria");
                 if (!formData.forma_pago_flete && formData.tipo_servicio !== "MM") return warn("La forma de pago del flete es obligatoria");
+                if (!formData.cond_transporte) return warn("La condición de transporte es obligatoria");
                 break;
             case 2:
                 if (!formData.puerto_embarque) return warn("Debes seleccionar el puerto de embarque");
@@ -513,8 +516,8 @@ const ExpoBLEdit = () => {
                 ${desfases.map(d => `
                     <div class="p-3 bg-red-50 border border-red-200 rounded-lg">
                         <p class="font-semibold text-red-800 mb-2">Item ${d.numeroItem}</p>
-                        ${!d.pesoOk ? `<p class="text-slate-700">⚠ Peso: item <strong>${d.pesoBL.toFixed(3)}</strong> ≠ Σ contenedores <strong>${d.sumaPeso.toFixed(3)}</strong> (diff ${(d.sumaPeso - d.pesoBL).toFixed(3)})</p>` : ''}
-                        ${!d.volOk ? `<p class="text-slate-700 mt-1">⚠ Vol: item <strong>${d.volBL.toFixed(3)}</strong> ≠ Σ contenedores <strong>${d.sumaVol.toFixed(3)}</strong> (diff ${(d.sumaVol - d.volBL).toFixed(3)})</p>` : ''}
+                        ${!d.pesoOk ? `<p class="text-slate-700">Peso: item <strong>${d.pesoBL.toFixed(3)}</strong> ≠ Σ contenedores <strong>${d.sumaPeso.toFixed(3)}</strong> (diff ${(d.sumaPeso - d.pesoBL).toFixed(3)})</p>` : ''}
+                        ${!d.volOk ? `<p class="text-slate-700 mt-1">Vol: item <strong>${d.volBL.toFixed(3)}</strong> ≠ Σ contenedores <strong>${d.sumaVol.toFixed(3)}</strong> (diff ${(d.sumaVol - d.volBL).toFixed(3)})</p>` : ''}
                     </div>
                 `).join('')}
                 <p class="text-slate-500 text-xs">Corrige los valores antes de continuar.</p>
@@ -580,12 +583,19 @@ const ExpoBLEdit = () => {
                 return `${yyyy}-${mm}-${dd} ${hhmm}:00`;
             }; const dataToSend = {
                 tipo_servicio: formData.tipo_servicio,
-                fecha_emision: formData.fecha_emision || null,
+                fecha_emision: (() => {
+                    const fe = formData.fecha_emision;
+                    if (!fe) return null;
+                    const [dd, mm, yyyy] = fe.split("/");
+                    if (!dd || !mm || !yyyy) return null;
+                    return `${yyyy}-${mm}-${dd}`;
+                })(),
                 fecha_presentacion: fmtDT(formData.fecha_presentacion),
                 fecha_zarpe: esImpo ? undefined : fmtDT(formData.fecha_zarpe),
                 fecha_embarque: fmtDT(formData.fecha_embarque),
                 fecha_recepcion_bl: esImpo ? fmtDT(formData.fecha_recepcion_bl) : null,
                 forma_pago_flete: formData.forma_pago_flete || null,
+                cond_transporte: formData.cond_transporte || null,       
                 puerto_embarque: formData.puerto_embarque || null,
                 puerto_descarga: formData.puerto_descarga || null,
                 lugar_emision: formData.lugar_emision || null,
@@ -653,7 +663,7 @@ const ExpoBLEdit = () => {
                     body: JSON.stringify({
                         contenedores: contenedores.map(c => ({
                             id: c.id, item_id: c.item_id, codigo: c.es_soc ? "" : c.codigo,
-                            tipo_cnt: c.tipo_cnt, carga_cnt: c.carga_cnt || "S",
+                            tipo_cnt: c.tipo_cnt, carga_cnt: c.carga_cnt ?? null,
                             es_soc: c.es_soc || false, cnt_so_numero: c.cnt_so_numero || null,
                             peso: c.peso || null, unidad_peso: c.unidad_peso || "KGM",
                             volumen: c.volumen ?? null, unidad_volumen: c.unidad_volumen || "MTQ",
@@ -954,7 +964,15 @@ const ExpoBLEdit = () => {
                     }} className="text-sm text-slate-500 hover:text-slate-800 mb-2">← Volver</button>
                     <div className="flex items-center gap-3">
                         <h1 className="text-2xl font-semibold text-slate-900">Editar BL: {formData.bl_number}</h1>
-                        <span className={`px-3 py-1 text-xs font-bold rounded-full uppercase tracking-wide ${esImpo ? "bg-blue-100 text-blue-800" : "bg-emerald-100 text-emerald-800"}`}>{esImpo ? "IMPORTACIÓN" : "EXPORTACIÓN"}</span>
+                        {esImpo ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-indigo-100 text-indigo-700">
+                                <ArrowDownLeft size={11} /> IMPO
+                            </span>
+                        ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-700">
+                                <ArrowUpRight size={11} /> EXPO
+                            </span>
+                        )}                    
                     </div>
                     <p className="text-sm text-slate-500 mt-1">Viaje: <strong>{formData.viaje || "—"}</strong></p>
                 </div>
@@ -1000,16 +1018,29 @@ const ExpoBLEdit = () => {
                             </div>
 
                             {/* Fecha Emisión — solo fecha DD/MM/YYYY */}
-                            <MaskedDateInput
-                                label="Fecha Emisión"
-                                value={formData.fecha_emision}
-                                onChange={v => updateField("fecha_emision", v)}
-                                required
-                            />
+                            {esImpo ? (
+                                <MaskedDateInput
+                                    label="Fecha Emisión (FEM)"
+                                    value={formData.fecha_emision}
+                                    onChange={v => updateField("fecha_emision", v)}
+                                    required
+                                />
+                            ) : (
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">Fecha Emisión (FEM)</label>
+                                    <input
+                                        type="text"
+                                        value={formData.manifiesto_fecha_zarpe ? formData.manifiesto_fecha_zarpe.split(" ")[0] : "—"}
+                                        disabled
+                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 bg-slate-50 text-slate-500 cursor-not-allowed"
+                                    />
+                                    <p className="text-xs text-slate-400 mt-1">En exportación, FEM se genera desde la fecha zarpe del manifiesto</p>
+                                </div>
+                            )}
 
                             {/* Fecha Presentación — solo lectura, se genera al momento de declarar */}
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">Fecha Presentación</label>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Fecha Presentación (FPRES)</label>
                                 <input
                                     type="text"
                                     value={(() => {
@@ -1021,27 +1052,50 @@ const ExpoBLEdit = () => {
                                     disabled
                                     className="w-full px-4 py-2 rounded-lg border border-slate-300 bg-slate-50 text-slate-500 cursor-not-allowed"
                                 />
-                                <p className="text-xs text-slate-400 mt-1">Se genera automáticamente al declarar en SIDEMAR</p>
+                                <p className="text-xs text-slate-400 mt-1">FPRES se genera desde la hora y fecha actual</p>
                             </div>
 
-                            {/* Fecha Zarpe — siempre del manifiesto */}
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">Fecha Zarpe</label>
-                                <input
-                                    type="text"
-                                    value={formData.manifiesto_fecha_zarpe}
-                                    disabled
-                                    className="w-full px-4 py-2 rounded-lg border border-slate-300 bg-slate-50 text-slate-500 cursor-not-allowed"
+                            {/* Fecha Zarpe */}
+                            {esImpo ? (
+                                <MaskedDateTimeInput
+                                    label="Fecha Zarpe"
+                                    value={formData.fecha_zarpe}
+                                    onChange={v => updateField("fecha_zarpe", v)}
+                                    required
                                 />
-                                <p className="text-xs text-slate-400 mt-1">Definida en el manifiesto</p>
-                            </div>
+                            ) : (
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">Fecha Zarpe</label>
+                                    <input
+                                        type="text"
+                                        value={formData.manifiesto_fecha_zarpe}
+                                        disabled
+                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 bg-slate-50 text-slate-500 cursor-not-allowed"
+                                    />
+                                    <p className="text-xs text-slate-400 mt-1">Definida en el manifiesto</p>
+                                </div>
+                            )}
+
                             {/* Fecha Embarque — con hora DD/MM/YYYY HH:mm */}
-                            <MaskedDateTimeInput
-                                label="Fecha Embarque"
-                                value={formData.fecha_embarque}
-                                onChange={v => updateField("fecha_embarque", v)}
-                                required
-                            />
+                            {esImpo ? (
+                                <MaskedDateTimeInput
+                                    label="Fecha Embarque (FEMB)"
+                                    value={formData.fecha_embarque}
+                                    onChange={v => updateField("fecha_embarque", v)}
+                                    required
+                                />
+                            ) : (
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">Fecha Embarque (FEMB)</label>
+                                    <input
+                                        type="text"
+                                        value={formData.manifiesto_fecha_zarpe}
+                                        disabled
+                                        className="w-full px-4 py-2 rounded-lg border border-slate-300 bg-slate-50 text-slate-500 cursor-not-allowed"
+                                    />
+                                    <p className="text-xs text-slate-400 mt-1">En exportación, FEMB se genera desde la fecha zarpe del manifiesto</p>
+                                </div>
+                            )}
 
                             {/* Fecha Recepción BL — opcional, con hora, solo IMPO */}
                             {esImpo && (
@@ -1090,6 +1144,25 @@ const ExpoBLEdit = () => {
                                     disabled={formData.tipo_servicio === "MM"}
                                 />
                                 {formData.tipo_servicio === "MM" && <p className="text-xs text-slate-500 mt-1">No aplica para tipo EMPTY</p>}
+                            </div>
+
+                            {/* Condición Transporte — PP o HH */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">
+                                    Condición Transporte <span className="text-red-500">*</span>
+                                </label>
+                                <ComboSelect
+                                    value={formData.cond_transporte}
+                                    onChange={v => updateField("cond_transporte", v)}
+                                    options={[
+                                        { value: "", label: "Seleccionar condición..." },
+                                        { value: "PP", label: "PP - Port to Port" },
+                                        { value: "PH", label: "PH - Port to House" },
+                                        { value: "HP", label: "HP - House to Port" },
+                                        { value: "HH", label: "HH - House to House" },
+                                    ]}
+                                    placeholder="Seleccionar condición..."
+                                />
                             </div>
                         </div>
                     )}
@@ -1532,8 +1605,8 @@ const ExpoBLEdit = () => {
                                             <div key={item.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border bg-red-50 border-red-300 text-red-800 text-xs">
                                                 <div className="flex gap-4">
                                                     <span className="font-semibold">Item {item.numero_item}:</span>
-                                                    {!pesoOk && <span>⚠ Peso item {pesoBL.toFixed(3)} ≠ Σ {sumaPeso.toFixed(3)} (diff {(sumaPeso - pesoBL).toFixed(3)})</span>}
-                                                    {!volOk && <span>⚠ Vol item {volBL.toFixed(3)} ≠ Σ {sumaVol.toFixed(3)} (diff {(sumaVol - volBL).toFixed(3)})</span>}
+                                                    {!pesoOk && <span>Peso item {pesoBL.toFixed(3)} ≠ Σ {sumaPeso.toFixed(3)} (diff {(sumaPeso - pesoBL).toFixed(3)})</span>}
+                                                    {!volOk && <span>Vol item {volBL.toFixed(3)} ≠ Σ {sumaVol.toFixed(3)} (diff {(sumaVol - volBL).toFixed(3)})</span>}
                                                 </div>
                                                 <button
                                                     type="button"
@@ -1542,13 +1615,13 @@ const ExpoBLEdit = () => {
                                                         title: `Desfase en Item ${item.numero_item}`,
                                                         html: `<div class="text-left text-sm space-y-3">
                         ${!pesoOk ? `<div class="p-3 bg-red-50 border border-red-200 rounded-lg">
-                            <p class="font-semibold text-red-800">⚠ Peso Bruto</p>
+                            <p class="font-semibold text-red-800">Peso Bruto</p>
                             <p class="text-slate-700 mt-1">Item declara: <strong>${pesoBL.toFixed(3)}</strong></p>
                             <p class="text-slate-700">Suma contenedores: <strong>${sumaPeso.toFixed(3)}</strong></p>
                             <p class="text-red-700 font-bold">Diferencia: ${(sumaPeso - pesoBL).toFixed(3)}</p>
                         </div>` : ''}
                         ${!volOk ? `<div class="p-3 bg-red-50 border border-red-200 rounded-lg mt-2">
-                            <p class="font-semibold text-red-800">⚠ Volumen</p>
+                            <p class="font-semibold text-red-800">Volumen</p>
                             <p class="text-slate-700 mt-1">Item declara: <strong>${volBL.toFixed(3)}</strong></p>
                             <p class="text-slate-700">Suma contenedores: <strong>${sumaVol.toFixed(3)}</strong></p>
                             <p class="text-red-700 font-bold">Diferencia: ${(sumaVol - volBL).toFixed(3)}</p>

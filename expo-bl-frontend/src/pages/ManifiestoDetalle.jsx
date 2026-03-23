@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from "react";
+import { ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import Sidebar from "../components/Sidebar";
@@ -61,6 +62,7 @@ const ManifiestoDetalle = () => {
   });
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [formDataOriginal, setFormDataOriginal] = useState(null);
 
   const [pmsFile, setPmsFile] = useState(null);
   const [pmsUploading, setPmsUploading] = useState(false);
@@ -68,10 +70,26 @@ const ManifiestoDetalle = () => {
 
   const [referencias, setReferencias] = useState([]);
   const [puertos, setPuertos] = useState([]);
-  const [puertoSearch, setPuertoSearch] = useState("");
+  const [puertoSearch, setPuertoSearch] = useState(null);
 
   useEffect(() => {
-    fetchDetalle();
+      const init = async () => {
+          try {
+              const [resRef, resPuertos] = await Promise.all([
+                  fetch(`${API_BASE}/api/mantenedores/referencias`),
+                  fetch(`${API_BASE}/api/mantenedores/puertos`)
+              ]);
+              const puertosData = resPuertos.ok ? await resPuertos.json() : [];
+              const refData = resRef.ok ? await resRef.json() : [];
+              setReferencias(Array.isArray(refData) ? refData : []);
+              setPuertos(Array.isArray(puertosData) ? puertosData : []);
+              await fetchDetalle(Array.isArray(puertosData) ? puertosData : []);
+          } catch (e) {
+              console.error("Error cargando catálogos:", e);
+              await fetchDetalle([]);
+          }
+      };
+      init();
   }, [id]);
 
   // useEffect para beforeunload
@@ -96,51 +114,8 @@ const ManifiestoDetalle = () => {
     }));
   }, [formData.numeroManifiestoAduana, formData.fechaManifiestoAduana]);
 
-  // ✅ NUEVO: Sincronizar puertoCentralId y puertoSearch cuando lleguen datos + puertos cargados
-  useEffect(() => {
-    if (!data || puertos.length === 0) return;
 
-    const m = data.manifiesto;
-
-    // Buscar el puerto por nombre (VALPARAISO) o por código (CLVAP)
-    const puertoMatch = puertos.find(p =>
-      p.nombre?.toUpperCase() === m.puertoCentral?.toUpperCase() ||
-      p.codigo?.toUpperCase() === m.puertoCentral?.toUpperCase()
-    );
-
-    if (puertoMatch) {
-      setFormData(prev => ({ ...prev, puertoCentralId: puertoMatch.id.toString() }));
-      setPuertoSearch(puertoMatch.codigo); // Mostrar el código, ej: "CLVAP"
-    } else {
-      setPuertoSearch(m.puertoCentral || "");
-      console.warn("No se encontró puerto con nombre/código:", m.puertoCentral);
-    }
-  }, [data, puertos]);
-
-  // Cargar catálogos (referencias y puertos)
-  useEffect(() => {
-    const loadCatalogos = async () => {
-      try {
-        const resRef = await fetch(`${API_BASE}/api/mantenedores/referencias`);
-        if (resRef.ok) {
-          const dataRef = await resRef.json();
-          setReferencias(Array.isArray(dataRef) ? dataRef : []);
-        }
-
-        const resPuertos = await fetch(`${API_BASE}/api/mantenedores/puertos`);
-        if (resPuertos.ok) {
-          const dataPuertos = await resPuertos.json();
-          setPuertos(Array.isArray(dataPuertos) ? dataPuertos : []);
-        }
-      } catch (e) {
-        console.error("Error cargando catálogos:", e);
-      }
-    };
-
-    loadCatalogos();
-  }, []);
-
-  const fetchDetalle = async () => {
+  const fetchDetalle = async (puertosData = puertos) => {
     setLoading(true);
     setError("");
     try {
@@ -148,10 +123,18 @@ const ManifiestoDetalle = () => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       setData(json);
-
       setBlCount(json.bls?.length || 0);
 
       const m = json.manifiesto;
+
+      // Resolver puerto central directamente con los puertos disponibles
+      const puertoMatch = puertosData.find(p =>
+        p.nombre?.toUpperCase() === m.puertoCentral?.toUpperCase() ||
+        p.codigo?.toUpperCase() === m.puertoCentral?.toUpperCase()
+      );
+      const puertoCentralId = puertoMatch ? puertoMatch.id.toString() : "";
+      setPuertoSearch(puertoMatch ? puertoMatch.codigo : (m.puertoCentral || ""));
+
       setFormData({
         operadorNave: m.operadorNave || "",
         status: m.status || "",
@@ -163,10 +146,9 @@ const ManifiestoDetalle = () => {
         referenciaId: m.referenciaId || "",
         numeroReferencia: m.numeroReferencia || "",
         fechaReferencia: toInputDate(m.fechaReferencia),
-        puertoCentralId: "", // ← Se setea en el useEffect de sincronización (data + puertos)
-        fechaZarpe: toInputDatetime(m.fechaZarpe),   // ← ASÍ
+        puertoCentralId,
+        fechaZarpe: toInputDatetime(m.fechaZarpe),
       });
-
 
       setHasUnsavedChanges(false);
     } catch (e) {
@@ -211,6 +193,7 @@ const ManifiestoDetalle = () => {
 
 
   const handleEdit = () => {
+    setFormDataOriginal(formData);
     setIsEditing(true);
     setHasUnsavedChanges(false);
   };
@@ -232,7 +215,7 @@ const ManifiestoDetalle = () => {
     }
 
     setIsEditing(false);
-    await fetchDetalle();
+    if (formDataOriginal) setFormData(formDataOriginal);
     setHasUnsavedChanges(false);
 
     if (hasUnsavedChanges) {
@@ -375,9 +358,9 @@ const ManifiestoDetalle = () => {
 
             <div style="background:#eff6ff; border:1px solid #93c5fd; border-radius:10px; padding:12px 14px; display:flex; gap:10px;">
               <div>
-                <p style="font-weight:700; color:#1e40af; margin-bottom:4px;">Fecha de Zarpe se actualizará</p>
+                <p style="font-weight:700; color:#1e40af; margin-bottom:4px;">Fecha de Zarpe individual por BL</p>
                 <p style="color:#1e3a8a; font-size:12px; line-height:1.5;">
-                  La fecha de zarpe se calculará en base a la <strong>información</strong> del PMS.
+                  Cada BL tendrá su propia fecha de zarpe extraída desde la <strong>línea 14</strong> del archivo PMS.
                 </p>
               </div>
             </div>
@@ -624,15 +607,26 @@ const ManifiestoDetalle = () => {
                 <InfoReadOnly label="Servicio" value={m.servicio} />
                 <InfoReadOnly label="Nave" value={m.nave} />
                 <InfoReadOnly label="Viaje" value={m.viaje} />
-                <InfoReadOnly label="Operación" value={m.tipoOperacion} />
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="text-xs font-medium text-slate-500">Operación</div>
+                    <div className="mt-1">
+                        {m.tipoOperacion === "S" && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-700">
+                                <ArrowUpRight size={11} /> EXPO
+                            </span>
+                        )}
+                        {(m.tipoOperacion === "I" || m.tipoOperacion === "TR" || m.tipoOperacion === "TRB") && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-indigo-100 text-indigo-700">
+                                <ArrowDownLeft size={11} /> IMPO
+                            </span>
+                        )}
+                        {!m.tipoOperacion && <span className="text-slate-400">—</span>}
+                    </div>
+                </div>
                 {!isEditing ? (
                   <InfoReadOnly
                     label="Puerto central"
-                    value={
-                      puertoCentralSeleccionado
-                        ? `${puertoCentralSeleccionado.codigo} — ${puertoCentralSeleccionado.nombre}`
-                        : m.puertoCentral
-                    }
+                    value={puertoSearch || "—"}
                   />
                 ) : (
                   <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
@@ -690,10 +684,17 @@ const ManifiestoDetalle = () => {
                       label="N° Mfto Aduana CL"
                       value={m.numeroManifiestoAduana}
                     />
-                    <InfoReadOnly
-                      label="Fecha Zarpe"
-                      value={formatDTCL(m.fechaZarpe)}
-                    />
+                    {(m.tipoOperacion === "I" || m.tipoOperacion === "TR" || m.tipoOperacion === "TRB") ? (
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                        <div className="text-xs font-medium text-slate-500">Fecha Zarpe</div>
+                        <div className="text-slate-400 mt-1 text-xs italic">Individual por BL — ver detalle de cada BL</div>
+                      </div>
+                    ) : (
+                      <InfoReadOnly
+                        label="Fecha Zarpe"
+                        value={formatDTCL(m.fechaZarpe)}
+                      />
+                    )}
                   </>
 
                 ) : (
@@ -743,12 +744,18 @@ const ManifiestoDetalle = () => {
                       value={formData.numeroManifiestoAduana}
                       onChange={(v) => handleInputChange("numeroManifiestoAduana", v)}
                     />
-                    <InfoEditableDatetime
-                      label="Fecha Zarpe"
-                      value={formData.fechaZarpe}
-                      onChange={(v) => handleInputChange("fechaZarpe", v)}
-                    />
-
+                    {(m.tipoOperacion === "I" || m.tipoOperacion === "TR" || m.tipoOperacion === "TRB") ? (
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                        <div className="text-xs font-medium text-slate-500">Fecha Zarpe</div>
+                        <div className="text-slate-400 mt-1 text-xs italic">Individual por BL — ver detalle de cada BL</div>
+                      </div>
+                    ) : (
+                      <InfoEditableDatetime
+                        label="Fecha Zarpe"
+                        value={formData.fechaZarpe}
+                        onChange={(v) => handleInputChange("fechaZarpe", v)}
+                      />
+                    )}
                   </>
                 )}
               </div>
