@@ -23,36 +23,7 @@ const formatNumber = (num) => {
     return new Intl.NumberFormat('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 3 }).format(num);
 };
 
-// ─── Mapa de regiones POL ───────────────────────────────────────────────────
-const REGION_MAP = {
-    "SHANGHAI": "ORIENTE", "NINGBO": "ORIENTE", "QINGDAO": "ORIENTE",
-    "TIANJIN": "ORIENTE", "TIANJIN XINGANG": "ORIENTE", "NANJING": "ORIENTE",
-    "WUHAN": "ORIENTE", "LIANYUNGANG": "ORIENTE", "GUANGZHOU": "ORIENTE",
-    "SHENZHEN": "ORIENTE", "YANTIAN": "ORIENTE", "CHIWAN": "ORIENTE",
-    "NANSHA": "ORIENTE", "XIAMEN": "ORIENTE", "FUZHOU": "ORIENTE",
-    "DALIAN": "ORIENTE", "HONG KONG": "ORIENTE", "KAOHSIUNG": "ORIENTE",
-    "BUSAN": "ORIENTE", "INCHEON": "ORIENTE", "TOKYO": "ORIENTE",
-    "YOKOHAMA": "ORIENTE", "NAGOYA": "ORIENTE", "OSAKA": "ORIENTE",
-    "KOBE": "ORIENTE", "SINGAPORE": "ORIENTE", "PORT KELANG": "ORIENTE",
-    "TANJUNG PELEPAS": "ORIENTE", "JAKARTA": "ORIENTE", "SURABAYA": "ORIENTE",
-    "MANILA": "ORIENTE", "HO CHI MINH": "ORIENTE", "CAT LAI": "ORIENTE",
-    "HAIPHONG": "ORIENTE", "BANGKOK": "ORIENTE", "LAEM CHABANG": "ORIENTE",
-    "COLOMBO": "ORIENTE", "CHENNAI": "ORIENTE", "NHAVA SHEVA": "ORIENTE",
-    "MUNDRA": "ORIENTE", "CALCUTTA": "ORIENTE", "CALCUTTA - KOLKATA": "ORIENTE",
-    "KOLKATA": "ORIENTE", "KARACHI": "ORIENTE", "CHITTAGONG": "ORIENTE",
-    "MANZANILLO": "MÉXICO", "LAZARO CARDENAS": "MÉXICO",
-    "LÁZARO CÁRDENAS": "MÉXICO", "ENSENADA": "MÉXICO", "VERACRUZ": "MÉXICO",
-    "QUETZAL": "GUATEMALA", "PUERTO QUETZAL": "GUATEMALA",
-    "BUENAVENTURA": "COLOMBIA", "CARTAGENA": "COLOMBIA",
-    "CALLAO": "PERÚ",
-};
-
-const getRegion = (polName) => {
-    if (!polName) return polName;
-    const key = polName.trim().toUpperCase();
-    const found = Object.keys(REGION_MAP).find(k => k.toUpperCase() === key);
-    return found ? REGION_MAP[found] : polName.toUpperCase();
-};
+const getRegion = (bl) => bl.region_puerto_embarque || bl.puerto_embarque || "";
 
 // ─── Combobox tipo input con autocomplete ───────────────────────────────────
 const SearchableSelect = ({ value, onChange, options, allLabel }) => {
@@ -185,7 +156,7 @@ const ExpoBL = () => {
     const viajes = [...new Set(bls.map(b => b.viaje).filter(Boolean))].sort();
     const servicios = [...new Set(bls.map(b => b.tipo_servicio).filter(Boolean))].sort();
     const naves = [...new Set(bls.map(b => b.nave).filter(Boolean))].sort();
-    const regiones = [...new Set(bls.map(b => getRegion(b.puerto_embarque)).filter(Boolean))].sort();
+    const regiones = [...new Set(bls.map(b => getRegion(b)).filter(Boolean))].sort();
 
     // Contadores para pills EXPO / IMPO
     const countExpo = bls.filter(b => b.tipo_operacion === "S").length;
@@ -208,7 +179,7 @@ const ExpoBL = () => {
         const matchesViaje = viajeFilter === "TODOS" || bl.viaje === viajeFilter;
         const matchesServicio = servicioFilter === "TODOS" || bl.tipo_servicio === servicioFilter;
         const matchesNave = naveFilter === "TODOS" || bl.nave === naveFilter;
-        const matchesPol = polFilter === "TODOS" || getRegion(bl.puerto_embarque) === polFilter;
+        const matchesPol = polFilter === "TODOS" || getRegion(bl) === polFilter;
 
         return matchesTipoOp && matchesSearch && matchesViaje && matchesNave && matchesServicio && matchesPol;
     });

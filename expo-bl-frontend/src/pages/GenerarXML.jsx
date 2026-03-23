@@ -10,35 +10,7 @@ import Swal from "sweetalert2";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
-const REGION_MAP = {
-  "SHANGHAI": "ORIENTE", "NINGBO": "ORIENTE", "QINGDAO": "ORIENTE",
-  "TIANJIN": "ORIENTE", "TIANJIN XINGANG": "ORIENTE", "NANJING": "ORIENTE",
-  "WUHAN": "ORIENTE", "LIANYUNGANG": "ORIENTE", "GUANGZHOU": "ORIENTE",
-  "SHENZHEN": "ORIENTE", "YANTIAN": "ORIENTE", "CHIWAN": "ORIENTE",
-  "NANSHA": "ORIENTE", "XIAMEN": "ORIENTE", "FUZHOU": "ORIENTE",
-  "DALIAN": "ORIENTE", "HONG KONG": "ORIENTE", "KAOHSIUNG": "ORIENTE",
-  "BUSAN": "ORIENTE", "INCHEON": "ORIENTE", "TOKYO": "ORIENTE",
-  "YOKOHAMA": "ORIENTE", "NAGOYA": "ORIENTE", "OSAKA": "ORIENTE",
-  "KOBE": "ORIENTE", "SINGAPORE": "ORIENTE", "PORT KELANG": "ORIENTE",
-  "TANJUNG PELEPAS": "ORIENTE", "JAKARTA": "ORIENTE", "SURABAYA": "ORIENTE",
-  "MANILA": "ORIENTE", "HO CHI MINH": "ORIENTE", "CAT LAI": "ORIENTE",
-  "HAIPHONG": "ORIENTE", "BANGKOK": "ORIENTE", "LAEM CHABANG": "ORIENTE",
-  "COLOMBO": "ORIENTE", "CHENNAI": "ORIENTE", "NHAVA SHEVA": "ORIENTE",
-  "MUNDRA": "ORIENTE", "CALCUTTA": "ORIENTE", "CALCUTTA - KOLKATA": "ORIENTE",
-  "KOLKATA": "ORIENTE", "KARACHI": "ORIENTE", "CHITTAGONG": "ORIENTE",
-  "MANZANILLO": "MÉXICO", "LAZARO CARDENAS": "MÉXICO",
-  "LÁZARO CÁRDENAS": "MÉXICO", "ENSENADA": "MÉXICO", "VERACRUZ": "MÉXICO",
-  "QUETZAL": "GUATEMALA", "PUERTO QUETZAL": "GUATEMALA",
-  "BUENAVENTURA": "COLOMBIA", "CARTAGENA": "COLOMBIA",
-  "CALLAO": "PERÚ",
-};
-
-const getRegion = (polName) => {
-  if (!polName) return polName;
-  const key   = polName.trim().toUpperCase();
-  const found = Object.keys(REGION_MAP).find(k => k.toUpperCase() === key);
-  return found ? REGION_MAP[found] : polName.toUpperCase();
-};
+const getRegion = (bl) => bl.region_puerto_embarque || bl.puerto_embarque || "";
 
 const TIPOS_ACCION = [
   { value: "I", label: "Ingreso",      description: "Presentación inicial del BL ante Aduana", color: "emerald" },
@@ -644,7 +616,7 @@ const GenerarXML = () => {
   };
 
   const polesDisponibles = useMemo(() =>
-    [...new Set(bls.map(bl => getRegion(bl.puerto_embarque)).filter(Boolean))].sort(),
+    [...new Set(bls.map(bl => getRegion(bl)).filter(Boolean))].sort(),
   [bls]);
 
   // El contador del botón "Resumen de errores" solo cuenta ERROREs, no OBS
@@ -695,7 +667,7 @@ const GenerarXML = () => {
     if (searchTerm) { const t = searchTerm.toLowerCase(); r = r.filter(bl => bl.bl_number?.toLowerCase().includes(t) || bl.shipper?.toLowerCase().includes(t) || bl.consignee?.toLowerCase().includes(t)); }
     if (filterStatus !== "all") r = r.filter(bl => bl.status === filterStatus);
     if (showOnlyErrors)         r = r.filter(bl => bl.valid_status === "ERROR");
-    if (filterPOL.size > 0)     r = r.filter(bl => filterPOL.has(getRegion(bl.puerto_embarque)));
+    if (filterPOL.size > 0)     r = r.filter(bl => filterPOL.has(getRegion(bl)));
     return r.sort((a, b) => a.bl_number.localeCompare(b.bl_number));
   }, [bls, searchTerm, filterStatus, showOnlyErrors, filterPOL]);
 
