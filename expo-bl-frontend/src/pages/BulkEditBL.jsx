@@ -968,7 +968,7 @@ useEffect(() => {
                                                         className="mt-0.5 w-4 h-4 text-[#0F2A44] rounded focus:ring-2 focus:ring-[#0F2A44] cursor-pointer flex-shrink-0" />
                                                     <div className="flex-1">
                                                         <div className="font-medium text-slate-800 text-sm mb-2">
-                                                            Almacenador
+                                                            Almacenista
                                                             {fieldsToEdit.almacenador && <span className="text-red-400 ml-1 font-normal">*</span>}
                                                         </div>
                                                         {fieldsToEdit.almacenador && (
