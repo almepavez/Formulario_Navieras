@@ -357,7 +357,7 @@ const enviarSoporte = async (item) => {
                       {/* Badge de bloqueo — solo visible si hay P1 pendiente */}
                       {bloqueado && (
                         <span className="text-xs bg-slate-200 text-slate-500 rounded-full px-2 py-0.5 font-medium flex items-center gap-1">
-                          🔒 Resolver P1 primero
+                          Resolver P1 primero
                         </span>
                       )}
                     </div>

@@ -516,8 +516,8 @@ const ExpoBLEdit = () => {
                 ${desfases.map(d => `
                     <div class="p-3 bg-red-50 border border-red-200 rounded-lg">
                         <p class="font-semibold text-red-800 mb-2">Item ${d.numeroItem}</p>
-                        ${!d.pesoOk ? `<p class="text-slate-700">⚠ Peso: item <strong>${d.pesoBL.toFixed(3)}</strong> ≠ Σ contenedores <strong>${d.sumaPeso.toFixed(3)}</strong> (diff ${(d.sumaPeso - d.pesoBL).toFixed(3)})</p>` : ''}
-                        ${!d.volOk ? `<p class="text-slate-700 mt-1">⚠ Vol: item <strong>${d.volBL.toFixed(3)}</strong> ≠ Σ contenedores <strong>${d.sumaVol.toFixed(3)}</strong> (diff ${(d.sumaVol - d.volBL).toFixed(3)})</p>` : ''}
+                        ${!d.pesoOk ? `<p class="text-slate-700">Peso: item <strong>${d.pesoBL.toFixed(3)}</strong> ≠ Σ contenedores <strong>${d.sumaPeso.toFixed(3)}</strong> (diff ${(d.sumaPeso - d.pesoBL).toFixed(3)})</p>` : ''}
+                        ${!d.volOk ? `<p class="text-slate-700 mt-1">Vol: item <strong>${d.volBL.toFixed(3)}</strong> ≠ Σ contenedores <strong>${d.sumaVol.toFixed(3)}</strong> (diff ${(d.sumaVol - d.volBL).toFixed(3)})</p>` : ''}
                     </div>
                 `).join('')}
                 <p class="text-slate-500 text-xs">Corrige los valores antes de continuar.</p>
@@ -1605,8 +1605,8 @@ const ExpoBLEdit = () => {
                                             <div key={item.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border bg-red-50 border-red-300 text-red-800 text-xs">
                                                 <div className="flex gap-4">
                                                     <span className="font-semibold">Item {item.numero_item}:</span>
-                                                    {!pesoOk && <span>⚠ Peso item {pesoBL.toFixed(3)} ≠ Σ {sumaPeso.toFixed(3)} (diff {(sumaPeso - pesoBL).toFixed(3)})</span>}
-                                                    {!volOk && <span>⚠ Vol item {volBL.toFixed(3)} ≠ Σ {sumaVol.toFixed(3)} (diff {(sumaVol - volBL).toFixed(3)})</span>}
+                                                    {!pesoOk && <span>Peso item {pesoBL.toFixed(3)} ≠ Σ {sumaPeso.toFixed(3)} (diff {(sumaPeso - pesoBL).toFixed(3)})</span>}
+                                                    {!volOk && <span>Vol item {volBL.toFixed(3)} ≠ Σ {sumaVol.toFixed(3)} (diff {(sumaVol - volBL).toFixed(3)})</span>}
                                                 </div>
                                                 <button
                                                     type="button"
@@ -1615,13 +1615,13 @@ const ExpoBLEdit = () => {
                                                         title: `Desfase en Item ${item.numero_item}`,
                                                         html: `<div class="text-left text-sm space-y-3">
                         ${!pesoOk ? `<div class="p-3 bg-red-50 border border-red-200 rounded-lg">
-                            <p class="font-semibold text-red-800">⚠ Peso Bruto</p>
+                            <p class="font-semibold text-red-800">Peso Bruto</p>
                             <p class="text-slate-700 mt-1">Item declara: <strong>${pesoBL.toFixed(3)}</strong></p>
                             <p class="text-slate-700">Suma contenedores: <strong>${sumaPeso.toFixed(3)}</strong></p>
                             <p class="text-red-700 font-bold">Diferencia: ${(sumaPeso - pesoBL).toFixed(3)}</p>
                         </div>` : ''}
                         ${!volOk ? `<div class="p-3 bg-red-50 border border-red-200 rounded-lg mt-2">
-                            <p class="font-semibold text-red-800">⚠ Volumen</p>
+                            <p class="font-semibold text-red-800">Volumen</p>
                             <p class="text-slate-700 mt-1">Item declara: <strong>${volBL.toFixed(3)}</strong></p>
                             <p class="text-slate-700">Suma contenedores: <strong>${sumaVol.toFixed(3)}</strong></p>
                             <p class="text-red-700 font-bold">Diferencia: ${(sumaVol - volBL).toFixed(3)}</p>

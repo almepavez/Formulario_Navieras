@@ -6252,6 +6252,42 @@ async function revalidarBLCompleto(conn, blId) {
     if (isBlank(it.unidad_volumen)) {
       vals.push({ nivel: "ITEM", ref_id: refId, sec: itemNum, severidad: "ERROR", campo: "unidad_volumen", mensaje: "Falta unidad_volumen (Linea 41)", valorCrudo: it.unidad_volumen ?? null });
     }
+
+    // 🔥 VALIDAR: suma de pesos de contenedores del item vs peso_bruto del item
+    if (!esEmpty && contsDelItem.length > 0) {
+      const sumaPesoConts = contsDelItem.reduce((s, c) => s + (parseFloat(c.peso) || 0), 0);
+      const pesoItem = parseFloat(it.peso_bruto) || 0;
+      const difPeso = Math.abs(pesoItem - sumaPesoConts);
+
+      if (difPeso > 1) {
+        vals.push({
+          nivel: "ITEM",
+          ref_id: refId,
+          sec: itemNum,
+          severidad: "ERROR",
+          campo: "peso_bruto",
+          mensaje: `Peso del item (${pesoItem.toFixed(3)}) difiere de la suma de pesos de sus contenedores (${sumaPesoConts.toFixed(3)}). Diferencia: ${difPeso.toFixed(3)}.`,
+          valorCrudo: String(it.peso_bruto)
+        });
+      }
+
+      // 🔥 VALIDAR: suma de volúmenes de contenedores del item vs volumen del item
+      const sumaVolConts = contsDelItem.reduce((s, c) => s + (parseFloat(c.volumen) || 0), 0);
+      const volItem = parseFloat(it.volumen) || 0;
+      const difVol = Math.abs(volItem - sumaVolConts);
+
+      if (difVol > 0.01) {
+        vals.push({
+          nivel: "ITEM",
+          ref_id: refId,
+          sec: itemNum,
+          severidad: "ERROR",
+          campo: "volumen",
+          mensaje: `Volumen del item (${volItem.toFixed(3)}) difiere de la suma de volúmenes de sus contenedores (${sumaVolConts.toFixed(3)}). Diferencia: ${difVol.toFixed(3)}.`,
+          valorCrudo: String(it.volumen)
+        });
+      }
+    }
   }
 
   // ---- CONTENEDORES (misma lógica + IMO + sellos)
