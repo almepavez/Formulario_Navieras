@@ -186,33 +186,107 @@ const ResumenErroresModal = ({ manifiestoId, bls, onClose }) => {
   };
 
 const enviarSoporte = async (item) => {
-  // Paso previo: pedir el archivo PMS
   const { value: archivo, isConfirmed } = await Swal.fire({
     title: "Adjuntar PMS",
     html: `
       <p style="font-size:13px;color:#6B7280;margin-bottom:12px;">
         Adjunta el archivo PMS que generó este error para que soporte pueda revisarlo.
       </p>
+
+      <!-- Input oculto real -->
       <input 
         type="file" 
         id="swal-pms-file"
         accept=".txt,.pms,.csv"
-        style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;cursor:pointer;"
+        style="display:none;"
       />
-      <p style="font-size:11px;color:#9ca3af;margin-top:8px;">Opcional — puedes enviar sin adjuntar</p>
+
+      <!-- Label estilizado que actúa como botón -->
+      <label 
+        for="swal-pms-file"
+        id="swal-pms-label"
+        style="
+          display:flex;
+          align-items:center;
+          gap:8px;
+          width:100%;
+          padding:10px 14px;
+          border:2px dashed #cbd5e1;
+          border-radius:10px;
+          background:#f8fafc;
+          color:#334155;
+          font-size:13px;
+          font-weight:500;
+          cursor:pointer;
+          transition:background 0.2s;
+          box-sizing:border-box;
+        "
+        onmouseover="this.style.background='#f1f5f9'"
+        onmouseout="this.style.background='#f8fafc'"
+      >
+        <!-- Ícono nube con flecha (mismo SVG del label original) -->
+        <svg width="20" height="20" fill="none" stroke="#64748b" stroke-width="2" 
+             stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"
+             style="flex-shrink:0;">
+          <path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+        </svg>
+
+        <!-- Texto dinámico: se actualiza con JS al elegir archivo -->
+        <span id="swal-pms-filename" style="
+          flex:1;
+          overflow:hidden;
+          text-overflow:ellipsis;
+          white-space:nowrap;
+          text-align:left;
+        ">
+          Seleccionar archivo PMS
+        </span>
+
+        <!-- Badge de tamaño (oculto hasta que elijan archivo) -->
+        <span id="swal-pms-size" style="
+          display:none;
+          font-size:11px;
+          color:#94a3b8;
+          flex-shrink:0;
+        "></span>
+      </label>
+
+      <p style="font-size:11px;color:#9ca3af;margin-top:8px;">
+        Opcional — puedes enviar sin adjuntar
+      </p>
     `,
     showCancelButton: true,
     confirmButtonText: "Enviar correo",
     cancelButtonText: "Cancelar",
     confirmButtonColor: "#0F2A44",
     cancelButtonColor: "#6B7280",
+
+    // 👇 Este hook se ejecuta DESPUÉS de que el HTML se inyecta en el DOM
+    didOpen: () => {
+      const fileInput = document.getElementById("swal-pms-file");
+      const filenameSpan = document.getElementById("swal-pms-filename");
+      const sizeSpan = document.getElementById("swal-pms-size");
+
+      fileInput.addEventListener("change", () => {
+        const file = fileInput.files?.[0];
+        if (file) {
+          filenameSpan.textContent = file.name;
+          sizeSpan.textContent = `(${(file.size / 1024).toFixed(1)} KB)`;
+          sizeSpan.style.display = "inline";
+        } else {
+          filenameSpan.textContent = "Seleccionar archivo PMS";
+          sizeSpan.style.display = "none";
+        }
+      });
+    },
+
     preConfirm: () => {
       const fileInput = document.getElementById("swal-pms-file");
-      return fileInput?.files?.[0] || null; // null si no adjuntó nada
+      return fileInput?.files?.[0] || null;
     },
   });
 
-  if (!isConfirmed) return; // canceló
+  if (!isConfirmed) return;
 
   const key = `${item.campo}||${item.mensaje}`;
   setEnviando(key);
