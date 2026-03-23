@@ -4,6 +4,7 @@ const dotenv = require("dotenv");
 const mysql = require("mysql2/promise");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
@@ -6640,20 +6641,19 @@ app.put("/api/bls/:blNumber", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Pegar este bloque en server.js junto al resto de rutas, antes del app.listen
+// CORREOS GMAIL ERRORES
 // ─────────────────────────────────────────────────────────────────────────────
 
-// REEMPLAZA el endpoint completo por este:
+// ── ENVIAR REPORTE ──────────────────────────────────────────────────────────
 app.post("/api/soporte/error-mantenedor", verificarToken, uploadMemory.single("pms"), async (req, res) => {
   try {
-    // Ahora viene como FormData — parsear los campos
     const manifiestoId = req.body.manifiestoId;
     const campo = req.body.campo;
     const mensaje = req.body.mensaje;
     const valorCrudo = req.body.valorCrudo || null;
     const blsAfectados = JSON.parse(req.body.blsAfectados || "[]");
     const tipoError = req.body.tipoError;
-    const archivoAdjunto = req.file || null; // PMS adjunto (opcional)
+    const archivoAdjunto = req.file || null;
 
     if (!manifiestoId || !campo || !mensaje) {
       return res.status(400).json({ error: "manifiestoId, campo y mensaje son obligatorios" });
@@ -6661,9 +6661,9 @@ app.post("/api/soporte/error-mantenedor", verificarToken, uploadMemory.single("p
 
     const [mRows] = await pool.query(
       `SELECT m.viaje, m.tipo_operacion, n.nombre AS nave
-   FROM manifiestos m
-   LEFT JOIN naves n ON n.id = m.nave_id
-   WHERE m.id = ?`,
+       FROM manifiestos m
+       LEFT JOIN naves n ON n.id = m.nave_id
+       WHERE m.id = ?`,
       [manifiestoId]
     );
     const nave = mRows[0]?.nave || `Manifiesto #${manifiestoId}`;
@@ -6689,9 +6689,22 @@ app.post("/api/soporte/error-mantenedor", verificarToken, uploadMemory.single("p
       ? `Por favor agrega el valor al mantenedor correspondiente y notifica a <strong>${usuario.nombre}</strong> (${usuario.email}) para que reprocese el PMS. Este paso debe completarse antes de cualquier otra corrección en el manifiesto, ya que al reprocesar el PMS se revertirán los cambios realizados posteriormente.`
       : `Por favor agrega el valor al mantenedor correspondiente y notifica a <strong>${usuario.nombre}</strong> (${usuario.email}) para que verifique los BLs afectados.`;
 
-    // Logo embebido en base64 (si está disponible)
-    const logoHtml = `<img src="https://sga.broomgroup.com/assets/SGA%20Logo%203-DfLVNUVV.png" alt="SGA Logo" style="height:36px;width:auto;" />`;
-    const html = `
+    // ── TOKEN JWT para el botón Resuelto ──
+    const token = jwt.sign(
+      {
+        manifiestoId,
+        campo,
+        usuarioEmail: usuario.email,
+        usuarioNombre: usuario.nombre,
+        nave,
+        viaje,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "30d" }
+    );
+    const resolverUrl = `${process.env.APP_URL}/api/soporte/resolver/${token}`;
+
+    const htmlSoporte = `
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
@@ -6700,13 +6713,13 @@ app.post("/api/soporte/error-mantenedor", verificarToken, uploadMemory.single("p
   <tr><td align="center">
   <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
 
-    <!-- HEADER -->
     <tr>
       <td style="background:#0F2A44;padding:24px 28px;">
         <table width="100%" cellpadding="0" cellspacing="0">
           <tr>
             <td>
-<img src="https://sga.broomgroup.com/assets/SGA%20Logo%203-DfLVNUVV.png" alt="SGA" style="height:44px;width:auto;display:block;" />              <div style="margin-top:4px;font-size:12px;color:rgba(255,255,255,0.5);">Sistema SGA · Broom Group</div>
+              <img src="https://sga.broomgroup.com/assets/SGA%20Logo%203-DfLVNUVV.png" alt="SGA" style="height:44px;width:auto;display:block;" />
+              <div style="margin-top:4px;font-size:12px;color:rgba(255,255,255,0.5);">Sistema SGA · Broom Group</div>
             </td>
             <td align="right" valign="top">
               <span style="display:inline-block;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;background:${tipoOpBg};color:${tipoOpColor};">${tipoOpLabel}</span>
@@ -6716,7 +6729,6 @@ app.post("/api/soporte/error-mantenedor", verificarToken, uploadMemory.single("p
       </td>
     </tr>
 
-    <!-- NAVE + VIAJE -->
     <tr>
       <td style="background:#1a3a5c;padding:14px 28px;">
         <div style="font-size:16px;font-weight:700;color:#ffffff;">${nave}</div>
@@ -6724,7 +6736,6 @@ app.post("/api/soporte/error-mantenedor", verificarToken, uploadMemory.single("p
       </td>
     </tr>
 
-    <!-- TÍTULO -->
     <tr>
       <td style="background:#ffffff;padding:20px 28px 0;">
         <div style="font-size:15px;font-weight:700;color:#0F2A44;border-left:4px solid #0F2A44;padding-left:12px;">
@@ -6733,7 +6744,6 @@ app.post("/api/soporte/error-mantenedor", verificarToken, uploadMemory.single("p
       </td>
     </tr>
 
-    <!-- DETALLE DEL ERROR -->
     <tr>
       <td style="background:#ffffff;padding:16px 28px;">
         <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
@@ -6769,7 +6779,6 @@ app.post("/api/soporte/error-mantenedor", verificarToken, uploadMemory.single("p
       </td>
     </tr>
 
-    <!-- BLS AFECTADOS -->
     ${blsCount > 0 ? `
     <tr>
       <td style="background:#ffffff;padding:0 28px 16px;">
@@ -6786,7 +6795,6 @@ app.post("/api/soporte/error-mantenedor", verificarToken, uploadMemory.single("p
       </td>
     </tr>` : ""}
 
-    <!-- ACCIÓN REQUERIDA -->
     <tr>
       <td style="background:#ffffff;padding:0 28px 24px;">
         <table width="100%" cellpadding="0" cellspacing="0" style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;">
@@ -6799,7 +6807,22 @@ app.post("/api/soporte/error-mantenedor", verificarToken, uploadMemory.single("p
       </td>
     </tr>
 
-    <!-- FOOTER -->
+    <tr>
+      <td style="background:#ffffff;padding:0 28px 28px;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td align="center">
+              <a href="${resolverUrl}"
+                 style="display:inline-block;padding:12px 36px;background:#16A34A;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;border-radius:8px;letter-spacing:.02em;">
+                ✓ &nbsp;Marcar como resuelto
+              </a>
+              <div style="margin-top:8px;font-size:11px;color:#9ca3af;">Válido por 30 días · Al hacer clic se notificará al usuario automáticamente</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
     <tr>
       <td style="background:#f8fafc;padding:14px 28px;border-top:1px solid #e5e7eb;">
         <table width="100%" cellpadding="0" cellspacing="0">
@@ -6827,27 +6850,287 @@ app.post("/api/soporte/error-mantenedor", verificarToken, uploadMemory.single("p
 </body>
 </html>`;
 
-    // Armar el correo — adjuntar PMS si vino
-    const mailOptions = {
-      from: process.env.EMAIL_FROM || '"SGA Broom Group" <noreply@broomgroup.cl>',
-      to: "soporte.sga@broomgroup.com",
-      cc: usuario.email,
-      replyTo: usuario.email,
-      subject: `[SGA] ${tipoOpLabel || "SGA"} — ${nave}${viaje ? " · Viaje " + viaje : ""} · ${blsCount} BL${blsCount !== 1 ? "s" : ""} afectados`, html,
-      ...(archivoAdjunto ? {
-        attachments: [{
-          filename: archivoAdjunto.originalname,
-          content: archivoAdjunto.buffer,   // multer memoryStorage
-        }]
-      } : {}),
-    };
+    const htmlUsuario = `
+<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 0;">
+  <tr><td align="center">
+  <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
 
-    await transporter.sendMail(mailOptions);
+    <tr>
+      <td style="background:#0F2A44;padding:24px 28px;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td>
+              <img src="https://sga.broomgroup.com/assets/SGA%20Logo%203-DfLVNUVV.png" alt="SGA" style="height:44px;width:auto;display:block;" />
+              <div style="margin-top:4px;font-size:12px;color:rgba(255,255,255,0.5);">Sistema SGA · Broom Group</div>
+            </td>
+            <td align="right" valign="top">
+              <span style="display:inline-block;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;background:${tipoOpBg};color:${tipoOpColor};">${tipoOpLabel}</span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="background:#1a3a5c;padding:14px 28px;">
+        <div style="font-size:16px;font-weight:700;color:#ffffff;">${nave}</div>
+        ${viaje ? `<div style="font-size:12px;color:rgba(255,255,255,0.55);margin-top:2px;">Viaje: ${viaje}</div>` : ""}
+      </td>
+    </tr>
+
+    <tr>
+      <td style="background:#ffffff;padding:24px 28px 16px;">
+        <p style="font-size:14px;color:#374151;margin:0 0 16px;line-height:1.6;">
+          Hola <strong>${usuario.nombre}</strong>, tu reporte fue recibido correctamente y será atendido por el equipo de soporte a la brevedad.
+        </p>
+        <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+          <tr>
+            <td colspan="2" style="background:#f9fafb;padding:10px 16px;border-bottom:1px solid #e5e7eb;">
+              <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af;">Detalle del reporte</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:10px 16px;font-size:13px;color:#6b7280;width:140px;border-bottom:1px solid #f3f4f6;">Campo afectado</td>
+            <td style="padding:10px 16px;font-size:13px;color:#111827;font-family:monospace;background:#f9fafb;border-bottom:1px solid #f3f4f6;">${campo}</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;">BLs afectados</td>
+            <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:600;border-bottom:1px solid #f3f4f6;">${blsCount} BL${blsCount !== 1 ? "s" : ""}</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 16px;font-size:13px;color:#6b7280;">Nave</td>
+            <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:600;">${nave}${viaje ? " · Viaje " + viaje : ""}</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="padding:0 28px 24px;background:#ffffff;">
+        <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:12px 16px;font-size:13px;color:#1D4ED8;">
+          Te notificaremos por correo cuando el reporte sea resuelto.
+        </div>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="background:#f8fafc;padding:14px 28px;border-top:1px solid #e5e7eb;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="font-size:12px;color:#9ca3af;">soporte.sga@broomgroup.com</td>
+            <td align="right" style="font-size:12px;color:#9ca3af;">
+              ${new Date().toLocaleString("es-CL", { timeZone: "America/Santiago" })}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+  </table>
+  </td></tr>
+</table>
+</body></html>`;
+
+    // Correo 1 → soporte (con botón resuelto)
+    try {
+      await transporter.sendMail({
+        from: process.env.EMAIL_FROM || '"SGA Broom Group" <noreply@broomgroup.cl>',
+        to: "soporte.sga@broomgroup.com",
+        replyTo: usuario.email,
+        subject: `[SGA] ${tipoOpLabel || "SGA"} — ${nave}${viaje ? " · Viaje " + viaje : ""} · ${blsCount} BL${blsCount !== 1 ? "s" : ""} afectados`,
+        html: htmlSoporte,
+        ...(archivoAdjunto ? {
+          attachments: [{
+            filename: archivoAdjunto.originalname,
+            content: archivoAdjunto.buffer,
+          }]
+        } : {}),
+      });
+      console.log("✅ Correo soporte enviado");
+    } catch (e) {
+    }
+
+    // Correo 2 → usuario (confirmación de recepción)
+    try {
+      await transporter.sendMail({
+        from: process.env.EMAIL_FROM || '"SGA Broom Group" <noreply@broomgroup.cl>',
+        to: usuario.email,
+        subject: `[SGA] Reporte recibido — ${nave}${viaje ? " · Viaje " + viaje : ""}`,
+        html: htmlUsuario,
+      });
+      console.log("✅ Correo usuario enviado");
+    } catch (e) {
+    }
 
     res.json({ success: true });
+
   } catch (error) {
     console.error("Error enviando correo de soporte:", error);
     res.status(500).json({ error: "Error al enviar el correo de soporte" });
+  }
+});
+
+// ── RESOLVER REPORTE ────────────────────────────────────────────────────────
+app.get("/api/soporte/resolver/:token", async (req, res) => {
+  try {
+        console.log("TOKEN RECIBIDO:", req.params.token);
+
+    const payload = jwt.verify(req.params.token, process.env.JWT_SECRET);
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM || '"SGA Broom Group" <noreply@broomgroup.cl>',
+      to: payload.usuarioEmail,
+      cc: "soporte.sga@broomgroup.com", 
+      subject: `[SGA] ✓ Reporte resuelto — ${payload.campo}`,
+      html: `
+<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 0;">
+  <tr><td align="center">
+  <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
+
+    <tr>
+      <td style="background:#0F2A44;padding:24px 28px;">
+        <img src="https://sga.broomgroup.com/assets/SGA%20Logo%203-DfLVNUVV.png" alt="SGA" style="height:44px;width:auto;display:block;" />
+        <div style="margin-top:4px;font-size:12px;color:rgba(255,255,255,0.5);">Sistema SGA · Broom Group</div>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="background:#16A34A;padding:24px 28px;text-align:center;">
+        <div style="font-size:40px;line-height:1;">✓</div>
+        <div style="font-size:18px;font-weight:700;color:#ffffff;margin-top:8px;">Reporte resuelto</div>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="background:#ffffff;padding:24px 28px;">
+        <p style="font-size:14px;color:#374151;margin:0 0 16px;">
+          Hola <strong>${payload.usuarioNombre}</strong>, tu reporte fue marcado como resuelto por el equipo de soporte.
+        </p>
+        <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+          <tr>
+            <td style="padding:10px 16px;font-size:13px;color:#6b7280;width:140px;border-bottom:1px solid #f3f4f6;">Nave</td>
+            <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:600;border-bottom:1px solid #f3f4f6;">
+              ${payload.nave}${payload.viaje ? " · Viaje " + payload.viaje : ""}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:10px 16px;font-size:13px;color:#6b7280;">Campo resuelto</td>
+            <td style="padding:10px 16px;font-size:13px;color:#111827;font-family:monospace;background:#f9fafb;">
+              ${payload.campo}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="background:#f8fafc;padding:14px 28px;border-top:1px solid #e5e7eb;font-size:12px;color:#9ca3af;text-align:right;">
+        ${new Date().toLocaleString("es-CL", { timeZone: "America/Santiago" })}
+      </td>
+    </tr>
+
+  </table>
+  </td></tr>
+</table>
+</body></html>`,
+    });
+
+   res.send(`
+  <!DOCTYPE html><html><head><meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Reporte resuelto · SGA</title></head>
+  <body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 0;">
+    <tr><td align="center">
+    <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;background:#ffffff;">
+
+      <tr>
+        <td style="background:#0F2A44;padding:20px 28px;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td>
+                <img src="https://sga.broomgroup.com/assets/SGA%20Logo%203-DfLVNUVV.png" alt="SGA" style="height:40px;width:auto;display:block;" />
+                <div style="margin-top:4px;font-size:11px;color:rgba(255,255,255,0.45);">Sistema SGA · Broom Group</div>
+              </td>
+              <td align="right" valign="top" style="font-size:11px;color:rgba(255,255,255,0.45);">
+                ${new Date().toLocaleDateString("es-CL", { timeZone: "America/Santiago" })}
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+<tr>
+  <td style="background:#16A34A;padding:28px;text-align:center;">
+    <div style="width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,0.15);display:inline-block;line-height:48px;text-align:center;font-size:24px;color:#ffffff;margin-bottom:12px;">✓</div>
+    <div style="font-size:18px;font-weight:700;color:#ffffff;">Reporte resuelto</div>
+    <div style="font-size:13px;color:rgba(255,255,255,0.7);margin-top:4px;">El equipo de soporte atendió tu solicitud</div>
+  </td>
+</tr>
+
+      <tr>
+        <td style="padding:24px 28px;">
+          <p style="font-size:14px;color:#374151;margin:0 0 20px;line-height:1.6;">
+            Hola <strong>${payload.usuarioNombre}</strong>, tu reporte fue marcado como resuelto por el equipo de soporte.
+          </p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+            <tr>
+              <td colspan="2" style="background:#f9fafb;padding:10px 16px;border-bottom:1px solid #e5e7eb;">
+                <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af;">Detalle del reporte</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:10px 16px;font-size:13px;color:#6b7280;width:140px;border-bottom:1px solid #f3f4f6;">Nave</td>
+              <td style="padding:10px 16px;font-size:13px;font-weight:600;color:#111827;border-bottom:1px solid #f3f4f6;">
+                ${payload.nave}${payload.viaje ? " · Viaje " + payload.viaje : ""}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:10px 16px;font-size:13px;color:#6b7280;">Campo resuelto</td>
+              <td style="padding:10px 16px;font-size:13px;color:#111827;font-family:monospace;background:#f9fafb;">${payload.campo}</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <tr>
+        
+      </tr>
+
+      <tr>
+        <td style="padding:14px 28px;border-top:1px solid #e5e7eb;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="font-size:12px;color:#9ca3af;">soporte.sga@broomgroup.com</td>
+              <td align="right" style="font-size:12px;color:#9ca3af;">
+                ${new Date().toLocaleString("es-CL", { timeZone: "America/Santiago" })}
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+    </table>
+    </td></tr>
+  </table>
+  </body></html>
+`);
+
+  } catch (err) {
+    res.send(`
+      <html><head><meta charset="utf-8"></head>
+      <body style="font-family:Arial;text-align:center;padding:60px;background:#f1f5f9;">
+        <div style="display:inline-block;background:#fff;padding:40px 60px;border-radius:12px;">
+          <div style="font-size:48px;">⚠️</div>
+          <h2 style="color:#DC2626;">Enlace inválido o expirado</h2>
+          <p style="color:#6b7280;margin:0;">Este enlace ya no es válido o han pasado más de 30 días.</p>
+        </div>
+      </body></html>
+    `);
   }
 });
 
