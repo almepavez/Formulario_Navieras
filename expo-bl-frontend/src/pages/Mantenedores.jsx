@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Anchor, Globe, Package, Box, PackageSearch, Warehouse } from "lucide-react";
+import { Anchor, Globe, Package, Box, PackageSearch, Warehouse, Users } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 
 const Mantenedores = () => {
@@ -50,6 +50,15 @@ const Mantenedores = () => {
       color: "from-emerald-500 to-emerald-600",
       bgColor: "bg-emerald-50",
       iconColor: "text-emerald-600",
+    },
+    {
+      id: "usuarios",
+      title: "Usuarios",
+      description: "Gestión de usuarios y roles de acceso al sistema",
+      icon: Users,
+      color: "from-sky-500 to-sky-600",
+      bgColor: "bg-sky-50",
+      iconColor: "text-sky-600",
     },
     {
       id: "almacenistas",

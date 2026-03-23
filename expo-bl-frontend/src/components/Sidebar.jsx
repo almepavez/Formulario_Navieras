@@ -17,6 +17,8 @@ const Sidebar = () => {
   const navigate = useNavigate();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const usuario = JSON.parse(localStorage.getItem("usuario") || "{}");
+  const esAdmin = usuario?.rol === 'admin';
 
   const isExpanded = !isCollapsed || isHovered;
 
@@ -91,7 +93,7 @@ const Sidebar = () => {
           )}
         </NavLink>
 
-        <NavLink
+        {esAdmin && <NavLink
           to="/mantenedores"
           className={({ isActive }) =>
             `flex items-center gap-3 px-4 py-3 rounded-lg transition-all group relative ${isActive ? "bg-white/15 text-white font-medium" : "text-slate-300 hover:bg-white/10 hover:text-white"
@@ -106,7 +108,7 @@ const Sidebar = () => {
               <div className="absolute right-full top-1/2 -translate-y-1/2 border-8 border-transparent border-r-slate-800"></div>
             </div>
           )}
-        </NavLink>
+        </NavLink>}
 
         <NavLink
           to="/reportes"
