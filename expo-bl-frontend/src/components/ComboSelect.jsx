@@ -104,9 +104,22 @@ const ComboSelect = ({
                         className="flex-1 outline-none bg-transparent text-sm font-mono uppercase text-slate-800 placeholder-slate-400"
                     />
                 ) : (
-                    <span className={`text-sm flex-1 truncate ${value ? "text-slate-800" : "text-slate-400"}`}>
-                        {selectedLabel || placeholder || "Seleccionar..."}
-                    </span>
+                    <input
+                        type="text"
+                        value={open ? query : (selectedLabel || "")}
+                        onChange={e => {
+                            setQuery(e.target.value);
+                            setOpen(true);
+                        }}
+                        onClick={e => e.stopPropagation()}
+                        onFocus={() => {
+                            setQuery("");
+                            setOpen(true);
+                        }}
+                        placeholder={placeholder || "Seleccionar..."}
+                        disabled={disabled}
+                        className="flex-1 outline-none bg-transparent text-sm text-slate-800 placeholder-slate-400 cursor-pointer"
+                    />
                 )}
                 <svg
                     className={`w-4 h-4 text-slate-400 flex-shrink-0 ml-2 transition-transform ${open ? "rotate-180" : ""}`}
