@@ -13,9 +13,9 @@ const API_BASE = import.meta.env.VITE_API_URL;
 const getRegion = (bl) => bl.region_puerto_embarque || bl.puerto_embarque || "";
 
 const TIPOS_ACCION = [
-  { value: "I", label: "Ingreso",      description: "Presentación inicial del BL ante Aduana", color: "emerald" },
-  { value: "M", label: "Modificación", description: "Corrección de un documento ya aceptado",  color: "amber"   },
-  { value: "A", label: "Anulación",    description: "Eliminación de un documento previo",       color: "red"     },
+  { value: "I", label: "Ingreso", description: "Presentación inicial del BL ante Aduana", color: "emerald" },
+  { value: "M", label: "Modificación", description: "Corrección de un documento ya aceptado", color: "amber" },
+  { value: "A", label: "Anulación", description: "Eliminación de un documento previo", color: "red" },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -37,32 +37,32 @@ const BULK_EDITABLE_FIELDS = new Set([
 // ─────────────────────────────────────────────────────────────────────────────
 const TIPO_RESOLUCION_MAP = {
   // P1 — ÚNICO que requiere reprocesar el PMS
-  tipo_bulto:         { prioridad: 1, tipo: "REPROCESO", mantenedorPath: "/mantenedores/empaque-contenedores" },
-  token_bulto:        { prioridad: 1, tipo: "REPROCESO", mantenedorPath: "/mantenedores/empaque-contenedores" },
-  tipo_embalaje:      { prioridad: 1, tipo: "REPROCESO", mantenedorPath: "/mantenedores/empaque-contenedores" },
-  embalaje:           { prioridad: 1, tipo: "REPROCESO", mantenedorPath: "/mantenedores/empaque-contenedores" },
+  tipo_bulto: { prioridad: 1, tipo: "REPROCESO", mantenedorPath: "/mantenedores/empaque-contenedores" },
+  token_bulto: { prioridad: 1, tipo: "REPROCESO", mantenedorPath: "/mantenedores/empaque-contenedores" },
+  tipo_embalaje: { prioridad: 1, tipo: "REPROCESO", mantenedorPath: "/mantenedores/empaque-contenedores" },
+  embalaje: { prioridad: 1, tipo: "REPROCESO", mantenedorPath: "/mantenedores/empaque-contenedores" },
 
   // P2 — corrección en mantenedor (sin reproceso)
-  almacenador:        { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/almacenistas"    },
-  shipper_contacto:   { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/participantes"  },
-  consignee_contacto: { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/participantes"  },
-  notify_contacto:    { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/participantes"  },
-  lugar_emision_id:   { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos"        },
-  puerto_embarque_id: { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos"        },
-  puerto_descarga_id: { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos"        },
-  lugar_destino_id:   { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos"        },
-  lugar_entrega_id:   { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos"        },
-  lugar_recepcion_id: { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos"        },
-  puerto:             { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos"        },
-  puerto_embarque:    { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos"        },
-  puerto_descarga:    { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos"        },
+  almacenador: { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/almacenistas" },
+  shipper_contacto: { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/participantes" },
+  consignee_contacto: { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/participantes" },
+  notify_contacto: { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/participantes" },
+  lugar_emision_id: { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos" },
+  puerto_embarque_id: { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos" },
+  puerto_descarga_id: { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos" },
+  lugar_destino_id: { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos" },
+  lugar_entrega_id: { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos" },
+  lugar_recepcion_id: { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos" },
+  puerto: { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos" },
+  puerto_embarque: { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos" },
+  puerto_descarga: { prioridad: 2, tipo: "MANTENEDOR", mantenedorPath: "/mantenedores/puertos" },
 
   // P3 — edición directa en BL (algunos via bulk-edit)
-  fecha_emision:      { prioridad: 3, tipo: "BL_DIRECTO", mantenedorPath: null },
-  fecha_embarque:     { prioridad: 3, tipo: "BL_DIRECTO", mantenedorPath: null },
-  fecha_zarpe:        { prioridad: 3, tipo: "BL_DIRECTO", mantenedorPath: null },
-  forma_pago_flete:   { prioridad: 3, tipo: "BL_DIRECTO", mantenedorPath: null },
-  cond_transporte:    { prioridad: 3, tipo: "BL_DIRECTO", mantenedorPath: null },
+  fecha_emision: { prioridad: 3, tipo: "BL_DIRECTO", mantenedorPath: null },
+  fecha_embarque: { prioridad: 3, tipo: "BL_DIRECTO", mantenedorPath: null },
+  fecha_zarpe: { prioridad: 3, tipo: "BL_DIRECTO", mantenedorPath: null },
+  forma_pago_flete: { prioridad: 3, tipo: "BL_DIRECTO", mantenedorPath: null },
+  cond_transporte: { prioridad: 3, tipo: "BL_DIRECTO", mantenedorPath: null },
 };
 
 const getTipoResolucion = (campo) => {
@@ -77,10 +77,10 @@ const getTipoResolucion = (campo) => {
 const ResumenErroresModal = ({ manifiestoId, bls, onClose }) => {
   const navigate = useNavigate();
 
-  const [resumen,   setResumen]   = useState([]);
-  const [loading,   setLoading]   = useState(true);
+  const [resumen, setResumen] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState({});
-  const [enviando,  setEnviando]  = useState(null);
+  const [enviando, setEnviando] = useState(null);
 
   useEffect(() => { construirResumen(); }, []);
 
@@ -113,10 +113,10 @@ const ResumenErroresModal = ({ manifiestoId, bls, onClose }) => {
         const key = `${v.campo}||${v.mensaje}`;
         if (!grupos[key]) {
           grupos[key] = {
-            campo:       v.campo,
-            mensaje:     v.mensaje,
+            campo: v.campo,
+            mensaje: v.mensaje,
             valor_crudo: v.valor_crudo,
-            severidad:   v.severidad,
+            severidad: v.severidad,
             ...getTipoResolucion(v.campo),
             bls: [],
           };
@@ -149,7 +149,7 @@ const ResumenErroresModal = ({ manifiestoId, bls, onClose }) => {
   const tieneP1 = (porPrioridad[1]?.length ?? 0) > 0;
 
   const blsConError = bls.filter(bl => bl.valid_status === "ERROR").length;
-  const blsListos   = bls.filter(bl => bl.valid_status === "OK").length;
+  const blsListos = bls.filter(bl => bl.valid_status === "OK").length;
 
   const irAMantenedor = (item) => {
     if (!item.mantenedorPath) return;
@@ -157,10 +157,10 @@ const ResumenErroresModal = ({ manifiestoId, bls, onClose }) => {
     navigate(item.mantenedorPath);
   };
 
-const enviarSoporte = async (item) => {
-  const { value: archivo, isConfirmed } = await Swal.fire({
-    title: "Adjuntar PMS",
-    html: `
+  const enviarSoporte = async (item) => {
+    const { value: archivo, isConfirmed } = await Swal.fire({
+      title: "Adjuntar PMS",
+      html: `
       <p style="font-size:13px;color:#6B7280;margin-bottom:12px;">
         Adjunta el archivo PMS que generó este error para que soporte pueda revisarlo.
       </p>
@@ -227,88 +227,88 @@ const enviarSoporte = async (item) => {
         Opcional — puedes enviar sin adjuntar
       </p>
     `,
-    showCancelButton: true,
-    confirmButtonText: "Enviar correo",
-    cancelButtonText: "Cancelar",
-    confirmButtonColor: "#0F2A44",
-    cancelButtonColor: "#6B7280",
+      showCancelButton: true,
+      confirmButtonText: "Enviar correo",
+      cancelButtonText: "Cancelar",
+      confirmButtonColor: "#0F2A44",
+      cancelButtonColor: "#6B7280",
 
-    // 👇 Este hook se ejecuta DESPUÉS de que el HTML se inyecta en el DOM
-    didOpen: () => {
-      const fileInput = document.getElementById("swal-pms-file");
-      const filenameSpan = document.getElementById("swal-pms-filename");
-      const sizeSpan = document.getElementById("swal-pms-size");
+      // 👇 Este hook se ejecuta DESPUÉS de que el HTML se inyecta en el DOM
+      didOpen: () => {
+        const fileInput = document.getElementById("swal-pms-file");
+        const filenameSpan = document.getElementById("swal-pms-filename");
+        const sizeSpan = document.getElementById("swal-pms-size");
 
-      fileInput.addEventListener("change", () => {
-        const file = fileInput.files?.[0];
-        if (file) {
-          filenameSpan.textContent = file.name;
-          sizeSpan.textContent = `(${(file.size / 1024).toFixed(1)} KB)`;
-          sizeSpan.style.display = "inline";
-        } else {
-          filenameSpan.textContent = "Seleccionar archivo PMS";
-          sizeSpan.style.display = "none";
-        }
-      });
-    },
-
-    preConfirm: () => {
-      const fileInput = document.getElementById("swal-pms-file");
-      return fileInput?.files?.[0] || null;
-    },
-  });
-
-  if (!isConfirmed) return;
-
-  const key = `${item.campo}||${item.mensaje}`;
-  setEnviando(key);
-
-  try {
-    const token = localStorage.getItem("token");
-
-    // Usar FormData para poder adjuntar el archivo
-    const formData = new FormData();
-    formData.append("manifiestoId",  manifiestoId);
-    formData.append("campo",         item.campo);
-    formData.append("mensaje",       item.mensaje);
-    formData.append("valorCrudo",    item.valor_crudo ?? "");
-    formData.append("blsAfectados",  JSON.stringify(item.bls));
-    formData.append("tipoError",     item.tipo);
-    if (archivo) formData.append("pms", archivo); // adjunto opcional
-
-    const res = await fetch(`${API_BASE}/api/soporte/error-mantenedor`, {
-      method: "POST",
-      headers: {
-        // NO poner Content-Type aquí — el browser lo setea solo con el boundary correcto
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        fileInput.addEventListener("change", () => {
+          const file = fileInput.files?.[0];
+          if (file) {
+            filenameSpan.textContent = file.name;
+            sizeSpan.textContent = `(${(file.size / 1024).toFixed(1)} KB)`;
+            sizeSpan.style.display = "inline";
+          } else {
+            filenameSpan.textContent = "Seleccionar archivo PMS";
+            sizeSpan.style.display = "none";
+          }
+        });
       },
-      body: formData,
+
+      preConfirm: () => {
+        const fileInput = document.getElementById("swal-pms-file");
+        return fileInput?.files?.[0] || null;
+      },
     });
 
-    if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Error al enviar"); }
+    if (!isConfirmed) return;
 
-    Swal.fire({
-      icon: "success",
-      title: "Correo enviado",
-      html: `
+    const key = `${item.campo}||${item.mensaje}`;
+    setEnviando(key);
+
+    try {
+      const token = localStorage.getItem("token");
+
+      // Usar FormData para poder adjuntar el archivo
+      const formData = new FormData();
+      formData.append("manifiestoId", manifiestoId);
+      formData.append("campo", item.campo);
+      formData.append("mensaje", item.mensaje);
+      formData.append("valorCrudo", item.valor_crudo ?? "");
+      formData.append("blsAfectados", JSON.stringify(item.bls));
+      formData.append("tipoError", item.tipo);
+      if (archivo) formData.append("pms", archivo); // adjunto opcional
+
+      const res = await fetch(`${API_BASE}/api/soporte/error-mantenedor`, {
+        method: "POST",
+        headers: {
+          // NO poner Content-Type aquí — el browser lo setea solo con el boundary correcto
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formData,
+      });
+
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Error al enviar"); }
+
+      Swal.fire({
+        icon: "success",
+        title: "Correo enviado",
+        html: `
         <p>Se notificó a <strong>soporte.sga@broomgroup.com</strong>.</p>
         ${archivo ? `<p style="margin-top:8px;font-size:13px;color:#6B7280;">PMS adjunto: <strong>${archivo.name}</strong></p>` : ""}
         <p style="margin-top:8px;font-size:13px;color:#6B7280;">Recibirás una copia y la respuesta llegará directo a ti.</p>
       `,
-      timer: 3500,
-      showConfirmButton: false,
-    });
-  } catch (e) {
-    Swal.fire({ icon: "error", title: "No se pudo enviar", text: e.message, confirmButtonColor: "#0F2A44" });
-  } finally {
-    setEnviando(null);
-  }
-};
+        timer: 3500,
+        showConfirmButton: false,
+      });
+    } catch (e) {
+      Swal.fire({ icon: "error", title: "No se pudo enviar", text: e.message, confirmButtonColor: "#0F2A44" });
+    } finally {
+      setEnviando(null);
+    }
+  };
 
   const irABulkEdit = (item) => {
     const params = new URLSearchParams({
-      bls:      item.bls.join(","),
-      field:    item.campo,
+      bls: item.bls.join(","),
+      field: item.campo,
       returnTo: `/manifiestos/${manifiestoId}/generar-xml`,
     });
     onClose();
@@ -317,34 +317,32 @@ const enviarSoporte = async (item) => {
 
   const CFG = {
     1: {
-      label:    "Prioridad 1 — Resolver primero: requieren agregar al mantenedor y reprocesar el PMS",
-      pill:     "bg-red-100 text-red-800",
+      label: "Prioridad 1 — Resolver primero: requieren agregar al mantenedor y reprocesar el PMS",
+      pill: "bg-red-100 text-red-800",
       pillText: "P1 · Reproceso PMS",
-      head:     "bg-red-50",
-      border:   "border-red-200",
-      countBg:  "bg-red-100 text-red-800",
+      head: "bg-red-50",
+      border: "border-red-200",
+      countBg: "bg-red-100 text-red-800",
       btnClass: "text-red-700 border-red-300 hover:bg-red-50",
       accion: (item) => ({ label: "Solicitar soporte", Icon: Send, fn: () => enviarSoporte(item) }),
     },
     2: {
-      label:    "Prioridad 2 — Corrección en mantenedor (sin reprocesar PMS)",
-      pill:     "bg-amber-100 text-amber-800",
+      label: "Prioridad 2 — Corrección en mantenedor (sin reprocesar PMS)",
+      pill: "bg-amber-100 text-amber-800",
       pillText: "P2 · Mantenedor",
-      head:     "bg-amber-50",
-      border:   "border-amber-200",
-      countBg:  "bg-amber-100 text-amber-800",
+      head: "bg-amber-50",
+      border: "border-amber-200",
+      countBg: "bg-amber-100 text-amber-800",
       btnClass: "text-amber-700 border-amber-300 hover:bg-amber-50",
-      accion: (item) => item.mantenedorPath
-        ? { label: "Ir a mantenedor", Icon: ChevronRight, fn: () => irAMantenedor(item) }
-        : { label: "Solicitar soporte", Icon: Send, fn: () => enviarSoporte(item) },
+      accion: (item) => ({ label: "Solicitar soporte", Icon: Send, fn: () => enviarSoporte(item) }),
     },
     3: {
-      label:    "Prioridad 3 — Edición directa en los BLs",
-      pill:     "bg-emerald-100 text-emerald-800",
+      label: "Prioridad 3 — Edición directa en los BLs",
+      pill: "bg-emerald-100 text-emerald-800",
       pillText: "P3 · Editar BL",
-      head:     "bg-emerald-50",
-      border:   "border-emerald-200",
-      countBg:  "bg-emerald-100 text-emerald-800",
+      head: "bg-emerald-50",
+      border: "border-emerald-200",
+      countBg: "bg-emerald-100 text-emerald-800",
       btnClass: "text-emerald-700 border-emerald-300 hover:bg-emerald-50",
       accion: (item) => BULK_EDITABLE_FIELDS.has(item.campo)
         ? { label: "Editar Masiva", Icon: Edit2, fn: () => irABulkEdit(item) }
@@ -409,7 +407,7 @@ const enviarSoporte = async (item) => {
             [1, 2, 3].map((p) => {
               const items = porPrioridad[p];
               if (!items?.length) return null;
-              const cfg       = CFG[p];
+              const cfg = CFG[p];
               const isCollapsed = collapsed[p];
               const bloqueado = tieneP1 && p > 1; // P2 y P3 bloqueados mientras haya P1
 
@@ -442,9 +440,9 @@ const enviarSoporte = async (item) => {
                   {!isCollapsed && !bloqueado && (
                     <div className="divide-y divide-slate-100">
                       {items.map((item, idx) => {
-                        const key     = `${item.campo}||${item.mensaje}`;
+                        const key = `${item.campo}||${item.mensaje}`;
                         const sending = enviando === key;
-                        const accion  = cfg.accion(item);
+                        const accion = cfg.accion(item);
 
                         return (
                           <div
@@ -526,8 +524,8 @@ const TipoAccionSelector = ({ value, onChange }) => {
 
   const colorMap = {
     emerald: { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500", activeBorder: "border-l-emerald-500", activeRow: "bg-emerald-50/60", hoverRow: "hover:bg-emerald-50/40" },
-    amber:   { badge: "bg-amber-50 text-amber-700 border-amber-200",       dot: "bg-amber-500",   activeBorder: "border-l-amber-500",   activeRow: "bg-amber-50/60",   hoverRow: "hover:bg-amber-50/40"   },
-    red:     { badge: "bg-red-50 text-red-700 border-red-200",             dot: "bg-red-500",     activeBorder: "border-l-red-500",     activeRow: "bg-red-50/60",     hoverRow: "hover:bg-red-50/40"     },
+    amber: { badge: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500", activeBorder: "border-l-amber-500", activeRow: "bg-amber-50/60", hoverRow: "hover:bg-amber-50/40" },
+    red: { badge: "bg-red-50 text-red-700 border-red-200", dot: "bg-red-500", activeBorder: "border-l-red-500", activeRow: "bg-red-50/60", hoverRow: "hover:bg-red-50/40" },
   };
   const colors = colorMap[selected.color];
 
@@ -650,20 +648,20 @@ const GenerarXML = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const [bls, setBls]                         = useState([]);
-  const [selectedBls, setSelectedBls]         = useState(new Set());
-  const [loading, setLoading]                 = useState(true);
-  const [error, setError]                     = useState("");
-  const [generando, setGenerando]             = useState(false);
-  const [revalidando, setRevalidando]         = useState(false);
-  const [searchTerm, setSearchTerm]           = useState("");
-  const [filterStatus, setFilterStatus]       = useState("all");
-  const [showOnlyErrors, setShowOnlyErrors]   = useState(false);
-  const [filterPOL, setFilterPOL]             = useState(new Set());
-  const [tipoAccion, setTipoAccion]           = useState("I");
-  const [naveManifiesto, setNaveManifiesto]   = useState("");
+  const [bls, setBls] = useState([]);
+  const [selectedBls, setSelectedBls] = useState(new Set());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [generando, setGenerando] = useState(false);
+  const [revalidando, setRevalidando] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [showOnlyErrors, setShowOnlyErrors] = useState(false);
+  const [filterPOL, setFilterPOL] = useState(new Set());
+  const [tipoAccion, setTipoAccion] = useState("I");
+  const [naveManifiesto, setNaveManifiesto] = useState("");
   const [viajeManifiesto, setViajeManifiesto] = useState("");
-  const [showResumen, setShowResumen]         = useState(false);
+  const [showResumen, setShowResumen] = useState(false);
 
   // ── Revalidar automáticamente BLs que vuelven del bulk-edit ─────────────
   useEffect(() => {
@@ -693,10 +691,6 @@ const GenerarXML = () => {
     [...new Set(bls.map(bl => getRegion(bl)).filter(Boolean))].sort(),
   [bls]);
 
-  // El contador del botón "Resumen de errores" solo cuenta ERROREs, no OBS
-  const countBlsConError = useMemo(() =>
-    bls.filter(bl => bl.valid_status === "ERROR").length,
-  [bls]);
 
   useEffect(() => {
     if (!id) { setError("ID de manifiesto no válido"); setLoading(false); return; }
@@ -719,7 +713,7 @@ const GenerarXML = () => {
       if (!res.ok) return;
       const data = await res.json();
       const m = data.manifiesto || data;
-      setNaveManifiesto((m.nave  || "").toUpperCase().replace(/\s+/g, "_"));
+      setNaveManifiesto((m.nave || "").toUpperCase().replace(/\s+/g, "_"));
       setViajeManifiesto((m.viaje || "").toUpperCase().replace(/\s+/g, "_"));
     } catch { /* silencioso */ }
   };
@@ -745,8 +739,13 @@ const GenerarXML = () => {
     return r.sort((a, b) => a.bl_number.localeCompare(b.bl_number));
   }, [bls, searchTerm, filterStatus, showOnlyErrors, filterPOL]);
 
-  const toggleBL  = (n) => setSelectedBls(prev => { const s = new Set(prev); s.has(n) ? s.delete(n) : s.add(n); return s; });
-  const toggleAll = ()  => setSelectedBls(selectedBls.size === filteredAndSortedBLs.length ? new Set() : new Set(filteredAndSortedBLs.map(bl => bl.bl_number)));
+  // El contador del botón "Resumen de errores" solo cuenta ERROREs, no OBS
+  const countBlsConError = useMemo(() =>
+    filteredAndSortedBLs.filter(bl => bl.valid_status === "ERROR").length,
+    [filteredAndSortedBLs]);
+
+  const toggleBL = (n) => setSelectedBls(prev => { const s = new Set(prev); s.has(n) ? s.delete(n) : s.add(n); return s; });
+  const toggleAll = () => setSelectedBls(selectedBls.size === filteredAndSortedBLs.length ? new Set() : new Set(filteredAndSortedBLs.map(bl => bl.bl_number)));
 
   const revalidarBLsSeleccionados = async () => {
     if (selectedBls.size === 0) { Swal.fire({ icon: "warning", title: "Sin BLs seleccionados", text: "Debes seleccionar al menos un BL", confirmButtonColor: "#F59E0B" }); return; }
@@ -805,8 +804,8 @@ const GenerarXML = () => {
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Error al generar XMLs"); }
 
       const blob = await res.blob();
-      const url  = window.URL.createObjectURL(blob);
-      const a    = document.createElement("a");
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
       a.href = url;
       a.download = naveManifiesto && viajeManifiesto ? `${naveManifiesto}_${viajeManifiesto}.zip` : `BLs_Manifiesto_${id}.zip`;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
@@ -835,16 +834,16 @@ const GenerarXML = () => {
       try { const r = await fetch(`${API_BASE}/api/bls/${blNumber}/validaciones`); if (r.ok) validacionesReales = await r.json(); } catch { /* silencioso */ }
     }
 
-    const errores       = validacionesReales.filter(v => v.severidad === "ERROR");
+    const errores = validacionesReales.filter(v => v.severidad === "ERROR");
     const observaciones = validacionesReales.filter(v => v.severidad === "OBS");
 
     if (errores.length > 0) {
       const errHTML = errores.map(e => {
         let pre = "";
-        if (e.nivel === "ITEM")       pre = `<strong style="color:#DC2626;">Item ${e.sec || ""}:</strong> `;
+        if (e.nivel === "ITEM") pre = `<strong style="color:#DC2626;">Item ${e.sec || ""}:</strong> `;
         if (e.nivel === "CONTENEDOR") pre = `<strong style="color:#DC2626;">Contenedor${e.sec ? " " + e.sec : ""}:</strong> `;
         if (e.nivel === "TRANSBORDO") pre = `<strong style="color:#DC2626;">Transbordo ${e.sec || ""}:</strong> `;
-        if (e.nivel === "BL")         pre = `<strong style="color:#DC2626;">BL:</strong> `;
+        if (e.nivel === "BL") pre = `<strong style="color:#DC2626;">BL:</strong> `;
         return `<li style="margin:6px 0;color:#991B1B;"><span style="color:#DC2626;">●</span> ${pre}${e.mensaje}</li>`;
       }).join("");
       const obsHTML = observaciones.length > 0
@@ -869,7 +868,7 @@ const GenerarXML = () => {
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Error al generar preview"); }
 
-      const blob    = await res.blob();
+      const blob = await res.blob();
       const xmlText = await blob.text();
 
       const formatXML = (xml) => {
@@ -881,10 +880,10 @@ const GenerarXML = () => {
         for (let i = 0; i < parts.length; i++) {
           const t = parts[i].trim();
           if (!t) continue;
-          if (t.startsWith("<?"))    { out += t + "\n"; }
+          if (t.startsWith("<?")) { out += t + "\n"; }
           else if (t.startsWith("<!--")) { out += I.repeat(ind) + t + "\n"; }
-          else if (t.startsWith("</"))   { ind = Math.max(0, ind - 1); out += I.repeat(ind) + t + "\n"; }
-          else if (t.endsWith("/>"))     { out += I.repeat(ind) + t + "\n"; }
+          else if (t.startsWith("</")) { ind = Math.max(0, ind - 1); out += I.repeat(ind) + t + "\n"; }
+          else if (t.endsWith("/>")) { out += I.repeat(ind) + t + "\n"; }
           else if (t.startsWith("<")) {
             const nt = (parts[i + 1] || "").trim();
             const at = (parts[i + 2] || "").trim();
@@ -895,9 +894,9 @@ const GenerarXML = () => {
         return out;
       };
 
-      const esc       = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+      const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
       const tipoLabel = TIPOS_ACCION.find(t => t.value === tipoAccion)?.label || tipoAccion;
-      const obsHTML   = observaciones.length > 0
+      const obsHTML = observaciones.length > 0
         ? `<div style="margin-bottom:16px;padding:12px;background:#FEF3C7;border-radius:8px;text-align:left;"><strong style="color:#F59E0B;">Observaciones (${observaciones.length}):</strong><ul style="padding-left:20px;margin:4px 0;font-size:13px;">${observaciones.map(o => `<li style="color:#92400E;">${o.mensaje}</li>`).join("")}</ul></div>`
         : `<div style="margin-bottom:16px;padding:12px;background:#D1FAE5;border-radius:8px;color:#065F46;text-align:left;"><strong>Sin problemas detectados</strong> — El XML está listo.</div>`;
 
@@ -910,7 +909,7 @@ const GenerarXML = () => {
       });
       if (result.isConfirmed) {
         const url = window.URL.createObjectURL(blob);
-        const a   = document.createElement("a");
+        const a = document.createElement("a");
         a.href = url; a.download = `SGA_V1_SNA-BL-1.0-${blNumber}.xml`;
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
@@ -954,7 +953,7 @@ const GenerarXML = () => {
         </div>
 
         {loading && <div className="flex items-center gap-2 text-slate-600"><Loader2 className="w-4 h-4 animate-spin" />Cargando BLs...</div>}
-        {error   && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+        {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
         {!loading && bls.length > 0 && (
           <>
@@ -1023,14 +1022,14 @@ const GenerarXML = () => {
               <tbody>
                 {filteredAndSortedBLs.map((bl) => {
                   const totalErrores = bl.valid_count_error || 0;
-                  const totalObs     = bl.valid_count_obs   || 0;
-                  const validStatus  = bl.valid_status      || "OK";
+                  const totalObs = bl.valid_count_obs || 0;
+                  const validStatus = bl.valid_status || "OK";
                   return (
                     <tr key={bl.bl_number} className="border-t hover:bg-slate-50">
                       <td className="px-6 py-4"><input type="checkbox" checked={selectedBls.has(bl.bl_number)} onChange={() => toggleBL(bl.bl_number)} className="w-4 h-4 rounded border-slate-300" /></td>
                       <td className="px-6 py-4">
-                        {validStatus === "OK"    && <div className="flex items-center gap-1 text-emerald-600"><CheckCircle2 className="w-5 h-5" /></div>}
-                        {validStatus === "OBS"   && (
+                        {validStatus === "OK" && <div className="flex items-center gap-1 text-emerald-600"><CheckCircle2 className="w-5 h-5" /></div>}
+                        {validStatus === "OBS" && (
                           <div className="flex items-center gap-2 text-amber-600 cursor-help group relative">
                             <AlertTriangle className="w-5 h-5" /><span className="text-xs font-medium">{totalObs}</span>
                             <div className="absolute left-0 top-full mt-2 hidden group-hover:block z-[9999] w-64 bg-white rounded-lg shadow-xl border border-amber-200 p-3">
@@ -1051,11 +1050,11 @@ const GenerarXML = () => {
                         )}
                       </td>
                       <td className="px-6 py-4 font-medium">{bl.bl_number}</td>
-                      <td className="px-6 py-4 text-slate-600 truncate max-w-[200px]">{bl.shipper   || <span className="text-red-400">Sin Shipper</span>}</td>
+                      <td className="px-6 py-4 text-slate-600 truncate max-w-[200px]">{bl.shipper || <span className="text-red-400">Sin Shipper</span>}</td>
                       <td className="px-6 py-4 text-slate-600 truncate max-w-[200px]">{bl.consignee || <span className="text-red-400">Sin Consignee</span>}</td>
                       <td className="px-6 py-4">{bl.puerto_embarque || <span className="text-amber-500">—</span>}</td>
                       <td className="px-6 py-4">{bl.puerto_descarga || <span className="text-amber-500">—</span>}</td>
-                      <td className="px-6 py-4">{bl.bultos    || 0}</td>
+                      <td className="px-6 py-4">{bl.bultos || 0}</td>
                       <td className="px-6 py-4">{bl.peso_bruto || 0}</td>
                       <td className="px-6 py-4"><span className="inline-flex items-center px-2 py-1 rounded text-xs bg-slate-100 text-slate-700">{bl.status}</span></td>
                       <td className="px-6 py-4">
@@ -1078,7 +1077,7 @@ const GenerarXML = () => {
       {showResumen && (
         <ResumenErroresModal
           manifiestoId={id}
-          bls={bls}
+          bls={filteredAndSortedBLs}
           onClose={() => setShowResumen(false)}
         />
       )}
