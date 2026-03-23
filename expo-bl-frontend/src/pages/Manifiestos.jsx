@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import Sidebar from "../components/Sidebar";
 import ComboSelect from "../components/ComboSelect";
-import { FileText, Trash2, ArrowUpRight, ArrowDownLeft, X } from "lucide-react";
+import { FileText, ArrowUpRight, ArrowDownLeft, X } from "lucide-react";
 
 
 const API_BASE = import.meta.env.VITE_API_URL;
@@ -72,7 +72,6 @@ const Manifiestos = () => {
   const [blsMap, setBlsMap]             = useState({});
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState("");
-  const [selected, setSelected]         = useState(new Set());
 
   // ── Filtros ──────────────────────────────────────────────────────────────
   const [tipoOpFilter,  setTipoOpFilter]  = useState("TODOS");
@@ -90,7 +89,6 @@ const Manifiestos = () => {
       const data = await res.json();
       const lista = Array.isArray(data) ? data : [];
       setManifiestos(lista);
-      setSelected(new Set());
 
       if (lista.length > 0) {
         const results = await Promise.allSettled(
@@ -209,72 +207,6 @@ const Manifiestos = () => {
   const countExpo = manifiestos.filter(m => m.tipoOperacion?.toUpperCase() === "S").length;
   const countImpo = manifiestos.filter(m => m.tipoOperacion?.toUpperCase() === "I").length;
 
-  const toggleSelect = (id) => {
-    setSelected((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(id)) newSet.delete(id);
-      else newSet.add(id);
-      return newSet;
-    });
-  };
-
-  const toggleSelectAll = () => {
-    if (selected.size === filteredManifiestos.length) setSelected(new Set());
-    else setSelected(new Set(filteredManifiestos.map((m) => m.id)));
-  };
-
-  const handleDeleteSelected = async () => {
-    if (selected.size === 0) {
-      await Swal.fire({ title: "Sin selección", text: "Debes seleccionar al menos un manifiesto para eliminar", icon: "warning", confirmButtonColor: "#0F2A44" });
-      return;
-    }
-
-    const result = await Swal.fire({
-      title: "¿Eliminar manifiestos?",
-      html: `<p>Estás a punto de eliminar <strong>${selected.size} manifiesto(s)</strong>.</p><p class="text-sm text-slate-500 mt-2">Solo se eliminarán los que no tengan BLs asociados.</p>`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#dc2626",
-      cancelButtonColor: "#64748b",
-      confirmButtonText: "Sí, eliminar",
-      cancelButtonText: "Cancelar",
-    });
-
-    if (!result.isConfirmed) return;
-
-    try {
-      const res = await fetch(`${API_BASE}/api/manifiestos/eliminar-multiples`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: Array.from(selected) }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error al eliminar");
-
-      const { resultados } = data;
-      let mensaje = "";
-      if (resultados.eliminados.length > 0) mensaje += `<strong>${resultados.eliminados.length} eliminado(s)</strong><br>`;
-      if (resultados.conBLs.length > 0) {
-        mensaje += `<strong>${resultados.conBLs.length} no se pudieron eliminar</strong> (tienen BLs asociados)<br>`;
-        mensaje += `<ul class="text-left text-sm mt-2 ml-4">`;
-        resultados.conBLs.forEach(({ id, totalBLs }) => { mensaje += `<li>Manifiesto #${id}: ${totalBLs} BL(s)</li>`; });
-        mensaje += `</ul>`;
-      }
-      if (resultados.noEncontrados.length > 0) mensaje += `<strong>${resultados.noEncontrados.length} no encontrado(s)</strong><br>`;
-
-      await Swal.fire({
-        title: resultados.eliminados.length > 0 ? "Operación completada" : "No se eliminó nada",
-        html: mensaje,
-        icon: resultados.eliminados.length > 0 ? "success" : "info",
-        confirmButtonColor: "#0F2A44",
-      });
-
-      await fetchManifiestos();
-    } catch (err) {
-      await Swal.fire({ title: "Error", text: err?.message || "No se pudieron eliminar los manifiestos", icon: "error", confirmButtonColor: "#0F2A44" });
-    }
-  };
 
   const TipoOpBadge = ({ tipo }) => {
     if (tipo?.toUpperCase() === "S")
@@ -310,11 +242,6 @@ const Manifiestos = () => {
             <p className="text-sm text-slate-500 mt-1">Selecciona un manifiesto para gestionar sus BLs</p>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={handleDeleteSelected} disabled={selected.size === 0}
-              className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
-              <Trash2 className="w-4 h-4" />
-              Eliminar {selected.size > 0 && `(${selected.size})`}
-            </button>
             <button onClick={fetchManifiestos}
               className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50">
               Actualizar
@@ -403,20 +330,6 @@ const Manifiestos = () => {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-slate-600">
               <tr>
-                <th className="px-6 py-3">
-                  <input type="checkbox"
-                    checked={currentManifiestos.length > 0 && currentManifiestos.every(m => selected.has(m.id))}
-                    onChange={() => {
-                      const allSelected = currentManifiestos.every(m => selected.has(m.id));
-                      setSelected(prev => {
-                        const next = new Set(prev);
-                        currentManifiestos.forEach(m => allSelected ? next.delete(m.id) : next.add(m.id));
-                        return next;
-                      });
-                    }}
-                    className="w-4 h-4 rounded border-slate-300 text-[#0F2A44] focus:ring-2 focus:ring-[#0F2A44]"
-                  />
-                </th>
                 <th className="text-left px-6 py-3 font-semibold">Nave</th>
                 <th className="text-left px-6 py-3 font-semibold">Viaje</th>
                 <th className="text-left px-6 py-3 font-semibold">POL</th>
@@ -432,12 +345,7 @@ const Manifiestos = () => {
                 const isExpo = m.tipoOperacion?.toUpperCase() === "S";
                 const badgeClass = isExpo ? POL_BADGE_EXPO : POL_BADGE_IMPO;
                 return (
-                  <tr key={m.id} className={`border-t hover:bg-slate-50 ${selected.has(m.id) ? "bg-blue-50" : ""}`}>
-                    <td className="px-6 py-4">
-                      <input type="checkbox" checked={selected.has(m.id)} onChange={() => toggleSelect(m.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-4 h-4 rounded border-slate-300 text-[#0F2A44] focus:ring-2 focus:ring-[#0F2A44]" />
-                    </td>
+                  <tr key={m.id} className="border-t hover:bg-slate-50">
                     <td className="px-6 py-4 cursor-pointer" onClick={() => navigate(`/manifiestos/${m.id}`)}>{m.nave}</td>
                     <td className="px-6 py-4 font-medium cursor-pointer" onClick={() => navigate(`/manifiestos/${m.id}`)}>{m.viaje}</td>
                     <td className="px-6 py-4 cursor-pointer" onClick={() => navigate(`/manifiestos/${m.id}`)}>
