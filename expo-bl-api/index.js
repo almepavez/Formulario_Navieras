@@ -6755,18 +6755,23 @@ app.post("/api/soporte/error-mantenedor", verificarToken, uploadMemory.single("p
             <td style="padding:10px 16px;font-size:13px;color:#6b7280;width:140px;border-bottom:1px solid #f3f4f6;">Campo afectado</td>
             <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:600;font-family:monospace;background:#f9fafb;border-bottom:1px solid #f3f4f6;">${campo}</td>
           </tr>
-          <tr>
+         <tr>
             <td style="padding:10px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;">Error</td>
-            <td style="padding:10px 16px;font-size:13px;color:#111827;border-bottom:1px solid #f3f4f6;">${mensaje}</td>
+            <td style="padding:10px 16px;font-size:13px;color:#DC2626;font-weight:600;border-bottom:1px solid #f3f4f6;">${mensaje}</td>
           </tr>
           ${valorCrudo ? `
           <tr>
             <td style="padding:10px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;">Valor recibido</td>
-            <td style="padding:10px 16px;font-size:13px;color:#111827;font-family:monospace;background:#f9fafb;border-bottom:1px solid #f3f4f6;">${valorCrudo}</td>
+            <td style="padding:10px 16px;border-bottom:1px solid #f3f4f6;">
+              <span style="display:inline-block;padding:3px 10px;background:#FEE2E2;border-radius:6px;font-size:13px;font-family:monospace;font-weight:700;color:#DC2626;">${valorCrudo}</span>
+            </td>
           </tr>` : ""}
           <tr>
             <td style="padding:10px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;">BLs afectados</td>
-            <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:600;border-bottom:1px solid #f3f4f6;">${blsCount} BL${blsCount !== 1 ? "s" : ""}</td>
+            <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:600;border-bottom:1px solid #f3f4f6;">
+              ${blsCount} BL${blsCount !== 1 ? "s" : ""}
+              ${blsAfectados.length > 0 ? `<span style="margin-left:8px;font-size:12px;font-family:monospace;color:#6b7280;font-weight:400;">(${blsTexto})</span>` : ""}
+            </td>
           </tr>
           <tr>
             <td style="padding:10px 16px;font-size:13px;color:#6b7280;">Tipo de resolución</td>
@@ -6974,14 +6979,14 @@ app.post("/api/soporte/error-mantenedor", verificarToken, uploadMemory.single("p
 // ── RESOLVER REPORTE ────────────────────────────────────────────────────────
 app.get("/api/soporte/resolver/:token", async (req, res) => {
   try {
-        console.log("TOKEN RECIBIDO:", req.params.token);
+    console.log("TOKEN RECIBIDO:", req.params.token);
 
     const payload = jwt.verify(req.params.token, process.env.JWT_SECRET);
 
     await transporter.sendMail({
       from: process.env.EMAIL_FROM || '"SGA Broom Group" <noreply@broomgroup.cl>',
       to: payload.usuarioEmail,
-      cc: "soporte.sga@broomgroup.com", 
+      cc: "soporte.sga@broomgroup.com",
       subject: `[SGA] ✓ Reporte resuelto — ${payload.campo}`,
       html: `
 <!DOCTYPE html><html><head><meta charset="utf-8"></head>
@@ -7038,7 +7043,7 @@ app.get("/api/soporte/resolver/:token", async (req, res) => {
 </body></html>`,
     });
 
-   res.send(`
+    res.send(`
   <!DOCTYPE html><html><head><meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Reporte resuelto · SGA</title></head>
