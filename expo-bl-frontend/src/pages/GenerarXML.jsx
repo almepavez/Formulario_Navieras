@@ -122,7 +122,7 @@ const ResumenErroresModal = ({ manifiestoId, bls, onClose }) => {
   const tieneP1 = (porPrioridad[1]?.length ?? 0) > 0;
 
   const blsConError = bls.filter(bl => bl.valid_status === "ERROR").length;
-  const blsListos   = bls.filter(bl => bl.valid_status === "OK").length;
+const blsListos = bls.filter(bl => bl.valid_status === "OK" || bl.valid_status === "OBS").length;
 
   const irAMantenedor = (item) => { if (!item.mantenedorPath) return; onClose(); navigate(item.mantenedorPath); };
 

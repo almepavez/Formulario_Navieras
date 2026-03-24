@@ -151,20 +151,20 @@ const AlmacenSelect = ({ value, onChange, onSave, todos = [] }) => {
   const triggerRef = useRef(null);
   const dropdownRef = useRef(null);
   const [dropdownStyle, setDropdownStyle] = useState({ position: "fixed", top: -9999, left: -9999, visibility: "hidden" });
-  
-useEffect(() => {
-  if (!open) return;
 
-  const closeOnScroll = (e) => {
-    // Si el scroll ocurre dentro del dropdown, ignorarlo
-    if (dropdownRef.current && dropdownRef.current.contains(e.target)) return;
-    setOpen(false);
-    setQuery("");
-  };
+  useEffect(() => {
+    if (!open) return;
 
-  window.addEventListener("scroll", closeOnScroll, true);
-  return () => window.removeEventListener("scroll", closeOnScroll, true);
-}, [open]);
+    const closeOnScroll = (e) => {
+      // Si el scroll ocurre dentro del dropdown, ignorarlo
+      if (dropdownRef.current && dropdownRef.current.contains(e.target)) return;
+      setOpen(false);
+      setQuery("");
+    };
+
+    window.addEventListener("scroll", closeOnScroll, true);
+    return () => window.removeEventListener("scroll", closeOnScroll, true);
+  }, [open]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -591,70 +591,70 @@ export default function Reportes() {
     latestRows.current = rows;
   }, [rows]);
 
-const handleCellEdit = (rowIdx, key, value) => {
-  const blAfectado = rows[rowIdx]?.bl;
+  const handleCellEdit = (rowIdx, key, value) => {
+    const blAfectado = rows[rowIdx]?.bl;
 
-  setRows((prev) => prev.map((r, i) => {
-    if (i === rowIdx) return { ...r, [key]: value };
-    // Si es almacen, propagar a todos los contenedores del mismo BL
-    if (key === "almacen" && r.bl === blAfectado) return { ...r, almacen: value };
-    return r;
-  }));
+    setRows((prev) => prev.map((r, i) => {
+      if (i === rowIdx) return { ...r, [key]: value };
+      // Si es almacen, propagar a todos los contenedores del mismo BL
+      if (key === "almacen" && r.bl === blAfectado) return { ...r, almacen: value };
+      return r;
+    }));
 
-  if (!selectedId) return;
+    if (!selectedId) return;
 
-  clearTimeout(autoSaveTimers.current[rowIdx]);
-  autoSaveTimers.current[rowIdx] = setTimeout(async () => {
-    const allRows = latestRows.current;
-    const token = localStorage.getItem("token");
+    clearTimeout(autoSaveTimers.current[rowIdx]);
+    autoSaveTimers.current[rowIdx] = setTimeout(async () => {
+      const allRows = latestRows.current;
+      const token = localStorage.getItem("token");
 
-    // Si es almacen, guardar todas las filas del mismo BL
-    const rowsToSave = key === "almacen"
-      ? allRows.filter(r => r.bl === blAfectado)
-      : [allRows[rowIdx]];
+      // Si es almacen, guardar todas las filas del mismo BL
+      const rowsToSave = key === "almacen"
+        ? allRows.filter(r => r.bl === blAfectado)
+        : [allRows[rowIdx]];
 
-    if (!rowsToSave.length) return;
+      if (!rowsToSave.length) return;
 
-    fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos/bulk`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify(rowsToSave.map(r => ({
+      fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos/bulk`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(rowsToSave.map(r => ({
+          bl: r.bl,
+          n_contenedor: r.n_contenedor ?? "",
+          deposito: r.deposito ?? "",
+          almacen: r.almacen ?? "",
+        }))),
+      }).catch(() => { });
+    }, 800);
+  };
+
+  const handleSaveAll = async () => {
+    if (!selectedId || !latestRows.current.length) return;
+    setSaving(true);
+    try {
+      const token = localStorage.getItem("token");
+      const payload = latestRows.current.map((r) => ({
         bl: r.bl,
         n_contenedor: r.n_contenedor ?? "",
         deposito: r.deposito ?? "",
         almacen: r.almacen ?? "",
-      }))),
-    }).catch(() => {});
-  }, 800);
-};
+      }));
 
-const handleSaveAll = async () => {
-  if (!selectedId || !latestRows.current.length) return;
-  setSaving(true);
-  try {
-    const token = localStorage.getItem("token");
-    const payload = latestRows.current.map((r) => ({
-      bl: r.bl,
-      n_contenedor: r.n_contenedor ?? "",
-      deposito: r.deposito ?? "",
-      almacen: r.almacen ?? "",
-    }));
+      const res = await fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos/bulk`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
 
-    const res = await fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos/bulk`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) throw new Error("Error del servidor");
-    const data = await res.json();
-    showToast("success", `${data.actualizadas} filas guardadas`);
-  } catch {
-    showToast("error", "Error al guardar");
-  } finally {
-    setSaving(false);
-  }
-};
+      if (!res.ok) throw new Error("Error del servidor");
+      const data = await res.json();
+      showToast("success", `${data.actualizadas} filas guardadas`);
+    } catch {
+      showToast("error", "Error al guardar");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const checkEmptyColumns = async (rowsToCheck, columnsToCheck) => {
     const emptyLabels = columnsToCheck
@@ -691,7 +691,7 @@ const handleSaveAll = async () => {
     showToast("success", `Excel exportado para BL ${row.bl}`);
   };
 
-const handleFileUpload = async (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -1042,13 +1042,12 @@ const handleFileUpload = async (e) => {
                         <button
                           disabled={isExpo}
                           onClick={() => { if (!isExpo) { setTipoOp(tipo); setComboSearch(""); setComboOpen(false); } }}
-                          className={`px-4 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-                            isExpo
+                          className={`px-4 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${isExpo
                               ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
                               : tipoOp === tipo
                                 ? "bg-[#0F2A44] text-white border-[#0F2A44]"
                                 : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
-                          }`}
+                            }`}
                         >
                           {tipo}
                           {isExpo && <span className="ml-1.5 text-[10px]"></span>}
@@ -1208,8 +1207,52 @@ const handleFileUpload = async (e) => {
                   <div className="px-5 py-2 bg-blue-50 border-b border-blue-100 flex items-center gap-2">
                     <AlertCircle size={13} className="text-blue-400 shrink-0" />
                     <span className="text-[11px] text-blue-600">
-                      Si el <strong>Lloyd / IMO</strong> de una nave no aparece o está incorrecto, puedes editarlo en{" "}
-                      <a href="/mantenedores/naves" className="font-semibold underline hover:text-blue-800" target="_blank" rel="noreferrer">Mantenedores → Naves</a>
+                      Si el <strong>Lloyd / IMO</strong> de una nave no aparece o está incorrecto,{" "}
+                      <button
+                        onClick={async () => {
+                          const { isConfirmed, value: imo } = await Swal.fire({
+                            title: "Solicitar corrección de Lloyd / IMO",
+                            input: "text",
+                            inputLabel: "¿Cuál es el Lloyd / IMO correcto?",
+                            inputPlaceholder: "Ej: 9876543",
+                            showCancelButton: true,
+                            confirmButtonText: "Enviar a soporte",
+                            cancelButtonText: "Cancelar",
+                            confirmButtonColor: "#0F2A44",
+                            cancelButtonColor: "#6B7280",
+                            inputValidator: (v) => !v?.trim() && "Ingresa el Lloyd / IMO correcto",
+                          });
+                          if (!isConfirmed || !imo?.trim()) return;
+
+                          const nave = selectedInfo?.nombre_nave || selectedInfo?.nave || "—";
+                          const viaje = selectedInfo?.viaje || "—";
+                          const token = localStorage.getItem("token");
+
+                          try {
+                            const res = await fetch(`${API_URL}/api/soporte/error-mantenedor`, {
+                              method: "POST",
+                              headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                              body: (() => {
+                                const fd = new FormData();
+                                fd.append("manifiestoId", selectedId);
+                                fd.append("campo", "imo_nave");
+                                fd.append("mensaje", `Lloyd / IMO incorrecto o faltante para la nave ${nave} (Viaje: ${viaje})`);
+                                fd.append("valorCrudo", imo.trim());
+                                fd.append("blsAfectados", JSON.stringify([]));
+                                fd.append("tipoError", "MANTENEDOR");
+                                return fd;
+                              })(),
+                            });
+                            if (!res.ok) throw new Error();
+                            Swal.fire({ icon: "success", title: "Solicitud enviada", text: "Soporte recibirá el correo y te notificará cuando esté resuelto.", timer: 3000, showConfirmButton: false });
+                          } catch {
+                            Swal.fire({ icon: "error", title: "No se pudo enviar", text: "Intenta nuevamente.", confirmButtonColor: "#0F2A44" });
+                          }
+                        }}
+                        className="font-semibold underline hover:text-blue-900 transition-colors"
+                      >
+                        contacta a soporte para agregarlo
+                      </button>
                     </span>
                   </div>
 
