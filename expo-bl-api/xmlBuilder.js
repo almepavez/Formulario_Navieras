@@ -75,14 +75,14 @@ const buildParticipacion = (nombre, participante, includeRUT = true, extraFields
   const p = { nombre };
 
   if (includeRUT && participante.rut) {
-      p['tipo-id'] = participante.tipo_id || 'RUT';
-      p['valor-id'] = cleanRUT(participante.rut);
-      p['nacion-id'] = 'CL';
-    } else if (includeRUT && participante.nacion_id) {
-      p['nacion-id'] = participante.nacion_id;  // chileno sin RUT (raro) o extranjero con RUT extranjero
-    } else if (includeNacionId && participante.nacion_id) {
-      p['nacion-id'] = participante.nacion_id;  // IMPO sin RUT pero con nacion_id
-    }
+    p['tipo-id'] = participante.tipo_id || 'RUT';
+    p['valor-id'] = cleanRUT(participante.rut);
+    p['nacion-id'] = 'CL';
+  } else if (includeRUT && participante.nacion_id) {
+    p['nacion-id'] = participante.nacion_id;  // chileno sin RUT (raro) o extranjero con RUT extranjero
+  } else if (includeNacionId && participante.nacion_id) {
+    p['nacion-id'] = participante.nacion_id;  // IMPO sin RUT pero con nacion_id
+  }
   p['nombres'] = participante.nombre;
 
   if (includeContacto) {
@@ -158,7 +158,7 @@ const buildParticipaciones = (bl, tipo) => {
     if (shipperData) lista.push(buildParticipacion('EMB', shipperData, false));
     // CONS y NOTI en IMPO llevan RUT + nacion-id
     if (consigneeData) lista.push(buildParticipacion('CONS', consigneeData, !!consigneeData.rut, {}, true, true));
-    if (notifyData)    lista.push(buildParticipacion('NOTI', notifyData,    !!notifyData.rut,    {}, true, true));
+    if (notifyData) lista.push(buildParticipacion('NOTI', notifyData, !!notifyData.rut, {}, true, true));
 
   } else {
     // ── EXPO (sentido S) ───────────────────────────────
@@ -346,19 +346,26 @@ const generarObservaciones = (bl, transbordos, tipo) => {
     }
   } else if (esImpo) {
     // IMPO: observaciones automáticas según reglas
-    // 14: SIN TRB si no hay transbordos
     if (!transbordos || transbordos.length === 0) {
       obs.push({ nombre: '14', contenido: 'SIN TRB' });
     }
-    // País destino si es tránsito (LD distinto al puerto de descarga)
     if (bl.lugar_destino_codigo && bl.lugar_destino_codigo !== bl.puerto_descarga_codigo) {
-      // Extraer país del código (primeras 2 letras)
       const pais = bl.lugar_destino_codigo.substring(0, 2);
       if (pais && pais !== 'CL') {
         obs.push({ nombre: '12', contenido: pais === 'AR' ? 'ARGENTINA' : pais });
       }
     }
-    // Observaciones manuales adicionales guardadas en bl.observaciones
+    // Observaciones manuales adicionales
+    if (bl.observaciones) {
+      const raw = typeof bl.observaciones === 'string'
+        ? (() => { try { return JSON.parse(bl.observaciones); } catch { return null; } })()
+        : bl.observaciones;
+      if (Array.isArray(raw)) {
+        raw.forEach(o => obs.push({ nombre: o.nombre || 'GRAL', contenido: o.contenido || '' }));
+      }
+    }
+  } else {
+    // EXPO: solo observaciones manuales
     if (bl.observaciones) {
       const raw = typeof bl.observaciones === 'string'
         ? (() => { try { return JSON.parse(bl.observaciones); } catch { return null; } })()
@@ -395,8 +402,8 @@ const buildXML = (bl, items, contenedores, transbordos, tipoAccion = 'I') => {
 
       'tipo-accion': tipoAccion,
       'numero-referencia': bl.bl_number,
-      // fecha-recepcion-bl: solo IMPO
-      ...(esImpo && bl.fecha_recepcion_bl && {
+      // fecha-recepcion-bl: IMPO y EXPO (opcional, solo si existe)
+      ...(bl.fecha_recepcion_bl && {
         'fecha-recepcion-bl': formatDateTimeCL(bl.fecha_recepcion_bl)
       }),
       'service': 'LINER',
@@ -426,7 +433,7 @@ const buildXML = (bl, items, contenedores, transbordos, tipoAccion = 'I') => {
         fecha: (() => {
           if (esCargaSuelta) {
             return [
-              { nombre: 'FPRES', valor: (() => { const d = new Date(); const opts = { timeZone: 'America/Santiago', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }; const p = new Intl.DateTimeFormat('es-CL', opts).formatToParts(d); const get = t => p.find(x => x.type === t).value; return `${get('day')}-${get('month')}-${get('year')} ${get('hour')}:${get('minute')}`; })() },              { nombre: 'FEM', valor: parseFechaCL(bl.fecha_emision) },
+              { nombre: 'FPRES', valor: (() => { const d = new Date(); const opts = { timeZone: 'America/Santiago', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }; const p = new Intl.DateTimeFormat('es-CL', opts).formatToParts(d); const get = t => p.find(x => x.type === t).value; return `${get('day')}-${get('month')}-${get('year')} ${get('hour')}:${get('minute')}`; })() }, { nombre: 'FEM', valor: parseFechaCL(bl.fecha_emision) },
               bl.fecha_embarque && { nombre: 'FEMB', valor: parseFechaCL(bl.fecha_embarque) },
               bl.manifiesto_fecha_zarpe && { nombre: 'FZARPE', valor: formatDateTimeCL(bl.manifiesto_fecha_zarpe) }
             ].filter(Boolean);
