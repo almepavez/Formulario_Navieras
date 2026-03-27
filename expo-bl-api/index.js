@@ -115,7 +115,10 @@ const EMAILS_PERMITIDOS = {
   'driquelme.sai@broomchile.com': 'admin',
   'mdiaz.sai@broomchile.com': 'admin',
   'ccatalan.sai@broomchile.com': 'admin',
-  'pcatalan@broomgroup.com': 'admin'
+  'pcatalan@broomgroup.com': 'admin',
+  'amendoza.vpr@broomchile.com': 'admin'
+  
+
 };
 
 // 🔒 FUNCIÓN AUXILIAR: Verificar email autorizado
