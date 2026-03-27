@@ -593,9 +593,8 @@ const ExpoBLEdit = () => {
                 fecha_presentacion: fmtDT(formData.fecha_presentacion),
                 fecha_zarpe: esImpo ? undefined : fmtDT(formData.fecha_zarpe),
                 fecha_embarque: fmtDT(formData.fecha_embarque),
-                fecha_recepcion_bl: esImpo ? fmtDT(formData.fecha_recepcion_bl) : null,
-                forma_pago_flete: formData.forma_pago_flete || null,
-                cond_transporte: formData.cond_transporte || null,       
+                fecha_recepcion_bl: fmtDT(formData.fecha_recepcion_bl) || null, forma_pago_flete: formData.forma_pago_flete || null,
+                cond_transporte: formData.cond_transporte || null,
                 puerto_embarque: formData.puerto_embarque || null,
                 puerto_descarga: formData.puerto_descarga || null,
                 lugar_emision: formData.lugar_emision || null,
@@ -972,7 +971,7 @@ const ExpoBLEdit = () => {
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-700">
                                 <ArrowUpRight size={11} /> EXPO
                             </span>
-                        )}                    
+                        )}
                     </div>
                     <p className="text-sm text-slate-500 mt-1">Viaje: <strong>{formData.viaje || "—"}</strong></p>
                 </div>
@@ -1097,38 +1096,35 @@ const ExpoBLEdit = () => {
                                 </div>
                             )}
 
-                            {/* Fecha Recepción BL — opcional, con hora, solo IMPO */}
-                            {esImpo && (
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                                        Fecha Recepción BL
-                                        <span className="text-slate-400 text-xs font-normal ml-1">(Opcional)</span>
-                                    </label>
-                                    <div className="flex gap-2 items-center">
-                                        <div className="flex-1">
-                                            <MaskedDateTimeInput
-                                                label=""
-                                                value={formData.fecha_recepcion_bl}
-                                                onChange={v => updateField("fecha_recepcion_bl", v)}
-                                            />
-                                        </div>
-                                        {formData.fecha_recepcion_bl && (
-                                            <button
-                                                type="button"
-                                                onClick={() => updateField("fecha_recepcion_bl", "")}
-                                                className="flex-shrink-0 mb-1 px-3 py-2 rounded-lg border border-red-300 bg-red-50 text-red-600 hover:bg-red-100 transition-colors text-sm font-medium flex items-center gap-1"
-                                                title="Limpiar fecha"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                </svg>
-                                                Limpiar
-                                            </button>
-                                        )}
+                            {/* Fecha Recepción BL — opcional, con hora, IMPO y EXPO */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">
+                                    Fecha Recepción BL
+                                    <span className="text-slate-400 text-xs font-normal ml-1">(Opcional)</span>
+                                </label>
+                                <div className="flex gap-2 items-center">
+                                    <div className="flex-1">
+                                        <MaskedDateTimeInput
+                                            label=""
+                                            value={formData.fecha_recepcion_bl}
+                                            onChange={v => updateField("fecha_recepcion_bl", v)}
+                                        />
                                     </div>
-                                    <p className="text-xs text-slate-500 mt-1">Solo aplica en importación</p>
+                                    {formData.fecha_recepcion_bl && (
+                                        <button
+                                            type="button"
+                                            onClick={() => updateField("fecha_recepcion_bl", "")}
+                                            className="flex-shrink-0 mb-1 px-3 py-2 rounded-lg border border-red-300 bg-red-50 text-red-600 hover:bg-red-100 transition-colors text-sm font-medium flex items-center gap-1"
+                                            title="Limpiar fecha"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                            Limpiar
+                                        </button>
+                                    )}
                                 </div>
-                            )}
+                            </div>
 
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-2">Forma de Pago Flete {formData.tipo_servicio !== "MM" && <span className="text-red-500">*</span>}</label>
@@ -1278,67 +1274,61 @@ const ExpoBLEdit = () => {
                             </div>
 
                             {/* ── Observaciones (solo IMPO, dentro del step 2) ── */}
-                            {esImpo && (
-                                <div className="mt-6 pt-6 border-t border-slate-200">
-                                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-3 text-sm text-slate-600">
-                                        <strong>Observaciones automáticas:</strong> El sistema agrega automáticamente
-                                        <span className="font-mono bg-slate-200 px-1 mx-1 rounded">14: SIN TRB</span> si no hay transbordos.
-                                        Aquí puedes agregar observaciones manuales adicionales.
-                                    </div>
-                                    <div className="flex items-center justify-between mb-3">
-                                        <h3 className="font-semibold text-slate-800">Observaciones manuales</h3>
-                                        <button
-                                            type="button"
-                                            onClick={() => updateField("observaciones", [...(formData.observaciones || []), { nombre: "MOT", contenido: "" }])}
-                                            className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 flex items-center gap-2 transition-colors"
-                                        >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                            </svg>
-                                            Agregar Observación
-                                        </button>
-                                    </div>
-                                    <div className="space-y-3">
-                                        {(formData.observaciones || []).map((obs, idx) => (
-                                            <div key={idx} className="border border-slate-200 rounded-lg p-3 bg-white relative">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => updateField("observaciones", formData.observaciones.filter((_, i) => i !== idx))}
-                                                    className="absolute top-2 right-2 text-red-500 hover:text-red-700 p-1 rounded transition-colors"
-                                                >
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                    </svg>
-                                                </button>
-                                                <div className="grid grid-cols-4 gap-3">
-                                                    <div className="col-span-1">
-                                                        <label className="block text-xs font-medium text-slate-600 mb-1">Tipo</label>
-                                                        <ComboSelect
-                                                            value={obs.nombre}
-                                                            onChange={v => updateField("observaciones", formData.observaciones.map((o, i) => i === idx ? { ...o, nombre: v } : o))}
-                                                            options={[
-                                                                { value: "MOT", label: "MOT" },
-                                                                { value: "GRAL", label: "GRAL" },
-                                                                { value: "OBS", label: "OBS" },
-                                                            ]}
-                                                        />
-                                                    </div>
-                                                    <div className="col-span-3">
-                                                        <label className="block text-xs font-medium text-slate-600 mb-1">Contenido</label>
-                                                        <input
-                                                            type="text"
-                                                            value={obs.contenido}
-                                                            onChange={e => updateField("observaciones", formData.observaciones.map((o, i) => i === idx ? { ...o, contenido: e.target.value } : o))}
-                                                            placeholder="Ej: MOD SENT OP"
-                                                            className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                        />
-                                                    </div>
+                            <div className="mt-6 pt-6 border-t border-slate-200">
+                                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-3 text-sm text-slate-600">
+                                    <strong>Observaciones automáticas:</strong> El sistema agrega automáticamente
+                                    <span className="font-mono bg-slate-200 px-1 mx-1 rounded">14: SIN TRB</span> si no hay transbordos.
+                                    Aquí puedes agregar observaciones manuales adicionales.
+                                </div>
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="font-semibold text-slate-800">Observaciones manuales</h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => updateField("observaciones", [...(formData.observaciones || []), { nombre: "MOT", contenido: "" }])}
+                                        className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 flex items-center gap-2 transition-colors"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                        </svg>
+                                        Agregar Observación
+                                    </button>
+                                </div>
+                                <div className="space-y-3">
+                                    {(formData.observaciones || []).map((obs, idx) => (
+                                        <div key={idx} className="border border-slate-200 rounded-lg p-3 bg-white relative">
+                                            <button
+                                                type="button"
+                                                onClick={() => updateField("observaciones", formData.observaciones.filter((_, i) => i !== idx))}
+                                                className="absolute top-2 right-2 text-red-500 hover:text-red-700 p-1 rounded transition-colors"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            </button>
+                                            <div className="grid grid-cols-4 gap-3">
+                                                <div className="col-span-1 relative">
+                                                    <label className="block text-xs font-medium text-slate-600 mb-1">Tipo</label>
+                                                    <ObsTipoInput
+                                                        value={obs.nombre}
+                                                        onChange={v => updateField("observaciones", formData.observaciones.map((o, i) => i === idx ? { ...o, nombre: v } : o))}
+                                                    />
+                                                </div>
+                                                <div className="col-span-3">
+                                                    <label className="block text-xs font-medium text-slate-600 mb-1">Contenido</label>
+                                                    <input
+                                                        type="text"
+                                                        value={obs.contenido}
+                                                        onChange={e => updateField("observaciones", formData.observaciones.map((o, i) => i === idx ? { ...o, contenido: e.target.value } : o))}
+                                                        placeholder="Ej: MOD SENT OP"
+                                                        className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                    />
                                                 </div>
                                             </div>
-                                        ))}
-                                    </div>
+                                        </div>
+                                    ))}
                                 </div>
-                            )}
+                            </div>
+
                         </div>
                     )}
                     {/* ════ FIN STEP 2 ════ */}
@@ -1812,8 +1802,7 @@ const ExpoBLEdit = () => {
                                         ["BL Number", formData.bl_number], ["Viaje", formData.viaje],
                                         ["Tipo Servicio", formData.tipo_servicio], ["Forma Pago Flete", formData.forma_pago_flete || "N/A"],
                                         ["Fecha Emisión", formData.fecha_emision || "—"], ["Fecha Presentación", formData.fecha_presentacion || "—"],
-                                        ...(esImpo ? [["Fecha Recepción BL", formData.fecha_recepcion_bl || "—"]] : []),
-                                        ["Puerto Embarque", formData.puerto_embarque || "—"], ["Puerto Descarga", formData.puerto_descarga || "—"],
+                                        ["Fecha Recepción BL", formData.fecha_recepcion_bl || "—"], ["Puerto Embarque", formData.puerto_embarque || "—"], ["Puerto Descarga", formData.puerto_descarga || "—"],
                                         ["Transbordos", `${transbordos.length} transbordo(s)`],
                                         ["Shipper", formData.shipper || "—"], ["Consignee", formData.consignee || "—"], ["Notify Party", formData.notify_party || "—"],
                                         ...(esImpo ? [["Almacenista", formData.almacenista_nombre || "—"], ["Cód. Almacén", formData.almacenista_codigo_almacen || "—"]] : []),
@@ -2001,6 +1990,67 @@ const MaskedDateTimeInput = ({ label, value, onChange, required }) => {
                 className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-colors ${!isValid && value ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
             />
             {!isValid && value && <p className="text-xs text-red-600 mt-1">Formato inválido. Usa DD/MM/YYYY HH:mm</p>}
+        </div>
+    );
+};
+
+const OBS_TIPOS = [
+    { value: "GRAL", label: "GRAL", desc: "Observaciones generales" },
+    { value: "MOT",  label: "MOT",  desc: "Motivo de la modificación" },
+    { value: "02",   label: "02",   desc: "Cambio de almacenista" },
+    { value: "03",   label: "03",   desc: "Cambio en cantidad de bultos" },
+    { value: "05",   label: "05",   desc: "Cubre faltas" },
+    { value: "06",   label: "06",   desc: "Cambio de N° manifiesto, puerto y almacenista" },
+    { value: "12",   label: "12",   desc: "País destino (tránsito)" },
+    { value: "14",   label: "14",   desc: "Sin transbordo" },
+];
+
+const ObsTipoInput = ({ value, onChange }) => {
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+
+    useEffect(() => {
+        const handler = (e) => {
+            if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, []);
+
+    const filtrados = value?.trim()
+        ? OBS_TIPOS.filter(t =>
+            t.label.toLowerCase().includes(value.toLowerCase()) ||
+            t.desc.toLowerCase().includes(value.toLowerCase())
+          )
+        : OBS_TIPOS;
+
+    return (
+        <div ref={ref} className="relative">
+            <input
+                type="text"
+                value={value}
+                onChange={e => { onChange(e.target.value.toUpperCase()); setOpen(true); }}
+                onFocus={() => setOpen(true)}
+                placeholder="MOT, GRAL, 02..."
+                className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+                maxLength={10}
+            />
+            {open && filtrados.length > 0 && (
+                <div className="absolute z-50 left-0 top-full mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+                    {filtrados.map(t => (
+                        <button
+                            key={t.value}
+                            type="button"
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => { onChange(t.value); setOpen(false); }}
+                            className={`w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-0 transition-colors ${value === t.value ? "bg-blue-50" : ""}`}
+                        >
+                            <span className="font-mono font-semibold text-blue-700 text-xs">{t.label}</span>
+                            <span className="text-slate-500 text-xs ml-2">— {t.desc}</span>
+                        </button>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };

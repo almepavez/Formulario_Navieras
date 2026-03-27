@@ -119,7 +119,7 @@ const ManifiestoDetalle = () => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}/api/manifiestos/${id}`);
+      const res = await fetch(`${API_BASE}/api/Manifiestos/${id}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       setData(json);
@@ -275,7 +275,7 @@ const ManifiestoDetalle = () => {
       console.log("📦 Payload a enviar:", payload);
       console.log("🏝️ Puerto Central ID en payload:", payload.puertoCentral);
 
-      const res = await fetch(`${API_BASE}/api/manifiestos/${id}`, {
+      const res = await fetch(`${API_BASE}/api/Manifiestos/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -355,7 +355,7 @@ const ManifiestoDetalle = () => {
       if (!result.isConfirmed) return;
     }
 
-    navigate("/manifiestos");
+    navigate("/Manifiestos");
   };
 
   const handleUploadPMS = async () => {
@@ -439,7 +439,7 @@ const ManifiestoDetalle = () => {
       const formDataUpload = new FormData();
       formDataUpload.append('pms', pmsFile);
 
-      const res = await fetch(`${API_BASE}/api/manifiestos/${id}/pms/procesar-directo`, {
+      const res = await fetch(`${API_BASE}/api/Manifiestos/${id}/pms/procesar-directo`, {
         method: "POST",
         body: formDataUpload,
       });
@@ -609,7 +609,7 @@ const ManifiestoDetalle = () => {
                 </button>
               )}
               <button
-                onClick={() => navigate(`/manifiestos/${id}/carga-suelta/nuevo`)}
+                onClick={() => navigate(`/Manifiestos/${id}/carga-suelta/nuevo`)}
                 className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 whitespace-nowrap flex items-center gap-2 flex-shrink-0"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -845,7 +845,7 @@ const ManifiestoDetalle = () => {
                 </button>
 
                 <button
-                  onClick={() => navigate(`/manifiestos/${id}/generar-xml`)}
+                  onClick={() => navigate(`/Manifiestos/${id}/generar-xml`)}
                   disabled={blCount === 0}
                   className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-emerald-700 whitespace-nowrap flex items-center gap-2 flex-shrink-0"
                   title={blCount === 0 ? "No hay BLs para generar XML" : `${blCount} BL(s) listos`}
