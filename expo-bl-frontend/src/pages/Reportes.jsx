@@ -326,6 +326,11 @@ export default function Reportes() {
   const [tableFilter, setTableFilter] = useState("todos");
   const [tipoOp, setTipoOp] = useState("IMPO");
   const [almacenistasTatcList, setAlmacenistasTatcList] = useState([]);
+  const [selectedRows, setSelectedRows] = useState(new Set());
+  const [bulkDeposito, setBulkDeposito] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ROWS_PER_PAGE = 15;
+
   useEffect(() => {
     fetch(`${API_URL}/api/mantenedores/almacenistas/tatc`)
       .then(r => r.ok ? r.json() : [])
@@ -350,6 +355,17 @@ export default function Reportes() {
       (tableFilter === "sin_contenedor" && !r.n_contenedor);
     return matchSearch && matchFilter;
   });
+
+  // ← Agrega esto justo debajo
+  const totalPages = Math.ceil(filteredRows.length / ROWS_PER_PAGE);
+  const paginatedRows = filteredRows.slice(
+    (currentPage - 1) * ROWS_PER_PAGE,
+    currentPage * ROWS_PER_PAGE
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [tableSearch, tableFilter]);
 
   const comboFiltered = allManifiestos.filter((m) => {
     const tipoNorm = (m.tipoOperacion ?? m.tipo_operacion ?? "").toString().trim().toUpperCase();
@@ -464,16 +480,16 @@ export default function Reportes() {
       if (!result.isConfirmed) return;
     }
 
-  const rowsConPuerto = rowsSinSoc.map((r) => ({
-  ...r,
-  aduana: resolveCodigoPuerto(r.almacen, almacenistasTatcList) || r.aduana,
-}));
+    const rowsConPuerto = rowsSinSoc.map((r) => ({
+      ...r,
+      aduana: resolveCodigoPuerto(r.almacen, almacenistasTatcList) || r.aduana,
+    }));
 
-const nave = selectedInfo?.nombre_nave || selectedInfo?.nave || "nave";
-const viaje = selectedInfo?.viaje || "viaje";
+    const nave = selectedInfo?.nombre_nave || selectedInfo?.nave || "nave";
+    const viaje = selectedInfo?.viaje || "viaje";
 
-exportTATC(rowsConPuerto, `TATC_${nave}_${viaje}_${today()}.xlsx`);
-showToast("success", `Plantilla TATC exportada (${rowsSinSoc.length} contenedores)`);
+    exportTATC(rowsConPuerto, `TATC_${nave}_${viaje}_${today()}.xlsx`);
+    showToast("success", `Plantilla TATC exportada (${rowsSinSoc.length} contenedores)`);
   };
 
   useEffect(() => {
@@ -588,6 +604,7 @@ showToast("success", `Plantilla TATC exportada (${rowsSinSoc.length} contenedore
       });
 
       setRows(mapped);
+      setSelectedRows(new Set());
       const totalConts = mapped.filter(r => r.n_contenedor).length;
       showToast("success", `${totalConts} contenedores cargados (${bls.length} BLs)`);
     } catch {
@@ -668,7 +685,39 @@ showToast("success", `Plantilla TATC exportada (${rowsSinSoc.length} contenedore
       setSaving(false);
     }
   };
+  const handleBulkDeposito = () => {
+    if (!bulkDeposito.trim() || selectedRows.size === 0) return;
 
+    setRows(prev => prev.map((r, i) => {
+      if (!selectedRows.has(i)) return r;
+      return { ...r, deposito: bulkDeposito };
+    }));
+
+    const token = localStorage.getItem("token");
+    const allCurrent = latestRows.current;
+
+    const payload = [...selectedRows].map(i => ({
+      bl: allCurrent[i].bl,
+      n_contenedor: allCurrent[i].n_contenedor ?? "",
+      deposito: bulkDeposito,
+      almacen: allCurrent[i].almacen ?? "",
+    }));
+
+    fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos/bulk`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(payload),
+    }).catch(() => {
+      showToast("error", "Error al aplicar depósito");
+    });
+
+    setSelectedRows(new Set());
+    setBulkDeposito("");
+    showToast("success", `Depósito aplicado a ${payload.length} fila(s)`);
+  };
   const checkEmptyColumns = async (rowsToCheck, columnsToCheck) => {
     const emptyLabels = columnsToCheck
       .filter(({ key }) => rowsToCheck.every((r) => !r[key]))
@@ -1056,10 +1105,10 @@ showToast("success", `Plantilla TATC exportada (${rowsSinSoc.length} contenedore
                           disabled={isExpo}
                           onClick={() => { if (!isExpo) { setTipoOp(tipo); setComboSearch(""); setComboOpen(false); } }}
                           className={`px-4 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${isExpo
-                              ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
-                              : tipoOp === tipo
-                                ? "bg-[#0F2A44] text-white border-[#0F2A44]"
-                                : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
+                            ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                            : tipoOp === tipo
+                              ? "bg-[#0F2A44] text-white border-[#0F2A44]"
+                              : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
                             }`}
                         >
                           {tipo}
@@ -1280,17 +1329,41 @@ showToast("success", `Plantilla TATC exportada (${rowsSinSoc.length} contenedore
                       <table className="w-full text-xs">
                         <thead>
                           <tr className="bg-[#0F2A44] text-white">
-                            <th className="px-3 py-3 w-10"></th>
+                            <th className="px-3 py-3 w-12 text-left">
+<input
+  type="checkbox"
+  checked={
+    filteredRows.length > 0 &&
+    filteredRows.every((r) =>
+      selectedRows.has(
+        rows.findIndex(row => row.bl === r.bl && row.n_contenedor === r.n_contenedor)
+      )
+    )
+  }
+  onChange={(e) => {
+    if (e.target.checked) {
+      const allIndices = new Set(
+        filteredRows.map(r =>
+          rows.findIndex(row => row.bl === r.bl && row.n_contenedor === r.n_contenedor)
+        )
+      );
+      setSelectedRows(allIndices);
+    } else {
+      setSelectedRows(new Set());
+    }
+  }}
+  className="w-3.5 h-3.5 rounded accent-white cursor-pointer"
+/>
+                            </th>
                             {COLUMNS.map((c) => (
-                              <th key={c.key} className="px-3 py-3 text-left font-semibold whitespace-nowrap">
+                              <th key={c.key} className="px-3 py-3 text-left font-semibold text-white whitespace-nowrap tracking-wide">
                                 {c.label}
-                                {c.key === "deposito" && <span className="ml-1 text-yellow-300 text-[10px]">(manual)</span>}
                               </th>
                             ))}
                           </tr>
                         </thead>
                         <tbody>
-                          {filteredRows.map((row, i) => {
+                          {paginatedRows.map((row, i) => {
                             const highlightCell = (text) => {
                               if (!tableSearch || !text) return text || "—";
                               const str = String(text);
@@ -1303,13 +1376,32 @@ showToast("success", `Plantilla TATC exportada (${rowsSinSoc.length} contenedore
                             return (
                               <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
                                 <td className="px-3 py-2 border-b border-slate-100">
-                                  <button
-                                    onClick={() => handleExportSingleBL(row)}
-                                    title={`Exportar Excel solo BL ${row.bl || i + 1}`}
-                                    className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
-                                  >
-                                    <Download size={13} />
-                                  </button>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={
+                                        selectedRows.has(
+                                          rows.findIndex(r => r.bl === row.bl && r.n_contenedor === row.n_contenedor)
+                                        )
+                                      }
+                                      onChange={() => {
+                                        const realIdx = rows.findIndex(r => r.bl === row.bl && r.n_contenedor === row.n_contenedor);
+                                        setSelectedRows(prev => {
+                                          const next = new Set(prev);
+                                          next.has(realIdx) ? next.delete(realIdx) : next.add(realIdx);
+                                          return next;
+                                        });
+                                      }}
+                                      className="w-3.5 h-3.5 rounded accent-[#0F2A44] cursor-pointer"
+                                    />
+                                    <button
+                                      onClick={() => handleExportSingleBL(row)}
+                                      title={`Exportar Excel solo BL ${row.bl || i + 1}`}
+                                      className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                                    >
+                                      <Download size={13} />
+                                    </button>
+                                  </div>
                                 </td>
                                 {COLUMNS.map((c) => (
                                   <td key={c.key} className="px-3 py-2 border-b border-slate-100 whitespace-nowrap">
@@ -1342,6 +1434,59 @@ showToast("success", `Plantilla TATC exportada (${rowsSinSoc.length} contenedore
                           })}
                         </tbody>
                       </table>
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-white">
+                          <span className="text-xs text-slate-500">
+                            Página <strong>{currentPage}</strong> de <strong>{totalPages}</strong>
+                            {" · "}mostrando <strong>{paginatedRows.length}</strong> de <strong>{filteredRows.length}</strong> registros
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setCurrentPage(1)}
+                              disabled={currentPage === 1}
+                              className="px-2 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                            >«</button>
+                            <button
+                              onClick={() => setCurrentPage(p => p - 1)}
+                              disabled={currentPage === 1}
+                              className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                            >Anterior</button>
+
+                            {Array.from({ length: totalPages }, (_, i) => i + 1)
+                              .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                              .reduce((acc, p, idx, arr) => {
+                                if (idx > 0 && p - arr[idx - 1] > 1) acc.push("...");
+                                acc.push(p);
+                                return acc;
+                              }, [])
+                              .map((p, idx) =>
+                                p === "..." ? (
+                                  <span key={`dots-${idx}`} className="px-2 text-xs text-slate-400">…</span>
+                                ) : (
+                                  <button
+                                    key={p}
+                                    onClick={() => setCurrentPage(p)}
+                                    className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${currentPage === p
+                                        ? "bg-[#0F2A44] text-white border-[#0F2A44]"
+                                        : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                                      }`}
+                                  >{p}</button>
+                                )
+                              )}
+
+                            <button
+                              onClick={() => setCurrentPage(p => p + 1)}
+                              disabled={currentPage === totalPages}
+                              className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                            >Siguiente</button>
+                            <button
+                              onClick={() => setCurrentPage(totalPages)}
+                              disabled={currentPage === totalPages}
+                              className="px-2 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                            >»</button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1350,7 +1495,56 @@ showToast("success", `Plantilla TATC exportada (${rowsSinSoc.length} contenedore
           )}
         </div>
       </div>
+{selectedRows.size > 0 && (
+  <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-[#0F2A44] text-white px-5 py-3 rounded-2xl shadow-2xl border border-white/10">
+    
+    <span className="text-xs font-semibold whitespace-nowrap">
+      {selectedRows.size} fila{selectedRows.size !== 1 ? "s" : ""} seleccionada{selectedRows.size !== 1 ? "s" : ""}
+    </span>
 
+    {selectedRows.size < filteredRows.length && (
+      <>
+        <div className="w-px h-5 bg-white/20" />
+        <button
+          onClick={() => {
+            const allIndices = new Set(
+              filteredRows.map(r =>
+                rows.findIndex(row => row.bl === r.bl && row.n_contenedor === r.n_contenedor)
+              )
+            );
+            setSelectedRows(allIndices);
+          }}
+          className="text-xs text-white/70 hover:text-white underline underline-offset-2 transition-colors whitespace-nowrap"
+        >
+          Seleccionar las {filteredRows.length} filas
+        </button>
+      </>
+    )}
+
+    <div className="w-px h-5 bg-white/20" />
+
+    <input
+      value={bulkDeposito}
+      onChange={e => setBulkDeposito(e.target.value)}
+      onKeyDown={e => e.key === "Enter" && handleBulkDeposito()}
+      placeholder="Depósito para todas..."
+      className="bg-white/10 border border-white/20 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/30 w-52"
+    />
+
+    <button
+      onClick={handleBulkDeposito}
+      disabled={!bulkDeposito.trim()}
+      className="px-3 py-1.5 bg-white text-[#0F2A44] text-xs font-semibold rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+    >
+      Aplicar
+    </button>
+
+    <button
+      onClick={() => { setSelectedRows(new Set()); setBulkDeposito(""); }}
+      className="text-white/50 hover:text-white transition-colors text-xs"
+    >✕</button>
+  </div>
+)}
       {toast && (
         <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg text-sm text-white z-50 ${toast.type === "success" ? "bg-emerald-600"
           : toast.type === "warning" ? "bg-orange-500"

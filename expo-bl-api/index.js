@@ -102,13 +102,11 @@ const EMAILS_PERMITIDOS = {
   'inunez@broomgroup.com': 'admin',
   'apavez@broomgroup.com': 'admin',
   'iriffo@broomgroup.com': 'admin',
-  'driquelme.sai@broomchile.com': 'admin',
-  'mdiaz.sai@broomchile.com': 'admin',
-  'ccatalan.sai@broomchile.com': 'admin',
-  'pcatalan@broomgroup.com': 'admin',
-  'amendoza.vpr@broomchile.com': 'admin'
-  
-
+  'driquelme.sai@broomchile.com': 'user',   // ← era admin
+  'mdiaz.sai@broomchile.com': 'user',        // ← era admin
+  'ccatalan.sai@broomchile.com': 'user',     // ← era admin
+  'pcatalan@broomgroup.com': 'user',         // ← era admin
+  'amendoza.vpr@broomchile.com': 'user'      // ← era admin
 };
 
 // 🔒 FUNCIÓN AUXILIAR: Verificar email autorizado
