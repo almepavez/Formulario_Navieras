@@ -179,11 +179,18 @@ const AlmacenadorSelector = ({ value, displayValue, onChange, onClear }) => {
                                                     )}
                                                 </div>
                                             </div>
-                                            {a.codigo_almacen && (
-                                                <span className="flex-shrink-0 text-xs font-mono bg-orange-100 text-orange-700 px-2 py-0.5 rounded border border-orange-200">
-                                                    ALM: {a.codigo_almacen}
-                                                </span>
-                                            )}
+                                            <div className="flex-shrink-0 flex items-center gap-1">
+                                                {a.codigo_almacen && (
+                                                    <span className="text-xs font-mono bg-orange-100 text-orange-700 px-2 py-0.5 rounded border border-orange-200">
+                                                        ALM: {a.codigo_almacen}
+                                                    </span>
+                                                )}
+                                                {a.codigo_tatc && (
+                                                    <span className="text-xs font-mono bg-sky-100 text-sky-700 px-2 py-0.5 rounded border border-sky-200">
+                                                        TATC: {a.codigo_tatc}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </button>
                                 ))

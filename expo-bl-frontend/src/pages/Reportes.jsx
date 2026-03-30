@@ -144,6 +144,13 @@ function formatTipoCnt(isoCod) {
 
 const TIPO_OP_MAP = { IMPO: "I", EXPO: "S" };
 
+function resolveCodigoPuerto(almacenCodigo, almacenistasTatcList) {
+  if (!almacenCodigo) return "";
+  const found = almacenistasTatcList.find(
+    (a) => a.codigo_tatc?.toUpperCase() === almacenCodigo.trim().toUpperCase()
+  );
+  return found?.codigo_puerto ?? "";
+}
 const AlmacenSelect = ({ value, onChange, onSave, todos = [] }) => {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -457,10 +464,16 @@ export default function Reportes() {
       if (!result.isConfirmed) return;
     }
 
-    const nave = selectedInfo?.nombre_nave || selectedInfo?.nave || "nave";
-    const viaje = selectedInfo?.viaje || "viaje";
-    exportTATC(rowsSinSoc, `TATC_${nave}_${viaje}_${today()}.xlsx`);
-    showToast("success", `Plantilla TATC exportada (${rowsSinSoc.length} contenedores)`);
+  const rowsConPuerto = rowsSinSoc.map((r) => ({
+  ...r,
+  aduana: resolveCodigoPuerto(r.almacen, almacenistasTatcList) || r.aduana,
+}));
+
+const nave = selectedInfo?.nombre_nave || selectedInfo?.nave || "nave";
+const viaje = selectedInfo?.viaje || "viaje";
+
+exportTATC(rowsConPuerto, `TATC_${nave}_${viaje}_${today()}.xlsx`);
+showToast("success", `Plantilla TATC exportada (${rowsSinSoc.length} contenedores)`);
   };
 
   useEffect(() => {

@@ -1238,7 +1238,7 @@ app.get("/api/puertos", async (_req, res) => {
 app.get("/api/mantenedores/almacenistas/tatc", async (_req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT id, nombre, rut, pais AS nacion_id, codigo_almacen, codigo_tatc
+      `SELECT id, nombre, rut, pais AS nacion_id, codigo_almacen, codigo_tatc, ciudad, codigo_puerto
        FROM participantes
        WHERE codigo_tatc IS NOT NULL AND codigo_tatc != ''
        ORDER BY codigo_tatc`
@@ -7595,6 +7595,53 @@ app.get("/api/bls/:id/validar-tipo", async (req, res) => {
     res.json({ success: errores.length === 0, bl, errores, es_carga_suelta: bl.tipo_servicio === 'BB' });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+
+app.patch("/api/manifiestos/:id/depositos/bulk-bl", async (req, res) => {
+  const { blNumbers, deposito } = req.body;
+  if (!blNumbers?.length || deposito === undefined) {
+    return res.status(400).json({ error: "blNumbers y deposito son requeridos" });
+  }
+
+  try {
+    // 1. Ver qué filas ya existen para estos BLs
+    const placeholders = blNumbers.map(() => "?").join(",");
+    const [existentes] = await pool.query(
+      `SELECT bl, n_contenedor FROM reportes
+       WHERE manifiesto_id = ? AND bl IN (${placeholders})`,
+      [req.params.id, ...blNumbers]
+    );
+
+    // 2. BLs que ya tienen filas → actualizar
+    if (existentes.length > 0) {
+      await pool.query(
+        `UPDATE reportes SET deposito = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE manifiesto_id = ? AND bl IN (${placeholders})`,
+        [deposito, req.params.id, ...blNumbers]
+      );
+    }
+
+    // 3. BLs sin ninguna fila → insertar con n_contenedor vacío
+    const blsConFilas = [...new Set(existentes.map(r => r.bl))];
+    const blsSinFilas = blNumbers.filter(bl => !blsConFilas.includes(bl));
+
+    if (blsSinFilas.length > 0) {
+      const insertValues = blsSinFilas.map(() => "(?, ?, '', ?, '')").join(",");
+      const insertParams = blsSinFilas.flatMap(bl => [req.params.id, bl, deposito]);
+      await pool.query(
+        `INSERT INTO reportes (manifiesto_id, bl, n_contenedor, deposito, almacen)
+         VALUES ${insertValues}
+         ON DUPLICATE KEY UPDATE deposito = VALUES(deposito), updated_at = CURRENT_TIMESTAMP`,
+        insertParams
+      );
+    }
+
+    res.json({ actualizadas: existentes.length, insertadas: blsSinFilas.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al guardar depósitos" });
   }
 });
 
