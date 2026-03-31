@@ -112,13 +112,11 @@ const EMAILS_PERMITIDOS = {
   'inunez@broomgroup.com': 'admin',
   'apavez@broomgroup.com': 'admin',
   'iriffo@broomgroup.com': 'admin',
-  'driquelme.sai@broomchile.com': 'admin',
-  'mdiaz.sai@broomchile.com': 'admin',
-  'ccatalan.sai@broomchile.com': 'admin',
-  'pcatalan@broomgroup.com': 'admin',
-  'amendoza.vpr@broomchile.com': 'admin'
-  
-
+  'driquelme.sai@broomchile.com': 'user',   // ← era admin
+  'mdiaz.sai@broomchile.com': 'user',        // ← era admin
+  'ccatalan.sai@broomchile.com': 'user',     // ← era admin
+  'pcatalan@broomgroup.com': 'user',         // ← era admin
+  'amendoza.vpr@broomchile.com': 'user'      // ← era admin
 };
 
 // 🔒 FUNCIÓN AUXILIAR: Verificar email autorizado
@@ -1289,7 +1287,7 @@ app.get("/api/puertos", async (_req, res) => {
 app.get("/api/mantenedores/almacenistas/tatc", async (_req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT id, nombre, rut, pais AS nacion_id, codigo_almacen, codigo_tatc
+      `SELECT id, nombre, rut, pais AS nacion_id, codigo_almacen, codigo_tatc, ciudad, codigo_puerto
        FROM participantes
        WHERE codigo_tatc IS NOT NULL AND codigo_tatc != ''
        ORDER BY codigo_tatc`
@@ -7649,6 +7647,53 @@ app.get("/api/bls/:id/validar-tipo", async (req, res) => {
   }
 });
 
+
+app.patch("/api/manifiestos/:id/depositos/bulk-bl", async (req, res) => {
+  const { blNumbers, deposito } = req.body;
+  if (!blNumbers?.length || deposito === undefined) {
+    return res.status(400).json({ error: "blNumbers y deposito son requeridos" });
+  }
+
+  try {
+    // 1. Ver qué filas ya existen para estos BLs
+    const placeholders = blNumbers.map(() => "?").join(",");
+    const [existentes] = await pool.query(
+      `SELECT bl, n_contenedor FROM reportes
+       WHERE manifiesto_id = ? AND bl IN (${placeholders})`,
+      [req.params.id, ...blNumbers]
+    );
+
+    // 2. BLs que ya tienen filas → actualizar
+    if (existentes.length > 0) {
+      await pool.query(
+        `UPDATE reportes SET deposito = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE manifiesto_id = ? AND bl IN (${placeholders})`,
+        [deposito, req.params.id, ...blNumbers]
+      );
+    }
+
+    // 3. BLs sin ninguna fila → insertar con n_contenedor vacío
+    const blsConFilas = [...new Set(existentes.map(r => r.bl))];
+    const blsSinFilas = blNumbers.filter(bl => !blsConFilas.includes(bl));
+
+    if (blsSinFilas.length > 0) {
+      const insertValues = blsSinFilas.map(() => "(?, ?, '', ?, '')").join(",");
+      const insertParams = blsSinFilas.flatMap(bl => [req.params.id, bl, deposito]);
+      await pool.query(
+        `INSERT INTO reportes (manifiesto_id, bl, n_contenedor, deposito, almacen)
+         VALUES ${insertValues}
+         ON DUPLICATE KEY UPDATE deposito = VALUES(deposito), updated_at = CURRENT_TIMESTAMP`,
+        insertParams
+      );
+    }
+
+    res.json({ actualizadas: existentes.length, insertadas: blsSinFilas.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al guardar depósitos" });
+  }
+});
+
 app.get("/api/manifiestos/:id/depositos", async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -7685,7 +7730,64 @@ app.put("/api/manifiestos/:id/depositos", async (req, res) => {
   }
 });
 
+// GET - Listar depósitos
+app.get("/api/mantenedores/depositos", async (_req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT id, codigo, nombre, activo, created_at FROM sga.depositos ORDER BY codigo"
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error("Error al obtener depósitos:", error);
+    res.status(500).json({ error: "Error al obtener depósitos" });
+  }
+});
 
+// POST - Crear depósito
+app.post("/api/mantenedores/depositos", async (req, res) => {
+  try {
+    const { codigo, nombre, activo = 1 } = req.body;
+    if (!codigo || !nombre) {
+      return res.status(400).json({ error: "Código y nombre son obligatorios" });
+    }
+    const [result] = await pool.query(
+      "INSERT INTO sga.depositos (codigo, nombre, activo) VALUES (?, ?, ?)",
+      [codigo.toUpperCase(), nombre, activo]
+    );
+    res.status(201).json({ id: result.insertId, codigo, nombre, activo });
+  } catch (error) {
+    if (error.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({ error: "Ya existe un depósito con ese código" });
+    }
+    console.error("Error al crear depósito:", error);
+    res.status(500).json({ error: "Error al crear depósito" });
+  }
+});
+
+// PUT - Editar depósito
+app.put("/api/mantenedores/depositos/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { codigo, nombre, activo } = req.body;
+    if (!codigo || !nombre) {
+      return res.status(400).json({ error: "Código y nombre son obligatorios" });
+    }
+    const [result] = await pool.query(
+      "UPDATE sga.depositos SET codigo = ?, nombre = ?, activo = ? WHERE id = ?",
+      [codigo.toUpperCase(), nombre, activo, id]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Depósito no encontrado" });
+    }
+    res.json({ id, codigo, nombre, activo });
+  } catch (error) {
+    if (error.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({ error: "Ya existe un depósito con ese código" });
+    }
+    console.error("Error al editar depósito:", error);
+    res.status(500).json({ error: "Error al editar depósito" });
+  }
+});
 
 
 app.get("/api/bls/:blNumber/observaciones", async (req, res) => {

@@ -18,6 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Warehouse,
+  Building2
 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 
@@ -47,6 +48,10 @@ const colorStyles = {
   amber: {
     badgeBg: "bg-amber-100",
     badgeText: "text-amber-600",
+  },
+  cyan: {
+    badgeBg: "bg-cyan-100",
+    badgeText: "text-cyan-600",
   },
 };
 
@@ -190,7 +195,22 @@ const CRUDMantenedor = () => {
         },
       ],
     },
-
+depositos: {   // ← al mismo nivel ✅
+  title: "Depósitos",
+  singular: "Depósito",
+  icon: Building2,
+  color: "cyan",
+  fields: [
+    { key: "codigo", label: "Código", type: "text", required: true, placeholder: "Ej: TACT, AGUNSA, TPV" },
+    { key: "nombre", label: "Nombre", type: "text", required: true, placeholder: "Ej: AGUNSA VALPARAISO" },
+    { key: "activo", label: "Estado", type: "select", required: true,
+      options: [
+        { value: 1, label: "Activo" },
+        { value: 0, label: "Inactivo" },
+      ],
+    },
+  ],
+},
     // ─────────────────────────────────────────────
     // NUEVO: Almacenistas (solo importación / ALM)
     // ─────────────────────────────────────────────

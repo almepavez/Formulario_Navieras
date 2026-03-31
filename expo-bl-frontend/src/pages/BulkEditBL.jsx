@@ -33,6 +33,7 @@ const getFieldLabel = (field) => ({
     forma_pago_flete: "Forma de Pago Flete",
     cond_transporte: "Condición de Transporte",
     almacenador: "Almacenador",
+    deposito: "Depósito",
 }[field] || field);
 
 const esBB = (bl) => (bl?.tipo_servicio || "").toUpperCase() === "BB";
@@ -91,6 +92,7 @@ const AlmacenadorSelector = ({ value, onSelect, selectedBLsCount = 0 }) => {
     const [open, setOpen] = useState(false);
     const [selected, setSelected] = useState(null);
     const containerRef = useRef(null);
+
 
     useEffect(() => {
         fetch(`${API_BASE}/api/mantenedores/almacenistas`)
@@ -176,9 +178,14 @@ const AlmacenadorSelector = ({ value, onSelect, selectedBLsCount = 0 }) => {
                                 }}
                                 className="w-full text-left px-4 py-2.5 hover:bg-slate-50 border-b border-slate-100 last:border-0 transition-colors">
                                 <p className="font-medium text-slate-900 text-sm">{item.nombre}</p>
-                                <p className="text-xs text-slate-500">
+                                <p className="text-xs text-slate-500 flex items-center gap-1.5 flex-wrap">
                                     {item.rut && <span>RUT: {item.rut}</span>}
-                                    {item.codigo_almacen && <span className="ml-2">· ALM: {item.codigo_almacen}</span>}
+                                    {item.codigo_almacen && <span>· ALM: {item.codigo_almacen}</span>}
+                                    {item.codigo_tatc && (
+                                        <span className="font-mono bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded border border-sky-200">
+                                            TATC: {item.codigo_tatc}
+                                        </span>
+                                    )}
                                 </p>
                             </button>
                         )) : (
@@ -204,6 +211,8 @@ const AlmacenadorSelector = ({ value, onSelect, selectedBLsCount = 0 }) => {
                             { label: "RUT", value: selected.rut },
                             { label: "Nación", value: selected.nacion_id },
                             { label: "Cód. Almacén", value: selected.codigo_almacen },
+                            { label: "Cód. TATC", value: selected.codigo_tatc },
+
                         ].map(({ label, value: val }) => (
                             <div key={label}>
                                 <span className="text-xs uppercase tracking-wide text-slate-400">{label}</span>
@@ -220,6 +229,88 @@ const AlmacenadorSelector = ({ value, onSelect, selectedBLsCount = 0 }) => {
             )}
         </div>
     );
+};
+
+
+const DepositoBulkSelect = ({ value, onChange, todos = [] }) => {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const found = todos.find(d => d.codigo === value);
+  const displayLabel = found ? `${found.codigo} — ${found.nombre}` : value || "";
+
+  const filtrados = query.trim()
+    ? todos.filter(d =>
+        d.codigo?.toLowerCase().includes(query.toLowerCase()) ||
+        d.nombre?.toLowerCase().includes(query.toLowerCase())
+      )
+    : todos;
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className="relative">
+        <input
+          type="text"
+          value={open ? query : displayLabel}
+          onChange={e => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => { setQuery(""); setOpen(true); }}
+          placeholder="Buscar código o nombre de depósito..."
+          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] outline-none"
+        />
+        {value && (
+          <button
+            type="button"
+            onClick={() => { onChange(""); setQuery(""); }}
+            className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-red-500 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+          {filtrados.length > 0 ? filtrados.map(d => (
+            <button
+              key={d.id}
+              type="button"
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => { onChange(d.codigo); setQuery(""); setOpen(false); }}
+              className="w-full text-left px-4 py-2.5 hover:bg-slate-50 border-b border-slate-100 last:border-0 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs font-bold text-yellow-700 bg-yellow-50 px-1.5 py-0.5 rounded border border-yellow-200 flex-shrink-0">
+                  {d.codigo}
+                </span>
+                <span className="text-sm text-slate-700 truncate">{d.nombre}</span>
+              </div>
+            </button>
+          )) : (
+            <div className="px-4 py-3 text-sm text-slate-400 text-center">
+              {query ? `Sin resultados para "${query}"` : "Sin depósitos"}
+            </div>
+          )}
+        </div>
+      )}
+
+      {value && found && (
+        <p className="mt-1.5 text-xs text-emerald-600 font-medium">
+          ✓ {found.nombre}
+        </p>
+      )}
+    </div>
+  );
 };
 
 // ── PuertoSelect — FUERA del componente principal ─────────────────────────────
@@ -249,7 +340,13 @@ const BulkEditBL = () => {
     const [loading, setLoading] = useState(true);
     const [allBLs, setAllBLs] = useState([]);
     const [error, setError] = useState("");
-
+const [depositosList, setDepositosList] = useState([]);
+useEffect(() => {
+  fetch(`${API_BASE}/api/mantenedores/depositos`)
+    .then(r => r.ok ? r.json() : [])
+    .then(data => setDepositosList(Array.isArray(data) ? data : []))
+    .catch(() => setDepositosList([]));
+}, []);
     const [selectedViaje, setSelectedViaje] = useState("");
     const [filteredBLs, setFilteredBLs] = useState([]);
     const [selectedBLs, setSelectedBLs] = useState([]);
@@ -257,6 +354,8 @@ const BulkEditBL = () => {
     const [searchBL, setSearchBL] = useState("");
     const [showPastePanel, setShowPastePanel] = useState(false);
     const [pasteInput, setPasteInput] = useState("");
+    const [searchManifiesto, setSearchManifiesto] = useState("");
+    const [manifiestoPage, setManifiestoPage] = useState(1);
 
     const [fieldsToEdit, setFieldsToEdit] = useState({
         descripcion_carga: false,
@@ -268,6 +367,7 @@ const BulkEditBL = () => {
         forma_pago_flete: false,
         cond_transporte: false,
         almacenador: false,
+        deposito: false,
     });
     const [editValues, setEditValues] = useState({
         descripcion_carga: "",
@@ -280,6 +380,7 @@ const BulkEditBL = () => {
         cond_transporte: "",
         almacenador: "",
         almacenador_id: null,
+        deposito: "",
     });
 
     const [puertosDisponibles, setPuertosDisponibles] = useState([]);
@@ -297,36 +398,36 @@ const BulkEditBL = () => {
     const [saving, setSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
 
-const paramsCargadosRef = useRef(false);
+    const paramsCargadosRef = useRef(false);
 
-useEffect(() => {
-    if (!allBLs.length || paramsCargadosRef.current) return;
+    useEffect(() => {
+        if (!allBLs.length || paramsCargadosRef.current) return;
 
-    const params    = new URLSearchParams(location.search);
-    const blsParam  = params.get("bls");
-    const field     = params.get("field");
+        const params = new URLSearchParams(location.search);
+        const blsParam = params.get("bls");
+        const field = params.get("field");
 
-    if (!blsParam) return;
+        if (!blsParam) return;
 
-    paramsCargadosRef.current = true; // evitar que se ejecute dos veces
+        paramsCargadosRef.current = true; // evitar que se ejecute dos veces
 
-    const blNumbers = blsParam.split(",").filter(Boolean);
-    if (!blNumbers.length) return;
+        const blNumbers = blsParam.split(",").filter(Boolean);
+        if (!blNumbers.length) return;
 
-    const blRef = allBLs.find(b => b.bl_number === blNumbers[0]);
-    if (!blRef?.viaje) return;
+        const blRef = allBLs.find(b => b.bl_number === blNumbers[0]);
+        if (!blRef?.viaje) return;
 
-    // Pre-seleccionar todo y saltar al step 3
-    setSelectedViaje(blRef.viaje);
-    setModoTipo((blRef.tipo_servicio || "").toUpperCase() === "BB" ? "BB" : "CONTENEDOR");
-    setSelectedBLs(blNumbers);
+        // Pre-seleccionar todo y saltar al step 3
+        setSelectedViaje(blRef.viaje);
+        setModoTipo((blRef.tipo_servicio || "").toUpperCase() === "BB" ? "BB" : "CONTENEDOR");
+        setSelectedBLs(blNumbers);
 
-    if (field && field in fieldsToEdit) {
-        setFieldsToEdit(prev => ({ ...prev, [field]: true }));
-    }
+        if (field && field in fieldsToEdit) {
+            setFieldsToEdit(prev => ({ ...prev, [field]: true }));
+        }
 
-    setCurrentStep(3);
-}, [allBLs]);
+        setCurrentStep(3);
+    }, [allBLs]);
 
     const fetchBLs = async () => {
         setLoading(true);
@@ -353,11 +454,11 @@ useEffect(() => {
             setManifestosData(Array.isArray(data) ? data : []);
         } catch { setManifestosData([]); }
     };
-useEffect(() => { 
-    fetchBLs(); 
-    fetchPuertos(); 
-    fetchManifestos(); 
-}, []);
+    useEffect(() => {
+        fetchBLs();
+        fetchPuertos();
+        fetchManifestos();
+    }, []);
     const manifiestos = Object.values(
         allBLs.reduce((acc, bl) => {
             if (!bl.viaje || acc[bl.viaje]) return acc;
@@ -376,20 +477,20 @@ useEffect(() => {
         }, {})
     ).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));  // ← más reciente primero
 
-// POR ESTO:
-useEffect(() => {
-    if (!selectedViaje) { setFilteredBLs([]); return; }
-    setFilteredBLs(allBLs.filter(bl => bl.viaje === selectedViaje));
+    // POR ESTO:
+    useEffect(() => {
+        if (!selectedViaje) { setFilteredBLs([]); return; }
+        setFilteredBLs(allBLs.filter(bl => bl.viaje === selectedViaje));
 
-    if (paramsCargadosRef.current) return; // ← venimos de URL params, no resetear
+        if (paramsCargadosRef.current) return; // ← venimos de URL params, no resetear
 
-    setSelectedBLs([]);
-    setModoTipo(null);
-    setSearchBL("");
-    setFieldsToEdit(p => ({ ...p, almacenador: false }));
-    setEditValues(p => ({ ...p, almacenador: "", almacenador_id: null }));
-    setAlmacenistaPreview(null);
-}, [selectedViaje, allBLs]);
+        setSelectedBLs([]);
+        setModoTipo(null);
+        setSearchBL("");
+        setFieldsToEdit(p => ({ ...p, almacenador: false }));
+        setEditValues(p => ({ ...p, almacenador: "", almacenador_id: null }));
+        setAlmacenistaPreview(null);
+    }, [selectedViaje, allBLs]);
 
     const blsVisibles = modoTipo
         ? filteredBLs.filter(bl => {
@@ -547,15 +648,16 @@ useEffect(() => {
                     updates[f] = editValues[f];
                 }
             });
+const { deposito: _dep, ...updatesLimpios } = updates;
 
-            if (Object.keys(updates).length > 0) {
-                const res = await fetch(`${API_BASE}/api/bls/bulk-update`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ blNumbers: selectedBLs, updates }),
-                });
-                if (!res.ok) throw new Error((await res.json()).error);
-            }
+if (Object.keys(updatesLimpios).length > 0) {          // ← updatesLimpios
+    const res = await fetch(`${API_BASE}/api/bls/bulk-update`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blNumbers: selectedBLs, updates: updatesLimpios }), // ← updatesLimpios
+    });
+    if (!res.ok) throw new Error((await res.json()).error);
+}
 
             if (editarPuertosMasivo) {
                 await Promise.all(selectedBLs.map(num =>
@@ -576,7 +678,17 @@ useEffect(() => {
                     })
                 ));
             }
-
+            if (fieldsToEdit.deposito) {
+                const manifiestoId = manifestosData.find(m => m.viaje === selectedViaje)?.id;
+                if (manifiestoId) {
+                    const res = await fetch(`${API_BASE}/api/manifiestos/${manifiestoId}/depositos/bulk-bl`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ blNumbers: selectedBLs, deposito: editValues.deposito }),
+                    });
+                    if (!res.ok) throw new Error("Error al guardar depósitos");
+                }
+            }
             setSaveSuccess(true);
             const returnTo = new URLSearchParams(location.search).get("returnTo");
             setTimeout(() => {
@@ -656,51 +768,137 @@ useEffect(() => {
                                     <h2 className="text-base font-semibold text-slate-900 mb-1">Selecciona el manifiesto</h2>
                                     <p className="text-sm text-slate-500">Todos los BLs editados pertenecerán al mismo manifiesto/viaje</p>
                                 </div>
-                                {loading ? (
-                                    <p className="text-sm text-slate-500">Cargando manifiestos...</p>
-                                ) : (
-                                    <div className="space-y-2">
-                                        {manifiestos.map(m => (
-                                            <button key={m.viaje} onClick={() => setSelectedViaje(m.viaje)}
-                                                className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl border-2 text-left transition-all ${selectedViaje === m.viaje ? "border-[#0F2A44] bg-[#0F2A44]/5" : "border-slate-200 hover:border-slate-300 bg-white"}`}>
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedViaje === m.viaje ? "border-[#0F2A44]" : "border-slate-300"}`}>
-                                                        {selectedViaje === m.viaje && <div className="w-2 h-2 rounded-full bg-[#0F2A44]" />}
-                                                    </div>
-                                                    <div>
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="font-semibold text-slate-900 text-sm">{m.viaje}</span>
-                                                            <span className="text-slate-300 text-xs">|</span>
-                                                            <span className="text-xs font-medium text-slate-500 italic">{m.nombre_nave}</span>
-                                                            {m.numeroManifiesto && <>
-                                                                <span className="text-slate-300 text-xs">|</span>
-                                                                <span className="text-xs text-slate-400 font-mono">N° {m.numeroManifiesto}</span>
-                                                            </>}
-                                                        </div>
 
-                                                        <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
-                                                            <span>{m.countTotal} BL{m.countTotal !== 1 ? "s" : ""} total</span>
-                                                            {m.countCont > 0 && <span className="text-blue-600">· {m.countCont} contenedor</span>}
-                                                            {m.countBB > 0 && <span className="text-green-600">· {m.countBB} carga suelta</span>}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                {m.tipo_operacion === "S" ? (
-                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
-                                                        <ArrowUpRight size={11} /> EXPO
-                                                    </span>
-                                                ) : m.tipo_operacion === "I" ? (
-                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">
-                                                        <ArrowDownLeft size={11} /> IMPO
-                                                    </span>
-                                                ) : null}
+                                {/* Buscador */}
+                                {!loading && (
+                                    <div className="relative">
+                                        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
+                                        </svg>
+                                        <input
+                                            type="text"
+                                            value={searchManifiesto}
+                                            onChange={e => { setSearchManifiesto(e.target.value); setManifiestoPage(1); }}
+                                            placeholder="Buscar por viaje, nave, N° manifiesto o BL..."
+                                            className="w-full pl-10 pr-10 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0F2A44] transition-colors"
+                                        />
+                                        {searchManifiesto && (
+                                            <button onClick={() => { setSearchManifiesto(""); setManifiestoPage(1); }}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
                                             </button>
-                                        ))}
-                                        {manifiestos.length === 0 && (
-                                            <p className="text-sm text-slate-400 text-center py-8">No hay manifiestos disponibles</p>
                                         )}
                                     </div>
                                 )}
+
+                                {loading ? (
+                                    <p className="text-sm text-slate-500">Cargando manifiestos...</p>
+                                ) : (() => {
+                                    const ITEMS_PER_PAGE = 6;
+                                    const term = searchManifiesto.toLowerCase().trim();
+                                    const filtrados = term
+                                        ? manifiestos.filter(m =>
+                                            m.viaje?.toLowerCase().includes(term) ||
+                                            m.nombre_nave?.toLowerCase().includes(term) ||
+                                            m.numeroManifiesto?.toLowerCase().includes(term) ||
+                                            allBLs.some(bl => bl.viaje === m.viaje && bl.bl_number?.toLowerCase().includes(term))
+                                        )
+                                        : manifiestos;
+                                    const totalPages = Math.ceil(filtrados.length / ITEMS_PER_PAGE);
+                                    const paginated = filtrados.slice((manifiestoPage - 1) * ITEMS_PER_PAGE, manifiestoPage * ITEMS_PER_PAGE);
+
+                                    return (
+                                        <div className="space-y-2">
+                                            {/* Contador resultados */}
+                                            {term && (
+                                                <p className="text-xs text-slate-500">
+                                                    {filtrados.length} resultado{filtrados.length !== 1 ? "s" : ""} para "<strong>{term}</strong>"
+                                                </p>
+                                            )}
+
+                                            {paginated.map(m => (
+                                                <button key={m.viaje} onClick={() => setSelectedViaje(m.viaje)}
+                                                    className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl border-2 text-left transition-all ${selectedViaje === m.viaje ? "border-[#0F2A44] bg-[#0F2A44]/5" : "border-slate-200 hover:border-slate-300 bg-white"}`}>
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedViaje === m.viaje ? "border-[#0F2A44]" : "border-slate-300"}`}>
+                                                            {selectedViaje === m.viaje && <div className="w-2 h-2 rounded-full bg-[#0F2A44]" />}
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-semibold text-slate-900 text-sm">{m.viaje}</span>
+                                                                <span className="text-slate-300 text-xs">|</span>
+                                                                <span className="text-xs font-medium text-slate-500 italic">{m.nombre_nave}</span>
+                                                                {m.numeroManifiesto && <>
+                                                                    <span className="text-slate-300 text-xs">|</span>
+                                                                    <span className="text-xs text-slate-400 font-mono">N° {m.numeroManifiesto}</span>
+                                                                </>}
+                                                            </div>
+                                                            <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+                                                                <span>{m.countTotal} BL{m.countTotal !== 1 ? "s" : ""} total</span>
+                                                                {m.countCont > 0 && <span className="text-blue-600">· {m.countCont} contenedor</span>}
+                                                                {m.countBB > 0 && <span className="text-green-600">· {m.countBB} carga suelta</span>}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    {m.tipo_operacion === "S" ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
+                                                            <ArrowUpRight size={11} /> EXPO
+                                                        </span>
+                                                    ) : m.tipo_operacion === "I" ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">
+                                                            <ArrowDownLeft size={11} /> IMPO
+                                                        </span>
+                                                    ) : null}
+                                                </button>
+                                            ))}
+
+                                            {filtrados.length === 0 && (
+                                                <p className="text-sm text-slate-400 text-center py-8">No se encontraron manifiestos</p>
+                                            )}
+
+                                            {/* Paginador */}
+                                            {totalPages > 1 && (
+                                                <div className="flex items-center justify-between pt-2">
+                                                    <p className="text-xs text-slate-500">
+                                                        Página {manifiestoPage} de {totalPages} · {filtrados.length} manifiestos
+                                                    </p>
+                                                    <div className="flex items-center gap-1">
+                                                        <button
+                                                            onClick={() => setManifiestoPage(p => Math.max(1, p - 1))}
+                                                            disabled={manifiestoPage === 1}
+                                                            className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                                                            ← Anterior
+                                                        </button>
+                                                        {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                                            .filter(p => p === 1 || p === totalPages || Math.abs(p - manifiestoPage) <= 1)
+                                                            .reduce((acc, p, idx, arr) => {
+                                                                if (idx > 0 && p - arr[idx - 1] > 1) acc.push("...");
+                                                                acc.push(p);
+                                                                return acc;
+                                                            }, [])
+                                                            .map((p, idx) => p === "..." ? (
+                                                                <span key={`ellipsis-${idx}`} className="px-2 text-slate-400 text-xs">…</span>
+                                                            ) : (
+                                                                <button key={p}
+                                                                    onClick={() => setManifiestoPage(p)}
+                                                                    className={`w-8 h-8 text-xs rounded-lg border transition-colors ${manifiestoPage === p ? "bg-[#0F2A44] text-white border-[#0F2A44]" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
+                                                                    {p}
+                                                                </button>
+                                                            ))}
+                                                        <button
+                                                            onClick={() => setManifiestoPage(p => Math.min(totalPages, p + 1))}
+                                                            disabled={manifiestoPage === totalPages}
+                                                            className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                                                            Siguiente →
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         )}
 
@@ -955,7 +1153,13 @@ useEffect(() => {
                                                     maxLength={10}
                                                     className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] outline-none uppercase" />
                                             </FieldRow>
-
+<FieldRow field="deposito" fieldsToEdit={fieldsToEdit} setFieldsToEdit={setFieldsToEdit}>
+  <DepositoBulkSelect
+    value={editValues.deposito}
+    onChange={v => setEditValues(p => ({ ...p, deposito: v }))}
+    todos={depositosList}
+  />
+</FieldRow>
                                             <div className={`border rounded-xl p-4 transition-all ${fieldsToEdit.almacenador ? "border-[#0F2A44]/30 bg-[#0F2A44]/5" : "border-slate-200 bg-white hover:border-slate-300"}`}>
                                                 <div className="flex items-start gap-3">
                                                     <input type="checkbox" checked={fieldsToEdit.almacenador}
