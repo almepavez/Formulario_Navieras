@@ -231,6 +231,88 @@ const AlmacenadorSelector = ({ value, onSelect, selectedBLsCount = 0 }) => {
     );
 };
 
+
+const DepositoBulkSelect = ({ value, onChange, todos = [] }) => {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const found = todos.find(d => d.codigo === value);
+  const displayLabel = found ? `${found.codigo} — ${found.nombre}` : value || "";
+
+  const filtrados = query.trim()
+    ? todos.filter(d =>
+        d.codigo?.toLowerCase().includes(query.toLowerCase()) ||
+        d.nombre?.toLowerCase().includes(query.toLowerCase())
+      )
+    : todos;
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className="relative">
+        <input
+          type="text"
+          value={open ? query : displayLabel}
+          onChange={e => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => { setQuery(""); setOpen(true); }}
+          placeholder="Buscar código o nombre de depósito..."
+          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] outline-none"
+        />
+        {value && (
+          <button
+            type="button"
+            onClick={() => { onChange(""); setQuery(""); }}
+            className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-red-500 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+          {filtrados.length > 0 ? filtrados.map(d => (
+            <button
+              key={d.id}
+              type="button"
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => { onChange(d.codigo); setQuery(""); setOpen(false); }}
+              className="w-full text-left px-4 py-2.5 hover:bg-slate-50 border-b border-slate-100 last:border-0 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs font-bold text-yellow-700 bg-yellow-50 px-1.5 py-0.5 rounded border border-yellow-200 flex-shrink-0">
+                  {d.codigo}
+                </span>
+                <span className="text-sm text-slate-700 truncate">{d.nombre}</span>
+              </div>
+            </button>
+          )) : (
+            <div className="px-4 py-3 text-sm text-slate-400 text-center">
+              {query ? `Sin resultados para "${query}"` : "Sin depósitos"}
+            </div>
+          )}
+        </div>
+      )}
+
+      {value && found && (
+        <p className="mt-1.5 text-xs text-emerald-600 font-medium">
+          ✓ {found.nombre}
+        </p>
+      )}
+    </div>
+  );
+};
+
 // ── PuertoSelect — FUERA del componente principal ─────────────────────────────
 const PuertoSelect = ({ label, value, onChange, puertosDisponibles }) => (
     <div>
@@ -258,7 +340,13 @@ const BulkEditBL = () => {
     const [loading, setLoading] = useState(true);
     const [allBLs, setAllBLs] = useState([]);
     const [error, setError] = useState("");
-
+const [depositosList, setDepositosList] = useState([]);
+useEffect(() => {
+  fetch(`${API_BASE}/api/mantenedores/depositos`)
+    .then(r => r.ok ? r.json() : [])
+    .then(data => setDepositosList(Array.isArray(data) ? data : []))
+    .catch(() => setDepositosList([]));
+}, []);
     const [selectedViaje, setSelectedViaje] = useState("");
     const [filteredBLs, setFilteredBLs] = useState([]);
     const [selectedBLs, setSelectedBLs] = useState([]);
@@ -1065,15 +1153,13 @@ if (Object.keys(updatesLimpios).length > 0) {          // ← updatesLimpios
                                                     maxLength={10}
                                                     className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] outline-none uppercase" />
                                             </FieldRow>
-                                            <FieldRow field="deposito" fieldsToEdit={fieldsToEdit} setFieldsToEdit={setFieldsToEdit}>
-                                                <input
-                                                    type="text"
-                                                    value={editValues.deposito}
-                                                    onChange={e => setEditValues(p => ({ ...p, deposito: e.target.value }))}
-                                                    placeholder="Ej: DEPOT-VALPO-01"
-                                                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0F2A44] outline-none"
-                                                />
-                                            </FieldRow>
+<FieldRow field="deposito" fieldsToEdit={fieldsToEdit} setFieldsToEdit={setFieldsToEdit}>
+  <DepositoBulkSelect
+    value={editValues.deposito}
+    onChange={v => setEditValues(p => ({ ...p, deposito: v }))}
+    todos={depositosList}
+  />
+</FieldRow>
                                             <div className={`border rounded-xl p-4 transition-all ${fieldsToEdit.almacenador ? "border-[#0F2A44]/30 bg-[#0F2A44]/5" : "border-slate-200 bg-white hover:border-slate-300"}`}>
                                                 <div className="flex items-start gap-3">
                                                     <input type="checkbox" checked={fieldsToEdit.almacenador}

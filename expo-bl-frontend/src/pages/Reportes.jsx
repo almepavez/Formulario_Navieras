@@ -308,6 +308,138 @@ const AlmacenSelect = ({ value, onChange, onSave, todos = [] }) => {
   );
 };
 
+const DepositoSelect = ({ value, onChange, onSave, todos = [] }) => {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const triggerRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const [dropdownStyle, setDropdownStyle] = useState({ position: "fixed", top: -9999, left: -9999, visibility: "hidden" });
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnScroll = (e) => {
+      if (dropdownRef.current && dropdownRef.current.contains(e.target)) return;
+      setOpen(false);
+    };
+    window.addEventListener("scroll", closeOnScroll, true);
+    return () => window.removeEventListener("scroll", closeOnScroll, true);
+  }, [open]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  useEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const dropdownWidth = 300;
+    const viewportWidth = window.innerWidth;
+    let left = rect.left;
+    if (left + dropdownWidth > viewportWidth - 8) left = rect.right - dropdownWidth;
+    if (left < 8) left = 8;
+    const dropdownHeight = 260;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const showAbove = spaceBelow < dropdownHeight && rect.top > dropdownHeight;
+    setDropdownStyle({
+      position: "fixed",
+      top: showAbove ? rect.top - dropdownHeight : rect.bottom + 4,
+      left,
+      width: dropdownWidth,
+      zIndex: 9999,
+      visibility: "visible",
+    });
+  }, [open]);
+
+  // El valor guardado es el código; buscar el objeto para mostrar label
+  const found = todos.find(d => d.codigo === value);
+  const selectedLabel = found ? found.codigo : value || "";
+
+  const filtrados = query.trim()
+    ? todos.filter(d =>
+      d.codigo?.toLowerCase().includes(query.toLowerCase()) ||
+      d.nombre?.toLowerCase().includes(query.toLowerCase())
+    ).slice(0, 8)
+    : todos.slice(0, 8);
+
+  const handleSelect = (d) => {
+    setOpen(false);
+    setQuery("");
+    onChange(d.codigo);
+    onSave?.();
+  };
+
+  const handleClear = (e) => {
+    e.stopPropagation();
+    onChange("");
+    onSave?.();
+  };
+
+  return (
+    <div className="relative" ref={ref} style={{ width: "150px" }}>
+      <div
+        ref={triggerRef}
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center justify-between gap-1 bg-yellow-50 border border-yellow-200 rounded px-2 py-1 cursor-pointer hover:border-yellow-400 transition-colors"
+        style={{ width: "150px" }}
+      >
+        <span className="text-xs font-mono font-semibold text-yellow-800 truncate">
+          {selectedLabel || <span className="text-slate-400 font-normal font-sans">Ingresa depósito...</span>}
+        </span>
+        {selectedLabel
+          ? <span onClick={handleClear} className="text-yellow-300 hover:text-red-500 flex-shrink-0 text-[10px] cursor-pointer leading-none">✕</span>
+          : <span className="text-slate-400 flex-shrink-0 text-[9px]">▼</span>
+        }
+      </div>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-[9998]" onClick={() => { setOpen(false); setQuery(""); }} />
+          <div
+            ref={dropdownRef}
+            className="bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden"
+            style={dropdownStyle}
+          >
+            <div className="p-2 border-b border-slate-100">
+              <input
+                autoFocus
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Buscar código o nombre..."
+                className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-yellow-300"
+              />
+            </div>
+            <div className="max-h-52 overflow-y-auto flex flex-col">
+              {filtrados.length === 0 ? (
+                <div className="px-3 py-3 text-xs text-slate-400 text-center">
+                  {query ? `Sin resultados para "${query}"` : "Sin depósitos"}
+                </div>
+              ) : filtrados.map(d => (
+                <button key={d.id} type="button" onClick={() => handleSelect(d)}
+                  className="w-full text-left px-3 py-2 hover:bg-yellow-50 border-b border-slate-100 last:border-0 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-yellow-700 bg-yellow-50 px-1.5 py-0.5 rounded border border-yellow-200 flex-shrink-0">
+                      {d.codigo}
+                    </span>
+                    <span className="text-xs text-slate-600 truncate">{d.nombre}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div className="px-3 py-1.5 bg-slate-50 border-t border-slate-100">
+              <p className="text-[10px] text-slate-400">Selecciona o escribe para filtrar</p>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
 export default function Reportes() {
   const [allManifiestos, setAllManifiestos] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -326,6 +458,13 @@ export default function Reportes() {
   const [tableFilter, setTableFilter] = useState("todos");
   const [tipoOp, setTipoOp] = useState("IMPO");
   const [almacenistasTatcList, setAlmacenistasTatcList] = useState([]);
+  const [depositosList, setDepositosList] = useState([]);
+  useEffect(() => {
+    fetch(`${API_URL}/api/mantenedores/depositos`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setDepositosList(Array.isArray(data) ? data : []))
+      .catch(() => setDepositosList([]));
+  }, []);
   const [selectedRows, setSelectedRows] = useState(new Set());
   const [bulkDeposito, setBulkDeposito] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -421,6 +560,49 @@ export default function Reportes() {
     const viaje = selectedInfo?.viaje || "viaje";
     exportToExcel(rows, `Reporte_${nave}_${viaje}_${today()}.xlsx`);
     showToast("success", "Excel exportado");
+  };
+
+  const handleExportLinea = async () => {
+    if (!rows.length) { showToast("error", "No hay datos para exportar"); return; }
+
+    // Reemplazar código de depósito por nombre
+    const rowsConNombre = rows.map(r => {
+      const found = depositosList.find(d => d.codigo === r.deposito);
+      return { ...r, deposito: found ? found.nombre : r.deposito };
+    });
+
+    const isEmpty = (val) => !val || val.toString().trim() === "" || val.toString().trim() === "—";
+    const colsConVacios = COLUMNS
+      .map(col => ({ label: col.label, count: rowsConNombre.filter(r => isEmpty(r[col.key])).length }))
+      .filter(({ count }) => count > 0);
+
+    if (colsConVacios.length > 0) {
+      const result = await Swal.fire({
+        title: "Datos incompletos",
+        html: `
+        <p style="color:#64748b; margin-bottom:12px; font-size:14px;">Algunas filas no tienen datos completos:</p>
+        <ul style="text-align:center; padding-left:0; margin-bottom:8px;">
+          ${colsConVacios.map(({ label, count }) =>
+          `<li style="color:#dc2626; font-size:13px; margin-bottom:4px; text-align:center; list-style:none;"><strong>${label}</strong>: ${count} fila(s) vacía(s)</li>`
+        ).join("")}
+        </ul>
+        <p style="color:#64748b; font-size:13px;">¿Exportar de todas formas?</p>
+      `,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#F59E0B",
+        cancelButtonColor: "#64748b",
+        confirmButtonText: "Sí, exportar igual",
+        cancelButtonText: "Cancelar",
+        width: "480px",
+      });
+      if (!result.isConfirmed) return;
+    }
+
+    const nave = selectedInfo?.nombre_nave || selectedInfo?.nave || "nave";
+    const viaje = selectedInfo?.viaje || "viaje";
+    exportToExcel(rowsConNombre, `ReporteLinea_${nave}_${viaje}_${today()}.xlsx`);
+    showToast("success", "Excel Línea Naviera exportado");
   };
 
   const handleExportTATC = async () => {
@@ -1072,6 +1254,13 @@ export default function Reportes() {
               >
                 <Download size={15} /> Exportar todos ({rows.length} filas)
               </button>
+
+              <button
+                onClick={handleExportLinea}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Download size={15} /> Exportar Línea Naviera
+              </button>
               <button
                 onClick={handleExportTATC}
                 className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white text-sm rounded-lg"
@@ -1330,30 +1519,30 @@ export default function Reportes() {
                         <thead>
                           <tr className="bg-[#0F2A44] text-white">
                             <th className="px-3 py-3 w-12 text-left">
-<input
-  type="checkbox"
-  checked={
-    filteredRows.length > 0 &&
-    filteredRows.every((r) =>
-      selectedRows.has(
-        rows.findIndex(row => row.bl === r.bl && row.n_contenedor === r.n_contenedor)
-      )
-    )
-  }
-  onChange={(e) => {
-    if (e.target.checked) {
-      const allIndices = new Set(
-        filteredRows.map(r =>
-          rows.findIndex(row => row.bl === r.bl && row.n_contenedor === r.n_contenedor)
-        )
-      );
-      setSelectedRows(allIndices);
-    } else {
-      setSelectedRows(new Set());
-    }
-  }}
-  className="w-3.5 h-3.5 rounded accent-white cursor-pointer"
-/>
+                              <input
+                                type="checkbox"
+                                checked={
+                                  filteredRows.length > 0 &&
+                                  filteredRows.every((r) =>
+                                    selectedRows.has(
+                                      rows.findIndex(row => row.bl === r.bl && row.n_contenedor === r.n_contenedor)
+                                    )
+                                  )
+                                }
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    const allIndices = new Set(
+                                      filteredRows.map(r =>
+                                        rows.findIndex(row => row.bl === r.bl && row.n_contenedor === r.n_contenedor)
+                                      )
+                                    );
+                                    setSelectedRows(allIndices);
+                                  } else {
+                                    setSelectedRows(new Set());
+                                  }
+                                }}
+                                className="w-3.5 h-3.5 rounded accent-white cursor-pointer"
+                              />
                             </th>
                             {COLUMNS.map((c) => (
                               <th key={c.key} className="px-3 py-3 text-left font-semibold text-white whitespace-nowrap tracking-wide">
@@ -1406,14 +1595,13 @@ export default function Reportes() {
                                 {COLUMNS.map((c) => (
                                   <td key={c.key} className="px-3 py-2 border-b border-slate-100 whitespace-nowrap">
                                     {c.key === "deposito" ? (
-                                      <input
+                                      <DepositoSelect
                                         value={row[c.key] ?? ""}
-                                        onChange={(e) => {
+                                        todos={depositosList}
+                                        onChange={(val) => {
                                           const realIdx = rows.findIndex(r => r.bl === row.bl && r.n_contenedor === row.n_contenedor);
-                                          if (realIdx !== -1) handleCellEdit(realIdx, c.key, e.target.value);
+                                          if (realIdx !== -1) handleCellEdit(realIdx, c.key, val);
                                         }}
-                                        className="w-full min-w-[130px] bg-yellow-50 border border-yellow-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-yellow-300"
-                                        placeholder="Ingresa depósito..."
                                       />
                                     ) : c.key === "almacen" ? (
                                       <AlmacenSelect
@@ -1467,8 +1655,8 @@ export default function Reportes() {
                                     key={p}
                                     onClick={() => setCurrentPage(p)}
                                     className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${currentPage === p
-                                        ? "bg-[#0F2A44] text-white border-[#0F2A44]"
-                                        : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                                      ? "bg-[#0F2A44] text-white border-[#0F2A44]"
+                                      : "border-slate-200 text-slate-600 hover:bg-slate-50"
                                       }`}
                                   >{p}</button>
                                 )
@@ -1495,56 +1683,56 @@ export default function Reportes() {
           )}
         </div>
       </div>
-{selectedRows.size > 0 && (
-  <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-[#0F2A44] text-white px-5 py-3 rounded-2xl shadow-2xl border border-white/10">
-    
-    <span className="text-xs font-semibold whitespace-nowrap">
-      {selectedRows.size} fila{selectedRows.size !== 1 ? "s" : ""} seleccionada{selectedRows.size !== 1 ? "s" : ""}
-    </span>
+      {selectedRows.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-[#0F2A44] text-white px-5 py-3 rounded-2xl shadow-2xl border border-white/10">
 
-    {selectedRows.size < filteredRows.length && (
-      <>
-        <div className="w-px h-5 bg-white/20" />
-        <button
-          onClick={() => {
-            const allIndices = new Set(
-              filteredRows.map(r =>
-                rows.findIndex(row => row.bl === r.bl && row.n_contenedor === r.n_contenedor)
-              )
-            );
-            setSelectedRows(allIndices);
-          }}
-          className="text-xs text-white/70 hover:text-white underline underline-offset-2 transition-colors whitespace-nowrap"
-        >
-          Seleccionar las {filteredRows.length} filas
-        </button>
-      </>
-    )}
+          <span className="text-xs font-semibold whitespace-nowrap">
+            {selectedRows.size} fila{selectedRows.size !== 1 ? "s" : ""} seleccionada{selectedRows.size !== 1 ? "s" : ""}
+          </span>
 
-    <div className="w-px h-5 bg-white/20" />
+          {selectedRows.size < filteredRows.length && (
+            <>
+              <div className="w-px h-5 bg-white/20" />
+              <button
+                onClick={() => {
+                  const allIndices = new Set(
+                    filteredRows.map(r =>
+                      rows.findIndex(row => row.bl === r.bl && row.n_contenedor === r.n_contenedor)
+                    )
+                  );
+                  setSelectedRows(allIndices);
+                }}
+                className="text-xs text-white/70 hover:text-white underline underline-offset-2 transition-colors whitespace-nowrap"
+              >
+                Seleccionar las {filteredRows.length} filas
+              </button>
+            </>
+          )}
 
-    <input
-      value={bulkDeposito}
-      onChange={e => setBulkDeposito(e.target.value)}
-      onKeyDown={e => e.key === "Enter" && handleBulkDeposito()}
-      placeholder="Depósito para todas..."
-      className="bg-white/10 border border-white/20 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/30 w-52"
-    />
+          <div className="w-px h-5 bg-white/20" />
 
-    <button
-      onClick={handleBulkDeposito}
-      disabled={!bulkDeposito.trim()}
-      className="px-3 py-1.5 bg-white text-[#0F2A44] text-xs font-semibold rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-    >
-      Aplicar
-    </button>
+          <input
+            value={bulkDeposito}
+            onChange={e => setBulkDeposito(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleBulkDeposito()}
+            placeholder="Depósito para todas..."
+            className="bg-white/10 border border-white/20 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/30 w-52"
+          />
 
-    <button
-      onClick={() => { setSelectedRows(new Set()); setBulkDeposito(""); }}
-      className="text-white/50 hover:text-white transition-colors text-xs"
-    >✕</button>
-  </div>
-)}
+          <button
+            onClick={handleBulkDeposito}
+            disabled={!bulkDeposito.trim()}
+            className="px-3 py-1.5 bg-white text-[#0F2A44] text-xs font-semibold rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Aplicar
+          </button>
+
+          <button
+            onClick={() => { setSelectedRows(new Set()); setBulkDeposito(""); }}
+            className="text-white/50 hover:text-white transition-colors text-xs"
+          >✕</button>
+        </div>
+      )}
       {toast && (
         <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg text-sm text-white z-50 ${toast.type === "success" ? "bg-emerald-600"
           : toast.type === "warning" ? "bg-orange-500"

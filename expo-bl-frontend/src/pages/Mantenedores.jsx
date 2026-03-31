@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Anchor, Globe, Package, Box, PackageSearch, Warehouse } from "lucide-react";
+import { Anchor, Globe, Package, Box, PackageSearch, Warehouse, Building2 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 
 const Mantenedores = () => {
@@ -60,6 +60,15 @@ const Mantenedores = () => {
       bgColor: "bg-amber-50",
       iconColor: "text-amber-600",
       badge: "Solo Importación",
+    },
+    {
+      id: "depositos",
+      title: "Depósitos",
+      description: "Gestión de depósitos y terminales de contenedores",
+      icon: Building2,
+      color: "from-cyan-500 to-cyan-600",
+      bgColor: "bg-cyan-50",
+      iconColor: "text-cyan-600",
     },
   ];
 

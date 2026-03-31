@@ -7679,7 +7679,64 @@ app.put("/api/manifiestos/:id/depositos", async (req, res) => {
   }
 });
 
+// GET - Listar depósitos
+app.get("/api/mantenedores/depositos", async (_req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT id, codigo, nombre, activo, created_at FROM sga.depositos ORDER BY codigo"
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error("Error al obtener depósitos:", error);
+    res.status(500).json({ error: "Error al obtener depósitos" });
+  }
+});
 
+// POST - Crear depósito
+app.post("/api/mantenedores/depositos", async (req, res) => {
+  try {
+    const { codigo, nombre, activo = 1 } = req.body;
+    if (!codigo || !nombre) {
+      return res.status(400).json({ error: "Código y nombre son obligatorios" });
+    }
+    const [result] = await pool.query(
+      "INSERT INTO sga.depositos (codigo, nombre, activo) VALUES (?, ?, ?)",
+      [codigo.toUpperCase(), nombre, activo]
+    );
+    res.status(201).json({ id: result.insertId, codigo, nombre, activo });
+  } catch (error) {
+    if (error.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({ error: "Ya existe un depósito con ese código" });
+    }
+    console.error("Error al crear depósito:", error);
+    res.status(500).json({ error: "Error al crear depósito" });
+  }
+});
+
+// PUT - Editar depósito
+app.put("/api/mantenedores/depositos/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { codigo, nombre, activo } = req.body;
+    if (!codigo || !nombre) {
+      return res.status(400).json({ error: "Código y nombre son obligatorios" });
+    }
+    const [result] = await pool.query(
+      "UPDATE sga.depositos SET codigo = ?, nombre = ?, activo = ? WHERE id = ?",
+      [codigo.toUpperCase(), nombre, activo, id]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Depósito no encontrado" });
+    }
+    res.json({ id, codigo, nombre, activo });
+  } catch (error) {
+    if (error.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({ error: "Ya existe un depósito con ese código" });
+    }
+    console.error("Error al editar depósito:", error);
+    res.status(500).json({ error: "Error al editar depósito" });
+  }
+});
 
 
 app.get("/api/bls/:blNumber/observaciones", async (req, res) => {
