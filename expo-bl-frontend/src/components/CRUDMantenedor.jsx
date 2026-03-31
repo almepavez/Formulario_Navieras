@@ -11,7 +11,7 @@ import {
   ArrowLeft,
   Anchor,
   Globe,
-  Package,
+  Ship,
   Box,
   AlertCircle,
   PackageSearch,
@@ -99,7 +99,7 @@ const CRUDMantenedor = () => {
     naves: {
       title: "Naves",
       singular: "Nave",
-      icon: Package,
+      icon: Ship,
       color: "orange",
       fields: [
         { key: "codigo", label: "Código", type: "text", required: true, placeholder: "EVERFEAT" },

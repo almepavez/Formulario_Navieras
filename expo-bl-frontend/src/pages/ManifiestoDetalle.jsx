@@ -312,6 +312,33 @@ const ManifiestoDetalle = () => {
     }
   };
 
+  const handleDeleteManifiesto = async () => {
+    const result = await Swal.fire({
+      title: "¿Eliminar manifiesto?",
+      text: "Esta acción no se puede deshacer.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#64748b",
+      confirmButtonText: "Sí, eliminar",
+      cancelButtonText: "Cancelar",
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/api/manifiestos/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      await Swal.fire({ title: "Eliminado", icon: "success", timer: 1500, showConfirmButton: false });
+      navigate("/manifiestos");
+    } catch (e) {
+      Swal.fire({ title: "Error", text: e?.message || "No se pudo eliminar", icon: "error", confirmButtonColor: "#0F2A44" });
+    }
+  };
+
   const handleGoBack = async () => {
     if (isEditing && hasUnsavedChanges) {
       const result = await Swal.fire({
@@ -572,6 +599,14 @@ const ManifiestoDetalle = () => {
                     Guardar cambios
                   </button>
                 </>
+              )}
+              {blCount === 0 && (
+                <button
+                  onClick={handleDeleteManifiesto}
+                  className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700"
+                >
+                  Eliminar
+                </button>
               )}
               <button
                 onClick={() => navigate(`/Manifiestos/${id}/carga-suelta/nuevo`)}

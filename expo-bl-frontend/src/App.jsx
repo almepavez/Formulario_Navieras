@@ -18,7 +18,7 @@ import CargaSueltaNuevo from "./pages/CargaSueltaNuevo";
 import CargaSueltaEdit from "./pages/CargaSueltaEdit";
 import Reportes from "./pages/Reportes";
 import ParticipanteSelector from "./components/ParticipanteSelector";
-
+import Usuarios from "./pages/Usuarios";
 
 function App() {
   return (
@@ -171,6 +171,8 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route path="/mantenedores/usuarios" element={<Usuarios />} />
 
         {/* ============================================
             RUTA 404 - Cualquier otra ruta no definida

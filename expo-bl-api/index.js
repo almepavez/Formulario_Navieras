@@ -81,6 +81,16 @@ const verificarToken = (req, res, next) => {
 };
 
 // ============================================
+// MIDDLEWARE: Solo Admin
+// ============================================
+const soloAdmin = (req, res, next) => {
+  if (req.usuario?.rol !== 'admin') {
+    return res.status(403).json({ error: 'Acceso restringido a administradores' });
+  }
+  next();
+};
+
+// ============================================
 // DATABASE POOL
 // ============================================
 const pool = mysql.createPool({
@@ -1208,6 +1218,47 @@ app.delete("/api/mantenedores/puertos/:id", async (req, res) => {
   } catch (error) {
     console.error("Error al eliminar puerto:", error);
     res.status(500).json({ error: "Error al eliminar puerto" });
+  }
+});
+
+
+// ============================================
+// MANTENEDOR DE USUARIOS
+// ============================================
+
+app.get("/api/usuarios", verificarToken, soloAdmin, async (req, res) => {
+  try {
+    const [usuarios] = await pool.query(
+      `SELECT id, nombre, email, rol, activo, foto_perfil, ultimo_acceso
+       FROM usuarios
+       ORDER BY nombre ASC`
+    );
+    res.json(usuarios);
+  } catch (error) {
+    console.error("Error obteniendo usuarios:", error);
+    res.status(500).json({ error: "Error al obtener usuarios" });
+  }
+});
+
+app.put("/api/usuarios/:id/rol", verificarToken, soloAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rol } = req.body;
+
+    if (!["admin", "usuario"].includes(rol)) {
+      return res.status(400).json({ error: "Rol inválido" });
+    }
+
+    // No permitir que un admin se cambie el rol a sí mismo
+    if (parseInt(id) === req.usuario.id) {
+      return res.status(400).json({ error: "No puedes cambiar tu propio rol" });
+    }
+
+    await pool.query("UPDATE usuarios SET rol = ? WHERE id = ?", [rol, id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error actualizando rol:", error);
+    res.status(500).json({ error: "Error al actualizar rol" });
   }
 });
 
