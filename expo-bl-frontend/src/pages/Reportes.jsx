@@ -460,7 +460,8 @@ export default function Reportes() {
   const [almacenistasTatcList, setAlmacenistasTatcList] = useState([]);
   const [depositosList, setDepositosList] = useState([]);
   useEffect(() => {
-    fetch(`${API_URL}/api/mantenedores/depositos`)
+    const token = localStorage.getItem("token");
+    fetch(`${API_URL}/api/mantenedores/depositos`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : [])
       .then(data => setDepositosList(Array.isArray(data) ? data : []))
       .catch(() => setDepositosList([]));
@@ -474,7 +475,8 @@ export default function Reportes() {
   const ROWS_PER_PAGE = 15;
 
   useEffect(() => {
-    fetch(`${API_URL}/api/mantenedores/almacenistas/tatc`)
+    const token = localStorage.getItem("token");
+    fetch(`${API_URL}/api/mantenedores/almacenistas/tatc`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : [])
       .then(data => setAlmacenistasTatcList(Array.isArray(data) ? data : []))
       .catch(() => setAlmacenistasTatcList([]));
@@ -811,8 +813,11 @@ export default function Reportes() {
 
     setRows((prev) => prev.map((r, i) => {
       if (i === rowIdx) return { ...r, [key]: value };
-      // Si es almacen, propagar a todos los contenedores del mismo BL
-      if (key === "almacen" && r.bl === blAfectado) return { ...r, almacen: value };
+      // Propagar almacen y deposito a todos los contenedores del mismo BL
+      if (r.bl === blAfectado) {
+        if (key === "almacen") return { ...r, almacen: value };
+        if (key === "deposito") return { ...r, deposito: value };
+      }
       return r;
     }));
 
@@ -823,8 +828,8 @@ export default function Reportes() {
       const allRows = latestRows.current;
       const token = localStorage.getItem("token");
 
-      // Si es almacen, guardar todas las filas del mismo BL
-      const rowsToSave = key === "almacen"
+      // Si es almacen o deposito, guardar todas las filas del mismo BL
+      const rowsToSave = (key === "almacen" || key === "deposito")
         ? allRows.filter(r => r.bl === blAfectado)
         : [allRows[rowIdx]];
 

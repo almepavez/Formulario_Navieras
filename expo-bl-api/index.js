@@ -1287,7 +1287,7 @@ app.get("/api/puertos", async (_req, res) => {
 app.get("/api/mantenedores/almacenistas/tatc", async (_req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT id, nombre, rut, pais AS nacion_id, codigo_almacen, codigo_tatc, ciudad, codigo_puerto
+      `SELECT id, nombre, rut, pais AS nacion_id, codigo_almacen, codigo_tatc, ciudad
        FROM participantes
        WHERE codigo_tatc IS NOT NULL AND codigo_tatc != ''
        ORDER BY codigo_tatc`
