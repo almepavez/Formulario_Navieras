@@ -467,6 +467,9 @@ export default function Reportes() {
   }, []);
   const [selectedRows, setSelectedRows] = useState(new Set());
   const [bulkDeposito, setBulkDeposito] = useState("");
+  const [bulkDepositoQuery, setBulkDepositoQuery] = useState("");
+  const [bulkDepositoOpen, setBulkDepositoOpen] = useState(false);
+  const bulkDepositoRef = useRef(null);
   const [currentPage, setCurrentPage] = useState(1);
   const ROWS_PER_PAGE = 15;
 
@@ -664,7 +667,7 @@ export default function Reportes() {
 
     const rowsConPuerto = rowsSinSoc.map((r) => ({
       ...r,
-      aduana: resolveCodigoPuerto(r.almacen, almacenistasTatcList) || r.aduana,
+      num_reserva: r.bl ?? "",
     }));
 
     const nave = selectedInfo?.nombre_nave || selectedInfo?.nave || "nave";
@@ -745,7 +748,7 @@ export default function Reportes() {
             tam_contenedor: "",
             tipo_cnt_sna: "",
             estado_emb: bl.tipo_servicio || "",
-            aduana: bl.aduana_embarque || "",
+            aduana: bl.aduana_descarga || "",
             almacen: saved.almacen ?? bl.almacenador ?? "",
             deposito: saved.deposito ?? "",
             operador: bl.operador_nave || "",
@@ -775,7 +778,7 @@ export default function Reportes() {
             tipo_cnt_sna: cnt.tipo_cnt_sna || "",
             tipo_bulto: cnt.tipo_bulto || "",
             estado_emb: bl.tipo_servicio || "",
-            aduana: bl.aduana_embarque || "",
+            aduana: bl.aduana_descarga || "",
             almacen: saved.almacen ?? bl.almacenador ?? "",
             deposito: saved.deposito ?? "",
             operador: bl.operador_nave || "",
@@ -867,8 +870,84 @@ export default function Reportes() {
       setSaving(false);
     }
   };
-  const handleBulkDeposito = () => {
+const handleBulkDeposito = async () => {
     if (!bulkDeposito.trim() || selectedRows.size === 0) return;
+
+    const allCurrent = latestRows.current;
+    const selectedIndices = [...selectedRows];
+
+    // Detectar BLs con contenedores parcialmente seleccionados
+    const blsSeleccionados = new Set(selectedIndices.map(i => allCurrent[i].bl));
+    const conflictos = [];
+
+    blsSeleccionados.forEach(bl => {
+      const todosDelBl = allCurrent
+        .map((r, i) => ({ r, i }))
+        .filter(({ r }) => r.bl === bl);
+      const seleccionadosDelBl = todosDelBl.filter(({ i }) => selectedRows.has(i));
+      const noSeleccionadosDelBl = todosDelBl.filter(({ i }) => !selectedRows.has(i));
+
+      if (noSeleccionadosDelBl.length === 0) return; // todos seleccionados, ok
+
+      // Hay contenedores del mismo BL con depósito distinto al que se va a aplicar
+      const depositosDistintos = noSeleccionadosDelBl
+        .map(({ r }) => r.deposito)
+        .filter(d => d && d !== bulkDeposito);
+
+      if (depositosDistintos.length > 0 || seleccionadosDelBl.length < todosDelBl.length) {
+        conflictos.push({
+          bl,
+          seleccionados: seleccionadosDelBl.length,
+          total: todosDelBl.length,
+        });
+      }
+    });
+
+    if (conflictos.length > 0) {
+      const lista = conflictos
+        .map(c => `<li style="font-size:13px; color:#dc2626; margin-bottom:4px;">
+          <strong>${c.bl}</strong>
+          <span style="color:#94a3b8; font-size:12px;"> — ${c.seleccionados} de ${c.total} contenedores seleccionados</span>
+        </li>`)
+        .join("");
+
+      const result = await Swal.fire({
+        title: "Depósitos inconsistentes",
+        icon: "warning",
+        html: `
+          <p style="color:#64748b; font-size:13px; margin-bottom:12px;">
+            Los siguientes BLs tienen contenedores <strong>no seleccionados</strong> que quedarían con un depósito distinto a <strong style="color:#92400e;">${bulkDeposito}</strong>:
+          </p>
+          <ul style="text-align:left; padding-left:0; list-style:none; margin-bottom:12px;">
+            ${lista}
+          </ul>
+          <p style="color:#64748b; font-size:13px;">¿Aplicar igual, o extender a todos los contenedores de esos BLs?</p>
+        `,
+        icon: "warning",
+        showDenyButton: true,
+        showCancelButton: true,
+        confirmButtonColor: "#F59E0B",
+        denyButtonColor: "#0F2A44",
+        cancelButtonColor: "#64748b",
+        confirmButtonText: "Aplicar solo a seleccionados",
+        denyButtonText: "Extender a todo el BL",
+        cancelButtonText: "Cancelar",
+        width: "520px",
+      });
+
+      if (result.isDismissed) return;
+
+      if (result.isDenied) {
+        // Extender selección a todos los contenedores de los BLs conflictivos
+        conflictos.forEach(({ bl }) => {
+          allCurrent.forEach((r, i) => {
+            if (r.bl === bl) selectedRows.add(i);
+          });
+        });
+      }
+    }
+
+    const indicesFinales = [...selectedRows];
 
     setRows(prev => prev.map((r, i) => {
       if (!selectedRows.has(i)) return r;
@@ -876,9 +955,7 @@ export default function Reportes() {
     }));
 
     const token = localStorage.getItem("token");
-    const allCurrent = latestRows.current;
-
-    const payload = [...selectedRows].map(i => ({
+    const payload = indicesFinales.map(i => ({
       bl: allCurrent[i].bl,
       n_contenedor: allCurrent[i].n_contenedor ?? "",
       deposito: bulkDeposito,
@@ -898,8 +975,10 @@ export default function Reportes() {
 
     setSelectedRows(new Set());
     setBulkDeposito("");
-    showToast("success", `Depósito aplicado a ${payload.length} fila(s)`);
+    setBulkDepositoQuery("");
+    showToast("success", `Depósito "${bulkDeposito}" aplicado a ${payload.length} fila(s)`);
   };
+  
   const checkEmptyColumns = async (rowsToCheck, columnsToCheck) => {
     const emptyLabels = columnsToCheck
       .filter(({ key }) => rowsToCheck.every((r) => !r[key]))
@@ -1092,7 +1171,7 @@ export default function Reportes() {
 
                 resultsDiv.querySelectorAll("div[data-codigo]").forEach(el => {
                   el.addEventListener("click", () => {
-                    input.value = `${el.dataset.codigo} — ${el.dataset.nombre}`;
+                    input.value = el.dataset.codigo;
                     hidden.value = el.dataset.codigo;
                     resultsDiv.style.display = "none";
                   });
@@ -1129,13 +1208,161 @@ export default function Reportes() {
         });
       }
 
-      const resolveAlmacen = (val) => {
+const resolveAlmacen = (val) => {
         if (!val) return "";
         const byTatc = almacenistasTatc.find(a =>
           a.codigo_tatc?.toUpperCase() === val.trim().toUpperCase()
         );
         return byTatc ? byTatc.codigo_tatc : "";
       };
+
+      // Validar depósitos contra la BD
+      const depositosInvalidos = [];
+      Object.values(updates).forEach(upd => {
+        if (!upd.deposito) return;
+        const val = upd.deposito.trim();
+        const existe = depositosList.some(d =>
+          d.codigo?.toUpperCase() === val.toUpperCase() ||
+          d.nombre?.toUpperCase() === val.toUpperCase()
+        );
+        if (!existe && !depositosInvalidos.includes(val)) {
+          depositosInvalidos.push(val);
+        }
+      });
+
+      if (depositosInvalidos.length > 0) {
+        const validosDepositos = depositosList
+          .map(d => ({ codigo: d.codigo, nombre: d.nombre }))
+          .filter(d => d.codigo);
+
+        const selectsDepositoHtml = depositosInvalidos.map(dep => `
+          <div style="margin-bottom:12px; text-align:left;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+              <span style="font-family:monospace; font-weight:700; font-size:13px; color:#dc2626; background:#fee2e2; padding:2px 8px; border-radius:5px; border:1px solid #fca5a5;">
+                ${dep}
+              </span>
+              <span style="color:#94a3b8; font-size:12px;">→ reemplazar por:</span>
+            </div>
+            <div style="position:relative;">
+              <input
+                id="dep-search-${dep}"
+                type="text"
+                placeholder="Buscar depósito válido..."
+                autocomplete="off"
+                style="width:100%; padding:7px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;"
+              />
+              <div id="dep-results-${dep}" style="display:none; background:white; border:1px solid #e2e8f0; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); max-height:140px; overflow-y:auto;"></div>
+              <input type="hidden" id="dep-selected-${dep}" value="" />
+            </div>
+          </div>
+        `).join("");
+
+        const swalDepResult = await Swal.fire({
+          icon: "warning",
+          title: "Códigos de Depósito no reconocidos",
+          width: "560px",
+          showCancelButton: true,
+          confirmButtonText: "Importar",
+          cancelButtonText: "Cancelar",
+          confirmButtonColor: "#F59E0B",
+          cancelButtonColor: "#64748b",
+          html: `
+            <p style="color:#64748b; font-size:13px; margin-bottom:16px;">
+              Los siguientes depósitos no existen. Puedes buscar el correcto o dejarlos vacíos:
+            </p>
+            ${selectsDepositoHtml}
+          `,
+          didOpen: () => {
+            depositosInvalidos.forEach(dep => {
+              const input = document.getElementById(`dep-search-${dep}`);
+              const resultsDiv = document.getElementById(`dep-results-${dep}`);
+              const hidden = document.getElementById(`dep-selected-${dep}`);
+
+              document.body.appendChild(resultsDiv);
+              resultsDiv.style.position = "fixed";
+              resultsDiv.style.zIndex = "99999";
+
+              const updatePos = () => {
+                const rect = input.getBoundingClientRect();
+                resultsDiv.style.top = rect.bottom + 2 + "px";
+                resultsDiv.style.left = rect.left + "px";
+                resultsDiv.style.width = rect.width + "px";
+              };
+
+              input.addEventListener("input", () => {
+                const q = input.value.trim().toLowerCase();
+                hidden.value = "";
+                updatePos();
+
+                if (!q) { resultsDiv.style.display = "none"; resultsDiv.innerHTML = ""; return; }
+
+                const filtrados = validosDepositos.filter(d =>
+                  d.codigo.toLowerCase().includes(q) ||
+                  d.nombre?.toLowerCase().includes(q)
+                ).slice(0, 6);
+
+                if (filtrados.length === 0) {
+                  resultsDiv.style.display = "block";
+                  resultsDiv.innerHTML = `<p style="padding:10px; text-align:center; color:#94a3b8; font-size:12px;">Sin resultados</p>`;
+                  return;
+                }
+
+                resultsDiv.style.display = "block";
+                resultsDiv.innerHTML = filtrados.map(d => `
+                  <div
+                    data-codigo="${d.codigo}"
+                    data-nombre="${d.nombre}"
+                    style="padding:8px 12px; border-bottom:1px solid #f1f5f9; cursor:pointer; display:flex; align-items:center; gap:10px; background:white;"
+                    onmouseover="this.style.background='#eff6ff'"
+                    onmouseout="this.style.background='white'"
+                  >
+                    <span style="font-family:monospace; font-weight:700; font-size:13px; color:#92400e; background:#fef3c7; padding:2px 8px; border-radius:5px; border:1px solid #fde68a; flex-shrink:0;">
+                      ${d.codigo}
+                    </span>
+                    <span style="font-size:12px; color:#475569; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                      ${d.nombre}
+                    </span>
+                  </div>
+                `).join("");
+
+                resultsDiv.querySelectorAll("div[data-codigo]").forEach(el => {
+                  el.addEventListener("click", () => {
+                    input.value = el.dataset.codigo;
+                    hidden.value = el.dataset.codigo;
+                    resultsDiv.style.display = "none";
+                  });
+                });
+              });
+
+              document.addEventListener("click", (ev) => {
+                if (!input.contains(ev.target) && !resultsDiv.contains(ev.target)) {
+                  resultsDiv.style.display = "none";
+                }
+              });
+            });
+          },
+          willClose: () => {
+            depositosInvalidos.forEach(dep => {
+              const el = document.getElementById(`dep-results-${dep}`);
+              if (el && el.parentNode === document.body) document.body.removeChild(el);
+            });
+          },
+        });
+
+        if (!swalDepResult.isConfirmed) return;
+
+        // Aplicar correcciones de depósito
+        depositosInvalidos.forEach(dep => {
+          const hidden = document.getElementById(`dep-selected-${dep}`);
+          const correcto = hidden?.value?.trim();
+          Object.keys(updates).forEach(key => {
+            if (updates[key].deposito?.toUpperCase() === dep.toUpperCase()) {
+              updates[key].deposito = correcto || "";
+            }
+          });
+        });
+      }
+
 
       // Verificar que no haya almacenes distintos para contenedores del mismo BL
       const almacenesPorBl = {};
@@ -1583,13 +1810,6 @@ export default function Reportes() {
                                       }}
                                       className="w-3.5 h-3.5 rounded accent-[#0F2A44] cursor-pointer"
                                     />
-                                    <button
-                                      onClick={() => handleExportSingleBL(row)}
-                                      title={`Exportar Excel solo BL ${row.bl || i + 1}`}
-                                      className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
-                                    >
-                                      <Download size={13} />
-                                    </button>
                                   </div>
                                 </td>
                                 {COLUMNS.map((c) => (
@@ -1711,13 +1931,67 @@ export default function Reportes() {
 
           <div className="w-px h-5 bg-white/20" />
 
-          <input
-            value={bulkDeposito}
-            onChange={e => setBulkDeposito(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && handleBulkDeposito()}
-            placeholder="Depósito para todas..."
-            className="bg-white/10 border border-white/20 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/30 w-52"
-          />
+<div className="relative" ref={bulkDepositoRef}>
+            <div
+              onClick={() => setBulkDepositoOpen(v => !v)}
+              className="flex items-center justify-between gap-2 bg-white/10 border border-white/20 rounded-lg px-3 py-1.5 cursor-pointer hover:bg-white/20 transition-colors w-52"
+            >
+              <span className={`text-xs truncate ${bulkDeposito ? "text-yellow-300 font-mono font-semibold" : "text-white/40"}`}>
+                {bulkDeposito || "Depósito para todas..."}
+              </span>
+              {bulkDeposito
+                ? <span onClick={(e) => { e.stopPropagation(); setBulkDeposito(""); setBulkDepositoQuery(""); }} className="text-white/40 hover:text-red-400 text-[10px] flex-shrink-0 cursor-pointer">✕</span>
+                : <span className="text-white/40 text-[9px] flex-shrink-0">▼</span>
+              }
+            </div>
+
+            {bulkDepositoOpen && (() => {
+              const filtrados = bulkDepositoQuery.trim()
+                ? depositosList.filter(d =>
+                    d.codigo?.toLowerCase().includes(bulkDepositoQuery.toLowerCase()) ||
+                    d.nombre?.toLowerCase().includes(bulkDepositoQuery.toLowerCase())
+                  ).slice(0, 8)
+                : depositosList.slice(0, 8);
+
+              return (
+                <>
+                  <div className="fixed inset-0 z-[9998]" onClick={() => { setBulkDepositoOpen(false); setBulkDepositoQuery(""); }} />
+                  <div className="absolute bottom-full mb-2 left-0 w-72 bg-white border border-slate-200 rounded-lg shadow-2xl overflow-hidden z-[9999]">
+                    <div className="p-2 border-b border-slate-100">
+                      <input
+                        autoFocus
+                        value={bulkDepositoQuery}
+                        onChange={e => setBulkDepositoQuery(e.target.value)}
+                        placeholder="Buscar código o nombre..."
+                        className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-yellow-300 text-slate-800"
+                      />
+                    </div>
+                    <div className="max-h-52 overflow-y-auto flex flex-col">
+                      {filtrados.length === 0 ? (
+                        <div className="px-3 py-3 text-xs text-slate-400 text-center">
+                          {bulkDepositoQuery ? `Sin resultados para "${bulkDepositoQuery}"` : "Sin depósitos"}
+                        </div>
+                      ) : filtrados.map(d => (
+                        <button key={d.id} type="button"
+                          onClick={() => { setBulkDeposito(d.codigo); setBulkDepositoOpen(false); setBulkDepositoQuery(""); }}
+                          className="w-full text-left px-3 py-2 hover:bg-yellow-50 border-b border-slate-100 last:border-0 transition-colors">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold text-yellow-700 bg-yellow-50 px-1.5 py-0.5 rounded border border-yellow-200 flex-shrink-0">
+                              {d.codigo}
+                            </span>
+                            <span className="text-xs text-slate-600 truncate">{d.nombre}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="px-3 py-1.5 bg-slate-50 border-t border-slate-100">
+                      <p className="text-[10px] text-slate-400">Selecciona o escribe para filtrar</p>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
 
           <button
             onClick={handleBulkDeposito}
