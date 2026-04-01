@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Anchor, Globe, Package, Box, PackageSearch, Warehouse, Building2 } from "lucide-react";
+import { Anchor, Globe, Ship , Users, Box, PackageSearch, Warehouse, Building2 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 
 const Mantenedores = () => {
