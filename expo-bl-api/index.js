@@ -111,7 +111,7 @@ const pool = mysql.createPool({
 const EMAILS_PERMITIDOS = {
   'inunez@broomgroup.com': 'admin',
   'apavez@broomgroup.com': 'admin',
-  'iriffo@broomgroup.com': 'usuario',
+  'iriffo@broomgroup.com': 'admin',
   'driquelme.sai@broomchile.com': 'usuario',   // ← era admin
   'mdiaz.sai@broomchile.com': 'usuario',        // ← era admin
   'ccatalan.sai@broomchile.com': 'usuario',     // ← era admin
