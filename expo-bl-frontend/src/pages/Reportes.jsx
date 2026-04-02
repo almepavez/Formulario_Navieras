@@ -928,7 +928,6 @@ const handleBulkDeposito = async () => {
           </ul>
           <p style="color:#64748b; font-size:13px;">¿Aplicar igual, o extender a todos los contenedores de esos BLs?</p>
         `,
-        icon: "warning",
         showDenyButton: true,
         showCancelButton: true,
         confirmButtonColor: "#F59E0B",
