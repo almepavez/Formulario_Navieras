@@ -111,12 +111,12 @@ const pool = mysql.createPool({
 const EMAILS_PERMITIDOS = {
   'inunez@broomgroup.com': 'admin',
   'apavez@broomgroup.com': 'admin',
-  'iriffo@broomgroup.com': 'admin',
-  'driquelme.sai@broomchile.com': 'user',   // ← era admin
-  'mdiaz.sai@broomchile.com': 'user',        // ← era admin
-  'ccatalan.sai@broomchile.com': 'user',     // ← era admin
-  'pcatalan@broomgroup.com': 'user',         // ← era admin
-  'amendoza.vpr@broomchile.com': 'user'      // ← era admin
+  'iriffo@broomgroup.com': 'usuario',
+  'driquelme.sai@broomchile.com': 'usuario',   // ← era admin
+  'mdiaz.sai@broomchile.com': 'usuario',        // ← era admin
+  'ccatalan.sai@broomchile.com': 'usuario',     // ← era admin
+  'pcatalan@broomgroup.com': 'usuario',         // ← era admin
+  'amendoza.vpr@broomchile.com': 'usuario'      // ← era admin
 };
 
 // 🔒 FUNCIÓN AUXILIAR: Verificar email autorizado
