@@ -119,6 +119,7 @@ function formatCodigo(cnt) {
   if (cnt.codigo && cnt.codigo.length === 11) {
     return `${cnt.codigo.slice(0, 4)} ${cnt.codigo.slice(4, 10)}-${cnt.codigo.slice(10, 11)}`;
   }
+  if (cnt.cnt_so_numero) return cnt.cnt_so_numero;
   return cnt.codigo || "";
 }
 
@@ -774,7 +775,7 @@ export default function Reportes() {
             bl: bl.bl_number || "",
             total_contenedores: bl.total_contenedores ?? contenedores.length,
             n_contenedor: nCnt,
-            n_contenedor_tatc: cnt.codigo_raw || "",
+            n_contenedor_tatc: nCnt,
             tipo_contenedor: formatTipoCnt(cnt.tipo_cnt),
             tam_contenedor: cnt.tam_contenedor || "",
             tipo_cnt_sna: cnt.tipo_cnt_sna || "",

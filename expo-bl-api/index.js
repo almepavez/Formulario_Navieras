@@ -797,6 +797,7 @@ app.get("/api/manifiestos/:id/bls", async (req, res) => {
        JSON_OBJECT(
          'codigo', CONCAT(bc.sigla, ' ', bc.numero, '-', bc.digito),
          'codigo_raw', bc.codigo,
+         'cnt_so_numero', bc.cnt_so_numero,
          'tipo_cnt', bc.tipo_cnt,
          'tam_contenedor', tcb.tam_contenedor,
          'tipo_cnt_sna', tcb.tipo_cnt_sna,
