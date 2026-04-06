@@ -4980,7 +4980,7 @@ app.put("/api/bls/:blNumber/contenedores", async (req, res) => {
     const blId = blRows[0].id;
 
     function parseCodigoContenedor(codigo, esSoc) {
-      if (esSoc || !codigo || codigo.length !== 11) {
+      if (!codigo || codigo.length !== 11) {
         return { sigla: null, numero: null, digito: null };
       }
       return {

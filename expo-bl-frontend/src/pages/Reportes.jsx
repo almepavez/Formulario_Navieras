@@ -813,11 +813,16 @@ export default function Reportes() {
     const blAfectado = rows[rowIdx]?.bl;
 
     setRows((prev) => prev.map((r, i) => {
-      if (i === rowIdx) return { ...r, [key]: value };
+      if (i === rowIdx) {
+        // SOC nunca puede tener depósito
+        if (key === "deposito" && r.es_soc) return r;
+        return { ...r, [key]: value };
+      }
       // Propagar almacen y deposito a todos los contenedores del mismo BL
       if (r.bl === blAfectado) {
         if (key === "almacen") return { ...r, almacen: value };
-        if (key === "deposito") return { ...r, deposito: value };
+        // SOC no recibe propagación de depósito
+        if (key === "deposito" && !r.es_soc) return { ...r, deposito: value };
       }
       return r;
     }));
@@ -956,16 +961,21 @@ const handleBulkDeposito = async () => {
 
     setRows(prev => prev.map((r, i) => {
       if (!selectedRows.has(i)) return r;
+      // SOC nunca puede tener depósito
+      if (r.es_soc) return r;
       return { ...r, deposito: bulkDeposito };
     }));
 
     const token = localStorage.getItem("token");
-    const payload = indicesFinales.map(i => ({
-      bl: allCurrent[i].bl,
-      n_contenedor: allCurrent[i].n_contenedor ?? "",
-      deposito: bulkDeposito,
-      almacen: allCurrent[i].almacen ?? "",
-    }));
+    // Excluir SOC del payload que se guarda en BD
+    const payload = indicesFinales
+      .filter(i => !allCurrent[i].es_soc)
+      .map(i => ({
+        bl: allCurrent[i].bl,
+        n_contenedor: allCurrent[i].n_contenedor ?? "",
+        deposito: bulkDeposito,
+        almacen: allCurrent[i].almacen ?? "",
+      }));
 
     fetch(`${API_URL}/api/manifiestos/${selectedId}/depositos/bulk`, {
       method: "PUT",
@@ -1410,9 +1420,12 @@ const resolveAlmacen = (val) => {
           actualizadas++;
           // Propagar almacen a todos los contenedores del mismo BL
           const almacenResuelto = upd.almacen ? resolveAlmacen(upd.almacen) : null;
+          // SOC nunca puede tener depósito
+          const depositoFinal = r.es_soc ? "" : (upd.deposito ?? r.deposito ?? "");
           return {
             ...r,
             ...upd,
+            deposito: depositoFinal,
             ...(almacenResuelto ? { almacen: almacenResuelto } : {}),
           };
         })
@@ -1794,6 +1807,7 @@ const resolveAlmacen = (val) => {
                               return <>{str.slice(0, idx)}<mark className="bg-yellow-200 text-slate-900 rounded-sm px-0.5">{str.slice(idx, idx + q.length)}</mark>{str.slice(idx + q.length)}</>;
                             };
 
+                            const esSoc = !!row.es_soc;
                             return (
                               <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
                                 <td className="px-3 py-2 border-b border-slate-100">
@@ -1838,7 +1852,14 @@ const resolveAlmacen = (val) => {
                                         }}
                                       />
                                     ) : (
-                                      <span className="text-slate-700">{highlightCell(row[c.key])}</span>
+                                      <span className="text-slate-700 flex items-center gap-1.5">
+                                        {highlightCell(row[c.key])}
+                                        {esSoc && c.key === "n_contenedor" && (
+                                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-300 leading-none">
+                                            SOC
+                                          </span>
+                                        )}
+                                      </span>
                                     )}
                                   </td>
                                 ))}
