@@ -116,7 +116,9 @@ const EMAILS_PERMITIDOS = {
   'mdiaz.sai@broomchile.com': 'usuario',        // ← era admin
   'ccatalan.sai@broomchile.com': 'usuario',     // ← era admin
   'pcatalan@broomgroup.com': 'usuario',         // ← era admin
-  'amendoza.vpr@broomchile.com': 'usuario'      // ← era admin
+  'amendoza.vpr@broomchile.com': 'usuario',
+  'jalvarez.sai@broomchile.com': 'usuario',
+  'malvarez.sai@broomchile.com': 'usuario'
 };
 
 // 🔒 FUNCIÓN AUXILIAR: Verificar email autorizado
