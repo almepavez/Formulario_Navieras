@@ -87,7 +87,14 @@ function exportTATC(rowsToExport, filename) {
 
   const wsData = [
     TATC_COLUMNS.map((c) => c.label),
-    ...rowsToExport.map((r) => TATC_COLUMNS.map((c) => r[c.key] ?? "")),
+    ...rowsToExport.map((r) => TATC_COLUMNS.map((c) => {
+      if (c.key === "n_contenedor_tatc") {
+        const raw = r[c.key] ?? "";
+        // Normalizar: "CIPU 201120-7" → "CIPU2011207"
+        return raw.replace(/\s+/g, "").replace(/-/g, "");
+      }
+      return r[c.key] ?? "";
+    })),
   ];
 
   const ws = XLSX.utils.aoa_to_sheet(wsData);
@@ -535,7 +542,7 @@ export default function Reportes() {
     const colsConVacios = COLUMNS
       .map((col) => ({
         label: col.label,
-        count: rows.filter(r => isEmpty(r[col.key])).length,
+        count: rows.filter(r => col.key === "deposito" ? !r.es_soc && isEmpty(r[col.key]) : isEmpty(r[col.key])).length,
       }))
       .filter(({ count }) => count > 0);
 
@@ -564,7 +571,7 @@ export default function Reportes() {
 
     const nave = selectedInfo?.nombre_nave || selectedInfo?.nave || "nave";
     const viaje = selectedInfo?.viaje || "viaje";
-    exportToExcel(rows, `Reporte_${nave}_${viaje}_${today()}.xlsx`);
+    exportToExcel(rows.map(r => r.es_soc ? { ...r, deposito: "" } : r), `Reporte_${nave}_${viaje}_${today()}.xlsx`);
     showToast("success", "Excel exportado");
   };
 
@@ -579,7 +586,7 @@ export default function Reportes() {
 
     const isEmpty = (val) => !val || val.toString().trim() === "" || val.toString().trim() === "—";
     const colsConVacios = COLUMNS
-      .map(col => ({ label: col.label, count: rowsConNombre.filter(r => isEmpty(r[col.key])).length }))
+      .map(col => ({ label: col.label, count: rowsConNombre.filter(r => col.key === "deposito" ? !r.es_soc && isEmpty(r[col.key]) : isEmpty(r[col.key])).length }))
       .filter(({ count }) => count > 0);
 
     if (colsConVacios.length > 0) {
@@ -607,7 +614,7 @@ export default function Reportes() {
 
     const nave = selectedInfo?.nombre_nave || selectedInfo?.nave || "nave";
     const viaje = selectedInfo?.viaje || "viaje";
-    exportToExcel(rowsConNombre, `ReporteLinea_${nave}_${viaje}_${today()}.xlsx`);
+    exportToExcel(rowsConNombre.map(r => r.es_soc ? { ...r, deposito: "" } : r), `ReporteLinea_${nave}_${viaje}_${today()}.xlsx`);
     showToast("success", "Excel Línea Naviera exportado");
   };
 
@@ -676,7 +683,7 @@ export default function Reportes() {
     const nave = selectedInfo?.nombre_nave || selectedInfo?.nave || "nave";
     const viaje = selectedInfo?.viaje || "viaje";
 
-    exportTATC(rowsConPuerto, `TATC_${nave}_${viaje}_${today()}.xlsx`);
+    exportTATC(rowsConPuerto.map(r => r.es_soc ? { ...r, deposito: "" } : r), `TATC_${nave}_${viaje}_${today()}.xlsx`);
     showToast("success", `Plantilla TATC exportada (${rowsSinSoc.length} contenedores)`);
   };
 
@@ -1025,7 +1032,7 @@ const handleBulkDeposito = async () => {
   };
 
   const handleExportSingleBL = (row) => {
-    exportToExcel([row], `BL_${row.bl || "bl"}_${row.nombre_nave || "nave"}_${today()}.xlsx`);
+    exportToExcel([row.es_soc ? { ...row, deposito: "" } : row], `BL_${row.bl || "bl"}_${row.nombre_nave || "nave"}_${today()}.xlsx`);
     showToast("success", `Excel exportado para BL ${row.bl}`);
   };
 

@@ -4821,7 +4821,11 @@ app.get("/api/bls", async (req, res) => {
         b.status,
         b.created_at,
         b.updated_at,
-        ts.nombre as tipo_servicio
+        ts.nombre as tipo_servicio,
+        EXISTS (
+          SELECT 1 FROM bl_contenedores bc
+          WHERE bc.bl_id = b.id AND bc.es_soc = 1
+        ) AS tiene_soc
       FROM bls b
       LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
       LEFT JOIN naves n ON m.nave_id = n.id
@@ -7658,24 +7662,40 @@ app.patch("/api/manifiestos/:id/depositos/bulk-bl", async (req, res) => {
   }
 
   try {
-    // 1. Ver qué filas ya existen para estos BLs
     const placeholders = blNumbers.map(() => "?").join(",");
+
+    // 1. Obtener todos los n_contenedor SOC de estos BLs para excluirlos
+    const [socRows] = await pool.query(
+      `SELECT bc.cnt_so_numero AS n_contenedor
+       FROM bl_contenedores bc
+       INNER JOIN bls b ON b.id = bc.bl_id
+       WHERE b.bl_number IN (${placeholders}) AND bc.es_soc = 1 AND bc.cnt_so_numero IS NOT NULL`,
+      [...blNumbers]
+    );
+    const socContainers = socRows.map(r => r.n_contenedor);
+
+    // 2. Ver qué filas ya existen para estos BLs
     const [existentes] = await pool.query(
       `SELECT bl, n_contenedor FROM reportes
        WHERE manifiesto_id = ? AND bl IN (${placeholders})`,
       [req.params.id, ...blNumbers]
     );
 
-    // 2. BLs que ya tienen filas → actualizar
+    // 3. BLs que ya tienen filas → actualizar solo las no-SOC
     if (existentes.length > 0) {
-      await pool.query(
-        `UPDATE reportes SET deposito = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE manifiesto_id = ? AND bl IN (${placeholders})`,
-        [deposito, req.params.id, ...blNumbers]
-      );
+      const noSoc = existentes.filter(r => !socContainers.includes(r.n_contenedor));
+      if (noSoc.length > 0) {
+        // Actualizar en grupos para no armar un IN enorme
+        await pool.query(
+          `UPDATE reportes SET deposito = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE manifiesto_id = ? AND bl IN (${placeholders})
+             AND (n_contenedor NOT IN (${socContainers.length ? socContainers.map(() => "?").join(",") : "'__NINGUNO__'"}) OR n_contenedor = '')`,
+          [deposito, req.params.id, ...blNumbers, ...socContainers]
+        );
+      }
     }
 
-    // 3. BLs sin ninguna fila → insertar con n_contenedor vacío
+    // 4. BLs sin ninguna fila → insertar con n_contenedor vacío
     const blsConFilas = [...new Set(existentes.map(r => r.bl))];
     const blsSinFilas = blNumbers.filter(bl => !blsConFilas.includes(bl));
 

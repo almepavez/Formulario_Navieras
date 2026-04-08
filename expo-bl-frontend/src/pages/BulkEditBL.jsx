@@ -1370,7 +1370,41 @@ if (Object.keys(updatesLimpios).length > 0) {          // ← updatesLimpios
                                     Atrás
                                 </button>
                                 {currentStep < 5 ? (
-                                    <button onClick={() => setCurrentStep(p => p + 1)} disabled={!canContinue[currentStep]}
+                                    <button
+                                        onClick={async () => {
+                                            if (currentStep === 3 && fieldsToEdit.deposito) {
+                                                const blsSoc = selectedBLs.filter(num => {
+                                                    const bl = filteredBLs.find(b => b.bl_number === num);
+                                                    return bl?.tiene_soc;
+                                                });
+                                                if (blsSoc.length > 0) {
+                                                    const lista = blsSoc
+                                                        .map(num => `<li style="font-size:13px;color:#92400e;margin-bottom:4px;"><strong>${num}</strong></li>`)
+                                                        .join("");
+                                                    await Swal.fire({
+                                                        title: "BLs con contenedores SOC",
+                                                        icon: "warning",
+                                                        html: `
+                                                            <p style="color:#64748b;font-size:13px;margin-bottom:12px;">
+                                                                Los siguientes BLs tienen contenedores SOC. El depósito
+                                                                <strong>no se guardará</strong> para esos contenedores:
+                                                            </p>
+                                                            <ul style="text-align:center;padding-left:0;list-style:none;margin-bottom:8px;">
+                                                                ${lista}
+                                                            </ul>
+                                                            <p style="color:#94a3b8;font-size:12px;">
+                                                                Puedes continuar — solo afectará a los contenedores no SOC.
+                                                            </p>
+                                                        `,
+                                                        confirmButtonColor: "#0F2A44",
+                                                        confirmButtonText: "Entendido, continuar",
+                                                        width: "460px",
+                                                    });
+                                                }
+                                            }
+                                            setCurrentStep(p => p + 1);
+                                        }}
+                                        disabled={!canContinue[currentStep]}
                                         className="px-6 py-2.5 text-sm font-medium text-white bg-[#0F2A44] hover:bg-[#1a3a5c] rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                                         Continuar
                                     </button>
