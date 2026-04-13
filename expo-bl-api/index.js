@@ -5193,14 +5193,12 @@ app.patch('/api/bls/bulk-update', async (req, res) => {
         `SELECT codigo_tatc FROM participantes WHERE id = ? LIMIT 1`,
         [updates.almacenador_id]
       );
-      console.log('[SYNC REPORTES] almacenador_id:', updates.almacenador_id, '→ participante:', participante);
       if (participante?.codigo_tatc) {
         const placeholders2 = blNumbers.map(() => '?').join(',');
         const [resUpdate] = await connection.query(
           `UPDATE reportes SET almacen = ? WHERE bl IN (${placeholders2})`,
           [participante.codigo_tatc, ...blNumbers]
         );
-        console.log('[SYNC REPORTES] filas afectadas:', resUpdate.affectedRows, 'bls:', blNumbers);
       }
     }
 
@@ -7050,7 +7048,6 @@ app.post("/api/soporte/error-mantenedor", verificarToken, uploadMemory.single("p
           }]
         } : {}),
       });
-      console.log("✅ Correo soporte enviado");
     } catch (e) {
     }
 
@@ -7062,7 +7059,6 @@ app.post("/api/soporte/error-mantenedor", verificarToken, uploadMemory.single("p
         subject: `[SGA] Reporte recibido — ${nave}${viaje ? " · Viaje " + viaje : ""}`,
         html: htmlUsuario,
       });
-      console.log("✅ Correo usuario enviado");
     } catch (e) {
     }
 

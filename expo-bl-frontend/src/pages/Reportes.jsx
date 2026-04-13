@@ -571,7 +571,7 @@ export default function Reportes() {
 
     const nave = selectedInfo?.nombre_nave || selectedInfo?.nave || "nave";
     const viaje = selectedInfo?.viaje || "viaje";
-    exportToExcel(rows.map(r => r.es_soc ? { ...r, deposito: "" } : r), `Reporte_${nave}_${viaje}_${today()}.xlsx`);
+    exportToExcel(rows.map(r => r.es_soc ? { ...r, deposito: "SOC" } : r), `Reporte_${nave}_${viaje}_${today()}.xlsx`);
     showToast("success", "Excel exportado");
   };
 
@@ -614,7 +614,7 @@ export default function Reportes() {
 
     const nave = selectedInfo?.nombre_nave || selectedInfo?.nave || "nave";
     const viaje = selectedInfo?.viaje || "viaje";
-    exportToExcel(rowsConNombre.map(r => r.es_soc ? { ...r, deposito: "" } : r), `ReporteLinea_${nave}_${viaje}_${today()}.xlsx`);
+    exportToExcel(rowsConNombre.map(r => r.es_soc ? { ...r, deposito: "SOC" } : r), `ReporteLinea_${nave}_${viaje}_${today()}.xlsx`);
     showToast("success", "Excel Línea Naviera exportado");
   };
 
@@ -1068,8 +1068,9 @@ const handleBulkDeposito = async () => {
         const blVal = String(row[blIdx] ?? "").trim();
         const cntVal = contenedorIdx !== -1 ? String(row[contenedorIdx] ?? "").trim() : "";
         if (!blVal) return;
+        const depositoRaw = depositoIdx !== -1 ? String(row[depositoIdx] ?? "").trim() : null;
         updates[`${blVal}||${cntVal}`] = {
-          ...(depositoIdx !== -1 ? { deposito: String(row[depositoIdx] ?? "").trim() } : {}),
+          ...(depositoRaw !== null ? { deposito: depositoRaw.toUpperCase() === "SOC" ? "" : depositoRaw } : {}),
           ...(almacenIdx !== -1 ? { almacen: String(row[almacenIdx] ?? "").trim() } : {}),
         };
       });
@@ -1841,6 +1842,11 @@ const resolveAlmacen = (val) => {
                                 {COLUMNS.map((c) => (
                                   <td key={c.key} className="px-3 py-2 border-b border-slate-100 whitespace-nowrap">
                                     {c.key === "deposito" ? (
+                                      esSoc ? (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-700 border border-amber-300 cursor-not-allowed select-none">
+                                          SOC
+                                        </span>
+                                      ) : (
                                       <DepositoSelect
                                         value={row[c.key] ?? ""}
                                         todos={depositosList}
@@ -1849,6 +1855,7 @@ const resolveAlmacen = (val) => {
                                           if (realIdx !== -1) handleCellEdit(realIdx, c.key, val);
                                         }}
                                       />
+                                      )
                                     ) : c.key === "almacen" ? (
                                       <AlmacenSelect
                                         value={row[c.key] ?? ""}
@@ -1859,13 +1866,8 @@ const resolveAlmacen = (val) => {
                                         }}
                                       />
                                     ) : (
-                                      <span className="text-slate-700 flex items-center gap-1.5">
+                                      <span className="text-slate-700">
                                         {highlightCell(row[c.key])}
-                                        {esSoc && c.key === "n_contenedor" && (
-                                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-300 leading-none">
-                                            SOC
-                                          </span>
-                                        )}
                                       </span>
                                     )}
                                   </td>
