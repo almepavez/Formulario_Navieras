@@ -241,9 +241,9 @@ const buildItem = (it, contenedores, repData, tipo, bl) => {
   const itemSinVolumen = !(parseFloat(it.volumen) > 0);
   const esPeligroso = String(it.carga_peligrosa || '').toUpperCase() === 'S';
 
-  // IMOs del ítem (union de todos sus contenedores) — necesario en IMPO
+  // IMOs del ítem (union de todos sus contenedores)
   let itemImoList = [];
-  if (esImpo && esPeligroso) {
+  if (esPeligroso) {
     const imoSet = new Map();
     contsDelItem.forEach(c => {
       if (c.imo_data) {
@@ -287,8 +287,8 @@ const buildItem = (it, contenedores, repData, tipo, bl) => {
     // carga-cnt: vacío en EXPO, no existe en IMPO
     ...(!esImpo && { 'carga-cnt': {} }),
 
-    // ItemsIMO: solo en IMPO con carga peligrosa
-    ...(esImpo && esPeligroso && itemImoList.length > 0 && {
+    // ItemsIMO: carga peligrosa (IMPO y EXPO)
+    ...(esPeligroso && itemImoList.length > 0 && {
       ItemsIMO: {
         itemimo: itemImoList.length === 1
           ? { 'clase-imo': String(itemImoList[0].clase), 'numero-imo': String(itemImoList[0].numero) }
