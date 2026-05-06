@@ -2845,10 +2845,16 @@ function parseLine51(raw, esEmpty = false) {
   let idx = -1;
 
   const tokens = Array.isArray(PMS51_TOKENS) ? PMS51_TOKENS : [];
-  for (const t of tokens) {
+  const tokensSorted = [...tokens].sort((a, b) => String(b).length - String(a).length);
+  for (const t of tokensSorted) {
     const tt = String(t).toUpperCase();
     const i = line.indexOf(tt);
-    if (i !== -1) { token = tt; idx = i; break; }
+    if (i !== -1) {
+      const charAfter = line[i + tt.length];
+      if (!charAfter || !/[A-Z]/.test(charAfter)) {
+        token = tt; idx = i; break;
+      }
+    }
   }
 
   // 🔥 VALIDAR: Si no se encontró token
