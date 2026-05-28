@@ -754,8 +754,7 @@ app.get("/api/manifiestos", async (_req, res) => {
        JOIN naves n ON n.id = m.nave_id
        JOIN puertos pc ON pc.id = m.puerto_central_id
        LEFT JOIN usuarios u ON u.id = m.created_by
-       ORDER BY m.created_at DESC
-       LIMIT 20`
+       ORDER BY m.created_at DESC`
     );
 
     res.json(rows);

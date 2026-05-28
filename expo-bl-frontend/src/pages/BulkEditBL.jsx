@@ -348,6 +348,7 @@ useEffect(() => {
     .catch(() => setDepositosList([]));
 }, []);
     const [selectedViaje, setSelectedViaje] = useState("");
+    const [selectedManifiestoId, setSelectedManifiestoId] = useState(null);
     const [filteredBLs, setFilteredBLs] = useState([]);
     const [selectedBLs, setSelectedBLs] = useState([]);
     const [modoTipo, setModoTipo] = useState(null);
@@ -419,6 +420,7 @@ useEffect(() => {
 
         // Pre-seleccionar todo y saltar al step 3
         setSelectedViaje(blRef.viaje);
+        setSelectedManifiestoId(blRef.manifiesto_id);
         setModoTipo((blRef.tipo_servicio || "").toUpperCase() === "BB" ? "BB" : "CONTENEDOR");
         setSelectedBLs(blNumbers);
 
@@ -461,15 +463,16 @@ useEffect(() => {
     }, []);
     const manifiestos = Object.values(
         allBLs.reduce((acc, bl) => {
-            if (!bl.viaje || acc[bl.viaje]) return acc;
-            const manifiestoMatch = manifestosData.find(m => m.viaje === bl.viaje);
-            acc[bl.viaje] = {
+            if (!bl.viaje || acc[bl.manifiesto_id]) return acc;
+            const manifiestoMatch = manifestosData.find(m => Number(m.id) === Number(bl.manifiesto_id));
+            acc[bl.manifiesto_id] = {
                 viaje: bl.viaje,
+                manifiesto_id: bl.manifiesto_id,
                 tipo_operacion: bl.tipo_operacion,
-                nombre_nave: manifiestoMatch?.nave || "—",
-                countTotal: allBLs.filter(b => b.viaje === bl.viaje).length,
-                countBB: allBLs.filter(b => b.viaje === bl.viaje && esBB(b)).length,
-                countCont: allBLs.filter(b => b.viaje === bl.viaje && !esBB(b)).length,
+                nombre_nave: bl.nave || "—",
+                countTotal: allBLs.filter(b => b.manifiesto_id === bl.manifiesto_id).length,
+                countBB: allBLs.filter(b => b.manifiesto_id === bl.manifiesto_id && esBB(b)).length,
+                countCont: allBLs.filter(b => b.manifiesto_id === bl.manifiesto_id && !esBB(b)).length,
                 createdAt: manifiestoMatch?.createdAt || "",
                 numeroManifiesto: manifiestoMatch?.numeroManifiestoAduana || "",
             };
@@ -479,8 +482,8 @@ useEffect(() => {
 
     // POR ESTO:
     useEffect(() => {
-        if (!selectedViaje) { setFilteredBLs([]); return; }
-        setFilteredBLs(allBLs.filter(bl => bl.viaje === selectedViaje));
+        if (!selectedViaje || !selectedManifiestoId) { setFilteredBLs([]); return; }
+        setFilteredBLs(allBLs.filter(bl => bl.manifiesto_id === selectedManifiestoId));
 
         if (paramsCargadosRef.current) return; // ← venimos de URL params, no resetear
 
@@ -602,7 +605,7 @@ useEffect(() => {
 
     const emptyFields = validateStep3();
     const hasChanges = Object.values(fieldsToEdit).some(v => v) || editarPuertos || editarPuertosMasivo;
-    const manifiestoSel = manifiestos.find(m => m.viaje === selectedViaje);
+    const manifiestoSel = manifiestos.find(m => m.manifiesto_id === selectedManifiestoId);
 
     const canContinue = {
         1: !!selectedViaje,
@@ -679,7 +682,7 @@ if (Object.keys(updatesLimpios).length > 0) {          // ← updatesLimpios
                 ));
             }
             if (fieldsToEdit.deposito) {
-                const manifiestoId = manifestosData.find(m => m.viaje === selectedViaje)?.id;
+                const manifiestoId = selectedManifiestoId;
                 if (manifiestoId) {
                     const res = await fetch(`${API_BASE}/api/manifiestos/${manifiestoId}/depositos/bulk-bl`, {
                         method: "PATCH",
@@ -819,11 +822,11 @@ if (Object.keys(updatesLimpios).length > 0) {          // ← updatesLimpios
                                             )}
 
                                             {paginated.map(m => (
-                                                <button key={m.viaje} onClick={() => setSelectedViaje(m.viaje)}
-                                                    className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl border-2 text-left transition-all ${selectedViaje === m.viaje ? "border-[#0F2A44] bg-[#0F2A44]/5" : "border-slate-200 hover:border-slate-300 bg-white"}`}>
+                                                <button key={m.manifiesto_id} onClick={() => { setSelectedViaje(m.viaje); setSelectedManifiestoId(m.manifiesto_id); }}
+                                                    className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl border-2 text-left transition-all ${selectedManifiestoId === m.manifiesto_id ? "border-[#0F2A44] bg-[#0F2A44]/5" : "border-slate-200 hover:border-slate-300 bg-white"}`}>
                                                     <div className="flex items-center gap-3">
-                                                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedViaje === m.viaje ? "border-[#0F2A44]" : "border-slate-300"}`}>
-                                                            {selectedViaje === m.viaje && <div className="w-2 h-2 rounded-full bg-[#0F2A44]" />}
+                                                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedManifiestoId === m.manifiesto_id ? "border-[#0F2A44]" : "border-slate-300"}`}>
+                                                            {selectedManifiestoId === m.manifiesto_id && <div className="w-2 h-2 rounded-full bg-[#0F2A44]" />}
                                                         </div>
                                                         <div>
                                                             <div className="flex items-center gap-2">
