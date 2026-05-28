@@ -4077,14 +4077,12 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
       if (isBlank(b.unidad_peso)) pendingValidations.push({ nivel: "BL", severidad: "ERROR", campo: "unidad_peso", mensaje: "Falta unidad_peso (Linea 41)", valorCrudo: b.unidad_peso || null });
 
       // 👇 AGREGAR AQUÍ
-      if (!esEmpty) {
-        if (!b.forma_pago_flete) {
-          pendingValidations.push({
-            nivel: "BL", severidad: "ERROR", campo: "forma_pago_flete",
-            mensaje: "Falta forma de pago del flete (Linea 61 BOF). Debe ser PREPAID o COLLECT.",
-            valorCrudo: null
-          });
-        }
+      if (!b.forma_pago_flete) {
+        pendingValidations.push({
+          nivel: "BL", severidad: "ERROR", campo: "forma_pago_flete",
+          mensaje: "Falta forma de pago del flete (Linea 61 BOF). Debe ser PREPAID o COLLECT.",
+          valorCrudo: null
+        });
       }
 
       const COND_TRANSPORTE_VALIDOS = ['PP', 'HH', 'PH', 'HP'];
@@ -6065,14 +6063,12 @@ async function revalidarBLCompleto(conn, blId) {
 
 
   // 👇 AGREGAR AQUÍ
-  if (!esEmpty) {
-    if (isBlank(bl.forma_pago_flete)) {
-      vals.push({
-        nivel: "BL", severidad: "ERROR", campo: "forma_pago_flete",
-        mensaje: "Falta forma de pago del flete (Linea 61 BOF). Debe ser PREPAID o COLLECT.",
-        valorCrudo: bl.forma_pago_flete || null
-      });
-    }
+  if (isBlank(bl.forma_pago_flete)) {
+    vals.push({
+      nivel: "BL", severidad: "ERROR", campo: "forma_pago_flete",
+      mensaje: "Falta forma de pago del flete (Linea 61 BOF). Debe ser PREPAID o COLLECT.",
+      valorCrudo: bl.forma_pago_flete || null
+    });
   }
 
   const COND_TRANSPORTE_VALIDOS = ['PP', 'HH', 'PH', 'HP'];

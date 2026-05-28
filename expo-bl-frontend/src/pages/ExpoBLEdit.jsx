@@ -426,7 +426,7 @@ const ExpoBLEdit = () => {
                 if (!formData.fecha_presentacion) return warn("La fecha de presentación es obligatoria");
                 if (!formData.fecha_zarpe) return warn("La fecha de zarpe es obligatoria");
                 if (esImpo && !formData.fecha_embarque) return warn("La fecha de embarque es obligatoria");
-                if (!formData.forma_pago_flete && formData.tipo_servicio !== "MM") return warn("La forma de pago del flete es obligatoria");
+                if (!formData.forma_pago_flete) return warn("La forma de pago del flete es obligatoria");
                 if (!formData.cond_transporte) return warn("La condición de transporte es obligatoria");
                 break;
             case 2:
@@ -1006,7 +1006,7 @@ const ExpoBLEdit = () => {
                                 <label className="block text-sm font-medium text-slate-700 mb-2">Tipo de Servicio <span className="text-red-500">*</span></label>
                                 <ComboSelect
                                     value={formData.tipo_servicio}
-                                    onChange={v => { updateField("tipo_servicio", v); if (v === "MM") updateField("forma_pago_flete", ""); }}
+                                    onChange={v => updateField("tipo_servicio", v)}
                                     options={[
                                         { value: "", label: "Seleccionar tipo de servicio..." },
                                         { value: "FF", label: "FCL/FCL (FF)" },
@@ -1127,7 +1127,7 @@ const ExpoBLEdit = () => {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">Forma de Pago Flete {formData.tipo_servicio !== "MM" && <span className="text-red-500">*</span>}</label>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Forma de Pago Flete <span className="text-red-500">*</span></label>
                                 <ComboSelect
                                     value={formData.forma_pago_flete}
                                     onChange={v => updateField("forma_pago_flete", v)}
@@ -1137,9 +1137,9 @@ const ExpoBLEdit = () => {
                                         { value: "COLLECT", label: "Collect" },
                                     ]}
                                     placeholder="Seleccionar forma de pago..."
-                                    disabled={formData.tipo_servicio === "MM"}
+                                    disabled={false}
                                 />
-                                {formData.tipo_servicio === "MM" && <p className="text-xs text-slate-500 mt-1">No aplica para tipo EMPTY</p>}
+                                
                             </div>
 
                             {/* Condición Transporte — PP o HH */}
