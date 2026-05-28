@@ -1333,13 +1333,12 @@ app.get("/api/mantenedores/almacenistas/:id", async (req, res) => {
 
 app.post("/api/mantenedores/almacenistas", async (req, res) => {
   try {
-    const { nombre, rut, nacion_id, codigo_almacen } = req.body;
+    const { nombre, rut, nacion_id, codigo_almacen, codigo_tatc } = req.body;
 
     if (!nombre || !rut || !nacion_id || !codigo_almacen) {
       return res.status(400).json({ error: "nombre, rut, nacion_id y codigo_almacen son obligatorios" });
     }
 
-    // ── Validar que el codigo_almacen no exista ya ──
     const [existing] = await pool.query(
       `SELECT nombre FROM participantes WHERE LOWER(codigo_almacen) = LOWER(?)`,
       [codigo_almacen.trim()]
@@ -1350,17 +1349,15 @@ app.post("/api/mantenedores/almacenistas", async (req, res) => {
       });
     }
 
-    const codigo_bms = `ALM-${Date.now()}`;
-
     const [result] = await pool.query(
-      `INSERT INTO participantes (codigo_bms, nombre, rut, pais, codigo_almacen)
+      `INSERT INTO participantes (nombre, rut, pais, codigo_almacen, codigo_tatc)
        VALUES (?, ?, ?, ?, ?)`,
       [
-        codigo_bms,
         nombre.trim(),
         rut.trim(),
         nacion_id.trim().toUpperCase(),
         codigo_almacen.trim(),
+        codigo_tatc?.trim() || null,
       ]
     );
 
@@ -1370,6 +1367,7 @@ app.post("/api/mantenedores/almacenistas", async (req, res) => {
       rut: rut.trim(),
       nacion_id: nacion_id.trim().toUpperCase(),
       codigo_almacen: codigo_almacen.trim(),
+      codigo_tatc: codigo_tatc?.trim() || null,
     });
   } catch (error) {
     console.error("Error al crear almacenista:", error);
