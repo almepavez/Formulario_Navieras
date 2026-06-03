@@ -2830,7 +2830,7 @@ function parseLine51(raw, esEmpty = false) {
   const unidad_peso = line.includes("KGM") ? "KGM" : null;
   const unidad_volumen = line.includes("MTQ") ? "MTQ" : null;
 
-  const carga_cnt = line.includes("FCL") ? "FCL" : line.includes("LCL") ? "LCL" : null;
+  const carga_cnt = null;
 
   let peso = null;
   let volumen = null;
