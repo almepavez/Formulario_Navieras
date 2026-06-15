@@ -2867,7 +2867,7 @@ function parseLine51(raw, esEmpty = false) {
       const mEmpty = line.match(/(?:(\d{6})\s+)?(\d{15})(\d{12})/);
       if (mEmpty) {
         peso = parseFloat(mEmpty[2]);
-        volumen = parseFloat((parseFloat(mEmpty[3]) / 1000).toFixed(2));
+        volumen = Math.round((parseFloat(mEmpty[3]) / 1000) * 1000) / 1000;
         return {
           itemNo, seqNo, codigo, sigla, numero, digito,
           tipo_cnt, carga_cnt, peso, unidad_peso,
@@ -2906,7 +2906,7 @@ function parseLine51(raw, esEmpty = false) {
       const v = mNums[3];
 
       peso = parseFloat(w) / 1000;
-      volumen = parseFloat((parseFloat(v) / 1000).toFixed(2));
+      volumen = Math.round((parseFloat(v) / 1000) * 1000) / 1000;
 
       const pos = after.indexOf(mNums[0]);
       tail = (pos !== -1) ? after.slice(pos + mNums[0].length) : after;
