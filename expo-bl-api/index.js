@@ -2610,12 +2610,18 @@ function extractUnitsFrom41(line41) {
   return { unidadPeso: m[1], unidadVolumen: m[2] };
 }
 function extractWeightVolumeFrom41(line41) {
-  // Ejemplo:
+  // Ejemplo normal:
   // 41 001 Y000001000100011646000 00000179200000017920....KGMMTQY
+  // Ejemplo con contenedor parcial (valores decimales):
+  // 41 001 Y000.2500.500003948000 00000100000000010000....KGMMTQY
   const s = String(line41 || "");
 
+  // Normalizar: eliminar puntos dentro del bloque Y para manejar
+  // el formato de contenedores parciales (ej: Y000.250 → Y000250)
+  const sNorm = s.replace(/Y([\d.]+)/, (_, digits) => 'Y' + digits.replace(/\./g, ''));
+
   // 1) bloque que viene después de la Y (termina antes del siguiente espacio)
-  const y = s.match(/Y(\d{10,})/);
+  const y = sNorm.match(/Y(\d{10,})/);
   let peso = null;
   if (y && y[1]) {
     const digits = y[1];
@@ -2628,7 +2634,7 @@ function extractWeightVolumeFrom41(line41) {
   // buscamos el primer "token" de dígitos grande después del bloque Y...
   // y tomamos sus últimos 8 dígitos (ej: 00017920 => 17.920)
   let volumen = null;
-  const afterY = y ? s.slice(s.indexOf(y[0]) + y[0].length) : s;
+  const afterY = y ? sNorm.slice(sNorm.indexOf(y[0]) + y[0].length) : sNorm;
   const v = afterY.match(/\s(\d{8,})/);
   if (v && v[1]) {
     const digits = v[1];
@@ -2916,7 +2922,7 @@ function parseLine51(raw, esEmpty = false) {
   if (tail) {
     // MÁS SEGURO: ampliar prefijos conocidos
     const tailNorm = tail.replace(/\b\d{3}(?=[A-Z])/g, ' ');
-    const mSeal = tailNorm.match(/\b[A-Z]{1,4}[0-9A-Z]{4,}\b|\b\d{5,10}\b/g); if (mSeal) for (const s of mSeal) if (!sellos.includes(s)) sellos.push(s);
+    const mSeal = tailNorm.match(/\b[A-Z]{1,4}[0-9A-Z]{4,}\b|\b\d{4,10}\b/g); if (mSeal) for (const s of mSeal) if (!sellos.includes(s)) sellos.push(s);
   }
 
   return {
@@ -3268,10 +3274,15 @@ function extractItemsFrom41_44_47(bLines) {
     const it = getItem(n);
 
     // cantidad esperada desde 41 (ej: "Y000003")
-    const my = String(l).match(/Y(\d{6})/);
-    if (my) {
-      const exp = parseInt(my[1], 10);
-      if (Number.isFinite(exp)) it.cantidad = exp;
+    // Si el bloque Y contiene puntos (contenedor parcial, ej: "Y000.250"),
+    // no asignar cantidad desde línea 41 — el conteo real viene de línea 51
+    const tieneDecimalesY = /Y[\d]*\./.test(String(l));
+    if (!tieneDecimalesY) {
+      const my = String(l).match(/Y(\d{6})/);
+      if (my) {
+        const exp = parseInt(my[1], 10);
+        if (Number.isFinite(exp)) it.cantidad = exp;
+      }
     }
 
     if (typeof extractWeightVolumeFrom41 === "function") {
