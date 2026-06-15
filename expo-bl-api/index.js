@@ -3590,6 +3590,13 @@ function parsePmsTxt(content) {
         it.cantidad_real = contsDelItem.length;
         const tieneLinea56 = contsDelItem.some(c => c._hasLinea56 === true);
         it.carga_peligrosa = tieneLinea56 ? "S" : "N";
+
+        // Fallback para contenedores parciales (bloque Y con decimales):
+        // si cantidad no se pudo determinar desde línea 41, usar el conteo
+        // real de contenedores de la línea 51.
+        if (it.cantidad == null && it.cantidad_real > 0) {
+          it.cantidad = it.cantidad_real;
+        }
       }
 
       const lugar_recepcion_cod = puertoEmbarqueCod; // LRM
