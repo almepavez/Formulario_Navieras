@@ -942,6 +942,20 @@ const ManifiestoDetalle = () => {
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-4">
                     <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
+                      <div className="text-xs font-medium text-slate-700">N° Referencia</div>
+                      <input
+                        type="text"
+                        value={formData.numeroReferencia}
+                        readOnly
+                        className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm bg-slate-100 text-slate-500 cursor-not-allowed"
+                        placeholder="Se sincroniza con N° Mfto Aduana CL"
+                      />
+                      <p className="mt-1 text-[10px] text-slate-500">
+                        ✓ Sincronizado automáticamente con N° Mfto Aduana CL
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
                       <div className="text-xs font-medium text-slate-700 mb-1">Operador Nave</div>
                       <ComboSelect
                         value={formData.referenciaId ? String(formData.referenciaId) : ""}
@@ -955,20 +969,6 @@ const ManifiestoDetalle = () => {
                         options={referencias.map(r => ({ value: String(r.id), label: `${r.match_code} - ${r.nombre_emisor}` }))}
                         placeholder="Seleccionar..."
                       />
-                    </div>
-
-                    <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
-                      <div className="text-xs font-medium text-slate-700">N° Referencia</div>
-                      <input
-                        type="text"
-                        value={formData.numeroReferencia}
-                        readOnly
-                        className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm bg-slate-100 text-slate-500 cursor-not-allowed"
-                        placeholder="Se sincroniza con N° Mfto Aduana CL"
-                      />
-                      <p className="mt-1 text-[10px] text-slate-500">
-                        ✓ Sincronizado automáticamente con N° Mfto Aduana CL
-                      </p>
                     </div>
                     <div className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-3">
                       <div className="text-xs font-medium text-slate-700">Fecha Referencia</div>
