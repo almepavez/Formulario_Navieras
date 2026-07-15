@@ -2830,6 +2830,13 @@ function parseLine51(raw, esEmpty = false) {
   const numero = codigo.slice(4, 10);
   const digito = codigo.slice(10, 11);
 
+  // Carácter Y/N inmediatamente después del ID ISO 6346 (fuente estructurada SOC/COC).
+  // "Y" = SOC (shipper owned), "N" = COC (carrier owned). null si no es Y/N legible.
+  // Se declara aquí (apenas se tiene `codigo`) para que esté disponible en TODOS los
+  // return posteriores (EMPTY, token-faltante y normal) sin riesgo de temporal dead zone.
+  const charSoc = line[mCont.index + codigo.length];
+  const es_soc_yn = charSoc === "Y" ? true : charSoc === "N" ? false : null;
+
   const mTipo = line.match(/[A-Z]{4}\d{7}[A-Z0-9](\d{2}[A-Z]\d)[EF]/);
   const tipo_cnt = mTipo ? mTipo[1] : null;
 
@@ -2872,7 +2879,7 @@ function parseLine51(raw, esEmpty = false) {
           itemNo, seqNo, codigo, sigla, numero, digito,
           tipo_cnt, carga_cnt, peso, unidad_peso,
           volumen, unidad_volumen, sellos: [],
-          _hasLinea56: false, imo: []
+          _hasLinea56: false, imo: [], es_soc_yn
           // ✅ Sin _tokenFaltante porque es patrón EMPTY válido
         };
       }
@@ -2887,7 +2894,7 @@ function parseLine51(raw, esEmpty = false) {
       tipo_cnt, carga_cnt, peso: null, unidad_peso,
       volumen: null, unidad_volumen, sellos: [],
       _hasLinea56: false, imo: [],
-      _tokenFaltante: tokenDesconocido
+      _tokenFaltante: tokenDesconocido, es_soc_yn
     };
   }
 
@@ -2929,7 +2936,7 @@ function parseLine51(raw, esEmpty = false) {
     itemNo, seqNo, codigo, sigla, numero, digito,
     tipo_cnt, carga_cnt, peso, unidad_peso,
     volumen, unidad_volumen, sellos,
-    _hasLinea56: false, imo: []
+    _hasLinea56: false, imo: [], es_soc_yn
   };
 }
 
@@ -3558,18 +3565,22 @@ function parsePmsTxt(content) {
         c.imo = hits.map(h => ({ clase_imo: h.clase, numero_imo: h.un }));
       }
 
-      // Detectar SOC desde líneas 47
+      // Detección SOC/COC POR CONTENEDOR:
+      //   PRIMARIA: carácter Y/N estructurado de la línea 51 (c.es_soc_yn).
+      //   FALLBACK: si el Y/N no se pudo leer (null), texto libre de las líneas 47 (por BL).
       const lines47 = pickAll(bLines, "47");
       const textoLineas47 = lines47.join(" ");
-      const esSOC = /SHIPPER[\s.]{0,5}OWNER[\s.]{0,5}CONTAINER|SHIPPER'?S[\s.]{0,5}OWN[\s.]{0,5}CONTAINER|\bSOC\b/i.test(textoLineas47);
+      const esSOCTexto = /SHIPPER[\s.]{0,5}OWNER[\s.]{0,5}CONTAINER|SHIPPER'?S[\s.]{0,5}OWN[\s.]{0,5}CONTAINER|\bSOC\b/i.test(textoLineas47);
 
       for (const c of contenedores) {
-        c.es_soc = esSOC;
-        if (esSOC) {
-          c.cnt_so_numero = `${c.sigla} ${c.numero}-${c.digito}`;
-        } else {
-          c.cnt_so_numero = null;
-        }
+        // Primaria = Y/N por contenedor; si es null/indeterminado, fallback al texto (esSOCTexto)
+        c.es_soc = (c.es_soc_yn === true || c.es_soc_yn === false)
+          ? c.es_soc_yn
+          : esSOCTexto;
+
+        c.cnt_so_numero = c.es_soc
+          ? `${c.sigla} ${c.numero}-${c.digito}`
+          : null;
       }
 
       // ---------- 61: FLETE (BOF) ----------
