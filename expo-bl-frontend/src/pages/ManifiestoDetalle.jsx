@@ -264,7 +264,9 @@ const ManifiestoDetalle = () => {
         fechaManifiestoAduana: formData.fechaManifiestoAduana,
         numeroManifiestoAduana: formData.numeroManifiestoAduana,
         referenciaId: formData.referenciaId || null,
-        numeroReferencia: formData.numeroReferencia || null,
+        // Blindaje: el N° Referencia siempre se sincroniza con el N° Mfto Aduana,
+        // así ningún onChange puede dejar un valor inconsistente al guardar.
+        numeroReferencia: formData.numeroManifiestoAduana || null,
         fechaReferencia: formData.fechaReferencia || null,
         puertoCentral: formData.puertoCentralId,
         fechaZarpe: formData.fechaZarpe
@@ -945,10 +947,7 @@ const ManifiestoDetalle = () => {
                         value={formData.referenciaId ? String(formData.referenciaId) : ""}
                         onChange={(v) => {
                           handleInputChange("referenciaId", v);
-                          if (v) {
-                            const ref = referencias.find(r => String(r.id) === String(v));
-                            if (ref) handleInputChange("numeroReferencia", ref.match_code);
-                          } else {
+                          if (!v) {
                             handleInputChange("numeroReferencia", "");
                             handleInputChange("fechaReferencia", "");
                           }
@@ -963,7 +962,7 @@ const ManifiestoDetalle = () => {
                       <input
                         type="text"
                         value={formData.numeroReferencia}
-                        disabled
+                        readOnly
                         className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm bg-slate-100 text-slate-500 cursor-not-allowed"
                         placeholder="Se sincroniza con N° Mfto Aduana CL"
                       />
