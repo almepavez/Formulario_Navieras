@@ -172,7 +172,14 @@ function App() {
           }
         />
 
-        <Route path="/mantenedores/usuarios" element={<Usuarios />} />
+        <Route
+          path="/mantenedores/usuarios"
+          element={
+            <ProtectedRoute>
+              <Usuarios />
+            </ProtectedRoute>
+          }
+        />
 
         {/* ============================================
             RUTA 404 - Cualquier otra ruta no definida
