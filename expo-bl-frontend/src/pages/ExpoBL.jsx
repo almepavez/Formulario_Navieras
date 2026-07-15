@@ -6,21 +6,10 @@ import ComboSelect from "../components/ComboSelect";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
-const estadoStyles = {
-    "ACTIVO": "bg-emerald-100 text-emerald-800 ring-emerald-200",
-    "INACTIVO": "bg-slate-100 text-slate-600 ring-slate-200",
-    "EN REVISION": "bg-amber-100 text-amber-800 ring-amber-200",
-};
-
 const formatDateCL = (iso) => {
     if (!iso) return "—";
     const d = new Date(iso);
     return `${String(d.getUTCDate()).padStart(2, "0")}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${d.getUTCFullYear()}`;
-};
-
-const formatNumber = (num) => {
-    if (!num) return "—";
-    return new Intl.NumberFormat('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 3 }).format(num);
 };
 
 const getRegion = (bl) => bl.region_puerto_embarque || bl.puerto_embarque || "";
@@ -387,14 +376,12 @@ const ExpoBL = () => {
                                     <tr>
                                         <th className="text-left px-5 py-3 font-semibold">Tipo</th>
                                         <th className="text-left px-5 py-3 font-semibold">BL Number</th>
+                                        <th className="text-left px-5 py-3 font-semibold">Nave</th>
                                         <th className="text-left px-5 py-3 font-semibold">Viaje</th>
                                         <th className="text-left px-5 py-3 font-semibold">Shipper</th>
                                         <th className="text-left px-5 py-3 font-semibold">Consignee</th>
                                         <th className="text-left px-5 py-3 font-semibold">Origen → Destino</th>
                                         <th className="text-left px-5 py-3 font-semibold">F. Emisión</th>
-                                        <th className="text-right px-5 py-3 font-semibold">Peso (KG)</th>
-                                        <th className="text-center px-5 py-3 font-semibold">Bultos</th>
-                                        <th className="text-left px-5 py-3 font-semibold">Status</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -418,6 +405,7 @@ const ExpoBL = () => {
                                                 )}
                                             </td>
                                             <td className="px-5 py-3.5 font-medium text-[#0F2A44]">{bl.bl_number}</td>
+                                            <td className="px-5 py-3.5 text-slate-700">{bl.nave || "—"}</td>
                                             <td className="px-5 py-3.5">
                                                 <span className="inline-flex items-center px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-medium">
                                                     {bl.viaje || "—"}
@@ -433,19 +421,12 @@ const ExpoBL = () => {
                                                 {bl.puerto_embarque || "—"} → {bl.puerto_descarga || "—"}
                                             </td>
                                             <td className="px-5 py-3.5 text-slate-600">{formatDateCL(bl.fecha_emision)}</td>
-                                            <td className="px-5 py-3.5 text-right font-medium">{formatNumber(bl.peso_bruto)}</td>
-                                            <td className="px-5 py-3.5 text-center">{bl.bultos || 0}</td>
-                                            <td className="px-5 py-3.5">
-                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs ring-1 ${estadoStyles[bl.status] ?? "bg-slate-100 text-slate-600 ring-slate-200"}`}>
-                                                    {bl.status || "—"}
-                                                </span>
-                                            </td>
                                         </tr>
                                     ))}
 
                                     {filteredBLs.length === 0 && (
                                         <tr>
-                                            <td colSpan={10} className="px-6 py-14 text-center text-slate-400">
+                                            <td colSpan={8} className="px-6 py-14 text-center text-slate-400">
                                                 {hayFiltrosActivos
                                                     ? "No se encontraron BLs con los filtros aplicados"
                                                     : "No hay BLs registrados aún"}
