@@ -75,6 +75,8 @@ const TATC_COLUMNS = [
   { key: "fecha_emision_tatc", label: "Fecha Emisión TATC" },
   { key: "eir", label: "EIR" },
   { key: "ingreso_doc", label: "Ingreso Documento" },
+  { key: "numero_manifiesto", label: "Manifiesto" },        // ← nuevo (al final, nombre exacto)
+  { key: "puerto_desembarque", label: "Puerto descarga" },  // ← nuevo (al final, nombre exacto)
 ];
 
 function exportTATC(rowsToExport, filename) {
@@ -101,10 +103,10 @@ function exportTATC(rowsToExport, filename) {
   ws["!cols"] = TATC_COLUMNS.map(() => ({ wch: 24 }));
   ws["!rows"] = [{ hpt: 22 }];
 
-  const grayKeys = ["tipo_bulto", "estado_cnt", "tara", "anio_fab", "pais_fab", "fecha_ingreso_pais", "fecha_ingreso_dep", "fecha_emision_tatc", "eir", "ingreso_doc"];
+  const grayKeys = ["tipo_bulto", "estado_cnt", "tara", "anio_fab", "pais_fab", "fecha_ingreso_pais", "fecha_ingreso_dep", "fecha_emision_tatc", "eir", "ingreso_doc", "numero_manifiesto", "puerto_desembarque"];
 
   const grayStyle = {
-    fill: { patternType: "solid", fgColor: { rgb: "808080" } },
+    fill: { patternType: "solid", fgColor: { rgb: "A5A5A5" } },
     font: { bold: true, color: { rgb: "FFFFFF" } },
     alignment: { horizontal: "center", vertical: "center" },
     border: { bottom: { style: "thin", color: { rgb: "FFFFFF" } } },
@@ -654,7 +656,7 @@ export default function Reportes() {
         title: "Contenedores SOC serán omitidos",
         html: `
         <p style="color:#64748b; font-size:13px; margin-bottom:12px;">
-          Los siguientes <strong>${rowsConSoc.length}</strong> contenedor(es) SOC 
+          Los siguientes <strong>${rowsConSoc.length}</strong> contenedor(es) SOC
           <u>no se incluirán</u> en la plantilla TATC:
         </p>
         <ul style="text-align:left; padding-left:10px; margin-bottom:12px; max-height:160px; overflow-y:auto; border:1px solid #fef3c7; border-radius:8px; padding:10px;">
@@ -748,6 +750,8 @@ export default function Reportes() {
             nave_codigo: manifiesto.codigo_nave || "",
             imo_nave: manifiesto.imo || "",
             viaje: manifiesto.viaje || "",
+            numero_manifiesto: (manifiesto.numeroManifiestoAduana || "").replace(/[+"#]/g, ""),  // ← nuevo
+            via_transporte: "1",                                                                  // ← nuevo
             puerto_embarque: bl.codigo_puerto_embarque || "",
             puerto_desembarque: bl.codigo_puerto_descarga || "",
             bl: bl.bl_number || "",
@@ -777,6 +781,8 @@ export default function Reportes() {
             nave_codigo: manifiesto.codigo_nave || "",
             imo_nave: manifiesto.imo || "",
             viaje: manifiesto.viaje || "",
+            numero_manifiesto: (manifiesto.numeroManifiestoAduana || "").replace(/[+"#]/g, ""),  // ← nuevo
+            via_transporte: "1",                                                                  // ← nuevo
             puerto_embarque: bl.codigo_puerto_embarque || "",
             puerto_desembarque: bl.codigo_puerto_descarga || "",
             bl: bl.bl_number || "",
@@ -888,7 +894,7 @@ export default function Reportes() {
       setSaving(false);
     }
   };
-const handleBulkDeposito = async () => {
+  const handleBulkDeposito = async () => {
     if (!bulkDeposito.trim() || selectedRows.size === 0) return;
 
     const allCurrent = latestRows.current;
@@ -1000,7 +1006,7 @@ const handleBulkDeposito = async () => {
     setBulkDepositoQuery("");
     showToast("success", `Depósito "${bulkDeposito}" aplicado a ${payload.length} fila(s)`);
   };
-  
+
   const checkEmptyColumns = async (rowsToCheck, columnsToCheck) => {
     const emptyLabels = columnsToCheck
       .filter(({ key }) => rowsToCheck.every((r) => !r[key]))
@@ -1231,7 +1237,7 @@ const handleBulkDeposito = async () => {
         });
       }
 
-const resolveAlmacen = (val) => {
+      const resolveAlmacen = (val) => {
         if (!val) return "";
         const byTatc = almacenistasTatc.find(a =>
           a.codigo_tatc?.toUpperCase() === val.trim().toUpperCase()
@@ -1847,14 +1853,14 @@ const resolveAlmacen = (val) => {
                                           SOC
                                         </span>
                                       ) : (
-                                      <DepositoSelect
-                                        value={row[c.key] ?? ""}
-                                        todos={depositosList}
-                                        onChange={(val) => {
-                                          const realIdx = rows.findIndex(r => r.bl === row.bl && r.n_contenedor === row.n_contenedor);
-                                          if (realIdx !== -1) handleCellEdit(realIdx, c.key, val);
-                                        }}
-                                      />
+                                        <DepositoSelect
+                                          value={row[c.key] ?? ""}
+                                          todos={depositosList}
+                                          onChange={(val) => {
+                                            const realIdx = rows.findIndex(r => r.bl === row.bl && r.n_contenedor === row.n_contenedor);
+                                            if (realIdx !== -1) handleCellEdit(realIdx, c.key, val);
+                                          }}
+                                        />
                                       )
                                     ) : c.key === "almacen" ? (
                                       <AlmacenSelect
@@ -1966,7 +1972,7 @@ const resolveAlmacen = (val) => {
 
           <div className="w-px h-5 bg-white/20" />
 
-<div className="relative" ref={bulkDepositoRef}>
+          <div className="relative" ref={bulkDepositoRef}>
             <div
               onClick={() => setBulkDepositoOpen(v => !v)}
               className="flex items-center justify-between gap-2 bg-white/10 border border-white/20 rounded-lg px-3 py-1.5 cursor-pointer hover:bg-white/20 transition-colors w-52"
@@ -1983,9 +1989,9 @@ const resolveAlmacen = (val) => {
             {bulkDepositoOpen && (() => {
               const filtrados = bulkDepositoQuery.trim()
                 ? depositosList.filter(d =>
-                    d.codigo?.toLowerCase().includes(bulkDepositoQuery.toLowerCase()) ||
-                    d.nombre?.toLowerCase().includes(bulkDepositoQuery.toLowerCase())
-                  ).slice(0, 8)
+                  d.codigo?.toLowerCase().includes(bulkDepositoQuery.toLowerCase()) ||
+                  d.nombre?.toLowerCase().includes(bulkDepositoQuery.toLowerCase())
+                ).slice(0, 8)
                 : depositosList.slice(0, 8);
 
               return (
