@@ -9,7 +9,29 @@ import SearchSelect from "../components/SearchSelect";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
-const InputField = ({ label, value, onChange, required, ...props }) => (
+// Redondeo a 2 decimales half-away-from-zero. Es una COPIA de vol2() en
+// expo-bl-api/xmlBuilder.js — si se toca una hay que tocar la otra, o el editor
+// va a mostrar un numero distinto del que sale al XML.
+// No usar toFixed(2): redondea hacia abajo en valores con 5 en la tercera
+// decimal (182.565 -> 182.56 en vez de 182.57) por representacion binaria.
+const vol2 = (v) => {
+    const n = parseFloat(v);
+    if (!Number.isFinite(n)) return "0.00";
+    const m = Math.round(Math.abs(n) * 1000);
+    const c = Math.floor((m + 5) / 10);
+    return (Math.sign(n) * c / 100).toFixed(2);
+};
+
+// Suma de los volumenes de los items YA redondeados: es exactamente lo que el
+// backend emite como <total-volumen>. Ver totalVolumenItems() en xmlBuilder.js.
+const sumaVolumenItems = (items) => {
+    const centesimas = (items || []).reduce((acc, it) => (
+        parseFloat(it.volumen) > 0 ? acc + Math.round(parseFloat(vol2(it.volumen)) * 100) : acc
+    ), 0);
+    return (centesimas / 100).toFixed(2);
+};
+
+const InputField = ({ label, value, onChange, required, hint, ...props }) => (
     <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">
             {label} {required && <span className="text-red-500">*</span>}
@@ -20,6 +42,7 @@ const InputField = ({ label, value, onChange, required, ...props }) => (
             className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#0F2A44] text-sm"
             {...props}
         />
+        {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
     </div>
 );
 
@@ -998,6 +1021,12 @@ const ExpoBLEdit = () => {
                     <h2 className="text-xl font-semibold text-slate-900 mb-2">{steps[currentStep - 1].name}</h2>
                     <p className="text-sm text-slate-500 mb-6">{steps[currentStep - 1].description}</p>
 
+                    {(currentStep === 4 || currentStep === 5) && (
+                        <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-6">
+                            SIDEMAR acepta solo 2 decimales en volumen. El sistema guarda 3 y redondea al generar el XML.
+                        </p>
+                    )}
+
                     {currentStep === 1 && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div><label className="block text-sm font-medium text-slate-700 mb-2">BL Number</label><input type="text" value={formData.bl_number} disabled className="w-full px-4 py-2 rounded-lg border border-slate-300 bg-slate-50 text-slate-500" /></div>
@@ -1455,6 +1484,16 @@ const ExpoBLEdit = () => {
                                     value={formData.volumen ?? ""}
                                     onChange={v => updateField("volumen", v)}
                                     required
+                                    hint={(() => {
+                                        // El backend arma <total-volumen> sumando los items, no desde
+                                        // este campo, asi que el hint muestra esa suma y no vol2() del
+                                        // input. Se oculta cuando coinciden, para no meter ruido.
+                                        const vol = parseFloat(formData.volumen);
+                                        if (!Number.isFinite(vol)) return null;   // campo vacio: nada que comparar
+                                        const alXML = sumaVolumenItems(items);
+                                        if (vol === parseFloat(alXML)) return null;
+                                        return `Al XML: ${alXML} (suma de ítems)`;
+                                    })()}
                                 />
                                 <SearchSelect
                                     label="Unidad de Volumen"
@@ -1549,6 +1588,16 @@ const ExpoBLEdit = () => {
                                                         value={item.volumen ?? ""}
                                                         onChange={v => updateItem(item.id, "volumen", v)}
                                                         required
+                                                        hint={
+                                                            // Solo si el redondeo cambia el valor: con 2 decimales
+                                                            // o menos el hint repetiria el input. El campo vacio
+                                                            // da NaN, que nunca iguala a 0 — sin la guarda mostraria
+                                                            // "Al XML: 0.00" en un campo que el usuario no lleno.
+                                                            Number.isFinite(parseFloat(item.volumen)) &&
+                                                                parseFloat(item.volumen) !== parseFloat(vol2(item.volumen))
+                                                                ? `Al XML: ${vol2(item.volumen)}`
+                                                                : null
+                                                        }
                                                     />
                                                     <SearchSelect
                                                         label="Unidad de Volumen"
