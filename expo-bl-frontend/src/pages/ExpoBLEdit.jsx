@@ -31,6 +31,17 @@ const sumaVolumenItems = (items) => {
     return (centesimas / 100).toFixed(2);
 };
 
+// Las columnas de volumen son DECIMAL(12,3): nada mas fino que una milesima
+// existe en la BD. Comparar en milesimas enteras evita tener que inventar una
+// tolerancia para el ruido de punto flotante — no queda ruido que tolerar.
+const milesimas = (v) => Math.round((parseFloat(v) || 0) * 1000);
+
+// Suma cruda de los volumenes de los items, a 3 decimales. Es el valor que
+// corresponde en el campo del BL: rellenarlo con la version redondeada a 2
+// perderia una milesima y volveria a desalinearlo.
+const sumaVolumenItemsCruda = (items) =>
+    ((items || []).reduce((acc, it) => acc + milesimas(it.volumen), 0) / 1000).toFixed(3);
+
 const InputField = ({ label, value, onChange, required, hint, ...props }) => (
     <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -1485,14 +1496,39 @@ const ExpoBLEdit = () => {
                                     onChange={v => updateField("volumen", v)}
                                     required
                                     hint={(() => {
-                                        // El backend arma <total-volumen> sumando los items, no desde
-                                        // este campo, asi que el hint muestra esa suma y no vol2() del
-                                        // input. Se oculta cuando coinciden, para no meter ruido.
+                                        // Una sola linea, elegida por prioridad. El aviso de
+                                        // desalineacion ya lleva el valor crudo Y el que sale al XML,
+                                        // asi que absorbe lo que diria el hint de redondeo: nunca se
+                                        // apilan dos avisos bajo el mismo input.
                                         const vol = parseFloat(formData.volumen);
                                         if (!Number.isFinite(vol)) return null;   // campo vacio: nada que comparar
+                                        const cruda = sumaVolumenItemsCruda(items);
                                         const alXML = sumaVolumenItems(items);
-                                        if (vol === parseFloat(alXML)) return null;
-                                        return `Al XML: ${alXML} (suma de ítems)`;
+
+                                        // (1) El total del BL no cuadra con sus items. Ningun endpoint
+                                        // de edicion recalcula bls.volumen, asi que queda viejo cuando
+                                        // se corrige un item. Es solo un aviso: el campo sigue
+                                        // editable y "Usar" nada mas rellena, no guarda.
+                                        if (milesimas(formData.volumen) !== milesimas(cruda)) {
+                                            return (
+                                                <span className="text-amber-700">
+                                                    ⚠ Los ítems suman {cruda} · al XML va {alXML}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => updateField("volumen", cruda)}
+                                                        className="ml-2 px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 font-medium"
+                                                    >
+                                                        Usar
+                                                    </button>
+                                                </span>
+                                            );
+                                        }
+
+                                        // (2) Los datos cuadran, pero el recorte a 2 decimales cambia
+                                        // el valor que se emite.
+                                        if (vol !== parseFloat(alXML)) return `Al XML: ${alXML} (suma de ítems)`;
+
+                                        return null;
                                     })()}
                                 />
                                 <SearchSelect
@@ -1855,7 +1891,19 @@ const ExpoBLEdit = () => {
                                         ["Transbordos", `${transbordos.length} transbordo(s)`],
                                         ["Shipper", formData.shipper || "—"], ["Consignee", formData.consignee || "—"], ["Notify Party", formData.notify_party || "—"],
                                         ...(esImpo ? [["Almacenista", formData.almacenista_nombre || "—"], ["Cód. Almacén", formData.almacenista_codigo_almacen || "—"]] : []),
-                                        ["Peso Bruto", `${formData.peso_bruto} ${formData.unidad_peso}`], ["Volumen", `${formData.volumen} ${formData.unidad_volumen}`],
+                                        ["Peso Bruto", `${formData.peso_bruto} ${formData.unidad_peso}`],
+                                        // Aca el usuario esta revisando, no editando: el aviso es solo
+                                        // informativo y sin boton. Para corregir tiene que volver al paso 4.
+                                        ["Volumen", milesimas(formData.volumen) !== milesimas(sumaVolumenItemsCruda(items))
+                                            ? (
+                                                <>
+                                                    {formData.volumen} {formData.unidad_volumen}
+                                                    <span className="block mt-0.5 text-xs text-amber-700">
+                                                        ⚠ Los ítems suman {sumaVolumenItemsCruda(items)} · al XML va {sumaVolumenItems(items)}
+                                                    </span>
+                                                </>
+                                            )
+                                            : `${formData.volumen} ${formData.unidad_volumen}`],
                                         ["Bultos", formData.bultos], ["Total Contenedores", contenedores.length],
                                         ["SOC", contenedores.filter(c => c.es_soc).length > 0 ? `${contenedores.filter(c => c.es_soc).length} contenedor(es) SOC` : "Ninguno"],
                                         ["Total Items", items.length],
