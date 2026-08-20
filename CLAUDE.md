@@ -84,6 +84,8 @@ One large Express file — all routes, middleware, and business logic live here.
 - **Validation** (lines ~5856–6551): `revalidarBLCompleto(conn, blId)` wipes and rewrites `bl_validaciones` for a BL. Errors and observations are classified at four levels: `BL`, `ITEM`, `CONTENEDOR`, `TRANSBORDO`, with severities `ERROR` or `OBS`.
 - **Mantenedores** (lines ~992–2500): CRUD for reference tables — puertos, naves, servicios, almacenistas, tipos-bulto, empaque-contenedores, participantes, and the `traductor_pil_bms` mapping table.
 
+**Known duplication — `parseFechaCLtoMySQL`:** the function is defined **three times** with **two different semantics**. Module-level (line ~5514) validates that the date really exists and returns `null` when it doesn't; the two local copies (lines ~5366 and ~7537, inside the carga-suelta update and create endpoints) shadow it and return the input string unchanged instead. Callers therefore behave differently depending on which endpoint they hit. Unifying them is pending work — check which copy is in scope before touching date handling.
+
 `xmlBuilder.js` exports include `buildXML`, `getBLQuery`, `getContenedoresQuery`, `getTransbordosQuery`, `detectarTipo`, `generarReferencias`, and `generarObservaciones` (among other helpers). The `detectarTipo(bl)` helper returns booleans `{ esCargaSuelta, esEmpty, esImpo, esExpo, esTránsito, sinVolumen }` and drives XML branching logic.
 
 ### SOC/COC container classification
