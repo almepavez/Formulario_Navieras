@@ -2,6 +2,37 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+---
+
+## Idioma — REGLA OBLIGATORIA
+
+Toda comunicación en español **DEBE** usar español neutro/chileno con **tuteo**. El voseo argentino está **PROHIBIDO**, sin excepciones.
+
+| PROHIBIDO | OBLIGATORIO |
+|---|---|
+| vos | tú |
+| decime | dime |
+| tenés | tienes |
+| querés | quieres |
+| podés | puedes |
+| mostrame | muéstrame |
+| avisame | avísame |
+| fijate | fíjate |
+| dale | ve |
+| commiteálo | commitéalo |
+| andá | anda |
+| mirá | mira |
+| revisá | revisa |
+| agregá | agrega |
+| hacé | haz |
+| dejá | deja |
+
+La lista es ilustrativa, no exhaustiva: la regla es el registro completo, no estas dieciséis palabras. Cualquier forma voseante (imperativos agudos del tipo `-á`/`-é`/`-í`, presentes como `sos`/`vení`/`sabés`, y el pronombre `vos` en cualquier posición) queda igualmente prohibida.
+
+**Aplica a:** respuestas al usuario, comentarios en el código, mensajes de commit, mensajes de error mostrados al usuario, y documentación.
+
+---
+
 ## Project Overview
 
 **SGA Broom Group** — Sistema de Gestión de Agencias. A web application for managing maritime shipping manifests and Bills of Lading (BL) used by Broom Group's agency operations. Production URL: `https://sga.broomgroup.com`.
@@ -101,6 +132,19 @@ When `es_soc` is true, `cnt_so_numero` is generated as `SIGLA NUMERO-DIGITO`.
 Downstream, `es_soc` drives branching:
 - **XML** — `buildContenedor()` in `xmlBuilder.js`: SOC emits `<cnt-so>` with `nombre-operador` = `SHIPPER OWNER` (no `sigla`/`numero`/`digito`); COC emits `sigla`/`numero`/`digito` with the representante as operator.
 - **Almacenista report** (`index.js` line ~7691): SOC containers are excluded.
+
+### Volume precision and rounding
+
+Volume is stored with **3 decimals** — `bls.volumen`, `bl_items.volumen` and `bl_contenedores.volumen` are all `DECIMAL(12,3)`, matching the precision the PMS delivers. SIDEMAR accepts only **2 decimals**, so the truncation happens at XML time, in `vol2()` (`xmlBuilder.js` line ~30).
+
+`vol2()` rounds **half away from zero** — the rule MySQL applied back when the columns were `DECIMAL(12,2)` and the database did the rounding. It deliberately avoids `toFixed(2)`, which rounds down on values with a 5 in the third decimal (`182.565` → `182.56` instead of `182.57`) because of binary representation.
+
+**`<total-volumen>` is the sum of the item volumes already rounded** — `totalVolumenItems()` (line ~47), used at line ~452 — **not** `vol2(bl.volumen)`. Summing the rounded parts is what keeps the total consistent with the items inside the same XML: rounding a 202.417 total on its own yields 202.42 while its items emit 19.85 + 182.56 = 202.41. Items are emitted through `vol2()` in both `buildItem()` branches (lines ~306 and ~321); **containers never emit volume at all** — `buildContenedor()` writes only `peso`.
+
+Consequences worth knowing:
+
+- **`bls.volumen` no longer determines the emitted total**, but it is not unused: `detectarTipo()` (line ~102) still derives `sinVolumen` from it, which decides whether `<total-volumen>` and `<unidad-volumen>` are emitted **at all**. It gates the tag's presence, not its value. It also still drives the editor, the BL detail view, and a `revalidarBLCompleto` check (`index.js` line ~6227).
+- **`bls.volumen` can drift out of sync with its items.** It is a derived total that no editing endpoint recalculates: `PUT /api/bls/:blNumber/items` writes item volumes without touching it, while `PUT /api/bls/:blNumber`, `PATCH /api/bls/:blNumber` and `PATCH /api/bls/bulk-update` write it without touching the items. Only the carga-suelta endpoints recompute it from the items. `ExpoBLEdit` **warns** about the mismatch and offers a one-click fill, but never corrects it silently — deliberately, so the stored value stays the operator's decision.
 
 ### Database (MySQL)
 
