@@ -35,6 +35,25 @@ const vol2 = (v) => {
   return (Math.sign(n) * c / 100).toFixed(2);
 };
 
+// total-volumen del BL = suma de los volumenes de los items YA redondeados con
+// vol2(), para que el total cuadre con sus partes dentro del mismo XML.
+//
+// Antes salia de bls.volumen, que se redondeaba por su cuenta: con items de
+// 19.854 y 182.563 el XML emitia items 19.85 + 182.56 (= 202.41) contra un
+// total de 202.42. Ademas bls.volumen es un total derivado que los endpoints
+// de edicion no recalculan, asi que podia quedar viejo respecto de sus items.
+//
+// Se suma en centesimas enteras: 19.85 + 182.56 en float da 202.41000000000003.
+const totalVolumenItems = (items) => {
+  const centesimas = (items || []).reduce((acc, it) => {
+    // Mismo criterio que itemSinVolumen en buildItem: el item que no aporta
+    // volumen tampoco emite su tag, y no debe sumar.
+    if (!(parseFloat(it.volumen) > 0)) return acc;
+    return acc + Math.round(parseFloat(vol2(it.volumen)) * 100);
+  }, 0);
+  return (centesimas / 100).toFixed(2);
+};
+
 const formatDateCL = (date) => {
   if (!date) return '';
   const str = String(date).trim();
@@ -430,7 +449,7 @@ const buildXML = (bl, items, contenedores, transbordos, tipoAccion = 'I') => {
       'total-bultos': bl.bultos || 0,
       'total-peso': bl.peso_bruto || 0,
       'unidad-peso': bl.unidad_peso || 'KGM',
-      'total-volumen': sinVolumen ? undefined : vol2(bl.volumen),
+      'total-volumen': sinVolumen ? undefined : totalVolumenItems(items),
       'unidad-volumen': sinVolumen ? undefined : (bl.unidad_volumen || 'MTQ'),
       'total-item': items.length,
 
