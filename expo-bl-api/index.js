@@ -3015,6 +3015,18 @@ function extractRutFromText(text) {
   return m[1].replace(/\./g, '').toUpperCase();
 }
 
+// RUT del consignee desde la línea 21A: campo posicional que arranca en la
+// columna 6 (índice 5). El corte al siguiente separador de 2+ espacios evita
+// sangrar hacia ciudad/dirección cuando el campo viene en blanco (misma
+// convención de columnas que extractPartyCodeAndName).
+// La normalización la hace extractRutFromText: prefijo "RUT:" opcional,
+// sin puntos, DV en mayúscula. Sin RUT -> null.
+function extractRutFrom21A(line21A) {
+  if (!line21A) return null;
+  const campo = String(line21A).slice(5).split(/\s{2,}/)[0];
+  return extractRutFromText(campo);
+}
+
 function extractPartyCodeAndName(rawLine) {
   if (!rawLine) return { codigo_pil: null, nombre: null, direccion: null, pais: null, rut: null };
 
@@ -3479,6 +3491,11 @@ function parsePmsTxt(content) {
       const consigneeData = extractPartyCodeAndName(pickFirst(bLines, "21"));
       const notifyData = extractPartyCodeAndName(pickFirst(bLines, "26"));
 
+      // RUT del consignee: la línea 21 manda (comportamiento actual);
+      // solo si no trae RUT se cae a la 21A.
+      const consigneeRut = consigneeData.rut
+        || extractRutFrom21A(pickFirstWithSuffix(bLines, "21A"));
+
       // ✅ Extraer contacto de participantes (líneas 16B, 21B, 26B)
       const shipperContact = extractPartyContact(pickFirstWithSuffix(bLines, "16B"));
       const consigneeContact = extractPartyContact(pickFirstWithSuffix(bLines, "21B"));
@@ -3629,7 +3646,7 @@ function parsePmsTxt(content) {
         consignee_telefono: consigneeContact.telefono,
         consignee_email: consigneeContact.email,
         consignee_codigo_pil: consigneeData.codigo_pil,
-        consignee_rut: consigneeData.rut,
+        consignee_rut: consigneeRut,
         consignee_nacion_id: consigneeData.pais,
 
         notify,
