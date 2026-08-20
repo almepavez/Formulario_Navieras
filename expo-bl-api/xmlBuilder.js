@@ -17,6 +17,24 @@ const mapTipoServicio = (codigo) => {
   return mapeo[codigo] || 'FCL/FCL';
 };
 
+// Volumen: la BD almacena DECIMAL(12,3) (precision del PMS), pero SIDEMAR
+// solo acepta 2 decimales. El recorte se hace aca, con redondeo
+// half-away-from-zero — el mismo criterio que aplicaba MySQL cuando la
+// columna era DECIMAL(12,2), para que el XML no cambie respecto del historico.
+//
+// NO usar toFixed(2): por representacion binaria redondea hacia abajo en
+// valores con 5 en la tercera decimal (182.565 -> 182.56 en vez de 182.57).
+// Tampoco sirve Math.floor(x * 100 + 0.5): arrastra el mismo problema
+// (1.005 * 100 = 100.49999999999999 -> 1.00 en vez de 1.01).
+// Pasar por milesimas enteras evita ambos casos.
+const vol2 = (v) => {
+  const n = parseFloat(v);
+  if (!Number.isFinite(n)) return '0.00';
+  const m = Math.round(Math.abs(n) * 1000);   // a milesimas enteras
+  const c = Math.floor((m + 5) / 10);         // a centesimas, half-up sobre enteros
+  return (Math.sign(n) * c / 100).toFixed(2);
+};
+
 const formatDateCL = (date) => {
   if (!date) return '';
   const str = String(date).trim();
@@ -266,7 +284,7 @@ const buildItem = (it, contenedores, repData, tipo, bl) => {
       cantidad: it.cantidad || 0,
       'peso-bruto': it.peso_bruto || 0,
       'unidad-peso': it.unidad_peso || 'KGM',
-      volumen: itemSinVolumen ? undefined : parseFloat(it.volumen || 0).toFixed(2),
+      volumen: itemSinVolumen ? undefined : vol2(it.volumen),
       'unidad-volumen': itemSinVolumen ? undefined : (it.unidad_volumen || 'MTQ'),
       'carga-cnt': 'N'
     };
@@ -281,7 +299,7 @@ const buildItem = (it, contenedores, repData, tipo, bl) => {
     cantidad: it.cantidad || 0,
     'peso-bruto': it.peso_bruto || 0,
     'unidad-peso': it.unidad_peso || 'KGM',
-    volumen: itemSinVolumen ? undefined : parseFloat(it.volumen || 0).toFixed(2),
+    volumen: itemSinVolumen ? undefined : vol2(it.volumen),
     'unidad-volumen': itemSinVolumen ? undefined : (it.unidad_volumen || 'MTQ'),
 
     // carga-cnt: vacío en EXPO, no existe en IMPO
@@ -412,7 +430,7 @@ const buildXML = (bl, items, contenedores, transbordos, tipoAccion = 'I') => {
       'total-bultos': bl.bultos || 0,
       'total-peso': bl.peso_bruto || 0,
       'unidad-peso': bl.unidad_peso || 'KGM',
-      'total-volumen': sinVolumen ? undefined : (bl.volumen || 0),
+      'total-volumen': sinVolumen ? undefined : vol2(bl.volumen),
       'unidad-volumen': sinVolumen ? undefined : (bl.unidad_volumen || 'MTQ'),
       'total-item': items.length,
 
