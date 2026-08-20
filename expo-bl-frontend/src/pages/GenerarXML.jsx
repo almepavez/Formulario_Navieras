@@ -337,6 +337,49 @@ const blsListos = bls.filter(bl => bl.valid_status === "OK" || bl.valid_status =
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// MaskedDateTimeInput — FUERA del componente principal para que no se remonte
+// en cada render (perdería el foco al tipear)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Valida que la fecha exista de verdad, no solo que calce el patrón
+const esFechaHoraValida = (str) => {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2})$/.exec(str || "");
+  if (!m) return false;
+  const dd = +m[1], mm = +m[2], yyyy = +m[3], hh = +m[4], mi = +m[5];
+  if (mm < 1 || mm > 12) return false;
+  if (hh > 23 || mi > 59) return false;
+  const bisiesto = (yyyy % 4 === 0 && yyyy % 100 !== 0) || yyyy % 400 === 0;
+  const diasMes = [31, bisiesto ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return dd >= 1 && dd <= diasMes[mm - 1];
+};
+
+const MaskedDateTimeInput = ({ id, value, onChange }) => {
+  const handleChange = (e) => {
+    const digits = e.target.value.replace(/\D/g, "");
+    let result = "";
+    if (digits.length >= 1)  result  = digits.slice(0, 2);
+    if (digits.length >= 3)  result += "/" + digits.slice(2, 4);
+    if (digits.length >= 5)  result += "/" + digits.slice(4, 8);
+    if (digits.length >= 9)  result += " " + digits.slice(8, 10);
+    if (digits.length >= 11) result += ":" + digits.slice(10, 12);
+    onChange(result);
+  };
+  const invalido = !!value && !esFechaHoraValida(value);
+  return (
+    <input
+      id={id}
+      type="text"
+      value={value || ""}
+      onChange={handleChange}
+      placeholder="DD/MM/YYYY HH:mm"
+      maxLength={16}
+      title={invalido ? "Fecha inválida. Usa DD/MM/YYYY HH:mm" : "Formato DD/MM/YYYY HH:mm"}
+      className={`w-44 px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors ${invalido ? "border-red-400 bg-red-50 text-red-700" : "border-slate-300 bg-white"}`}
+    />
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // TipoAccionSelector
 // ─────────────────────────────────────────────────────────────────────────────
 const TipoAccionSelector = ({ value, onChange }) => {
@@ -475,6 +518,7 @@ const GenerarXML = () => {
   const [showOnlyErrors, setShowOnlyErrors]   = useState(false);
   const [filterPOL, setFilterPOL]             = useState(new Set());
   const [tipoAccion, setTipoAccion]           = useState("I");
+  const [fechaRecepcion, setFechaRecepcion]   = useState("");
   const [naveManifiesto, setNaveManifiesto]   = useState("");
   const [viajeManifiesto, setViajeManifiesto] = useState("");
   const [showResumen, setShowResumen]         = useState(false);
@@ -507,6 +551,7 @@ const GenerarXML = () => {
 
   useEffect(() => {
     if (!id) { setError("ID de manifiesto no válido"); setLoading(false); return; }
+    setFechaRecepcion("");
     fetchBLs();
     fetchManifiestoInfo();
   }, [id]);
@@ -610,6 +655,16 @@ const GenerarXML = () => {
 
   const generarXMLsMultiples = async () => {
     if (selectedBls.size === 0) { Swal.fire({ icon: "warning", title: "Sin BLs seleccionados", text: "Debes seleccionar al menos un BL", confirmButtonColor: "#F59E0B" }); return; }
+    if (tipoAccion !== "I" && !esFechaHoraValida(fechaRecepcion)) {
+      Swal.fire({
+        icon: "warning",
+        title: "Falta la Fecha de Recepción BL",
+        html: `<p>Para la acción <strong>${tipoAccion}</strong> debes ingresar la <strong>Fecha de Recepción BL</strong>.</p><p style="margin-top:8px;font-size:13px;color:#6B7280;">Formato DD/MM/YYYY HH:mm — debe ser una fecha válida.</p>`,
+        confirmButtonColor: "#F59E0B",
+      });
+      return;
+    }
+
     const arr = Array.from(selectedBls);
     const conErrores = bls.filter(bl => arr.includes(bl.bl_number) && bl.valid_status === "ERROR");
 
@@ -630,7 +685,7 @@ const GenerarXML = () => {
       const res = await fetch(`${API_BASE}/api/manifiestos/${id}/generar-xmls-multiples`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ blNumbers: arr, tipoAccion }),
+        body: JSON.stringify({ blNumbers: arr, tipoAccion, fechaRecepcion }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Error al generar XMLs"); }
 
@@ -695,7 +750,7 @@ const GenerarXML = () => {
     try {
       const res = await fetch(`${API_BASE}/api/bls/${blNumber}/generar-xml`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tipoAccion }),
+        body: JSON.stringify({ tipoAccion, fechaRecepcion }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Error al generar preview"); }
 
@@ -818,6 +873,14 @@ const GenerarXML = () => {
                 className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
                 {revalidando ? <><Loader2 className="w-4 h-4 animate-spin" />Revalidando...</> : <><RefreshCw className="w-4 h-4" />Revalidar {selectedBls.size} BL{selectedBls.size !== 1 ? "s" : ""}</>}
               </button>
+              {tipoAccion !== "I" && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50/60 shadow-sm">
+                  <label htmlFor="fecha-recepcion-bl" className="text-sm font-medium text-amber-800 whitespace-nowrap">
+                    Fecha recepción <span className="text-red-500">*</span>
+                  </label>
+                  <MaskedDateTimeInput id="fecha-recepcion-bl" value={fechaRecepcion} onChange={setFechaRecepcion} />
+                </div>
+              )}
               <div className="flex items-stretch rounded-lg overflow-visible border border-emerald-300 shadow-sm">
                 <div className="flex items-center px-2 py-1.5 bg-slate-50 border-r border-emerald-300">
                   <TipoAccionSelector value={tipoAccion} onChange={setTipoAccion} />

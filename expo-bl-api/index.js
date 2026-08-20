@@ -5493,6 +5493,49 @@ app.post("/api/admin/pms51/tokens/reload", async (req, res) => {
 });
 
 // ============================================
+// 🗓️ PARSEO DE FECHAS (scope de módulo)
+// ============================================
+
+const TIPOS_ACCION_VALIDOS = ['I', 'M', 'A'];
+
+// Valida que la fecha exista de verdad (no solo que calce el patrón)
+const esFechaHoraReal = (yyyy, mm, dd, hh, mi) => {
+  if (mm < 1 || mm > 12) return false;
+  if (hh > 23 || mi > 59) return false;
+  const bisiesto = (yyyy % 4 === 0 && yyyy % 100 !== 0) || yyyy % 400 === 0;
+  const diasMes = [31, bisiesto ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return dd >= 1 && dd <= diasMes[mm - 1];
+};
+
+// Convierte DD/MM/YYYY [HH:mm[:ss]] o YYYY-MM-DD [HH:mm[:ss]] → formato MySQL.
+// Devuelve null si el string no calza ningún formato conocido o si la fecha no
+// existe (ej: 31/02/2026, 10/03/2026 25:99). Se acepta el formato ISO porque es
+// el que ya envía ExpoBLEdit (ver fmtDT en ExpoBLEdit.jsx).
+const parseFechaCLtoMySQL = (str) => {
+  if (str === null || str === undefined) return null;
+  const s = String(str).trim();
+  if (s === '') return null;
+
+  // DD/MM/YYYY [HH:mm[:ss]]
+  let m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::\d{2})?)?$/);
+  if (m) {
+    const [, dd, mm, yyyy, hh, mi] = m;
+    if (!esFechaHoraReal(+yyyy, +mm, +dd, +(hh || 0), +(mi || 0))) return null;
+    return hh !== undefined ? `${yyyy}-${mm}-${dd} ${hh}:${mi}` : `${yyyy}-${mm}-${dd}`;
+  }
+
+  // YYYY-MM-DD [HH:mm[:ss]]
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::\d{2})?)?$/);
+  if (m) {
+    const [, yyyy, mm, dd, hh, mi] = m;
+    if (!esFechaHoraReal(+yyyy, +mm, +dd, +(hh || 0), +(mi || 0))) return null;
+    return hh !== undefined ? `${yyyy}-${mm}-${dd} ${hh}:${mi}` : `${yyyy}-${mm}-${dd}`;
+  }
+
+  return null;
+};
+
+// ============================================
 // 🛡️ FUNCIÓN DE VALIDACIÓN DE BL PARA XML
 // ============================================
 
@@ -5663,12 +5706,32 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
 app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
   try {
     const { blNumber } = req.params;
-    const { tipoAccion = 'I' } = req.body;
+    const { tipoAccion = 'I', fechaRecepcion = null } = req.body;
+
+    if (!TIPOS_ACCION_VALIDOS.includes(tipoAccion)) {
+      return res.status(400).json({
+        error: `Tipo de acción inválido: '${tipoAccion}'. Valores permitidos: ${TIPOS_ACCION_VALIDOS.join(', ')}`
+      });
+    }
+
+    // La Fecha de Recepción BL es obligatoria para Modificación y Anulación:
+    // el XSD de SIDEMAR exige el tag <fecha-recepcion-bl> en esos casos.
+    const requiereFechaRecepcion = tipoAccion === 'M' || tipoAccion === 'A';
+    const fechaRecepcionMySQL = parseFechaCLtoMySQL(fechaRecepcion);
+    if (requiereFechaRecepcion && !fechaRecepcionMySQL) {
+      return res.status(400).json({
+        error: `La Fecha de Recepción BL es obligatoria para la acción ${tipoAccion}. Ingrésala en formato DD/MM/YYYY HH:mm (debe ser una fecha válida).`,
+        bl_number: blNumber
+      });
+    }
 
     const [blRows] = await pool.query(getBLQuery(), [blNumber]);
     if (blRows.length === 0) return res.status(404).json({ error: "BL no encontrado" });
 
     const bl = blRows[0];
+
+    // Preview: se usa la fecha del request para armar el XML, pero NO se persiste.
+    if (requiereFechaRecepcion) bl.fecha_recepcion_bl = fechaRecepcionMySQL;
 
     // Parsear observaciones si vienen como string
     if (bl.observaciones && typeof bl.observaciones === 'string') {
@@ -5741,10 +5804,26 @@ app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
 app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
   try {
     const { id } = req.params;
-    const { blNumbers, tipoAccion = 'I' } = req.body;
+    const { blNumbers, tipoAccion = 'I', fechaRecepcion = null } = req.body;
 
     if (!Array.isArray(blNumbers) || blNumbers.length === 0)
       return res.status(400).json({ error: "Debe seleccionar al menos un BL" });
+
+    if (!TIPOS_ACCION_VALIDOS.includes(tipoAccion)) {
+      return res.status(400).json({
+        error: `Tipo de acción inválido: '${tipoAccion}'. Valores permitidos: ${TIPOS_ACCION_VALIDOS.join(', ')}`
+      });
+    }
+
+    // La Fecha de Recepción BL es obligatoria para Modificación y Anulación:
+    // el XSD de SIDEMAR exige el tag <fecha-recepcion-bl> en esos casos.
+    const requiereFechaRecepcion = tipoAccion === 'M' || tipoAccion === 'A';
+    const fechaRecepcionMySQL = parseFechaCLtoMySQL(fechaRecepcion);
+    if (requiereFechaRecepcion && !fechaRecepcionMySQL) {
+      return res.status(400).json({
+        error: `La Fecha de Recepción BL es obligatoria para la acción ${tipoAccion}. Ingrésala en formato DD/MM/YYYY HH:mm (debe ser una fecha válida).`
+      });
+    }
 
     // Validar todos los BLs antes de generar
     const blsConErrores = [];
@@ -5762,6 +5841,18 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
         bls_con_errores: blsConErrores,
         total_errores: blsConErrores.length
       });
+    }
+
+    // Persistir la fecha de recepción en los BLs seleccionados (solo M/A).
+    // ⚠️ Va ANTES de crear el archiver: una vez que se ejecuta archive.pipe(res)
+    // ya se están escribiendo bytes al cliente y no se puede devolver un error JSON.
+    if (requiereFechaRecepcion) {
+      const placeholdersBls = blNumbers.map(() => '?').join(',');
+      await pool.query(
+        `UPDATE bls SET fecha_recepcion_bl = ?
+         WHERE manifiesto_id = ? AND bl_number IN (${placeholdersBls})`,
+        [fechaRecepcionMySQL, id, ...blNumbers]
+      );
     }
 
     // Crear ZIP
@@ -5786,6 +5877,10 @@ app.post("/api/manifiestos/:id/generar-xmls-multiples", async (req, res) => {
         try { bl.observaciones = JSON.parse(bl.observaciones); }
         catch { bl.observaciones = null; }
       }
+
+      // Se usa la fecha del request y no la del SELECT: si otro usuario genera en
+      // paralelo con otra fecha, cada uno se lleva el XML con la fecha que ingresó.
+      if (requiereFechaRecepcion) bl.fecha_recepcion_bl = fechaRecepcionMySQL;
 
       const [items] = await pool.query(
         `SELECT * FROM bl_items WHERE bl_id = ? ORDER BY numero_item`, [bl.id]
@@ -6661,22 +6756,30 @@ app.put("/api/bls/:blNumber", async (req, res) => {
       'lugar_emision'
     ];
 
-    // Convierte DD/MM/YYYY o DD/MM/YYYY HH:mm → formato MySQL
-    const parseFechaCLtoMySQL = (str) => {
-      if (!str) return null;
-      str = String(str).trim();
-      // DD/MM/YYYY HH:mm o DD/MM/YYYY HH:mm:ss
-      const matchDT = str.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}:\d{2})(:\d{2})?$/);
-      if (matchDT) return `${matchDT[3]}-${matchDT[2]}-${matchDT[1]} ${matchDT[4]}`;
-      // DD/MM/YYYY
-      const matchD = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-      if (matchD) return `${matchD[3]}-${matchD[2]}-${matchD[1]}`;
-      return str;
-    };
-
+    // parseFechaCLtoMySQL vive a nivel de módulo (ver sección PARSEO DE FECHAS).
+    // Rechaza con 400 la fecha que no parsea, en vez de guardarla como NULL:
+    // un borrado silencioso de fecha_recepcion_bl hace que SIDEMAR vuelva a
+    // rechazar el BL por duplicado sin que nadie sepa por qué. El mensaje
+    // nombra el campo para que el usuario sepa cuál corregir.
     const fechaFields = ['fecha_emision', 'fecha_presentacion', 'fecha_zarpe', 'fecha_embarque', 'fecha_recepcion_bl'];
     for (const f of fechaFields) {
-      if (updates[f] !== undefined) updates[f] = parseFechaCLtoMySQL(updates[f]);
+      if (updates[f] === undefined) continue;
+
+      const valorCrudo = updates[f];
+      // null o string vacío = borrado intencional del campo, se permite.
+      const esBorrado = valorCrudo === null || String(valorCrudo).trim() === '';
+      const parseada = parseFechaCLtoMySQL(valorCrudo);
+
+      if (parseada === null && !esBorrado) {
+        await connection.rollback();
+        return res.status(400).json({
+          error: `Fecha inválida en el campo '${f}': '${valorCrudo}'. Usa el formato DD/MM/YYYY o DD/MM/YYYY HH:mm, y verifica que la fecha exista.`,
+          campo: f,
+          valor_recibido: valorCrudo
+        });
+      }
+
+      updates[f] = parseada;
     }
 
     for (const field of Object.keys(updates)) {
