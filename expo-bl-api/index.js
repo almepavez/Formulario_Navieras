@@ -5882,11 +5882,29 @@ app.post("/api/bls/transito", async (req, res) => {
       }
 
       const [blRows] = await conn.query(
-        "SELECT id FROM bls WHERE bl_number = ? LIMIT 1",
+        `SELECT b.id, m.tipo_operacion AS tipo_operacion_manifiesto
+           FROM bls b
+           LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
+          WHERE b.bl_number = ?
+          LIMIT 1`,
         [blNumber]
       );
       if (blRows.length === 0) {
         errores.push({ bl_number: blNumber, error: "BL no encontrado" });
+        continue;
+      }
+
+      // El tránsito es solo importación: el Oficio Circular 182 regula el
+      // manifiesto marítimo electrónico de INGRESO, y en exportación la
+      // agencia ni siquiera recibe información de tránsito desde la naviera.
+      // Se rechaza en cualquier dirección, también al desmarcar: un BL de
+      // exportación no puede haber sido tránsito nunca, así que una decisión
+      // sobre él es siempre un error de quien llama.
+      if (blRows[0].tipo_operacion_manifiesto === 'S') {
+        errores.push({
+          bl_number: blNumber,
+          error: "El tránsito solo aplica a manifiestos de importación (Oficio Circular 182). Este BL pertenece a un manifiesto de exportación."
+        });
         continue;
       }
 
