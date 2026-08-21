@@ -3595,6 +3595,15 @@ function parsePmsTxt(content) {
       const textoLineas47 = lines47.join(" ");
       const esSOCTexto = /SHIPPER[\s.]{0,5}OWNER[\s.]{0,5}CONTAINER|SHIPPER'?S[\s.]{0,5}OWN[\s.]{0,5}CONTAINER|\bSOC\b/i.test(textoLineas47);
 
+      // Detección de TRÁNSITO (por BL, sobre las mismas líneas 47):
+      // el PMS no trae el destino de forma estructurada — la frase viene
+      // partida en columnas de 30 caracteres con números de secuencia
+      // intercalados, así que el destino no se puede parsear. Por eso esto es
+      // solo una SUGERENCIA: marca el BL para que el operador confirme el
+      // sentido y elija el puerto de destino a mano. No se toca ni el sentido
+      // ni el lugar_destino acá.
+      const esTransitoTexto = /SHIPMENT\s+IN\s+TRANSIT/i.test(textoLineas47);
+
       for (const c of contenedores) {
         // Primaria = Y/N por contenedor; si es null/indeterminado, fallback al texto (esSOCTexto)
         c.es_soc = (c.es_soc_yn === true || c.es_soc_yn === false)
@@ -3684,6 +3693,9 @@ function parsePmsTxt(content) {
         lugar_recepcion_cod,
         lugar_destino_cod,
         lugar_entrega_cod,
+
+        // Sugerencia, no decisión: el operador confirma en GenerarXML.
+        transito_sugerido: esTransitoTexto ? 1 : 0,
 
         transbordos,
         forma_pago_flete: formaPagoFlete,
@@ -3831,7 +3843,8 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
          bultos, total_items,
          fecha_emision, fecha_presentacion, fecha_embarque, fecha_zarpe,
          status, forma_pago_flete, cond_transporte,
-         almacenador_id, almacenista_codigo_almacen)
+         almacenador_id, almacenista_codigo_almacen,
+         transito_sugerido)
       VALUES
         (?, ?, ?,
          ?, ?, ?, ?, ?, ?,
@@ -3846,7 +3859,8 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
          ?, ?,
          ?, ?,
          ?, ?, ?, ?,
-         'CREADO', ?, ?, ?, ?)
+         'CREADO', ?, ?, ?, ?,
+         ?)
     `;
 
     const insertItemSql = `
@@ -4085,6 +4099,7 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
         b.cond_transporte || null,
         almacenadorId,
         almacenadorCodigo,
+        b.transito_sugerido ?? 0,
       ]);
 
       const blId = blIns.insertId;
@@ -5579,6 +5594,20 @@ function validateBLForXML(bl) {
       errors.push("Falta Lugar de Recepción (LRM)");
   }
 
+  // ── TRÁNSITO ──
+  // bl.tipo_operacion viene de getBLQuery ya resuelto por BL
+  // (COALESCE(b.sentido_operacion, m.tipo_operacion)).
+  if (bl.tipo_operacion === 'TR') {
+    if (!bl.lugar_destino_cod || String(bl.lugar_destino_cod).trim() === '')
+      errors.push("BL en tránsito sin Lugar de Destino (LD): debes indicar el destino extranjero");
+
+    // El país se lee del código estándar del puerto, no del alias que va al
+    // XML: ese puede ser un código SIDEMAR y su prefijo no es el país.
+    const paisLD = String(bl.lugar_destino_codigo_pais || '').substring(0, 2).toUpperCase();
+    if (paisLD === 'CL')
+      errors.push("BL en tránsito con Lugar de Destino (LD) chileno: el destino final de un tránsito debe ser extranjero");
+  }
+
   return {
     isValid: errors.length === 0,
     errors
@@ -5688,8 +5717,17 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
         le.codigo AS lugar_emision_cod,
         le.nombre AS lugar_emision,
         ts.codigo AS tipo_servicio_cod,
-        ts.nombre AS tipo_servicio
+        ts.nombre AS tipo_servicio,
+        -- Tránsito por BL: alimenta el chip y el modal de confirmación.
+        b.sentido_operacion,
+        b.transito_sugerido,
+        b.transito_confirmado,
+        ld.nombre AS lugar_destino,
+        m.tipo_operacion AS tipo_operacion_manifiesto,
+        COALESCE(b.sentido_operacion, m.tipo_operacion) AS sentido_resuelto
       FROM bls b
+      LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
+      LEFT JOIN puertos ld ON b.lugar_destino_id = ld.id
       LEFT JOIN puertos pe ON b.puerto_embarque_id = pe.id
       LEFT JOIN puertos pd ON b.puerto_descarga_id = pd.id
       LEFT JOIN puertos le ON b.lugar_emision_id = le.id
@@ -5708,6 +5746,156 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
     conn.release();
   }
 });
+
+// ============================================
+// 🚏 TRÁNSITO: decisión del operador por BL
+// ============================================
+// El PMS solo sugiere (frase "SHIPMENT IN TRANSIT" en las líneas 47); el
+// destino no se puede parsear, así que lo elige el operador. Este endpoint
+// guarda esa decisión, para un BL o para un lote, con la misma forma:
+//
+//   { "decisiones": [
+//       { "bl_number": "X", "es_transito": true,  "lugar_destino_cod": "ARBUE" },
+//       { "bl_number": "Y", "es_transito": false }
+//   ]}
+//
+// Confirmar tránsito escribe sentido_operacion='TR' y el nuevo LD; descartar
+// deja sentido_operacion=NULL y NO toca el lugar de destino. En ambos casos
+// transito_confirmado=1 saca al BL de la bandeja de pendientes.
+app.post("/api/bls/transito", async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const { decisiones } = req.body;
+
+    if (!Array.isArray(decisiones) || decisiones.length === 0) {
+      return res.status(400).json({ error: "Debes enviar al menos una decisión en 'decisiones'" });
+    }
+
+    // ── Validación previa, antes de abrir la transacción ──
+    // Se valida todo el lote primero para no dejar la mitad aplicada ni
+    // depender de que el frontend haya filtrado bien.
+    const errores = [];
+    const preparadas = [];
+
+    for (const d of decisiones) {
+      const blNumber = String(d?.bl_number || "").trim();
+      if (!blNumber) {
+        errores.push({ bl_number: null, error: "Falta bl_number" });
+        continue;
+      }
+
+      const [blRows] = await conn.query(
+        "SELECT id FROM bls WHERE bl_number = ? LIMIT 1",
+        [blNumber]
+      );
+      if (blRows.length === 0) {
+        errores.push({ bl_number: blNumber, error: "BL no encontrado" });
+        continue;
+      }
+
+      if (!d.es_transito) {
+        preparadas.push({ blNumber, blId: blRows[0].id, esTransito: false });
+        continue;
+      }
+
+      const cod = String(d?.lugar_destino_cod || "").trim().toUpperCase();
+      if (!cod) {
+        errores.push({ bl_number: blNumber, error: "Un BL en tránsito necesita lugar de destino" });
+        continue;
+      }
+
+      const [puertoRows] = await conn.query(
+        "SELECT id, codigo FROM puertos WHERE codigo = ? LIMIT 1",
+        [cod]
+      );
+      if (puertoRows.length === 0) {
+        errores.push({ bl_number: blNumber, error: `El puerto '${cod}' no existe en el mantenedor` });
+        continue;
+      }
+
+      // El destino final de un tránsito es extranjero por definición. Se
+      // valida acá y no solo en la UI: el XSD lo rechaza igual.
+      if (String(puertoRows[0].codigo).substring(0, 2).toUpperCase() === "CL") {
+        errores.push({ bl_number: blNumber, error: `El destino de un tránsito no puede ser un puerto chileno ('${cod}')` });
+        continue;
+      }
+
+      preparadas.push({
+        blNumber,
+        blId: blRows[0].id,
+        esTransito: true,
+        lugarDestinoCod: cod,
+        lugarDestinoId: puertoRows[0].id,
+      });
+    }
+
+    if (errores.length > 0) {
+      return res.status(400).json({ error: "Hay decisiones inválidas", detalles: errores });
+    }
+
+    // ── Aplicar ──
+    await conn.beginTransaction();
+    try {
+      for (const p of preparadas) {
+        if (p.esTransito) {
+          await conn.query(
+            `UPDATE bls
+                SET sentido_operacion = 'TR',
+                    lugar_destino_cod = ?,
+                    lugar_destino_id  = ?,
+                    transito_confirmado = 1,
+                    updated_at = NOW()
+              WHERE id = ?`,
+            [p.lugarDestinoCod, p.lugarDestinoId, p.blId]
+          );
+        } else {
+          // Descartar no toca lugar_destino: el BL vuelve a heredar el sentido
+          // del manifiesto y conserva el destino que ya tenía.
+          await conn.query(
+            `UPDATE bls
+                SET sentido_operacion = NULL,
+                    transito_confirmado = 1,
+                    updated_at = NOW()
+              WHERE id = ?`,
+            [p.blId]
+          );
+        }
+      }
+      await conn.commit();
+    } catch (e) {
+      await conn.rollback();
+      throw e;
+    }
+
+    // ── Revalidar fuera de la transacción ──
+    // revalidarBLCompleto borra y reescribe bl_validaciones; se corre después
+    // del commit para que lea el sentido y el LD ya guardados.
+    const resultados = [];
+    for (const p of preparadas) {
+      await revalidarBLCompleto(conn, p.blId);
+      const [[estado]] = await conn.query(
+        "SELECT valid_status, valid_count_error, valid_count_obs FROM bls WHERE id = ? LIMIT 1",
+        [p.blId]
+      );
+      resultados.push({
+        bl_number: p.blNumber,
+        sentido_operacion: p.esTransito ? "TR" : null,
+        lugar_destino_cod: p.esTransito ? p.lugarDestinoCod : undefined,
+        valid_status: estado?.valid_status ?? null,
+        valid_count_error: estado?.valid_count_error ?? 0,
+        valid_count_obs: estado?.valid_count_obs ?? 0,
+      });
+    }
+
+    res.json({ actualizados: resultados.length, resultados });
+  } catch (error) {
+    console.error("Error al guardar decisión de tránsito:", error);
+    res.status(500).json({ error: "Error al guardar la decisión de tránsito", details: error.message });
+  } finally {
+    conn.release();
+  }
+});
+
 // 🔥 REEMPLAZA el endpoint POST /api/bls/:blNumber/generar-xml
 app.post("/api/bls/:blNumber/generar-xml", async (req, res) => {
   try {
@@ -6171,6 +6359,42 @@ async function revalidarBLCompleto(conn, blId) {
   );
 
   const esImpoValidacion = manifiesto?.tipo_operacion !== 'S';
+
+  // ── TRÁNSITO ──
+  // El sentido se resuelve por BL: bls.sentido_operacion manda y NULL hereda
+  // del manifiesto. Es la misma regla del COALESCE de getBLQuery, pero acá el
+  // BL se lee con SELECT * y hay que resolverla a mano.
+  // Va después del bloque LD/LEM/LRM de arriba porque necesita el manifiesto;
+  // esas validaciones no se tocan, estas se suman.
+  const sentidoResuelto = bl.sentido_operacion || manifiesto?.tipo_operacion || null;
+
+  if (sentidoResuelto === 'TR') {
+    if (isBlank(bl.lugar_destino_cod)) {
+      vals.push({
+        nivel: "BL", severidad: "ERROR", campo: "lugar_destino_cod",
+        mensaje: "BL en tránsito sin lugar de destino (LD): debes indicar el destino extranjero",
+        valorCrudo: bl.lugar_destino_cod || null
+      });
+    } else if (lugarDestinoId) {
+      // El país se lee del código estándar del puerto y no del guardado en el
+      // BL: lugar_destino_cod puede ser un código SIDEMAR, y el prefijo de un
+      // código SIDEMAR no corresponde al país real.
+      // Si lugarDestinoId es null el código no existe en el mantenedor, y de
+      // eso ya avisa el ERROR de lugar_destino_id de más arriba.
+      const [[puertoLD]] = await conn.query(
+        "SELECT codigo FROM puertos WHERE id = ? LIMIT 1",
+        [lugarDestinoId]
+      );
+      const paisLD = String(puertoLD?.codigo || '').substring(0, 2).toUpperCase();
+      if (paisLD === 'CL') {
+        vals.push({
+          nivel: "BL", severidad: "ERROR", campo: "lugar_destino_cod",
+          mensaje: "BL en tránsito con lugar de destino (LD) chileno: el destino final de un tránsito debe ser extranjero",
+          valorCrudo: bl.lugar_destino_cod || null
+        });
+      }
+    }
+  }
 
   if (esImpoValidacion && isBlank(bl.fecha_emision)) vals.push({ nivel: "BL", severidad: "ERROR", campo: "fecha_emision", mensaje: "Falta fecha_emision (Linea 74)", valorCrudo: bl.fecha_emision || null });
 

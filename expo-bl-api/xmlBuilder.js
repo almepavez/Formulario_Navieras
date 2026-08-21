@@ -363,8 +363,21 @@ const generarReferencias = (bl) => {
 // OBSERVACIONES
 // ══════════════════════════════════════════
 
+// Glosa del país de destino para la observación 12 de un tránsito.
+// No se lee de puertos.pais: esa columna está vacía en 1010 de 1020 puertos, y
+// los pocos valores que tiene vienen con tilde y en formato mixto ("Perú").
+// Bolivia y Perú no están acá: tienen código propio (10 y 11) por el oficio.
+const PAISES_TRANSITO = {
+  AR: 'ARGENTINA',
+  BO: 'BOLIVIA',
+  PE: 'PERU',
+  UY: 'URUGUAY',
+  PY: 'PARAGUAY',
+  BR: 'BRASIL',
+};
+
 const generarObservaciones = (bl, transbordos, tipo) => {
-  const { esCargaSuelta, esImpo } = tipo;
+  const { esCargaSuelta, esImpo, esTránsito } = tipo;
   const obs = [];
 
   if (esCargaSuelta) {
@@ -382,25 +395,72 @@ const generarObservaciones = (bl, transbordos, tipo) => {
       }
     }
   } else if (esImpo) {
-    // IMPO: observaciones automáticas según reglas
-    if (!transbordos || transbordos.length === 0) {
-      obs.push({ nombre: '14', contenido: 'SIN TRB' });
-    }
-    if (bl.lugar_destino_codigo && bl.lugar_destino_codigo !== bl.puerto_descarga_codigo) {
-      const pais = bl.lugar_destino_codigo.substring(0, 2);
-      if (pais && pais !== 'CL') {
-        obs.push({ nombre: '12', contenido: pais === 'AR' ? 'ARGENTINA' : pais });
-      }
-    }
-    // Observaciones manuales adicionales
-    if (bl.observaciones) {
+    // IMPO y TRÁNSITO: observaciones automáticas según reglas.
+    // Las manuales se parsean acá arriba para poder consultarlas antes de
+    // empujar las automáticas, pero se emiten al final, como siempre.
+    const manuales = (() => {
+      if (!bl.observaciones) return [];
       const raw = typeof bl.observaciones === 'string'
         ? (() => { try { return JSON.parse(bl.observaciones); } catch { return null; } })()
         : bl.observaciones;
-      if (Array.isArray(raw)) {
-        raw.forEach(o => obs.push({ nombre: o.nombre || 'GRAL', contenido: o.contenido || '' }));
+      return Array.isArray(raw) ? raw : [];
+    })();
+
+    const yaTieneCodigo = (nombre) =>
+      manuales.some(o => (o.nombre || 'GRAL') === nombre);
+
+    // GRAL es un cajón genérico, no un código: el operador puede tener ahí una
+    // nota legítima y distinta. Para GRAL se compara la glosa exacta.
+    const yaTieneGlosa = (nombre, contenido) =>
+      manuales.some(o =>
+        (o.nombre || 'GRAL') === nombre &&
+        String(o.contenido || '').trim().toUpperCase() === contenido.toUpperCase()
+      );
+
+    // La antiduplicación aplica SOLO a tránsito. En importación normal el
+    // comportamiento histórico es empujar la automática aunque el operador
+    // haya cargado una manual con el mismo código, y no se cambia.
+    const pushAuto = (nombre, contenido) => {
+      if (esTránsito) {
+        const duplicada = nombre === 'GRAL'
+          ? yaTieneGlosa(nombre, contenido)
+          : yaTieneCodigo(nombre);
+        if (duplicada) return;
+      }
+      obs.push({ nombre, contenido });
+    };
+
+    // El 14 habla de transbordos, no de sentido: aplica igual a importación
+    // normal y a tránsito.
+    if (!transbordos || transbordos.length === 0) {
+      pushAuto('14', 'SIN TRB');
+    }
+
+    if (esTránsito) {
+      // Oficio Circular 182 de Aduanas (29-05-2015): el destino final de un
+      // tránsito se declara como observación con código por país.
+      // El prefijo sale del código estándar del puerto, NO del que va al XML
+      // — ese puede venir traducido a SIDEMAR y su prefijo no es el país.
+      // Acá no se exige que el destino difiera del puerto de descarga (la
+      // condición del 12 de importación): en un tránsito el destino final es
+      // extranjero por definición, y la ingesta PMS deja el LD copiado del
+      // puerto de descarga hasta que el operador lo corrige.
+      const pais = String(bl.lugar_destino_codigo_pais || '').substring(0, 2).toUpperCase();
+      if (pais && pais !== 'CL') {
+        if (pais === 'BO') pushAuto('10', 'BOLIVIA');
+        else if (pais === 'PE') pushAuto('11', 'PERU');
+        else pushAuto('12', PAISES_TRANSITO[pais] || pais);
+      }
+      pushAuto('GRAL', 'Por cuenta y riesgo del consignatario');
+    } else if (bl.lugar_destino_codigo && bl.lugar_destino_codigo !== bl.puerto_descarga_codigo) {
+      const pais = bl.lugar_destino_codigo.substring(0, 2);
+      if (pais && pais !== 'CL') {
+        pushAuto('12', pais === 'AR' ? 'ARGENTINA' : pais);
       }
     }
+
+    // Observaciones manuales adicionales
+    manuales.forEach(o => obs.push({ nombre: o.nombre || 'GRAL', contenido: o.contenido || '' }));
   } else {
     // EXPO: solo observaciones manuales
     if (bl.observaciones) {
@@ -543,7 +603,10 @@ const getBLQuery = () => `
     DATE_FORMAT(b.fecha_zarpe,    '%d/%m/%Y %H:%i') AS fecha_zarpe,
     DATE_FORMAT(b.fecha_emision,  '%d/%m/%Y')        AS fecha_emision,
     m.viaje,
-    m.tipo_operacion,
+    -- Sentido por BL: b.sentido_operacion manda; NULL hereda del manifiesto.
+    -- Se mantiene el alias tipo_operacion para que detectarTipo() y las ramas
+    -- que dependen de esImpo sigan leyendo el mismo campo de siempre.
+    COALESCE(b.sentido_operacion, m.tipo_operacion) AS tipo_operacion,
     m.numero_referencia,
     m.fecha_referencia,
     m.fecha_manifiesto_aduana,
@@ -555,6 +618,11 @@ const getBLQuery = () => `
     COALESCE(pe.codigo_sidemar, pe.codigo) AS puerto_embarque_codigo, pe.nombre AS puerto_embarque_nombre,
     COALESCE(pd.codigo_sidemar, pd.codigo) AS puerto_descarga_codigo, pd.nombre AS puerto_descarga_nombre,
     COALESCE(ld.codigo_sidemar, ld.codigo) AS lugar_destino_codigo,   ld.nombre AS lugar_destino_nombre,
+    -- Codigo estandar sin traducir del lugar de destino. El alias de arriba es
+    -- el que va al XML, pero puede venir como codigo SIDEMAR, y el prefijo de
+    -- pais de un codigo SIDEMAR no corresponde al pais real. Para decidir la
+    -- observacion de transito (10/11/12) se usa SIEMPRE este.
+    ld.codigo AS lugar_destino_codigo_pais,
     COALESCE(lem.codigo_sidemar,lem.codigo) AS lugar_entrega_codigo,  lem.nombre AS lugar_entrega_nombre,
     COALESCE(lrm.codigo_sidemar,lrm.codigo) AS lugar_recepcion_codigo,lrm.nombre AS lugar_recepcion_nombre,
     ref_emi.id   AS emi_id,   ref_emi.rut   AS emi_rut,   ref_emi.nombre_emisor AS emi_nombre,

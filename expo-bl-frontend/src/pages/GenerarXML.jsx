@@ -8,10 +8,17 @@ import {
   AlertCircle, X, ChevronRight, Send, Edit2,
 } from "lucide-react";
 import Swal from "sweetalert2";
+import PuertoAutocomplete from "../components/PuertoAutocomplete";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
 const getRegion = (bl) => bl.region_puerto_embarque || bl.puerto_embarque || "";
+
+// Un BL queda pendiente cuando la ingesta PMS encontró "SHIPMENT IN TRANSIT"
+// en sus líneas 47 y el operador todavía no decidió. El PMS no trae el destino
+// de forma parseable, así que la sugerencia sola no alcanza para emitir el XML.
+const esTransitoPendiente = (bl) =>
+  Number(bl.transito_sugerido) === 1 && Number(bl.transito_confirmado) === 0;
 
 const TIPOS_ACCION = [
   { value: "I", label: "Ingreso",      description: "Presentación inicial del BL ante Aduana", color: "emerald" },
@@ -501,6 +508,241 @@ const POLFilterDropdown = ({ pols, selected, onChange }) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// MODAL DE CONFIRMACIÓN DE TRÁNSITO
+// ─────────────────────────────────────────────────────────────────────────────
+// La ingesta PMS solo sugiere: la frase "SHIPMENT IN TRANSIT" viene en las
+// líneas 47 partida en columnas de 30 caracteres con números de secuencia
+// intercalados, así que el destino no se puede parsear. Acá el operador
+// confirma el sentido y elige el puerto de destino a mano.
+const ConfirmarTransitoModal = ({ blsPendientes, puertos, onClose, onConfirmado }) => {
+  // decisiones[bl_number] = { es_transito: bool|null, lugar_destino_cod: string }
+  const [decisiones, setDecisiones] = useState({});
+  const [guardando, setGuardando]   = useState(false);
+
+  useEffect(() => {
+    const handler = (e) => { if (e.key === "Escape" && !guardando) onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose, guardando]);
+
+  const setDecision = (blNumber, patch) =>
+    setDecisiones(prev => ({
+      ...prev,
+      [blNumber]: { es_transito: null, lugar_destino_cod: "", ...prev[blNumber], ...patch },
+    }));
+
+  // El autocompletado deja escribir texto libre, así que "eligió un puerto" se
+  // valida contra el mantenedor, no contra "el input tiene algo".
+  const puertoValido = (cod) => {
+    if (!cod) return null;
+    const c = cod.trim().toUpperCase();
+    return puertos.find(p =>
+      String(p.codigo || "").toUpperCase() === c ||
+      String(p.codigo_sidemar || "").toUpperCase() === c
+    ) || null;
+  };
+
+  const esChileno = (p) => String(p?.codigo || "").substring(0, 2).toUpperCase() === "CL";
+
+  const filaLista = (bl) => {
+    const d = decisiones[bl.bl_number];
+    if (!d || d.es_transito === null) return false;
+    if (d.es_transito === false) return true;
+    const p = puertoValido(d.lugar_destino_cod);
+    return !!p && !esChileno(p);
+  };
+
+  const decididas = blsPendientes.filter(filaLista);
+  const todasListas = decididas.length === blsPendientes.length && blsPendientes.length > 0;
+
+  const guardar = async () => {
+    if (!todasListas) return;
+    setGuardando(true);
+    try {
+      const payload = {
+        decisiones: blsPendientes.map(bl => {
+          const d = decisiones[bl.bl_number];
+          return d.es_transito
+            ? {
+                bl_number: bl.bl_number,
+                es_transito: true,
+                // Se manda el código estándar del puerto: el backend resuelve
+                // el id contra puertos.codigo.
+                lugar_destino_cod: puertoValido(d.lugar_destino_cod).codigo,
+              }
+            : { bl_number: bl.bl_number, es_transito: false };
+        }),
+      };
+
+      const res = await fetch(`${API_BASE}/api/bls/transito`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const detalle = Array.isArray(data.detalles)
+          ? data.detalles.map(x => `<li style="text-align:left;">${x.bl_number || "?"}: ${x.error}</li>`).join("")
+          : "";
+        throw new Error(
+          detalle
+            ? `${data.error || "No se pudo guardar"}<ul style="margin-top:8px;padding-left:20px;font-size:13px;">${detalle}</ul>`
+            : (data.error || "No se pudo guardar la decisión de tránsito")
+        );
+      }
+
+      const data = await res.json();
+      const enTransito = data.resultados.filter(r => r.sentido_operacion === "TR").length;
+
+      await onConfirmado();
+      onClose();
+
+      Swal.fire({
+        icon: "success",
+        title: "Tránsitos confirmados",
+        html: `<p>${enTransito} BL(s) marcado(s) como tránsito · ${data.actualizados - enTransito} descartado(s).</p>
+               <p style="margin-top:8px;font-size:13px;color:#6B7280;">Los BLs afectados se revalidaron.</p>`,
+        confirmButtonColor: "#0F2A44",
+      });
+    } catch (e) {
+      Swal.fire({
+        icon: "error",
+        title: "Error al guardar",
+        html: e.message || "No se pudo guardar la decisión de tránsito",
+        confirmButtonColor: "#DC2626",
+        width: "600px",
+      });
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+         onClick={(e) => { if (e.target === e.currentTarget && !guardando) onClose(); }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col border border-slate-200">
+
+        <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-slate-200 flex-shrink-0">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              Posibles BLs en tránsito
+            </h2>
+            <p className="text-sm text-slate-500 mt-1">
+              El PMS detectó <span className="font-mono text-xs bg-slate-100 px-1 rounded">SHIPMENT IN TRANSIT</span> en
+              estos BLs, pero no entrega el destino. Confirma cuáles van en tránsito y a qué puerto extranjero.
+            </p>
+          </div>
+          <button onClick={onClose} disabled={guardando}
+                  className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 disabled:opacity-40">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+          {blsPendientes.map((bl) => {
+            const d       = decisiones[bl.bl_number] || { es_transito: null, lugar_destino_cod: "" };
+            const puerto  = puertoValido(d.lugar_destino_cod);
+            const chileno = puerto && esChileno(puerto);
+            const faltaPuerto = d.es_transito === true && d.lugar_destino_cod && !puerto;
+
+            return (
+              <div key={bl.bl_number}
+                   className={`rounded-xl border p-4 transition-colors ${
+                     filaLista(bl) ? "border-emerald-200 bg-emerald-50/40" : "border-slate-200 bg-white"
+                   }`}>
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div className="min-w-0">
+                    <p className="font-mono font-semibold text-slate-800">{bl.bl_number}</p>
+                    <p className="text-xs text-slate-500 mt-0.5 truncate max-w-md">{bl.consignee || bl.shipper || "—"}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      PD actual: <span className="font-mono">{bl.puerto_descarga_cod || "—"}</span>
+                      {" · "}LD actual: <span className="font-mono">{bl.lugar_destino_cod || "—"}</span>
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button type="button" disabled={guardando}
+                            onClick={() => setDecision(bl.bl_number, { es_transito: true })}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-50 ${
+                              d.es_transito === true
+                                ? "bg-amber-500 text-white border-amber-500"
+                                : "bg-white text-amber-700 border-amber-300 hover:bg-amber-50"
+                            }`}>
+                      Es tránsito
+                    </button>
+                    <button type="button" disabled={guardando}
+                            onClick={() => setDecision(bl.bl_number, { es_transito: false, lugar_destino_cod: "" })}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-50 ${
+                              d.es_transito === false
+                                ? "bg-slate-600 text-white border-slate-600"
+                                : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
+                            }`}>
+                      Descartar
+                    </button>
+                  </div>
+                </div>
+
+                {d.es_transito === true && (
+                  <div className="mt-3 pt-3 border-t border-amber-200">
+                    <PuertoAutocomplete
+                      label="LD — Destino final del tránsito"
+                      value={d.lugar_destino_cod}
+                      onChange={v => setDecision(bl.bl_number, { lugar_destino_cod: v })}
+                      puertos={puertos}
+                      required
+                      excluirPais="CL"
+                    />
+                    {puerto && !chileno && (
+                      <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> {puerto.codigo} — {puerto.nombre}
+                      </p>
+                    )}
+                    {chileno && (
+                      <p className="text-xs text-red-600 mt-1">
+                        El destino final de un tránsito debe ser extranjero.
+                      </p>
+                    )}
+                    {faltaPuerto && (
+                      <p className="text-xs text-amber-600 mt-1">
+                        Ese código no está en el mantenedor de puertos. Elige uno de la lista.
+                      </p>
+                    )}
+                    {!d.lugar_destino_cod && (
+                      <p className="text-xs text-slate-500 mt-1">
+                        Obligatorio para confirmar el tránsito.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-slate-200 flex-shrink-0">
+          <p className="text-sm text-slate-500">
+            {decididas.length} de {blsPendientes.length} resuelto{blsPendientes.length !== 1 ? "s" : ""}
+          </p>
+          <div className="flex items-center gap-2">
+            <button onClick={onClose} disabled={guardando}
+                    className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm hover:bg-slate-50 disabled:opacity-50">
+              Cancelar
+            </button>
+            <button onClick={guardar} disabled={!todasListas || guardando}
+                    className="px-4 py-2 rounded-lg bg-[#0F2A44] text-white text-sm font-medium hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
+              {guardando && <Loader2 className="w-4 h-4 animate-spin" />}
+              Confirmar y revalidar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // COMPONENTE PRINCIPAL
 // ─────────────────────────────────────────────────────────────────────────────
 const GenerarXML = () => {
@@ -522,6 +764,14 @@ const GenerarXML = () => {
   const [naveManifiesto, setNaveManifiesto]   = useState("");
   const [viajeManifiesto, setViajeManifiesto] = useState("");
   const [showResumen, setShowResumen]         = useState(false);
+
+  // ── Tránsito ─────────────────────────────────────────────────────────────
+  const [showOnlyTransito, setShowOnlyTransito] = useState(false);
+  const [showTransito, setShowTransito]         = useState(false);
+  const [puertos, setPuertos]                   = useState([]);
+  // Qué BLs muestra el modal: todos los pendientes (desde el chip) o solo los
+  // seleccionados (cuando se intenta generar).
+  const [transitoPendientes, setTransitoPendientes] = useState([]);
 
   // ── Paginación ───────────────────────────────────────────────────────────
   const [currentPage,  setCurrentPage]  = useState(1);
@@ -554,7 +804,18 @@ const GenerarXML = () => {
     setFechaRecepcion("");
     fetchBLs();
     fetchManifiestoInfo();
+    fetchPuertos();
   }, [id]);
+
+  // Los puertos alimentan el autocompletado del modal de tránsito.
+  const fetchPuertos = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/puertos`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setPuertos(Array.isArray(data) ? data : []);
+    } catch { /* silencioso: el modal avisa si no hay puertos */ }
+  };
 
   const fetchManifiestoInfo = async () => {
     try {
@@ -584,12 +845,20 @@ const GenerarXML = () => {
     if (searchTerm) { const t = searchTerm.toLowerCase(); r = r.filter(bl => bl.bl_number?.toLowerCase().includes(t) || bl.shipper?.toLowerCase().includes(t) || bl.consignee?.toLowerCase().includes(t)); }
     if (filterStatus !== "all") r = r.filter(bl => bl.status === filterStatus);
     if (showOnlyErrors)         r = r.filter(bl => bl.valid_status === "ERROR");
+    if (showOnlyTransito)       r = r.filter(esTransitoPendiente);
     if (filterPOL.size > 0)     r = r.filter(bl => filterPOL.has(getRegion(bl)));
     return r.sort((a, b) => a.bl_number.localeCompare(b.bl_number));
-  }, [bls, searchTerm, filterStatus, showOnlyErrors, filterPOL]);
+  }, [bls, searchTerm, filterStatus, showOnlyErrors, showOnlyTransito, filterPOL]);
 
   // Reset página al cambiar filtros
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, filterStatus, showOnlyErrors, filterPOL, itemsPerPage]);
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, filterStatus, showOnlyErrors, showOnlyTransito, filterPOL, itemsPerPage]);
+
+  const transitosPendientes = useMemo(() => bls.filter(esTransitoPendiente), [bls]);
+
+  const abrirModalTransito = (lista) => {
+    setTransitoPendientes(lista);
+    setShowTransito(true);
+  };
 
   // Paginación sobre los BLs filtrados
   const totalPages     = Math.ceil(filteredAndSortedBLs.length / itemsPerPage);
@@ -666,6 +935,26 @@ const GenerarXML = () => {
     }
 
     const arr = Array.from(selectedBls);
+
+    // Va ANTES del corte por errores: confirmar un tránsito cambia el LD y el
+    // sentido, o sea que puede cambiar los errores que se mostrarían acá.
+    const transitoSinResolver = bls.filter(bl => arr.includes(bl.bl_number) && esTransitoPendiente(bl));
+    if (transitoSinResolver.length > 0) {
+      const r = await Swal.fire({
+        icon: "warning",
+        title: "Hay posibles tránsitos sin confirmar",
+        html: `<p>${transitoSinResolver.length} BL(s) seleccionado(s) traen <strong>SHIPMENT IN TRANSIT</strong> en el PMS y todavía no se confirman.</p>
+               <p style="margin-top:8px;font-size:13px;color:#6B7280;">Si van en tránsito, el XML debe declararlo antes de presentarlo.</p>`,
+        showCancelButton: true,
+        confirmButtonText: "Revisar ahora",
+        cancelButtonText: "Cancelar",
+        confirmButtonColor: "#F59E0B",
+        cancelButtonColor: "#6B7280",
+      });
+      if (r.isConfirmed) abrirModalTransito(transitoSinResolver);
+      return;
+    }
+
     const conErrores = bls.filter(bl => arr.includes(bl.bl_number) && bl.valid_status === "ERROR");
 
     if (conErrores.length > 0) {
@@ -841,7 +1130,7 @@ const GenerarXML = () => {
           <>
             {/* Filtros */}
             <div className="mb-4 bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input type="text" placeholder="Buscar BL, Shipper, Consignee..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
@@ -852,6 +1141,37 @@ const GenerarXML = () => {
                   <input type="checkbox" checked={showOnlyErrors} onChange={(e) => setShowOnlyErrors(e.target.checked)} className="w-4 h-4 rounded border-slate-300" />
                   <span className="text-sm text-slate-700">Solo con errores críticos</span>
                 </label>
+
+                {/* Tránsitos sugeridos por el PMS y todavía sin decidir. El
+                    chip filtra la grilla; el botón abre el modal para resolverlos. */}
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
+                  transitosPendientes.length > 0 ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-slate-50"
+                }`}>
+                  {/* El checkbox nunca se deshabilita: si se apagara al llegar
+                      a 0 quedaría marcado y sin forma de desmarcarlo, con la
+                      lista vacía. Con 0 pendientes simplemente no muestra nada,
+                      igual que "Solo con errores críticos". */}
+                  <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showOnlyTransito}
+                      onChange={(e) => setShowOnlyTransito(e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-300"
+                    />
+                    <span className={`text-sm truncate ${transitosPendientes.length > 0 ? "text-amber-800" : "text-slate-600"}`}>
+                      Posible tránsito ({transitosPendientes.length})
+                    </span>
+                  </label>
+                  {transitosPendientes.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => abrirModalTransito(transitosPendientes)}
+                      className="flex-shrink-0 text-xs font-medium text-amber-700 border border-amber-300 rounded-md px-2 py-1 hover:bg-amber-100 transition-colors"
+                    >
+                      Revisar
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="mt-3 text-sm text-slate-600">
                 Mostrando{" "}
@@ -1022,6 +1342,15 @@ const GenerarXML = () => {
           manifiestoId={id}
           bls={filteredAndSortedBLs}
           onClose={() => setShowResumen(false)}
+        />
+      )}
+
+      {showTransito && transitoPendientes.length > 0 && (
+        <ConfirmarTransitoModal
+          blsPendientes={transitoPendientes}
+          puertos={puertos}
+          onClose={() => setShowTransito(false)}
+          onConfirmado={fetchBLs}
         />
       )}
     </div>
