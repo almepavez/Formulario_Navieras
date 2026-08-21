@@ -77,6 +77,12 @@ const ExpoBLEdit = () => {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
     const [tipoOperacion, setTipoOperacion] = useState("S");
+    // Las automáticas se muestran pero no se editan: son un reflejo del estado
+    // del BL, no un campo. Van en su propio estado y NO en formData, para que
+    // el guardado no pueda devolverlas al backend por accidente — si volvieran
+    // sin el campo `origen`, el merge las tomaría por manuales y quedarían
+    // duplicadas para siempre.
+    const [observacionesAuto, setObservacionesAuto] = useState([]);
     const [puertos, setPuertos] = useState([]);
     const [items, setItems] = useState([]);
     const [contenedores, setContenedores] = useState([]);
@@ -175,6 +181,16 @@ const ExpoBLEdit = () => {
                     return `${dd}/${mm}/${yyyy} ${hhmm}`;
                 };
 
+                // bls.observaciones trae automáticas y manuales juntas, cada
+                // una con su campo `origen`. Lo que venga sin `origen` es
+                // formato antiguo y cuenta como manual.
+                const obsTodas = (() => {
+                    const raw = typeof dataBL.observaciones === 'string'
+                        ? (() => { try { return JSON.parse(dataBL.observaciones); } catch { return []; } })()
+                        : dataBL.observaciones;
+                    return Array.isArray(raw) ? raw : [];
+                })();
+
                 setFormData({
                     bl_number: dataBL.bl_number || "", viaje: dataBL.viaje || "",
                     tipo_servicio: dataBL.tipo_servicio_id === 1 ? "FF" : dataBL.tipo_servicio_id === 2 ? "MM" : "",
@@ -212,12 +228,12 @@ const ExpoBLEdit = () => {
                     peso_bruto: dataBL.peso_bruto || "", unidad_peso: dataBL.unidad_peso || "",
                     volumen: dataBL.volumen || "", unidad_volumen: dataBL.unidad_volumen || "",
                     bultos: dataBL.bultos || "",
-                    observaciones: dataBL.observaciones
-                        ? (typeof dataBL.observaciones === 'string'
-                            ? (() => { try { return JSON.parse(dataBL.observaciones); } catch { return []; } })()
-                            : dataBL.observaciones)
-                        : [],
+                    // Solo las manuales entran a formData: son las únicas
+                    // editables y las únicas que se devuelven al guardar.
+                    observaciones: obsTodas.filter(o => o.origen !== 'auto'),
                 });
+
+                setObservacionesAuto(obsTodas.filter(o => o.origen === 'auto'));
 
                 if (dataBL.almacenador_id) {
                     setAlmacenistaOriginal({
@@ -706,6 +722,17 @@ const ExpoBLEdit = () => {
                     })
                 });
             }
+            // Revalidar va al final, después de items, transbordos y
+            // contenedores: revalidarBLCompleto() recalcula las observaciones
+            // automáticas, y el 14 SIN TRB depende de los transbordos que
+            // recién se guardaron arriba. Corriéndolo antes daría el resultado
+            // viejo. Mismo patrón que usa CargaSueltaEdit.
+            try {
+                await fetch(`${API_BASE}/api/bls/${blNumber}/revalidar`, { method: "POST" });
+            } catch (e) {
+                console.warn("No se pudo revalidar automáticamente:", e);
+            }
+
             await Swal.fire({ icon: "success", title: "¡Cambios guardados!", html: `<p class="text-sm text-gray-600">El BL <strong>${formData.bl_number}</strong> se actualizó correctamente</p>`, timer: 2000, showConfirmButton: false });
             const params = new URLSearchParams(window.location.search);
             const returnTo = params.get("returnTo");
@@ -1317,10 +1344,70 @@ const ExpoBLEdit = () => {
                             {/* ── Observaciones (solo IMPO, dentro del step 2) ── */}
                             <div className="mt-6 pt-6 border-t border-slate-200">
                                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-3 text-sm text-slate-600">
-                                    <strong>Observaciones automáticas:</strong> El sistema agrega automáticamente
-                                    <span className="font-mono bg-slate-200 px-1 mx-1 rounded">14: SIN TRB</span> si no hay transbordos.
-                                    Aquí puedes agregar observaciones manuales adicionales.
+                                    <strong>Observaciones automáticas:</strong> las calcula el sistema a partir del
+                                    estado del BL, así que no se editan ni se borran. Se actualizan solas al guardar:
+                                    por ejemplo el <span className="font-mono bg-slate-200 px-1 mx-1 rounded">14: SIN TRB</span>
+                                    desaparece en cuanto el BL tiene un transbordo.
                                 </div>
+
+                                {/* Automáticas: reflejo del estado del BL, solo lectura */}
+                                <div className="mb-5">
+                                    <h3 className="font-semibold text-slate-800 mb-2">Observaciones automáticas</h3>
+                                    {observacionesAuto.length === 0 ? (
+                                        <p className="text-sm text-slate-500 italic">
+                                            Este BL no tiene observaciones automáticas.
+                                        </p>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {observacionesAuto.map((obs, idx) => {
+                                                const manualEnConflicto = (formData.observaciones || [])
+                                                    .find(m => m.nombre === obs.nombre && !m.conflicto);
+                                                return (
+                                                    <div key={idx} className={`rounded-lg p-3 border ${manualEnConflicto ? "border-red-300 bg-red-50" : "border-slate-200 bg-slate-50"}`}>
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="flex-shrink-0 px-2 py-1 rounded text-xs font-bold font-mono bg-slate-200 text-slate-700 border border-slate-300">
+                                                                {obs.nombre}
+                                                            </span>
+                                                            <span className="text-sm text-slate-700 flex-1 min-w-0">{obs.contenido}</span>
+                                                            <span className="flex-shrink-0 text-[10px] uppercase tracking-wide font-semibold text-slate-500 bg-white border border-slate-300 rounded-full px-2 py-0.5">
+                                                                Automática
+                                                            </span>
+                                                        </div>
+
+                                                        {manualEnConflicto && (
+                                                            <div className="mt-3 pt-3 border-t border-red-200">
+                                                                <p className="text-sm text-red-700 font-medium">
+                                                                    Hay una observación manual con el código {obs.nombre}.
+                                                                </p>
+                                                                <p className="text-xs text-red-600 mt-0.5 mb-2">
+                                                                    Mientras no elijas, este BL no genera XML.
+                                                                </p>
+                                                                <div className="flex flex-wrap gap-2">
+                                                                    <button type="button"
+                                                                        onClick={() => updateField("observaciones", formData.observaciones.map(m => m === manualEnConflicto ? { ...m, conflicto: "ambas" } : m))}
+                                                                        className="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-300 bg-white text-slate-700 hover:bg-slate-50">
+                                                                        Dejar ambas
+                                                                    </button>
+                                                                    <button type="button"
+                                                                        onClick={() => updateField("observaciones", formData.observaciones.map(m => m === manualEnConflicto ? { ...m, conflicto: "reemplaza" } : m))}
+                                                                        className="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-300 bg-white text-slate-700 hover:bg-slate-50">
+                                                                        Solo la manual
+                                                                    </button>
+                                                                    <button type="button"
+                                                                        onClick={() => updateField("observaciones", formData.observaciones.filter(m => m !== manualEnConflicto))}
+                                                                        className="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-300 bg-white text-slate-700 hover:bg-slate-50">
+                                                                        Solo la automática
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+
                                 <div className="flex items-center justify-between mb-3">
                                     <h3 className="font-semibold text-slate-800">Observaciones manuales</h3>
                                     <button
@@ -1365,6 +1452,26 @@ const ExpoBLEdit = () => {
                                                     />
                                                 </div>
                                             </div>
+
+                                            {obs.conflicto && (
+                                                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center gap-2 text-xs text-slate-600">
+                                                    <span>
+                                                        Conflicto con la automática {obs.nombre} resuelto:{" "}
+                                                        <strong>{obs.conflicto === "ambas" ? "se emiten ambas" : "solo esta manual"}</strong>
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => updateField("observaciones", formData.observaciones.map((o, i) => {
+                                                            if (i !== idx) return o;
+                                                            const { conflicto, ...resto } = o;
+                                                            return resto;
+                                                        }))}
+                                                        className="text-blue-600 hover:underline"
+                                                    >
+                                                        cambiar
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                 </div>

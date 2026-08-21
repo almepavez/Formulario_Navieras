@@ -52,6 +52,7 @@ const TIPO_RESOLUCION_MAP = {
   puerto:             { prioridad: 2, tipo: "MANTENEDOR",  mantenedorPath: "/mantenedores/puertos"              },
   puerto_embarque:    { prioridad: 2, tipo: "MANTENEDOR",  mantenedorPath: "/mantenedores/puertos"              },
   puerto_descarga:    { prioridad: 2, tipo: "MANTENEDOR",  mantenedorPath: "/mantenedores/puertos"              },
+  observaciones:      { prioridad: 3, tipo: "BL_DIRECTO",  mantenedorPath: null },
   fecha_emision:      { prioridad: 3, tipo: "BL_DIRECTO",  mantenedorPath: null },
   fecha_embarque:     { prioridad: 3, tipo: "BL_DIRECTO",  mantenedorPath: null },
   fecha_zarpe:        { prioridad: 3, tipo: "BL_DIRECTO",  mantenedorPath: null },

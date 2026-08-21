@@ -376,101 +376,138 @@ const PAISES_TRANSITO = {
   BR: 'BRASIL',
 };
 
-const generarObservaciones = (bl, transbordos, tipo) => {
+// Parsea bls.observaciones. Devuelve el arreglo, o null si el valor no es un
+// arreglo (texto plano heredado de carga suelta) — quien llame decide qué hacer
+// con ese caso, pero NUNCA debe pisarlo.
+const parseObservaciones = (valor) => {
+  if (!valor) return [];
+  const raw = typeof valor === 'string'
+    ? (() => { try { return JSON.parse(valor); } catch { return null; } })()
+    : valor;
+  return Array.isArray(raw) ? raw : null;
+};
+
+// Calcula las observaciones automáticas a partir del estado actual del BL.
+// Es cálculo puro: no mira lo que el operador cargó a mano ni omite nada por
+// coincidencia de código. Si una manual choca con una de estas, eso es un
+// conflicto que se resuelve en combinarObservaciones(), no acá — el operador
+// tiene que enterarse, no perder la automática en silencio.
+const calcularObservacionesAuto = (bl, transbordos, tipo) => {
   const { esCargaSuelta, esImpo, esTránsito } = tipo;
+
+  // Carga suelta y exportación no generan automáticas.
+  if (esCargaSuelta || !esImpo) return [];
+
   const obs = [];
 
-  if (esCargaSuelta) {
-    // Carga suelta: observaciones libres guardadas en bl.observaciones
-    if (bl.observaciones) {
-      const raw = typeof bl.observaciones === 'string'
-        ? (() => { try { return JSON.parse(bl.observaciones); } catch { return null; } })()
-        : bl.observaciones;
+  // El 14 habla de transbordos, no de sentido: aplica igual a importación
+  // normal y a tránsito.
+  if (!transbordos || transbordos.length === 0) {
+    obs.push({ nombre: '14', contenido: 'SIN TRB' });
+  }
 
-      if (Array.isArray(raw)) {
-        raw.forEach(o => obs.push({ nombre: o.nombre || 'GRAL', contenido: o.contenido || '' }));
-      } else {
-        obs.push({ nombre: 'GRAL', contenido: bl.observaciones });
-        obs.push({ nombre: 'MOT', contenido: 'LISTA DE ENCARGO' });
-      }
+  if (esTránsito) {
+    // Oficio Circular 182 de Aduanas (29-05-2015): el destino final de un
+    // tránsito se declara como observación con código por país.
+    // El prefijo sale del código estándar del puerto, NO del que va al XML
+    // — ese puede venir traducido a SIDEMAR y su prefijo no es el país.
+    // Acá no se exige que el destino difiera del puerto de descarga (la
+    // condición del 12 de importación): en un tránsito el destino final es
+    // extranjero por definición, y la ingesta PMS deja el LD copiado del
+    // puerto de descarga hasta que el operador lo corrige.
+    const pais = String(bl.lugar_destino_codigo_pais || '').substring(0, 2).toUpperCase();
+    if (pais && pais !== 'CL') {
+      if (pais === 'BO') obs.push({ nombre: '10', contenido: 'BOLIVIA' });
+      else if (pais === 'PE') obs.push({ nombre: '11', contenido: 'PERU' });
+      else obs.push({ nombre: '12', contenido: PAISES_TRANSITO[pais] || pais });
     }
-  } else if (esImpo) {
-    // IMPO y TRÁNSITO: observaciones automáticas según reglas.
-    // Las manuales se parsean acá arriba para poder consultarlas antes de
-    // empujar las automáticas, pero se emiten al final, como siempre.
-    const manuales = (() => {
-      if (!bl.observaciones) return [];
-      const raw = typeof bl.observaciones === 'string'
-        ? (() => { try { return JSON.parse(bl.observaciones); } catch { return null; } })()
-        : bl.observaciones;
-      return Array.isArray(raw) ? raw : [];
-    })();
-
-    const yaTieneCodigo = (nombre) =>
-      manuales.some(o => (o.nombre || 'GRAL') === nombre);
-
-    // GRAL es un cajón genérico, no un código: el operador puede tener ahí una
-    // nota legítima y distinta. Para GRAL se compara la glosa exacta.
-    const yaTieneGlosa = (nombre, contenido) =>
-      manuales.some(o =>
-        (o.nombre || 'GRAL') === nombre &&
-        String(o.contenido || '').trim().toUpperCase() === contenido.toUpperCase()
-      );
-
-    // La antiduplicación aplica SOLO a tránsito. En importación normal el
-    // comportamiento histórico es empujar la automática aunque el operador
-    // haya cargado una manual con el mismo código, y no se cambia.
-    const pushAuto = (nombre, contenido) => {
-      if (esTránsito) {
-        const duplicada = nombre === 'GRAL'
-          ? yaTieneGlosa(nombre, contenido)
-          : yaTieneCodigo(nombre);
-        if (duplicada) return;
-      }
-      obs.push({ nombre, contenido });
-    };
-
-    // El 14 habla de transbordos, no de sentido: aplica igual a importación
-    // normal y a tránsito.
-    if (!transbordos || transbordos.length === 0) {
-      pushAuto('14', 'SIN TRB');
+    obs.push({ nombre: 'GRAL', contenido: 'Por cuenta y riesgo del consignatario' });
+  } else if (bl.lugar_destino_codigo && bl.lugar_destino_codigo !== bl.puerto_descarga_codigo) {
+    const pais = bl.lugar_destino_codigo.substring(0, 2);
+    if (pais && pais !== 'CL') {
+      obs.push({ nombre: '12', contenido: pais === 'AR' ? 'ARGENTINA' : pais });
     }
+  }
 
-    if (esTránsito) {
-      // Oficio Circular 182 de Aduanas (29-05-2015): el destino final de un
-      // tránsito se declara como observación con código por país.
-      // El prefijo sale del código estándar del puerto, NO del que va al XML
-      // — ese puede venir traducido a SIDEMAR y su prefijo no es el país.
-      // Acá no se exige que el destino difiera del puerto de descarga (la
-      // condición del 12 de importación): en un tránsito el destino final es
-      // extranjero por definición, y la ingesta PMS deja el LD copiado del
-      // puerto de descarga hasta que el operador lo corrige.
-      const pais = String(bl.lugar_destino_codigo_pais || '').substring(0, 2).toUpperCase();
-      if (pais && pais !== 'CL') {
-        if (pais === 'BO') pushAuto('10', 'BOLIVIA');
-        else if (pais === 'PE') pushAuto('11', 'PERU');
-        else pushAuto('12', PAISES_TRANSITO[pais] || pais);
-      }
-      pushAuto('GRAL', 'Por cuenta y riesgo del consignatario');
-    } else if (bl.lugar_destino_codigo && bl.lugar_destino_codigo !== bl.puerto_descarga_codigo) {
-      const pais = bl.lugar_destino_codigo.substring(0, 2);
-      if (pais && pais !== 'CL') {
-        pushAuto('12', pais === 'AR' ? 'ARGENTINA' : pais);
-      }
-    }
+  return obs;
+};
 
-    // Observaciones manuales adicionales
-    manuales.forEach(o => obs.push({ nombre: o.nombre || 'GRAL', contenido: o.contenido || '' }));
+// Une automáticas y manuales en la lista que se guarda en bls.observaciones.
+//
+// El orden es automáticas primero y manuales después, que es el orden en que el
+// XML las viene emitiendo desde siempre.
+//
+// Una manual marcada `conflicto: 'reemplaza'` suprime la automática de ese
+// código: es la opción C) del operador cuando se le avisó del choque.
+// Una marcada `conflicto: 'ambas'` convive con la automática sin volver a
+// avisar. Una manual sin marca que choque con una automática vigente es un
+// conflicto sin resolver, y se devuelve para que el llamador levante el ERROR.
+const combinarObservaciones = (autos, manuales) => {
+  const reemplazados = new Set(
+    manuales.filter(m => m.conflicto === 'reemplaza').map(m => m.nombre)
+  );
+  const autosVigentes = autos.filter(a => !reemplazados.has(a.nombre));
+
+  // El origen se normaliza al escribir: lo que venía sin campo `origen`
+  // (formato antiguo) queda marcado como manual, nunca como auto. Si se
+  // marcara como auto, el próximo recálculo lo borraría.
+  const lista = [
+    ...autosVigentes.map(a => ({ nombre: a.nombre, contenido: a.contenido, origen: 'auto' })),
+    ...manuales.map(m => ({
+      nombre: m.nombre || 'GRAL',
+      contenido: m.contenido || '',
+      origen: 'manual',
+      ...(m.conflicto ? { conflicto: m.conflicto } : {}),
+    })),
+  ];
+
+  const conflictos = manuales
+    .filter(m => !m.conflicto && autosVigentes.some(a => a.nombre === (m.nombre || 'GRAL')))
+    .map(m => m.nombre || 'GRAL');
+
+  return { lista, conflictos: [...new Set(conflictos)] };
+};
+
+// Lee las observaciones ya materializadas en bls.observaciones y las deja en la
+// forma que espera el XML.
+//
+// El cálculo vive en revalidarBLCompleto(), no acá. El fallback en vivo se
+// dispara cuando el campo está vacío, que es el estado de todo BL anterior a la
+// materialización (no se hace backfill masivo).
+//
+// La condición es "lista vacía" y NO valid_last_run: los BLs que ya existían
+// fueron revalidados por el código viejo, que no materializaba, así que tienen
+// valid_last_run puesto y observaciones en NULL. Con ese marcador se habrían
+// quedado sin el 14 SIN TRB en el XML.
+//
+// Es seguro por construcción: si la materialización sí corrió y aun así no hay
+// observaciones, el cálculo en vivo devuelve la misma lista vacía, porque es la
+// misma función. Generar el XML nunca escribe en la base.
+const generarObservaciones = (bl, transbordos, tipo) => {
+  const { esCargaSuelta } = tipo;
+  const obs = [];
+
+  const almacenadas = parseObservaciones(bl.observaciones);
+
+  if (esCargaSuelta && almacenadas === null && bl.observaciones) {
+    // Carga suelta con texto plano: se respeta el formato heredado.
+    obs.push({ nombre: 'GRAL', contenido: bl.observaciones });
+    obs.push({ nombre: 'MOT', contenido: 'LISTA DE ENCARGO' });
+    return { observacion: obs };
+  }
+
+  const lista = almacenadas || [];
+
+  if (lista.length > 0) {
+    lista.forEach(o => obs.push({ nombre: o.nombre || 'GRAL', contenido: o.contenido || '' }));
   } else {
-    // EXPO: solo observaciones manuales
-    if (bl.observaciones) {
-      const raw = typeof bl.observaciones === 'string'
-        ? (() => { try { return JSON.parse(bl.observaciones); } catch { return null; } })()
-        : bl.observaciones;
-      if (Array.isArray(raw)) {
-        raw.forEach(o => obs.push({ nombre: o.nombre || 'GRAL', contenido: o.contenido || '' }));
-      }
-    }
+    // Sin materializar: se calculan las automáticas al vuelo. Sale el mismo XML
+    // que si estuvieran guardadas, porque es la misma función de cálculo.
+    const { lista: combinada } = combinarObservaciones(
+      calcularObservacionesAuto(bl, transbordos, tipo),
+      []
+    );
+    combinada.forEach(o => obs.push({ nombre: o.nombre, contenido: o.contenido }));
   }
 
   return obs.length > 0 ? { observacion: obs } : undefined;
@@ -700,4 +737,7 @@ module.exports = {
   generarReferencias,
   detectarTipo,
   generarObservaciones,
+  parseObservaciones,
+  calcularObservacionesAuto,
+  combinarObservaciones,
 };
