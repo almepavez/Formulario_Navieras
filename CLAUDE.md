@@ -122,7 +122,38 @@ One large Express file — all routes, middleware, and business logic live here.
 
 **Known duplication — `parseFechaCLtoMySQL`:** the function is defined **three times** with **two different semantics**. Module-level (line ~5514) validates that the date really exists and returns `null` when it doesn't; the two local copies (lines ~5366 and ~7537, inside the carga-suelta update and create endpoints) shadow it and return the input string unchanged instead. Callers therefore behave differently depending on which endpoint they hit. Unifying them is pending work — check which copy is in scope before touching date handling.
 
-`xmlBuilder.js` exports include `buildXML`, `getBLQuery`, `getContenedoresQuery`, `getTransbordosQuery`, `detectarTipo`, `generarReferencias`, and `generarObservaciones` (among other helpers). The `detectarTipo(bl)` helper returns booleans `{ esCargaSuelta, esEmpty, esImpo, esExpo, esTránsito, sinVolumen }` and drives XML branching logic.
+`xmlBuilder.js` exports include `buildXML`, `getBLQuery`, `getContenedoresQuery`, `getTransbordosQuery`, `detectarTipo`, `generarReferencias`, `generarObservaciones`, `calcularObservacionesAuto`, `combinarObservaciones`, and `parseObservaciones` (among other helpers). The `detectarTipo(bl)` helper returns booleans `{ esCargaSuelta, esEmpty, esImpo, esExpo, esTránsito, sinVolumen }` and drives XML branching logic.
+
+### Observations
+
+`bls.observaciones` holds a JSON array of `{ nombre, contenido, origen }`, where `origen` is `'auto'` or `'manual'`. The automatic ones are **materialized**: they are computed and stored, not derived at XML time. Before this, they existed only inside the XML builder, so the BL detail view showed them (it called the function) while the editor did not (it read the empty column) — "silent observations".
+
+**Where it happens.** `materializarObservaciones(conn, blId)` in `index.js` computes and writes. It is called from **two** places, because `revalidarBLCompleto()` alone does not cover every path:
+
+- `revalidarBLCompleto()`, right after the FK re-resolution (the computation depends on the resolved LD code).
+- the **PMS ingestion loop**, which does *not* go through `revalidarBLCompleto()` — it builds its validations inline. Without this call a freshly ingested BL would be born with `observaciones` NULL.
+
+**The merge never replaces the column.** Manual entries always survive. Crucially, an entry **without** an `origen` field (legacy format) counts as **manual**, never as auto — treating it as auto would delete it on the next recalculation. `combinarObservaciones()` in `xmlBuilder.js` owns this and writes autos first, manuals after, which is the order the XML has always emitted.
+
+**Automatic ones are read-only in the UI.** `ExpoBLEdit` renders them in their own block with a badge and no controls, and keeps them in a separate `observacionesAuto` state — **not** in `formData`. That is deliberate: if the editor sent them back, they would arrive without `origen`, the merge would take them for manual, and they would duplicate permanently. Only manuals are sent on save.
+
+**Reactivity comes from the recalculation, not from events.** The editor calls `POST /api/bls/:blNumber/revalidar` at the end of its save sequence (after items, transbordos and contenedores — the `14 SIN TRB` depends on transbordos, so running it earlier would recompute from stale data). Add a transbordo and the `14` disappears; remove it and it comes back.
+
+**Duplicate code = blocking conflict.** A manual sharing its `nombre` with a live automatic one raises an `ERROR` (`campo: observaciones`) in `revalidarBLCompleto()`, in the ingestion, and in `validateBLForXML()`, so the BL does not generate XML. The operator resolves it in the editor, and the choice is persisted **on the manual entry**:
+
+| Choice | Stored | Effect |
+|---|---|---|
+| Leave both | `conflicto: 'ambas'` | both are emitted, no further warning |
+| Keep only the manual | `conflicto: 'reemplaza'` | the automatic one is suppressed on every recalculation |
+| Keep only the automatic | manual entry deleted | nothing to mark |
+
+There is deliberately **no `descartada` flag on automatic entries** — they are a reflection of the BL's state, so suppression is expressed on the manual side.
+
+**Reading, and the fallback.** `generarObservaciones()` no longer computes: it reads the stored list. When that list is **empty** it falls back to computing live, which is the state of every BL predating materialization (there was no backfill). The trigger is emptiness and **not `valid_last_run`**: the pre-existing BLs were revalidated by the old code, which did not materialize, so they carry a `valid_last_run` with a NULL column — keying on it would have silently dropped their `14 SIN TRB` from the XML. The fallback is safe because it calls the same computation, and generating XML never writes.
+
+Carga suelta keeps its legacy plain-text branch (`GRAL` + `MOT LISTA DE ENCARGO`), and `materializarObservaciones()` leaves any non-array value untouched rather than overwriting it. BB and EXPO have no automatic observations.
+
+Out of scope for now: warning before a change ("adding this transbordo will remove observation 14"), and moving `OBS_TIPOS` out of `ExpoBLEdit.jsx` into a `tipos_observacion` table.
 
 ### Transit (TR) per BL
 
@@ -140,7 +171,7 @@ Three columns on `bls` carry it:
 
 **The PMS only suggests, it never decides.** `parsePmsTxt()` tests `/SHIPMENT\s+IN\s+TRANSIT/i` over the joined type-47 lines (next to the SOC text fallback) and sets `transito_sugerido`. The destination itself is **not parseable** — it comes split across 30-char columns with sequence numbers interleaved — so the operator picks the port by hand. Ingestion does **not** touch the sentido or `lugar_destino_cod`, which keeps being copied from the discharge port.
 
-**Per the oficio,** PD and LEM stay as they are (the real national port); only LD becomes the foreign destination, declared as an observation. In `generarObservaciones()`, when `esTránsito`:
+**Per the oficio,** PD and LEM stay as they are (the real national port); only LD becomes the foreign destination, declared as an observation. In `calcularObservacionesAuto()`, when `esTránsito`:
 
 | País del LD | Código | Glosa |
 |---|---|---|
@@ -148,7 +179,7 @@ Three columns on `bls` carry it:
 | `PE` | `11` | `PERU` |
 | otro | `12` | `PAISES_TRANSITO[país]` (AR/UY/PY/BR) o el prefijo crudo |
 
-plus a `GRAL` with `Por cuenta y riesgo del consignatario`. The country prefix is read from `lugar_destino_codigo_pais` (alias for `ld.codigo`), **never** from `lugar_destino_codigo` — that one is `COALESCE(codigo_sidemar, codigo)` and a SIDEMAR code's prefix is not the country. On transit only, an automatic code is skipped when the operator already loaded one by hand (`GRAL` is matched by exact glosa, since it is a generic bucket); **normal imports keep duplicating, as they always did**.
+plus a `GRAL` with `Por cuenta y riesgo del consignatario`. The country prefix is read from `lugar_destino_codigo_pais` (alias for `ld.codigo`), **never** from `lugar_destino_codigo` — that one is `COALESCE(codigo_sidemar, codigo)` and a SIDEMAR code's prefix is not the country. A manual observation carrying one of these codes is a **conflict**, not a silent override — see **Observations** below.
 
 **Validation.** When the resolved sentido is `TR`, both `revalidarBLCompleto()` and `validateBLForXML()` add an `ERROR` if `lugar_destino_cod` is blank or if its country is `CL`. The pre-existing LD validations are untouched, so a blank LD raises both the generic and the transit-specific error.
 
