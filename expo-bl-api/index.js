@@ -1018,13 +1018,17 @@ app.get("/api/mantenedores/puertos/:id", async (req, res) => {
 app.post("/api/mantenedores/puertos", async (req, res) => {
   const conn = await pool.getConnection();
   try {
-    await conn.beginTransaction();
-
     const { codigo, nombre, codigo_sidemar, codigo_aduana, region } = req.body;
 
+    // La validación va ANTES de abrir la transacción: si se retorna con una
+    // transacción abierta, el finally devuelve la conexión al pool sin cerrarla
+    // y, con REPEATABLE READ, todo lo que se lea después en esa conexión sale
+    // de un snapshot congelado. Eso ya produjo XMLs con datos viejos.
     if (!codigo || !nombre) {
       return res.status(400).json({ error: "codigo y nombre son obligatorios" });
     }
+
+    await conn.beginTransaction();
 
     const codigoUpper = codigo.trim().toUpperCase();
 
@@ -1116,14 +1120,16 @@ app.post("/api/mantenedores/puertos", async (req, res) => {
 app.put("/api/mantenedores/puertos/:id", async (req, res) => {
   const conn = await pool.getConnection();
   try {
-    await conn.beginTransaction();
-
     const { codigo, nombre, codigo_sidemar, codigo_aduana, region } = req.body;
     const { id } = req.params;
 
+    // La validación va ANTES de abrir la transacción: ver la nota en
+    // POST /api/mantenedores/puertos.
     if (!codigo || !nombre) {
       return res.status(400).json({ error: "codigo y nombre son obligatorios" });
     }
+
+    await conn.beginTransaction();
 
     const codigoUpper = codigo.trim().toUpperCase();
 
