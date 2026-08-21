@@ -83,6 +83,13 @@ const ExpoBLEdit = () => {
     // sin el campo `origen`, el merge las tomaría por manuales y quedarían
     // duplicadas para siempre.
     const [observacionesAuto, setObservacionesAuto] = useState([]);
+    // Sentido del MANIFIESTO, aparte del sentido del BL: el tránsito es solo
+    // importación, así que el control ni se ofrece en una exportación.
+    const [sentidoManifiesto, setSentidoManifiesto] = useState("S");
+    const [puertoDescargaCod, setPuertoDescargaCod] = useState("");
+    const [transitoDestino, setTransitoDestino] = useState("");
+    const [guardandoTransito, setGuardandoTransito] = useState(false);
+    const [recargar, setRecargar] = useState(0);
     const [puertos, setPuertos] = useState([]);
     const [items, setItems] = useState([]);
     const [contenedores, setContenedores] = useState([]);
@@ -138,8 +145,13 @@ const ExpoBLEdit = () => {
                     throw new Error(`Error ${resBL.status}: No se pudo cargar el BL`);
                 }
                 const dataBL = await resBL.json();
-                const opType = dataBL.tipo_operacion || "S";
+                // El sentido del BL manda sobre el del manifiesto: un BL puede
+                // ir en tránsito dentro de un manifiesto de importación. Es la
+                // misma regla del COALESCE de getBLQuery.
+                const opType = dataBL.sentido_operacion || dataBL.tipo_operacion || "S";
                 setTipoOperacion(opType);
+                setSentidoManifiesto(dataBL.tipo_operacion || "S");
+                setPuertoDescargaCod(dataBL.puerto_descarga_cod || "");
 
                 const [resPuertos, resTiposBulto, resTiposCnt, resMapeo] = await Promise.all([
                     fetch(`${API_BASE}/api/puertos`),
@@ -248,7 +260,7 @@ const ExpoBLEdit = () => {
                 if (resIC.ok) {
                     const d = await resIC.json();
                     setItems(d.items || []);
-                    const opType = dataBL.tipo_operacion || "S";
+                    const opType = dataBL.sentido_operacion || dataBL.tipo_operacion || "S";
                     const esImpoLocal = opType === "I" || opType === "TR" || opType === "TRB";
 
                     setContenedores((d.contenedores || []).map(c => ({
@@ -276,7 +288,89 @@ const ExpoBLEdit = () => {
             }
         };
         if (blNumber) fetchData();
-    }, [blNumber]);
+        // `recargar` permite volver a leer el BL después de marcar o deshacer
+        // un tránsito: esa acción cambia el lugar de destino en el servidor y
+        // el formulario quedaría con el valor viejo.
+    }, [blNumber, recargar]);
+
+    const esTransito = tipoOperacion === "TR";
+    // El tránsito solo existe en importación (Oficio Circular 182).
+    const permiteTransito = sentidoManifiesto !== "S";
+
+    const aplicarTransito = async (esTransitoNuevo) => {
+        const destino = esTransitoNuevo
+            ? puertos.find(p =>
+                String(p.codigo || "").toUpperCase() === transitoDestino.trim().toUpperCase() ||
+                String(p.codigo_sidemar || "").toUpperCase() === transitoDestino.trim().toUpperCase())
+            : null;
+
+        const avisar = text => Swal.fire({ icon: "warning", title: "Falta el destino", text, confirmButtonColor: "#0F2A44" });
+
+        if (esTransitoNuevo) {
+            if (!destino) return avisar("Debes elegir un puerto de destino de la lista.");
+            if (String(destino.codigo).substring(0, 2).toUpperCase() === "CL")
+                return avisar("El destino de un tránsito debe ser un puerto extranjero.");
+        }
+
+        const html = esTransitoNuevo
+            ? `<p>El BL <strong>${blNumber}</strong> quedará como <strong>tránsito</strong>, con lugar de destino <strong>${destino.codigo} — ${destino.nombre}</strong>.</p>
+               <p style="margin-top:10px;padding:10px;background:#FEF3C7;border-radius:6px;color:#92400E;font-size:13px;">
+                 Se guarda de inmediato. <strong>No se revierte si cancelas la edición del BL</strong>; para deshacerlo tienes que usar "Deshacer tránsito".
+               </p>`
+            : `<p>El BL <strong>${blNumber}</strong> dejará de ser tránsito y volverá a importación normal.</p>
+               <p style="margin-top:8px;">El lugar de destino volverá a <strong>${puertoDescargaCod || "el puerto de descarga"}</strong>.</p>
+               <p style="margin-top:10px;padding:10px;background:#FEF3C7;border-radius:6px;color:#92400E;font-size:13px;">
+                 Se guarda de inmediato. <strong>No se revierte si cancelas la edición del BL</strong>.
+               </p>`;
+
+        const r = await Swal.fire({
+            icon: "question",
+            title: esTransitoNuevo ? "¿Marcar como tránsito?" : "¿Deshacer el tránsito?",
+            html,
+            showCancelButton: true,
+            confirmButtonText: esTransitoNuevo ? "Sí, marcar" : "Sí, deshacer",
+            cancelButtonText: "Cancelar",
+            confirmButtonColor: "#0F2A44",
+            cancelButtonColor: "#6B7280",
+            width: "600px",
+        });
+        if (!r.isConfirmed) return;
+
+        setGuardandoTransito(true);
+        try {
+            const res = await fetch(`${API_BASE}/api/bls/transito`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    decisiones: [esTransitoNuevo
+                        ? { bl_number: blNumber, es_transito: true, lugar_destino_cod: destino.codigo }
+                        : { bl_number: blNumber, es_transito: false }]
+                }),
+            });
+            if (!res.ok) {
+                const d = await res.json().catch(() => ({}));
+                const detalle = Array.isArray(d.detalles) ? d.detalles.map(x => x.error).join(" · ") : "";
+                throw new Error(detalle || d.error || "No se pudo aplicar el cambio");
+            }
+            const data = await res.json();
+            const ldFinal = data.resultados?.[0]?.lugar_destino_cod;
+
+            setTransitoDestino("");
+            setRecargar(n => n + 1);   // vuelve a leer el BL con el LD ya actualizado
+
+            Swal.fire({
+                icon: "success",
+                title: esTransitoNuevo ? "BL marcado como tránsito" : "Tránsito deshecho",
+                html: ldFinal ? `<p>Lugar de destino: <strong>${ldFinal}</strong></p>` : undefined,
+                timer: 2200,
+                showConfirmButton: false,
+            });
+        } catch (e) {
+            Swal.fire({ icon: "error", title: "No se pudo aplicar", text: e.message, confirmButtonColor: "#DC2626" });
+        } finally {
+            setGuardandoTransito(false);
+        }
+    };
 
     const updateField = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
     const validarEmail = email => !email || email.trim() === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -1025,7 +1119,14 @@ const ExpoBLEdit = () => {
                     }} className="text-sm text-slate-500 hover:text-slate-800 mb-2">← Volver</button>
                     <div className="flex items-center gap-3">
                         <h1 className="text-2xl font-semibold text-slate-900">Editar BL: {formData.bl_number}</h1>
-                        {esImpo ? (
+                        {esTransito ? (
+                            // El badge muestra el sentido REAL del BL, no el del
+                            // manifiesto: un tránsito vive dentro de un manifiesto
+                            // de importación y hasta ahora se veía como "IMPO".
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">
+                                <ArrowDownLeft size={11} /> TRÁNSITO
+                            </span>
+                        ) : esImpo ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-indigo-100 text-indigo-700">
                                 <ArrowDownLeft size={11} /> IMPO
                             </span>
@@ -1276,6 +1377,61 @@ const ExpoBLEdit = () => {
                                     <PuertoAutocomplete label="LD - Lugar Destino" value={formData.lugar_destino} onChange={v => updateField('lugar_destino', v)} puertos={puertos} required />
                                     <PuertoAutocomplete label="LEM - Lugar Entrega" value={formData.lugar_entrega} onChange={v => updateField('lugar_entrega', v)} puertos={puertos} required />
                                 </div>
+
+                                {/* ── Tránsito ──
+                                    Solo importación: el Oficio Circular 182 regula el manifiesto
+                                    de ingreso, y en exportación la naviera no entrega información
+                                    de tránsito. En un manifiesto de exportación no se renderiza. */}
+                                {permiteTransito && (
+                                    <div className={`mt-6 rounded-lg border p-4 ${esTransito ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-slate-50"}`}>
+                                        {esTransito ? (
+                                            <>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="px-2 py-0.5 rounded text-xs font-bold bg-amber-200 text-amber-900">TRÁNSITO</span>
+                                                    <span className="text-sm text-amber-900">
+                                                        Destino final: <strong className="font-mono">{formData.lugar_destino || "—"}</strong>
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs text-amber-800 mb-3">
+                                                    El XML sale con sentido TR y con la observación de país que corresponda.
+                                                </p>
+                                                <button
+                                                    type="button"
+                                                    disabled={guardandoTransito}
+                                                    onClick={() => aplicarTransito(false)}
+                                                    className="px-3 py-1.5 rounded-lg text-sm font-medium border border-amber-400 bg-white text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                                                >
+                                                    Deshacer tránsito
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <h4 className="font-semibold text-slate-800 text-sm mb-1">¿Este BL va en tránsito?</h4>
+                                                <p className="text-xs text-slate-600 mb-3">
+                                                    Márcalo si la carga ingresa al país y sigue a otro destino. El lugar de
+                                                    destino pasa a ser el puerto extranjero y se declara según el Oficio 182.
+                                                </p>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
+                                                    <PuertoAutocomplete
+                                                        label="Destino final del tránsito"
+                                                        value={transitoDestino}
+                                                        onChange={setTransitoDestino}
+                                                        puertos={puertos}
+                                                        excluirPais="CL"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        disabled={guardandoTransito || !transitoDestino}
+                                                        onClick={() => aplicarTransito(true)}
+                                                        className="px-3 py-2 rounded-lg text-sm font-medium bg-[#0F2A44] text-white hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                    >
+                                                        Marcar como tránsito
+                                                    </button>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <div className="flex items-center justify-between mb-4">

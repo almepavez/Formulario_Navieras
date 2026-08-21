@@ -5856,9 +5856,17 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
 //       { "bl_number": "Y", "es_transito": false }
 //   ]}
 //
-// Confirmar tránsito escribe sentido_operacion='TR' y el nuevo LD; descartar
-// deja sentido_operacion=NULL y NO toca el lugar de destino. En ambos casos
-// transito_confirmado=1 saca al BL de la bandeja de pendientes.
+// Confirmar tránsito escribe sentido_operacion='TR' y el nuevo LD. Al deshacer
+// un tránsito ya confirmado el LD vuelve al puerto de descarga; al descartar
+// una simple sugerencia el LD no se toca (ver el detalle más abajo). En todos
+// los casos transito_confirmado=1 saca al BL de la bandeja de pendientes.
+//
+// transito_sugerido NUNCA se escribe acá, a propósito: significa "el PMS lo
+// detectó en las líneas 47". Si el operador marca a mano un BL que el PMS no
+// sugirió, ese campo tiene que seguir en 0, porque sería falso.
+//
+// El tránsito es solo importación; los BLs de manifiestos de exportación se
+// rechazan más abajo.
 app.post("/api/bls/transito", async (req, res) => {
   const conn = await pool.getConnection();
   try {
@@ -5882,7 +5890,9 @@ app.post("/api/bls/transito", async (req, res) => {
       }
 
       const [blRows] = await conn.query(
-        `SELECT b.id, m.tipo_operacion AS tipo_operacion_manifiesto
+        `SELECT b.id, b.sentido_operacion,
+                b.puerto_descarga_cod, b.puerto_descarga_id,
+                m.tipo_operacion AS tipo_operacion_manifiesto
            FROM bls b
            LEFT JOIN manifiestos m ON b.manifiesto_id = m.id
           WHERE b.bl_number = ?
@@ -5909,7 +5919,25 @@ app.post("/api/bls/transito", async (req, res) => {
       }
 
       if (!d.es_transito) {
-        preparadas.push({ blNumber, blId: blRows[0].id, esTransito: false });
+        // Deshacer un tránsito ya confirmado devuelve el lugar de destino al
+        // puerto de descarga: al marcarlo, el LD se había reemplazado por el
+        // destino extranjero, y sin restaurarlo el BL volvería a importación
+        // arrastrando un LD de otro país — que además dispararía la
+        // observación 12 por la rama de importación normal.
+        //
+        // Descartar una SUGERENCIA es otra cosa: ahí el LD nunca se tocó (la
+        // ingesta lo deja copiado del puerto de descarga), y restaurarlo
+        // pisaría cualquier corrección manual del operador. Por eso se
+        // restaura solo cuando hay un TR real que deshacer.
+        const deshaceTransito = blRows[0].sentido_operacion === 'TR';
+        preparadas.push({
+          blNumber,
+          blId: blRows[0].id,
+          esTransito: false,
+          restauraLD: deshaceTransito,
+          lugarDestinoCod: deshaceTransito ? blRows[0].puerto_descarga_cod : null,
+          lugarDestinoId: deshaceTransito ? blRows[0].puerto_descarga_id : null,
+        });
         continue;
       }
 
@@ -5963,9 +5991,21 @@ app.post("/api/bls/transito", async (req, res) => {
               WHERE id = ?`,
             [p.lugarDestinoCod, p.lugarDestinoId, p.blId]
           );
+        } else if (p.restauraLD) {
+          // Deshacer un tránsito confirmado: el LD vuelve al puerto de descarga.
+          await conn.query(
+            `UPDATE bls
+                SET sentido_operacion = NULL,
+                    lugar_destino_cod = ?,
+                    lugar_destino_id  = ?,
+                    transito_confirmado = 1,
+                    updated_at = NOW()
+              WHERE id = ?`,
+            [p.lugarDestinoCod, p.lugarDestinoId, p.blId]
+          );
         } else {
-          // Descartar no toca lugar_destino: el BL vuelve a heredar el sentido
-          // del manifiesto y conserva el destino que ya tenía.
+          // Descartar una sugerencia no toca lugar_destino: el BL vuelve a
+          // heredar el sentido del manifiesto y conserva el destino que tenía.
           await conn.query(
             `UPDATE bls
                 SET sentido_operacion = NULL,
@@ -5995,7 +6035,9 @@ app.post("/api/bls/transito", async (req, res) => {
       resultados.push({
         bl_number: p.blNumber,
         sentido_operacion: p.esTransito ? "TR" : null,
-        lugar_destino_cod: p.esTransito ? p.lugarDestinoCod : undefined,
+        // Al deshacer se devuelve el LD restaurado, para que la UI confirme
+        // con el valor real y no con uno adivinado.
+        lugar_destino_cod: (p.esTransito || p.restauraLD) ? p.lugarDestinoCod : undefined,
         valid_status: estado?.valid_status ?? null,
         valid_count_error: estado?.valid_count_error ?? 0,
         valid_count_obs: estado?.valid_count_obs ?? 0,
