@@ -39,6 +39,8 @@ La lista es ilustrativa, no exhaustiva: la regla es el registro completo, no est
 
 The system handles three operation types (`tipo_operacion`): `S` (Salida/Export), `I` (Importación), `TR`/`TRB` (Tránsito), and three service types (`tipo_servicio_codigo`): `FF` (FCL/FCL containers), `MM` (EMPTY containers), `BB` (Carga Suelta / Break Bulk).
 
+The operation type lives on the **manifiesto**, but `TR` can also be set **per BL** — an import manifest may carry a few BLs in transit to Argentina, Bolivia or Peru mixed in with normal imports. See **Transit (TR) per BL** below.
+
 ---
 
 ## Repository Structure
@@ -47,7 +49,8 @@ The system handles three operation types (`tipo_operacion`): `S` (Salida/Export)
 Formulario_Navieras/
 ├── expo-bl-api/       # Node.js/Express REST API (backend)
 │   ├── index.js       # Single-file server — all routes and business logic (~7900 lines)
-│   └── xmlBuilder.js  # Shared XML construction module
+│   ├── xmlBuilder.js  # Shared XML construction module
+│   └── migrations/    # Hand-applied .sql schema changes (no migration runner)
 └── expo-bl-frontend/  # React + Vite frontend
     └── src/
         ├── App.jsx            # Route definitions
@@ -115,9 +118,45 @@ One large Express file — all routes, middleware, and business logic live here.
 - **Validation** (lines ~5856–6551): `revalidarBLCompleto(conn, blId)` wipes and rewrites `bl_validaciones` for a BL. Errors and observations are classified at four levels: `BL`, `ITEM`, `CONTENEDOR`, `TRANSBORDO`, with severities `ERROR` or `OBS`.
 - **Mantenedores** (lines ~992–2500): CRUD for reference tables — puertos, naves, servicios, almacenistas, tipos-bulto, empaque-contenedores, participantes, and the `traductor_pil_bms` mapping table.
 
+**Never return from a handler with an open transaction.** MySQL runs at `REPEATABLE READ` and `pool.release()` does **not** close an open transaction: the connection goes back to the pool still inside it, and every later query that happens to grab it reads from a snapshot frozen at that moment. This is silent — no error, just stale rows. It already shipped wrong XMLs: BLs whose `sentido_operacion` had been set to `'TR'` came out as `I` because the export's per-BL `pool.query()` landed on a poisoned connection. `POST`/`PUT /api/mantenedores/puertos` were the culprits (they opened the transaction before validating the body, then early-returned on a 400). The rule: **validate first, `beginTransaction()` last**, and make sure every exit path commits or rolls back.
+
 **Known duplication — `parseFechaCLtoMySQL`:** the function is defined **three times** with **two different semantics**. Module-level (line ~5514) validates that the date really exists and returns `null` when it doesn't; the two local copies (lines ~5366 and ~7537, inside the carga-suelta update and create endpoints) shadow it and return the input string unchanged instead. Callers therefore behave differently depending on which endpoint they hit. Unifying them is pending work — check which copy is in scope before touching date handling.
 
 `xmlBuilder.js` exports include `buildXML`, `getBLQuery`, `getContenedoresQuery`, `getTransbordosQuery`, `detectarTipo`, `generarReferencias`, and `generarObservaciones` (among other helpers). The `detectarTipo(bl)` helper returns booleans `{ esCargaSuelta, esEmpty, esImpo, esExpo, esTránsito, sinVolumen }` and drives XML branching logic.
+
+### Transit (TR) per BL
+
+An import manifest can carry BLs in transit to a foreign country mixed with normal imports, so `TR` is resolved **per BL**, not per manifest. Basis: Oficio Circular 182 de Aduanas (29-05-2015). Only `TR` is supported this way — `TRB` is out of scope.
+
+Three columns on `bls` carry it:
+
+| Column | Meaning |
+|---|---|
+| `sentido_operacion` `VARCHAR(5) NULL` | `NULL` inherits from `manifiestos.tipo_operacion`; `'TR'` overrides it for this BL |
+| `transito_sugerido` `TINYINT(1)` | PMS ingestion found the transit phrase |
+| `transito_confirmado` `TINYINT(1)` | The operator already decided — confirmed **or** discarded |
+
+**Resolution.** `getBLQuery()` emits `COALESCE(b.sentido_operacion, m.tipo_operacion) AS tipo_operacion`, keeping the old alias — so `detectarTipo()`, `esImpo` and `<sentido-operacion>` read the per-BL value with no change on their side. `revalidarBLCompleto()` reads the BL with `SELECT *` and has to resolve the same rule by hand (`bl.sentido_operacion || manifiesto?.tipo_operacion`).
+
+**The PMS only suggests, it never decides.** `parsePmsTxt()` tests `/SHIPMENT\s+IN\s+TRANSIT/i` over the joined type-47 lines (next to the SOC text fallback) and sets `transito_sugerido`. The destination itself is **not parseable** — it comes split across 30-char columns with sequence numbers interleaved — so the operator picks the port by hand. Ingestion does **not** touch the sentido or `lugar_destino_cod`, which keeps being copied from the discharge port.
+
+**Per the oficio,** PD and LEM stay as they are (the real national port); only LD becomes the foreign destination, declared as an observation. In `generarObservaciones()`, when `esTránsito`:
+
+| País del LD | Código | Glosa |
+|---|---|---|
+| `BO` | `10` | `BOLIVIA` |
+| `PE` | `11` | `PERU` |
+| otro | `12` | `PAISES_TRANSITO[país]` (AR/UY/PY/BR) o el prefijo crudo |
+
+plus a `GRAL` with `Por cuenta y riesgo del consignatario`. The country prefix is read from `lugar_destino_codigo_pais` (alias for `ld.codigo`), **never** from `lugar_destino_codigo` — that one is `COALESCE(codigo_sidemar, codigo)` and a SIDEMAR code's prefix is not the country. On transit only, an automatic code is skipped when the operator already loaded one by hand (`GRAL` is matched by exact glosa, since it is a generic bucket); **normal imports keep duplicating, as they always did**.
+
+**Validation.** When the resolved sentido is `TR`, both `revalidarBLCompleto()` and `validateBLForXML()` add an `ERROR` if `lugar_destino_cod` is blank or if its country is `CL`. The pre-existing LD validations are untouched, so a blank LD raises both the generic and the transit-specific error.
+
+**Endpoint.** `POST /api/bls/transito` takes `{ decisiones: [{ bl_number, es_transito, lugar_destino_cod }] }` for one BL or a batch. It validates the whole batch **before** opening the transaction, so a single bad row applies nothing. Confirming writes `sentido_operacion='TR'` plus the new LD; discarding sets `sentido_operacion=NULL` and leaves LD alone. Both set `transito_confirmado=1`, and every affected BL is revalidated after the commit.
+
+**Frontend.** `GenerarXML.jsx` shows a "Posible tránsito (N)" chip counting `transito_sugerido=1 AND transito_confirmado=0`, which both filters the grid and opens `ConfirmarTransitoModal`. The same modal opens from "Generar" when selected BLs are still unconfirmed — **before** the error gate, since confirming changes the LD and therefore the errors. The port picker is `components/PuertoAutocomplete.jsx` (extracted out of `ExpoBLEdit.jsx`, which still uses it) with the optional `excluirPais="CL"` prop; without that prop it behaves exactly as before.
+
+**Caveat — reprocessing the PMS loses the decision.** Reprocessing does a DELETE + reinsert of the BLs. `transito_sugerido` is recomputed from the file, but `sentido_operacion` and `transito_confirmado` are lost: the BLs reappear as pending with their LD back at the discharge port, and every transit has to be reconfirmed.
 
 ### SOC/COC container classification
 
