@@ -1399,7 +1399,7 @@ const ExpoBLEdit = () => {
                                                     type="button"
                                                     disabled={guardandoTransito}
                                                     onClick={() => aplicarTransito(false)}
-                                                    className="px-3 py-1.5 rounded-lg text-sm font-medium border border-amber-400 bg-white text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                                                    className="px-4 py-2 rounded-lg text-sm font-medium border border-amber-400 bg-white text-amber-800 hover:bg-amber-100 transition-colors disabled:opacity-50"
                                                 >
                                                     Deshacer tránsito
                                                 </button>
@@ -1411,19 +1411,24 @@ const ExpoBLEdit = () => {
                                                     Márcalo si la carga ingresa al país y sigue a otro destino. El lugar de
                                                     destino pasa a ser el puerto extranjero y se declara según el Oficio 182.
                                                 </p>
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
-                                                    <PuertoAutocomplete
-                                                        label="Destino final del tránsito"
-                                                        value={transitoDestino}
-                                                        onChange={setTransitoDestino}
-                                                        puertos={puertos}
-                                                        excluirPais="CL"
-                                                    />
+                                                {/* El botón va como acción secundaria al lado del campo, con
+                                                    ancho según su texto. En una grilla de 2 columnas quedaba
+                                                    estirado a media pantalla y competía con el selector. */}
+                                                <div className="flex flex-wrap items-end gap-3">
+                                                    <div className="w-full sm:w-80">
+                                                        <PuertoAutocomplete
+                                                            label="Destino final del tránsito"
+                                                            value={transitoDestino}
+                                                            onChange={setTransitoDestino}
+                                                            puertos={puertos}
+                                                            excluirPais="CL"
+                                                        />
+                                                    </div>
                                                     <button
                                                         type="button"
                                                         disabled={guardandoTransito || !transitoDestino}
                                                         onClick={() => aplicarTransito(true)}
-                                                        className="px-3 py-2 rounded-lg text-sm font-medium bg-[#0F2A44] text-white hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                        className="px-4 py-2 rounded-lg text-sm font-medium bg-[#0F2A44] text-white hover:brightness-110 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                                     >
                                                         Marcar como tránsito
                                                     </button>
