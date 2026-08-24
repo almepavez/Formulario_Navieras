@@ -4460,24 +4460,11 @@ app.post("/api/manifiestos/:id/pms/procesar-directo", upload.single("pms"), asyn
         }
       }
 
-      // La ingesta NO pasa por revalidarBLCompleto() — arma sus validaciones
-      // inline —, así que materializa las observaciones por su cuenta. Sin
-      // esto, un BL recién ingestado nacería con observaciones en NULL y el
-      // editor volvería a no mostrarlas. Va después de insertTransbordos()
-      // porque el 14 SIN TRB depende de los transbordos.
-      const { conflictos: conflictosObs } = await materializarObservaciones(conn, blId);
-      for (const codigo of conflictosObs) {
-        const payload = {
-          blId,
-          nivel: "BL",
-          severidad: "ERROR",
-          campo: "observaciones",
-          mensaje: `Observación ${codigo} duplicada: hay una manual con el mismo código que la automática. Elige cuál conservar en el editor del BL.`,
-          valorCrudo: codigo
-        };
-        await addValidacion(conn, payload);
-        await addValidacionPMS(conn, payload);
-      }
+      // ÚNICO generador automático de observaciones. Acá se escribe el estado
+      // inicial del BL y nadie lo vuelve a calcular: de ahí en adelante la
+      // lista es un historial que administra el operador. Va después de
+      // insertTransbordos() porque el 14 SIN TRB depende de los transbordos.
+      await materializarObservaciones(conn, blId);
 
       await refreshResumenValidacionBL(conn, blId);
     }
@@ -4735,15 +4722,17 @@ async function addValidacionPMS(conn, {
 // sale al XML, en lugar de "observaciones silenciosas" que solo aparecían en el
 // detalle del BL.
 //
-// El merge nunca reemplaza el campo completo: lo manual se conserva siempre, y
-// lo que viene sin campo `origen` (formato antiguo) se trata como manual, jamás
-// como auto — si se tratara como auto, el recálculo lo borraría.
+// Se llama UNA SOLA VEZ por BL, desde la ingesta del PMS: escribe el estado
+// inicial y nadie lo recalcula después. Las observaciones son un historial
+// acumulado de lo declarado, no un reflejo del estado actual del BL, así que
+// desde ahí en adelante las administra el operador desde el editor.
 //
-// Devuelve los códigos en conflicto para que el llamador levante el ERROR.
+// Lo manual se conserva igual, y lo que viene sin campo `origen` (formato
+// antiguo) cuenta como manual. En la práctica en la ingesta no hay nada previo
+// —el BL se acaba de insertar—, pero el reproceso reusa esta misma función.
 async function materializarObservaciones(conn, blId) {
-  // Consulta propia y autocontenida: sirve tanto desde revalidarBLCompleto()
-  // (que lee el BL con SELECT * y no tiene los códigos de puerto resueltos)
-  // como desde la ingesta PMS.
+  // Consulta propia y autocontenida: el BL se lee con SELECT * en otros lados
+  // y ahí no vienen los códigos de puerto resueltos.
   const [[fila]] = await conn.query(`
     SELECT
       b.observaciones,
@@ -4762,12 +4751,12 @@ async function materializarObservaciones(conn, blId) {
     LIMIT 1
   `, [blId]);
 
-  if (!fila) return { conflictos: [] };
+  if (!fila) return;
 
   const almacenadas = parseObservaciones(fila.observaciones);
 
   // Texto plano heredado de carga suelta: no es un arreglo y no se toca.
-  if (almacenadas === null) return { conflictos: [] };
+  if (almacenadas === null) return;
 
   const [transbordos] = await conn.query(
     "SELECT id FROM bl_transbordos WHERE bl_id = ?", [blId]
@@ -4777,14 +4766,16 @@ async function materializarObservaciones(conn, blId) {
   const manuales = almacenadas.filter(o => o.origen !== 'auto');
   const autos = calcularObservacionesAuto(fila, transbordos, tipo);
 
-  const { lista, conflictos } = combinarObservaciones(autos, manuales);
+  const lista = combinarObservaciones(autos, manuales);
 
+  // Se escribe '[]' y no NULL cuando no hay nada: son estados distintos.
+  // NULL significa "nunca se materializó" y hace caer al cálculo en vivo;
+  // '[]' significa "se materializó y no corresponde ninguna", y se respeta.
+  // Sin esa diferencia, un BL sin observaciones las vería reaparecer solas.
   await conn.query(
     "UPDATE bls SET observaciones = ? WHERE id = ?",
-    [lista.length > 0 ? JSON.stringify(lista) : null, blId]
+    [JSON.stringify(lista), blId]
   );
-
-  return { conflictos };
 }
 
 async function refreshResumenValidacionBL(conn, blId) {
@@ -5674,23 +5665,6 @@ function validateBLForXML(bl) {
       errors.push("Falta Lugar de Recepción (LRM)");
   }
 
-  // ── OBSERVACIONES EN CONFLICTO ──
-  // Se detecta sobre lo ya materializado, sin recalcular: si conviven una
-  // automática y una manual con el mismo código y el operador todavía no eligió
-  // (campo `conflicto`), el BL no genera XML.
-  const obsAlmacenadas = parseObservaciones(bl.observaciones) || [];
-  const codigosAuto = new Set(
-    obsAlmacenadas.filter(o => o.origen === 'auto').map(o => o.nombre)
-  );
-  const obsEnConflicto = [...new Set(
-    obsAlmacenadas
-      .filter(o => o.origen !== 'auto' && !o.conflicto && codigosAuto.has(o.nombre))
-      .map(o => o.nombre)
-  )];
-  for (const codigo of obsEnConflicto) {
-    errors.push(`Observación ${codigo} duplicada: hay una manual con el mismo código que la automática. Elige cuál conservar en el editor del BL.`);
-  }
-
   // ── TRÁNSITO ──
   // bl.tipo_operacion viene de getBLQuery ya resuelto por BL
   // (COALESCE(b.sentido_operacion, m.tipo_operacion)).
@@ -6465,19 +6439,11 @@ async function revalidarBLCompleto(conn, blId) {
   // ==========================================================
   const vals = [];
 
-  // Observaciones: se recalculan y se guardan acá, después de re-resolver los
-  // puertos de arriba (el cálculo depende del código del lugar de destino).
-  // De acá sale la reactividad: al guardar un transbordo y revalidar, el
-  // 14 SIN TRB desaparece solo, y vuelve si el transbordo se quita.
-  const { conflictos: conflictosObs } = await materializarObservaciones(conn, blId);
-
-  for (const codigo of conflictosObs) {
-    vals.push({
-      nivel: "BL", severidad: "ERROR", campo: "observaciones",
-      mensaje: `Observación ${codigo} duplicada: hay una manual con el mismo código que la automática. Elige cuál conservar en el editor del BL.`,
-      valorCrudo: codigo
-    });
-  }
+  // Acá NO se tocan las observaciones. En SIDEMAR son un historial acumulado
+  // de lo declarado, no un reflejo del estado actual del BL: si un BL se
+  // declaró con "14 SIN TRB" y después se le agrega un transbordo, el 14 se
+  // queda y el operador agrega a mano la observación que explica el cambio.
+  // Las automáticas se generan una sola vez, en la ingesta del PMS.
 
   // ---- BL: puertos y tipo_servicio
   if (!lugarEmisionId) {

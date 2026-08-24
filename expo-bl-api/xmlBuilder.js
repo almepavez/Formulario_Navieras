@@ -387,11 +387,18 @@ const parseObservaciones = (valor) => {
   return Array.isArray(raw) ? raw : null;
 };
 
-// Calcula las observaciones automáticas a partir del estado actual del BL.
-// Es cálculo puro: no mira lo que el operador cargó a mano ni omite nada por
-// coincidencia de código. Si una manual choca con una de estas, eso es un
-// conflicto que se resuelve en combinarObservaciones(), no acá — el operador
-// tiene que enterarse, no perder la automática en silencio.
+// ¿El campo bls.observaciones se materializó alguna vez?
+// NULL o vacío = nunca; '[]' = sí, y quedó sin observaciones (el operador las
+// borró, o no correspondía ninguna). Son estados distintos: el primero cae al
+// cálculo en vivo y el segundo se respeta tal cual.
+const tieneObservacionesMaterializadas = (valor) => {
+  if (valor === null || valor === undefined) return false;
+  if (typeof valor === 'string') return valor.trim() !== '';
+  return true;
+};
+
+// Calcula las observaciones automáticas a partir del estado del BL.
+// Es cálculo puro y se usa en un solo momento: la ingesta del PMS.
 const calcularObservacionesAuto = (bl, transbordos, tipo) => {
   const { esCargaSuelta, esImpo, esTránsito } = tipo;
 
@@ -437,52 +444,35 @@ const calcularObservacionesAuto = (bl, transbordos, tipo) => {
 // El orden es automáticas primero y manuales después, que es el orden en que el
 // XML las viene emitiendo desde siempre.
 //
-// Una manual marcada `conflicto: 'reemplaza'` suprime la automática de ese
-// código: es la opción C) del operador cuando se le avisó del choque.
-// Una marcada `conflicto: 'ambas'` convive con la automática sin volver a
-// avisar. Una manual sin marca que choque con una automática vigente es un
-// conflicto sin resolver, y se devuelve para que el llamador levante el ERROR.
-const combinarObservaciones = (autos, manuales) => {
-  const reemplazados = new Set(
-    manuales.filter(m => m.conflicto === 'reemplaza').map(m => m.nombre)
-  );
-  const autosVigentes = autos.filter(a => !reemplazados.has(a.nombre));
-
+// No hay detección de códigos repetidos: sin recálculo no puede aparecer una
+// automática nueva que choque con una manual existente, y en un historial
+// acumulado dos entradas con el mismo código son legítimas.
+const combinarObservaciones = (autos, manuales) => [
+  ...autos.map(a => ({ nombre: a.nombre, contenido: a.contenido, origen: 'auto' })),
   // El origen se normaliza al escribir: lo que venía sin campo `origen`
-  // (formato antiguo) queda marcado como manual, nunca como auto. Si se
-  // marcara como auto, el próximo recálculo lo borraría.
-  const lista = [
-    ...autosVigentes.map(a => ({ nombre: a.nombre, contenido: a.contenido, origen: 'auto' })),
-    ...manuales.map(m => ({
-      nombre: m.nombre || 'GRAL',
-      contenido: m.contenido || '',
-      origen: 'manual',
-      ...(m.conflicto ? { conflicto: m.conflicto } : {}),
-    })),
-  ];
-
-  const conflictos = manuales
-    .filter(m => !m.conflicto && autosVigentes.some(a => a.nombre === (m.nombre || 'GRAL')))
-    .map(m => m.nombre || 'GRAL');
-
-  return { lista, conflictos: [...new Set(conflictos)] };
-};
+  // (formato antiguo) queda marcado como manual.
+  ...manuales.map(m => ({
+    nombre: m.nombre || 'GRAL',
+    contenido: m.contenido || '',
+    origen: m.origen === 'auto' ? 'auto' : 'manual',
+  })),
+];
 
 // Lee las observaciones ya materializadas en bls.observaciones y las deja en la
 // forma que espera el XML.
 //
-// El cálculo vive en revalidarBLCompleto(), no acá. El fallback en vivo se
-// dispara cuando el campo está vacío, que es el estado de todo BL anterior a la
-// materialización (no se hace backfill masivo).
+// El cálculo vive en la ingesta del PMS, no acá. El fallback en vivo se dispara
+// solo cuando el campo NUNCA se materializó, que es el estado de todo BL
+// anterior a este mecanismo (no se hace backfill masivo).
 //
-// La condición es "lista vacía" y NO valid_last_run: los BLs que ya existían
-// fueron revalidados por el código viejo, que no materializaba, así que tienen
-// valid_last_run puesto y observaciones en NULL. Con ese marcador se habrían
-// quedado sin el 14 SIN TRB en el XML.
+// La condición es "el campo está en NULL", no "la lista está vacía": un '[]'
+// significa que el operador borró todas las observaciones, y respetarlo es el
+// punto. Si se mirara solo el largo, la última observación borrada reaparecería
+// sola en el XML.
 //
-// Es seguro por construcción: si la materialización sí corrió y aun así no hay
-// observaciones, el cálculo en vivo devuelve la misma lista vacía, porque es la
-// misma función. Generar el XML nunca escribe en la base.
+// Tampoco sirve valid_last_run: los BLs que ya existían fueron revalidados por
+// el código viejo, que no materializaba, así que lo tienen puesto y la columna
+// en NULL. Generar el XML nunca escribe en la base.
 const generarObservaciones = (bl, transbordos, tipo) => {
   const { esCargaSuelta } = tipo;
   const obs = [];
@@ -496,18 +486,15 @@ const generarObservaciones = (bl, transbordos, tipo) => {
     return { observacion: obs };
   }
 
-  const lista = almacenadas || [];
-
-  if (lista.length > 0) {
-    lista.forEach(o => obs.push({ nombre: o.nombre || 'GRAL', contenido: o.contenido || '' }));
-  } else {
-    // Sin materializar: se calculan las automáticas al vuelo. Sale el mismo XML
-    // que si estuvieran guardadas, porque es la misma función de cálculo.
-    const { lista: combinada } = combinarObservaciones(
-      calcularObservacionesAuto(bl, transbordos, tipo),
-      []
+  if (tieneObservacionesMaterializadas(bl.observaciones)) {
+    (almacenadas || []).forEach(o =>
+      obs.push({ nombre: o.nombre || 'GRAL', contenido: o.contenido || '' })
     );
-    combinada.forEach(o => obs.push({ nombre: o.nombre, contenido: o.contenido }));
+  } else {
+    // Nunca materializado: se calculan las automáticas al vuelo. Sale el mismo
+    // XML que si estuvieran guardadas, porque es la misma función de cálculo.
+    combinarObservaciones(calcularObservacionesAuto(bl, transbordos, tipo), [])
+      .forEach(o => obs.push({ nombre: o.nombre, contenido: o.contenido }));
   }
 
   return obs.length > 0 ? { observacion: obs } : undefined;
