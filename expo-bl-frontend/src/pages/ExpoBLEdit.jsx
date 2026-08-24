@@ -2316,7 +2316,7 @@ const OBS_AUTOMATICAS_DOC = [
         codigo: "14",
         glosa: "SIN TRB",
         cuando: "Se agrega al procesar el PMS, cuando el BL no tiene transbordos.",
-        porque: "Declara que la carga no hizo transbordo en el trayecto.",
+        porque: "Declara que la carga no realizó transbordo en el trayecto.",
     },
     {
         codigo: "12",
