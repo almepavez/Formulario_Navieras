@@ -82,6 +82,10 @@ const ExpoBLEdit = () => {
     const [sentidoManifiesto, setSentidoManifiesto] = useState("S");
     const [puertoDescargaCod, setPuertoDescargaCod] = useState("");
     const [transitoDestino, setTransitoDestino] = useState("");
+    // Observaciones que el Oficio 182 sugiere para el destino elegido. Se
+    // muestran con checkbox: el sistema no las escribe solas.
+    const [transitoSugeridas, setTransitoSugeridas] = useState([]);
+    const [showDiccionarioObs, setShowDiccionarioObs] = useState(false);
     const [guardandoTransito, setGuardandoTransito] = useState(false);
     const [recargar, setRecargar] = useState(0);
     const [puertos, setPuertos] = useState([]);
@@ -290,6 +294,31 @@ const ExpoBLEdit = () => {
     // El tránsito solo existe en importación (Oficio Circular 182).
     const permiteTransito = sentidoManifiesto !== "S";
 
+    const buscarPuerto = (cod) => {
+        const c = String(cod || "").trim().toUpperCase();
+        if (!c) return null;
+        return puertos.find(p =>
+            String(p.codigo || "").toUpperCase() === c ||
+            String(p.codigo_sidemar || "").toUpperCase() === c) || null;
+    };
+
+    // La regla del Oficio 182 la calcula el backend, para no mantener dos
+    // copias de una norma legal.
+    const cargarSugeridasTransito = async (cod) => {
+        const p = buscarPuerto(cod);
+        if (!p || String(p.codigo).substring(0, 2).toUpperCase() === "CL") {
+            return setTransitoSugeridas([]);
+        }
+        try {
+            const res = await fetch(`${API_BASE}/api/transito/observaciones-sugeridas?lugar_destino_cod=${encodeURIComponent(p.codigo)}`);
+            if (!res.ok) return setTransitoSugeridas([]);
+            const data = await res.json();
+            setTransitoSugeridas(data.map(o => ({ ...o, marcada: true })));
+        } catch {
+            setTransitoSugeridas([]);
+        }
+    };
+
     const aplicarTransito = async (esTransitoNuevo) => {
         const destino = esTransitoNuevo
             ? puertos.find(p =>
@@ -305,13 +334,20 @@ const ExpoBLEdit = () => {
                 return avisar("El destino de un tránsito debe ser un puerto extranjero.");
         }
 
+        const marcadas = transitoSugeridas.filter(s => s.marcada);
+        const listaObs = marcadas.length > 0
+            ? `<ul style="margin:6px 0 0;padding-left:20px;font-size:13px;text-align:left;">${marcadas.map(s => `<li><strong>${s.nombre}</strong> — ${s.contenido}</li>`).join("")}</ul>`
+            : `<p style="margin-top:6px;font-size:13px;color:#6B7280;">No se agregará ninguna observación.</p>`;
+
         const html = esTransitoNuevo
             ? `<p>El BL <strong>${blNumber}</strong> quedará como <strong>tránsito</strong>, con lugar de destino <strong>${destino.codigo} — ${destino.nombre}</strong>.</p>
+               <p style="margin-top:8px;text-align:left;">Se agregarán estas observaciones:</p>${listaObs}
                <p style="margin-top:10px;padding:10px;background:#FEF3C7;border-radius:6px;color:#92400E;font-size:13px;">
                  Se guarda de inmediato. <strong>No se revierte si cancelas la edición del BL</strong>; para deshacerlo tienes que usar "Deshacer tránsito".
                </p>`
             : `<p>El BL <strong>${blNumber}</strong> dejará de ser tránsito y volverá a importación normal.</p>
                <p style="margin-top:8px;">El lugar de destino volverá a <strong>${puertoDescargaCod || "el puerto de descarga"}</strong>.</p>
+               <p style="margin-top:8px;font-size:13px;color:#6B7280;">Las observaciones NO se borran: quedan como historial. Si quieres sacarlas, hazlo desde la lista de observaciones.</p>
                <p style="margin-top:10px;padding:10px;background:#FEF3C7;border-radius:6px;color:#92400E;font-size:13px;">
                  Se guarda de inmediato. <strong>No se revierte si cancelas la edición del BL</strong>.
                </p>`;
@@ -336,7 +372,12 @@ const ExpoBLEdit = () => {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     decisiones: [esTransitoNuevo
-                        ? { bl_number: blNumber, es_transito: true, lugar_destino_cod: destino.codigo }
+                        ? {
+                            bl_number: blNumber,
+                            es_transito: true,
+                            lugar_destino_cod: destino.codigo,
+                            observaciones: marcadas.map(s => ({ nombre: s.nombre, contenido: s.contenido })),
+                        }
                         : { bl_number: blNumber, es_transito: false }]
                 }),
             });
@@ -349,6 +390,7 @@ const ExpoBLEdit = () => {
             const ldFinal = data.resultados?.[0]?.lugar_destino_cod;
 
             setTransitoDestino("");
+            setTransitoSugeridas([]);
             setRecargar(n => n + 1);   // vuelve a leer el BL con el LD ya actualizado
 
             Swal.fire({
@@ -1416,7 +1458,7 @@ const ExpoBLEdit = () => {
                                                         <PuertoAutocomplete
                                                             label="Destino final del tránsito"
                                                             value={transitoDestino}
-                                                            onChange={setTransitoDestino}
+                                                            onChange={v => { setTransitoDestino(v); cargarSugeridasTransito(v); }}
                                                             puertos={puertos}
                                                             excluirPais="CL"
                                                         />
@@ -1430,6 +1472,34 @@ const ExpoBLEdit = () => {
                                                         Marcar como tránsito
                                                     </button>
                                                 </div>
+
+                                                {/* Sugerencia del Oficio 182: el operador aprueba cuáles
+                                                    se agregan. El sistema no escribe observaciones solo. */}
+                                                {transitoSugeridas.length > 0 && (
+                                                    <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+                                                        <p className="text-xs text-slate-600 mb-2">
+                                                            Según el <strong>Oficio 182</strong> corresponden estas observaciones.
+                                                            Se agregarán las que dejes marcadas:
+                                                        </p>
+                                                        <div className="space-y-1.5">
+                                                            {transitoSugeridas.map((s, i) => (
+                                                                <label key={i} className="flex items-center gap-2 cursor-pointer">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={s.marcada}
+                                                                        disabled={guardandoTransito}
+                                                                        onChange={() => setTransitoSugeridas(prev => prev.map((o, j) => j === i ? { ...o, marcada: !o.marcada } : o))}
+                                                                        className="w-4 h-4 rounded border-slate-300"
+                                                                    />
+                                                                    <span className="px-1.5 py-0.5 rounded text-xs font-bold font-mono bg-slate-100 text-slate-700 border border-slate-300">
+                                                                        {s.nombre}
+                                                                    </span>
+                                                                    <span className="text-sm text-slate-700">{s.contenido}</span>
+                                                                </label>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </>
                                         )}
                                     </div>
@@ -1506,6 +1576,41 @@ const ExpoBLEdit = () => {
                                     actual del BL: lo que ya se declaró se mantiene. El sistema agrega algunas
                                     automáticamente al procesar el PMS, pero de ahí en adelante las administras tú
                                     — puedes editarlas y borrarlas todas.
+                                </div>
+
+                                {/* Referencia consultable: de dónde sale cada automática.
+                                    Colapsable y en línea, para no tapar el asistente. */}
+                                <div className="mb-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowDiccionarioObs(v => !v)}
+                                        className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                                    >
+                                        <svg className={`w-3.5 h-3.5 transition-transform ${showDiccionarioObs ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                        </svg>
+                                        ¿De dónde salen estas observaciones?
+                                    </button>
+
+                                    {showDiccionarioObs && (
+                                        <div className="mt-2 rounded-lg border border-slate-200 bg-white divide-y divide-slate-100">
+                                            {OBS_AUTOMATICAS_DOC.map((d, i) => (
+                                                <div key={i} className="p-3">
+                                                    <div className="flex items-baseline gap-2 flex-wrap">
+                                                        <span className="px-1.5 py-0.5 rounded text-xs font-bold font-mono bg-slate-100 text-slate-700 border border-slate-300">
+                                                            {d.codigo}
+                                                        </span>
+                                                        <span className="text-sm font-medium text-slate-800">{d.glosa}</span>
+                                                    </div>
+                                                    <p className="text-xs text-slate-600 mt-1"><strong>Cuándo:</strong> {d.cuando}</p>
+                                                    <p className="text-xs text-slate-500 mt-0.5"><strong>Por qué:</strong> {d.porque}</p>
+                                                </div>
+                                            ))}
+                                            <p className="p-3 text-xs text-slate-500">
+                                                Si borraste alguna y la necesitas, agrégala a mano con el mismo código y glosa.
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="flex items-center justify-between mb-3">
@@ -2200,6 +2305,38 @@ const MaskedDateTimeInput = ({ label, value, onChange, required }) => {
         </div>
     );
 };
+
+// Diccionario de las observaciones que genera o sugiere el sistema, para que el
+// operador entienda de dónde salen y pueda reponerlas a mano si las borró.
+// Solo automáticas: los códigos manuales ya se describen en OBS_TIPOS, que es
+// lo que lista el autocompletado.
+// Hardcodeado por ahora, igual que OBS_TIPOS.
+const OBS_AUTOMATICAS_DOC = [
+    {
+        codigo: "14",
+        glosa: "SIN TRB",
+        cuando: "Se agrega al procesar el PMS, cuando el BL no tiene transbordos.",
+        porque: "Declara que la carga no transbordó en el trayecto.",
+    },
+    {
+        codigo: "12",
+        glosa: "Nombre del país",
+        cuando: "Se agrega al procesar el PMS, cuando el lugar de destino es extranjero y distinto del puerto de descarga.",
+        porque: "Declara que el destino final está fuera de Chile.",
+    },
+    {
+        codigo: "10 / 11 / 12",
+        glosa: "BOLIVIA / PERU / nombre del país",
+        cuando: "Se sugieren al marcar el BL como tránsito, con el código según el país del destino: 10 para Bolivia, 11 para Perú, 12 para el resto.",
+        porque: "Oficio Circular 182 de Aduanas (29-05-2015): el destino final de un tránsito se declara como observación.",
+    },
+    {
+        codigo: "GRAL",
+        glosa: "Por cuenta y riesgo del consignatario",
+        cuando: "Se sugiere junto con la observación de país, al marcar el BL como tránsito.",
+        porque: "Oficio Circular 182 de Aduanas (29-05-2015).",
+    },
+];
 
 const OBS_TIPOS = [
     { value: "GRAL", label: "GRAL", desc: "Observaciones generales" },

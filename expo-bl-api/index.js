@@ -20,7 +20,8 @@ const archiver = require('archiver');
 const {
   buildXML, getBLQuery, getContenedoresQuery, getTransbordosQuery,
   detectarTipo, generarObservaciones,
-  parseObservaciones, calcularObservacionesAuto, combinarObservaciones
+  parseObservaciones, calcularObservacionesAuto, combinarObservaciones,
+  observacionesTransito, tieneObservacionesMaterializadas
 } = require('./xmlBuilder');
 
 dotenv.config();
@@ -4778,6 +4779,54 @@ async function materializarObservaciones(conn, blId) {
   );
 }
 
+// Agrega observaciones al final del historial de un BL, sin tocar lo que ya
+// hay. Se usa cuando el operador aprueba la sugerencia del Oficio 182 al marcar
+// un tránsito: es aditivo por definición, porque la lista es un historial.
+//
+// Omite las que ya estén idénticas (mismo código y misma glosa) para que marcar
+// dos veces el mismo tránsito no las duplique. Una glosa distinta con el mismo
+// código sí entra: son declaraciones distintas.
+async function agregarObservaciones(conn, blId, nuevas) {
+  const aAgregar = Array.isArray(nuevas) ? nuevas : [];
+  if (aAgregar.length === 0) return;
+
+  let [[fila]] = await conn.query(
+    "SELECT observaciones FROM bls WHERE id = ? LIMIT 1", [blId]
+  );
+  if (!fila) return;
+
+  // Si el BL nunca se materializó, primero se escribe su estado inicial. Sin
+  // esto, agregar la primera observación lo sacaría del fallback en vivo y
+  // perdería en silencio las automáticas que el XML venía emitiendo — un BL
+  // anterior a la materialización se quedaría sin su 14 SIN TRB.
+  if (!tieneObservacionesMaterializadas(fila.observaciones)) {
+    await materializarObservaciones(conn, blId);
+    [[fila]] = await conn.query(
+      "SELECT observaciones FROM bls WHERE id = ? LIMIT 1", [blId]
+    );
+  }
+
+  const actuales = parseObservaciones(fila.observaciones);
+  // Texto plano heredado de carga suelta: no es un arreglo y no se toca.
+  if (actuales === null) return;
+
+  const yaEsta = (o) => actuales.some(a =>
+    (a.nombre || 'GRAL') === o.nombre && String(a.contenido || '') === String(o.contenido || '')
+  );
+
+  const lista = [
+    ...actuales,
+    ...aAgregar
+      .filter(o => !yaEsta(o))
+      .map(o => ({ nombre: o.nombre, contenido: o.contenido, origen: 'auto' })),
+  ];
+
+  await conn.query(
+    "UPDATE bls SET observaciones = ? WHERE id = ?",
+    [JSON.stringify(lista), blId]
+  );
+}
+
 async function refreshResumenValidacionBL(conn, blId) {
   const [[c]] = await conn.query(`
     SELECT
@@ -5841,6 +5890,36 @@ app.get("/api/manifiestos/:id/bls-para-xml", async (req, res) => {
 //
 // El tránsito es solo importación; los BLs de manifiestos de exportación se
 // rechazan más abajo.
+// GET /api/transito/observaciones-sugeridas?lugar_destino_cod=ARBUE
+// Devuelve las observaciones que corresponden a un tránsito hacia ese destino
+// según el Oficio 182, para que la UI se las muestre al operador con
+// checkboxes. No escribe nada: es la sugerencia, no la decisión.
+//
+// Vive fuera de /api/bls/ a propósito: ahí ya hay una ruta duplicada
+// (GET /api/bls/:blNumber está registrada dos veces) y no conviene sumar
+// riesgo de que un path se coma a otro.
+app.get("/api/transito/observaciones-sugeridas", async (req, res) => {
+  try {
+    const cod = String(req.query.lugar_destino_cod || "").trim().toUpperCase();
+    if (!cod) return res.status(400).json({ error: "Falta lugar_destino_cod" });
+
+    // Se resuelve el puerto para usar su código ESTÁNDAR: si llega un código
+    // SIDEMAR, su prefijo no es el país y la sugerencia saldría equivocada.
+    const [rows] = await pool.query(
+      "SELECT codigo FROM puertos WHERE codigo = ? OR codigo_sidemar = ? LIMIT 1",
+      [cod, cod]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: `El puerto '${cod}' no existe en el mantenedor` });
+    }
+
+    res.json(observacionesTransito(rows[0].codigo));
+  } catch (error) {
+    console.error("Error al calcular observaciones sugeridas:", error);
+    res.status(500).json({ error: "Error al calcular las observaciones sugeridas" });
+  }
+});
+
 app.post("/api/bls/transito", async (req, res) => {
   const conn = await pool.getConnection();
   try {
@@ -5937,12 +6016,30 @@ app.post("/api/bls/transito", async (req, res) => {
         continue;
       }
 
+      // Observaciones que el operador dejó marcadas de la sugerencia del
+      // Oficio 182. Se validan SOLO estas, que son las que entran por el canal
+      // de sugerencia: el operador puede escribir lo que quiera como
+      // observación manual desde el editor, y eso no pasa por acá.
+      const sugeridas = observacionesTransito(puertoRows[0].codigo);
+      const elegidas = Array.isArray(d?.observaciones) ? d.observaciones : [];
+      const noCorresponde = elegidas.find(o =>
+        !sugeridas.some(s => s.nombre === o?.nombre && s.contenido === o?.contenido)
+      );
+      if (noCorresponde) {
+        errores.push({
+          bl_number: blNumber,
+          error: `La observación '${noCorresponde?.nombre}' no corresponde a un tránsito hacia '${cod}'`
+        });
+        continue;
+      }
+
       preparadas.push({
         blNumber,
         blId: blRows[0].id,
         esTransito: true,
         lugarDestinoCod: cod,
         lugarDestinoId: puertoRows[0].id,
+        observaciones: elegidas,
       });
     }
 
@@ -5955,6 +6052,11 @@ app.post("/api/bls/transito", async (req, res) => {
     try {
       for (const p of preparadas) {
         if (p.esTransito) {
+          // Las observaciones van ANTES del UPDATE: si el BL nunca se
+          // materializó, agregarObservaciones() escribe su estado inicial, y
+          // ese cálculo tiene que ver al BL como estaba — todavía sin el
+          // sentido TR ni el destino nuevo. Al revés duplicaría las del oficio.
+          await agregarObservaciones(conn, p.blId, p.observaciones);
           await conn.query(
             `UPDATE bls
                 SET sentido_operacion = 'TR',
@@ -5977,6 +6079,8 @@ app.post("/api/bls/transito", async (req, res) => {
               WHERE id = ?`,
             [p.lugarDestinoCod, p.lugarDestinoId, p.blId]
           );
+          // Deshacer NO borra observaciones: son historial de lo declarado.
+          // Si el operador quiere sacarlas, las saca a mano desde el editor.
         } else {
           // Descartar una sugerencia no toca lugar_destino: el BL vuelve a
           // heredar el sentido del manifiesto y conserva el destino que tenía.

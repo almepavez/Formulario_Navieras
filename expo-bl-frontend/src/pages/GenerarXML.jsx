@@ -529,8 +529,35 @@ const ConfirmarTransitoModal = ({ blsPendientes, puertos, onClose, onConfirmado 
   const setDecision = (blNumber, patch) =>
     setDecisiones(prev => ({
       ...prev,
-      [blNumber]: { es_transito: null, lugar_destino_cod: "", ...prev[blNumber], ...patch },
+      [blNumber]: { es_transito: null, lugar_destino_cod: "", sugeridas: [], ...prev[blNumber], ...patch },
     }));
+
+  // Las observaciones del Oficio 182 se SUGIEREN, no se escriben solas: el
+  // operador ve cuáles corresponden y decide. La lista la calcula el backend
+  // para no tener dos copias de una regla legal.
+  const cargarSugeridas = async (blNumber, codigo) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/transito/observaciones-sugeridas?lugar_destino_cod=${encodeURIComponent(codigo)}`);
+      if (!res.ok) return setDecision(blNumber, { sugeridas: [] });
+      const data = await res.json();
+      setDecision(blNumber, { sugeridas: data.map(o => ({ ...o, marcada: true })) });
+    } catch {
+      setDecision(blNumber, { sugeridas: [] });
+    }
+  };
+
+  const toggleSugerida = (blNumber, idx) =>
+    setDecisiones(prev => {
+      const d = prev[blNumber];
+      if (!d) return prev;
+      return {
+        ...prev,
+        [blNumber]: {
+          ...d,
+          sugeridas: d.sugeridas.map((s, i) => i === idx ? { ...s, marcada: !s.marcada } : s),
+        },
+      };
+    });
 
   // El autocompletado deja escribir texto libre, así que "eligió un puerto" se
   // valida contra el mantenedor, no contra "el input tiene algo".
@@ -570,6 +597,10 @@ const ConfirmarTransitoModal = ({ blsPendientes, puertos, onClose, onConfirmado 
                 // Se manda el código estándar del puerto: el backend resuelve
                 // el id contra puertos.codigo.
                 lugar_destino_cod: puertoValido(d.lugar_destino_cod).codigo,
+                // Solo las que el operador dejó marcadas.
+                observaciones: (d.sugeridas || [])
+                  .filter(s => s.marcada)
+                  .map(s => ({ nombre: s.nombre, contenido: s.contenido })),
               }
             : { bl_number: bl.bl_number, es_transito: false };
         }),
@@ -690,7 +721,11 @@ const ConfirmarTransitoModal = ({ blsPendientes, puertos, onClose, onConfirmado 
                     <PuertoAutocomplete
                       label="LD — Destino final del tránsito"
                       value={d.lugar_destino_cod}
-                      onChange={v => setDecision(bl.bl_number, { lugar_destino_cod: v })}
+                      onChange={v => {
+                        setDecision(bl.bl_number, { lugar_destino_cod: v, sugeridas: [] });
+                        const p = puertoValido(v);
+                        if (p && !esChileno(p)) cargarSugeridas(bl.bl_number, p.codigo);
+                      }}
                       puertos={puertos}
                       required
                       excluirPais="CL"
@@ -714,6 +749,35 @@ const ConfirmarTransitoModal = ({ blsPendientes, puertos, onClose, onConfirmado 
                       <p className="text-xs text-slate-500 mt-1">
                         Obligatorio para confirmar el tránsito.
                       </p>
+                    )}
+
+                    {/* Sugerencia del Oficio 182: se agregan solo las marcadas.
+                        Las observaciones son historial, así que se suman a lo
+                        que el BL ya tenga; no reemplazan nada. */}
+                    {(d.sugeridas || []).length > 0 && (
+                      <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+                        <p className="text-xs text-slate-600 mb-2">
+                          Según el <strong>Oficio 182</strong> corresponden estas observaciones. Se
+                          agregarán las que dejes marcadas:
+                        </p>
+                        <div className="space-y-1.5">
+                          {d.sugeridas.map((s, i) => (
+                            <label key={i} className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={s.marcada}
+                                disabled={guardando}
+                                onChange={() => toggleSugerida(bl.bl_number, i)}
+                                className="w-4 h-4 rounded border-slate-300"
+                              />
+                              <span className="px-1.5 py-0.5 rounded text-xs font-bold font-mono bg-slate-100 text-slate-700 border border-slate-300">
+                                {s.nombre}
+                              </span>
+                              <span className="text-sm text-slate-700">{s.contenido}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}

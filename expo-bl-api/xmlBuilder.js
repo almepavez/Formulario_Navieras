@@ -397,6 +397,28 @@ const tieneObservacionesMaterializadas = (valor) => {
   return true;
 };
 
+// Observaciones que corresponden a un tránsito según el Oficio Circular 182 de
+// Aduanas (29-05-2015), a partir del código ESTÁNDAR del puerto de destino.
+// Nunca del código SIDEMAR: su prefijo no es el país.
+//
+// Fuente única de la regla. La usan el cálculo automático de abajo (para los
+// BLs que nunca se materializaron) y el endpoint que le sugiere estas
+// observaciones al operador cuando marca un tránsito. El operador aprueba
+// cuáles se agregan: acá no se escribe nada.
+const observacionesTransito = (codigoDestinoEstandar) => {
+  const obs = [];
+  const pais = String(codigoDestinoEstandar || '').substring(0, 2).toUpperCase();
+
+  if (pais && pais !== 'CL') {
+    if (pais === 'BO') obs.push({ nombre: '10', contenido: 'BOLIVIA' });
+    else if (pais === 'PE') obs.push({ nombre: '11', contenido: 'PERU' });
+    else obs.push({ nombre: '12', contenido: PAISES_TRANSITO[pais] || pais });
+  }
+
+  obs.push({ nombre: 'GRAL', contenido: 'Por cuenta y riesgo del consignatario' });
+  return obs;
+};
+
 // Calcula las observaciones automáticas a partir del estado del BL.
 // Es cálculo puro y se usa en un solo momento: la ingesta del PMS.
 const calcularObservacionesAuto = (bl, transbordos, tipo) => {
@@ -414,21 +436,11 @@ const calcularObservacionesAuto = (bl, transbordos, tipo) => {
   }
 
   if (esTránsito) {
-    // Oficio Circular 182 de Aduanas (29-05-2015): el destino final de un
-    // tránsito se declara como observación con código por país.
-    // El prefijo sale del código estándar del puerto, NO del que va al XML
-    // — ese puede venir traducido a SIDEMAR y su prefijo no es el país.
-    // Acá no se exige que el destino difiera del puerto de descarga (la
-    // condición del 12 de importación): en un tránsito el destino final es
-    // extranjero por definición, y la ingesta PMS deja el LD copiado del
-    // puerto de descarga hasta que el operador lo corrige.
-    const pais = String(bl.lugar_destino_codigo_pais || '').substring(0, 2).toUpperCase();
-    if (pais && pais !== 'CL') {
-      if (pais === 'BO') obs.push({ nombre: '10', contenido: 'BOLIVIA' });
-      else if (pais === 'PE') obs.push({ nombre: '11', contenido: 'PERU' });
-      else obs.push({ nombre: '12', contenido: PAISES_TRANSITO[pais] || pais });
-    }
-    obs.push({ nombre: 'GRAL', contenido: 'Por cuenta y riesgo del consignatario' });
+    // En la ingesta esta rama no se alcanza: el BL recién insertado nunca es
+    // tránsito, porque el sentido lo decide el operador después. Queda para el
+    // fallback en vivo de los BLs que nunca se materializaron y que sí pueden
+    // estar marcados como tránsito.
+    obs.push(...observacionesTransito(bl.lugar_destino_codigo_pais));
   } else if (bl.lugar_destino_codigo && bl.lugar_destino_codigo !== bl.puerto_descarga_codigo) {
     const pais = bl.lugar_destino_codigo.substring(0, 2);
     if (pais && pais !== 'CL') {
@@ -727,4 +739,6 @@ module.exports = {
   parseObservaciones,
   calcularObservacionesAuto,
   combinarObservaciones,
+  observacionesTransito,
+  tieneObservacionesMaterializadas,
 };
