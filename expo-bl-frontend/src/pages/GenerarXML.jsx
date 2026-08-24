@@ -1169,7 +1169,10 @@ const GenerarXML = () => {
 
         {/* Header */}
         <div className="mb-8">
-          <button onClick={() => navigate("/manifiestos")} className="text-sm text-slate-600 hover:text-slate-900 mb-2">
+          {/* Al detalle del manifiesto que se está revisando, que es lo que
+              dice el enlace. Si no hay id la página ya está en su pantalla de
+              error, y el listado es la única salida útil. */}
+          <button onClick={() => navigate(id ? `/manifiestos/${id}` : "/manifiestos")} className="text-sm text-slate-600 hover:text-slate-900 mb-2">
             ← Volver al manifiesto
           </button>
           <div className="flex items-start justify-between gap-4 mt-1">
