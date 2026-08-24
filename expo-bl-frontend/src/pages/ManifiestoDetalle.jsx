@@ -42,7 +42,11 @@ const ManifiestoDetalle = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [data, setData] = useState(null);
-  const [blCount, setBlCount] = useState(0);
+  // null = todavía no se sabe cuántos BLs tiene. Arrancaba en 0, que es
+  // indistinguible de "no tiene ninguno", así que el botón Eliminar —que se
+  // muestra justo cuando el manifiesto está vacío— alcanzaba a pintarse en el
+  // primer render y desaparecía al llegar el conteo.
+  const [blCount, setBlCount] = useState(null);
   const fileInputRef = useRef(null);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
@@ -602,6 +606,11 @@ const ManifiestoDetalle = () => {
                   </button>
                 </>
               )}
+              {/* Este bloque de acciones queda fuera del guard de carga, así
+                  que se renderiza con blCount todavía sin resolver. La
+                  comparación estricta con 0 es la que mantiene el botón oculto
+                  hasta que llega el conteo: un chequeo laxo (!blCount) lo haría
+                  parpadear en cada carga. */}
               {blCount === 0 && (
                 <button
                   onClick={handleDeleteManifiesto}
