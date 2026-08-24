@@ -33,7 +33,7 @@ const Login = () => {
         .then(data => {
           if (data.success) {
             localStorage.setItem('usuario', JSON.stringify(data.usuario));
-            navigate('/Manifiestos');
+            navigate('/manifiestos');
           }
         })
         .catch(() => {
@@ -69,7 +69,7 @@ const Login = () => {
       localStorage.setItem("token", data.token);
       localStorage.setItem("usuario", JSON.stringify(data.usuario));
 
-      navigate("/Manifiestos");
+      navigate("/manifiestos");
     } catch (err) {
       setError(err.message || "Error al conectar con el servidor");
     } finally {
