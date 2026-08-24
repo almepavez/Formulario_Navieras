@@ -122,6 +122,8 @@ One large Express file — all routes, middleware, and business logic live here.
 
 **Known duplication — `parseFechaCLtoMySQL`:** the function is defined **three times** with **two different semantics**. Module-level (line ~5514) validates that the date really exists and returns `null` when it doesn't; the two local copies (lines ~5366 and ~7537, inside the carga-suelta update and create endpoints) shadow it and return the input string unchanged instead. Callers therefore behave differently depending on which endpoint they hit. Unifying them is pending work — check which copy is in scope before touching date handling.
 
+**Unreferenced but deliberately kept — `components/CrearPuertoModal.jsx`:** its only consumer was a "Crear Puerto" button in step 2 of `ExpoBLEdit`, removed because operators don't create ports — those requests go to soporte, who create them from `/mantenedores/puertos`. The component still works and posts to `POST /api/mantenedores/puertos`, the same endpoint the mantenedor uses, so it can be wired into an admin screen later. Kept on purpose; don't delete it as "dead code" without asking.
+
 **Known dead code — duplicate `GET /api/bls/:blNumber`:** the route is registered **twice**, at line ~5002 and again at line ~7725. Express dispatches to the first match, so the second handler (~100 lines, with its own joins to `participantes`) never runs. The live one is the first; it is what `ExpoBLEdit` loads. Don't "fix" a bug by editing the second copy — verify which one is in scope first. Removing the dead one is pending work.
 
 **Other pending work**, so it doesn't get lost:
