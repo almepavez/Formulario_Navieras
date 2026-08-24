@@ -1649,7 +1649,7 @@ const ExpoBLEdit = () => {
                                             {/* El origen es informativo: dice quién la puso, no bloquea nada.
                                                 Se conserva al guardar porque nadie lo vuelve a calcular. */}
                                             {obs.origen === "auto" && (
-                                                <span className="absolute top-2 right-10 text-[10px] uppercase tracking-wide font-semibold text-slate-500 bg-slate-100 border border-slate-300 rounded-full px-2 py-0.5">
+                                                <span className="absolute top-2.5 right-10 text-[11px] text-slate-400">
                                                     Automática
                                                 </span>
                                             )}
@@ -2316,7 +2316,7 @@ const OBS_AUTOMATICAS_DOC = [
         codigo: "14",
         glosa: "SIN TRB",
         cuando: "Se agrega al procesar el PMS, cuando el BL no tiene transbordos.",
-        porque: "Declara que la carga no transbordó en el trayecto.",
+        porque: "Declara que la carga no hizo transbordo en el trayecto.",
     },
     {
         codigo: "12",
