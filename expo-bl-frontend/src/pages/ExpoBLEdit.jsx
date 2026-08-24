@@ -3,7 +3,6 @@ import { ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import Sidebar from "../components/Sidebar";
-import CrearPuertoModal from "../components/CrearPuertoModal";
 import ComboSelect from "../components/ComboSelect";
 import SearchSelect from "../components/SearchSelect";
 import PuertoAutocomplete from "../components/PuertoAutocomplete";
@@ -97,7 +96,6 @@ const ExpoBLEdit = () => {
     const [tipoCntTipoBulto, setTipoCntTipoBulto] = useState([]);
     const [almacenistaOriginal, setAlmacenistaOriginal] = useState(null);
     const [almacenistaModificado, setAlmacenistaModificado] = useState(false);
-    const [showCrearPuertoModal, setShowCrearPuertoModal] = useState(false);
     const [emailErrors, setEmailErrors] = useState({
         shipper: false,
         consignee: false,
@@ -581,11 +579,6 @@ const ExpoBLEdit = () => {
     const removeImoFromContenedor = (cId, index) => {
         Swal.fire({ title: "¿Eliminar dato IMO?", icon: "warning", showCancelButton: true, confirmButtonText: "Sí, eliminar", cancelButtonText: "Cancelar", confirmButtonColor: "#dc2626", cancelButtonColor: "#64748b" })
             .then(r => { if (r.isConfirmed) setContenedores(prev => prev.map(c => c.id === cId ? { ...c, imos: (c.imos || []).filter((_, i) => i !== index) } : c)); });
-    };
-
-    const handlePuertoCreado = nuevoPuerto => {
-        setPuertos(prev => [...prev, nuevoPuerto].sort((a, b) => a.nombre.localeCompare(b.nombre)));
-        Swal.fire({ icon: "success", title: `Puerto ${nuevoPuerto.codigo} creado`, timer: 2000, showConfirmButton: false });
     };
 
     const validarCantidadContenedores = () =>
@@ -1374,15 +1367,9 @@ const ExpoBLEdit = () => {
                     {/* ════ STEP 2: RUTAS ════ */}
                     {currentStep === 2 && (
                         <div className="space-y-8">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h2 className="text-xl font-bold text-slate-800">Rutas y Transbordos</h2>
-                                    <p className="text-sm text-slate-600 mt-1">{esImpo ? "En importación los transbordos son obligatorios con fecha de arribo" : "En exportación los transbordos son opcionales"}</p>
-                                </div>
-                                <button type="button" onClick={() => setShowCrearPuertoModal(true)} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                                    Crear Puerto
-                                </button>
+                            <div>
+                                <h2 className="text-xl font-bold text-slate-800">Rutas y Transbordos</h2>
+                                <p className="text-sm text-slate-600 mt-1">{esImpo ? "En importación los transbordos son obligatorios con fecha de arribo" : "En exportación los transbordos son opcionales"}</p>
                             </div>
                             <div className="border-b pb-6">
                                 <h3 className="font-semibold text-slate-800 mb-4">Lugares de Origen</h3>
@@ -1566,7 +1553,6 @@ const ExpoBLEdit = () => {
                                         <p className="text-xs text-blue-700"><strong>Ruta:</strong> {formData.puerto_embarque || "?"}{transbordos.length > 0 && ` → ${transbordos.map(t => t.puerto_cod || "?").join(" → ")}`}{formData.puerto_descarga && ` → ${formData.puerto_descarga}`}</p>
                                     </div>
                                 )}
-                                <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800"><strong>Nota:</strong> Si un puerto no aparece en la lista, usa el botón <strong>"Crear Puerto"</strong> arriba.</div>
                             </div>
 
                             {/* ── Observaciones (solo IMPO, dentro del step 2) ── */}
@@ -2239,8 +2225,6 @@ const ExpoBLEdit = () => {
                     )}
                 </div>
             </main>
-
-            <CrearPuertoModal isOpen={showCrearPuertoModal} onClose={() => setShowCrearPuertoModal(false)} onPuertoCreado={handlePuertoCreado} />
         </div>
     );
 };
