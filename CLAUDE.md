@@ -126,40 +126,42 @@ One large Express file — all routes, middleware, and business logic live here.
 
 **Other pending work**, so it doesn't get lost:
 - The transit migration (`expo-bl-api/migrations/2026-08-21-transito-bl.sql`) is applied by hand. It must land **before** the code that references the new columns, or `getBLQuery()` fails on columns that don't exist.
-- Observations: no warning before a change (e.g. "adding this transbordo will remove observation 14"), and `OBS_TIPOS` still hardcoded in `ExpoBLEdit.jsx` instead of a `tipos_observacion` table.
+- Observations: `OBS_TIPOS` and `OBS_AUTOMATICAS_DOC` are still hardcoded in `ExpoBLEdit.jsx` instead of living in a `tipos_observacion` table.
 
 `xmlBuilder.js` exports include `buildXML`, `getBLQuery`, `getContenedoresQuery`, `getTransbordosQuery`, `detectarTipo`, `generarReferencias`, `generarObservaciones`, `calcularObservacionesAuto`, `combinarObservaciones`, and `parseObservaciones` (among other helpers). The `detectarTipo(bl)` helper returns booleans `{ esCargaSuelta, esEmpty, esImpo, esExpo, esTránsito, sinVolumen }` and drives XML branching logic.
 
 ### Observations
 
-`bls.observaciones` holds a JSON array of `{ nombre, contenido, origen }`, where `origen` is `'auto'` or `'manual'`. The automatic ones are **materialized**: they are computed and stored, not derived at XML time. Before this, they existed only inside the XML builder, so the BL detail view showed them (it called the function) while the editor did not (it read the empty column) — "silent observations".
+`bls.observaciones` holds a JSON array of `{ nombre, contenido, origen }`, where `origen` is `'auto'` or `'manual'`. In SIDEMAR observations are an **accumulated history of what was declared**, not a reflection of the BL's current state: if a BL was declared with `14 SIN TRB` and a transbordo is added afterwards, the 14 **stays**, and the operator adds by hand the observation explaining the change.
 
-**Where it happens.** `materializarObservaciones(conn, blId)` in `index.js` computes and writes. It is called from **two** places, because `revalidarBLCompleto()` alone does not cover every path:
+**Generated once, at PMS ingestion.** `materializarObservaciones(conn, blId)` runs from the ingestion loop only, right after `insertTransbordos()` (the `14` depends on transbordos). It writes the initial state and **nothing recalculates it afterwards** — `revalidarBLCompleto()` does not touch observations, it only validates. Reprocessing the PMS wipes and regenerates, which is correct: a BL that goes back to being a normal import cannot keep a `12 ARGENTINA` from a transit that no longer exists.
 
-- `revalidarBLCompleto()`, right after the FK re-resolution (the computation depends on the resolved LD code).
-- the **PMS ingestion loop**, which does *not* go through `revalidarBLCompleto()` — it builds its validations inline. Without this call a freshly ingested BL would be born with `observaciones` NULL.
+**Everything is editable.** `ExpoBLEdit` shows one list with automatic and manual entries together, all editable and deletable — the operator owns the history. `origen` survives as a label (an "Automática" badge) and blocks nothing, but the editor **must send it back untouched**: nothing recomputes it, so losing it would erase the badge permanently. There is no duplicate-code conflict and no `conflicto` field: with no recalculation an automatic entry can never collide with an existing manual one, and in a history two entries sharing a code are legitimate.
 
-**The merge never replaces the column.** Manual entries always survive. Crucially, an entry **without** an `origen` field (legacy format) counts as **manual**, never as auto — treating it as auto would delete it on the next recalculation. `combinarObservaciones()` in `xmlBuilder.js` owns this and writes autos first, manuals after, which is the order the XML has always emitted.
+**`NULL` and `'[]'` are different states.**
 
-**Automatic ones are read-only in the UI.** `ExpoBLEdit` renders them in their own block with a badge and no controls, and keeps them in a separate `observacionesAuto` state — **not** in `formData`. That is deliberate: if the editor sent them back, they would arrive without `origen`, the merge would take them for manual, and they would duplicate permanently. Only manuals are sent on save.
-
-**Reactivity comes from the recalculation, not from events.** The editor calls `POST /api/bls/:blNumber/revalidar` at the end of its save sequence (after items, transbordos and contenedores — the `14 SIN TRB` depends on transbordos, so running it earlier would recompute from stale data). Add a transbordo and the `14` disappears; remove it and it comes back.
-
-**Duplicate code = blocking conflict.** A manual sharing its `nombre` with a live automatic one raises an `ERROR` (`campo: observaciones`) in `revalidarBLCompleto()`, in the ingestion, and in `validateBLForXML()`, so the BL does not generate XML. The operator resolves it in the editor, and the choice is persisted **on the manual entry**:
-
-| Choice | Stored | Effect |
+| Stored | Meaning | Reader |
 |---|---|---|
-| Leave both | `conflicto: 'ambas'` | both are emitted, no further warning |
-| Keep only the manual | `conflicto: 'reemplaza'` | the automatic one is suppressed on every recalculation |
-| Keep only the automatic | manual entry deleted | nothing to mark |
+| `NULL` | never materialized (every BL predating this mechanism; no backfill was run) | falls back to computing the automatics live |
+| `'[]'` | materialized, and no observations remain | respected as-is |
 
-There is deliberately **no `descartada` flag on automatic entries** — they are a reflection of the BL's state, so suppression is expressed on the manual side.
+Without that distinction, deleting the last observation would make it reappear in the XML. Three places rely on it: the editor sends `[]` instead of `null`, `materializarObservaciones()` writes `'[]'`, and `generarObservaciones()` checks the raw value via `tieneObservacionesMaterializadas()` rather than the list length. Keying on `valid_last_run` does **not** work — the pre-existing BLs were revalidated by older code that did not materialize, so they carry a timestamp with a NULL column.
 
-**Reading, and the fallback.** `generarObservaciones()` no longer computes: it reads the stored list. When that list is **empty** it falls back to computing live, which is the state of every BL predating materialization (there was no backfill). The trigger is emptiness and **not `valid_last_run`**: the pre-existing BLs were revalidated by the old code, which did not materialize, so they carry a `valid_last_run` with a NULL column — keying on it would have silently dropped their `14 SIN TRB` from the XML. The fallback is safe because it calls the same computation, and generating XML never writes.
+**Transit observations are suggested, never written automatically.** Writing observations outside PMS processing risks unexpected states, so the operator approves them. When a transit destination is chosen — in `ConfirmarTransitoModal` and in the editor's transit control alike — the UI calls `GET /api/transito/observaciones-sugeridas?lugar_destino_cod=…` and renders the result as checkboxes, ticked by default; only the ticked ones are sent to `POST /api/bls/transito`, which appends them to the end of the history. Appending skips entries already present with the same code and glosa, so marking twice does not duplicate.
 
-Carga suelta keeps its legacy plain-text branch (`GRAL` + `MOT LISTA DE ENCARGO`), and `materializarObservaciones()` leaves any non-array value untouched rather than overwriting it. BB and EXPO have no automatic observations.
+`observacionesTransito()` in `xmlBuilder.js` is the single source of that rule (10 Bolivia, 11 Peru, 12 the rest, plus the `GRAL`); the endpoint and the live fallback both use it, so the legal mapping is not duplicated in the frontend. The endpoint lives **outside `/api/bls/`** on purpose — that prefix already carries a duplicate route.
 
-Out of scope for now: warning before a change ("adding this transbordo will remove observation 14"), and moving `OBS_TIPOS` out of `ExpoBLEdit.jsx` into a `tipos_observacion` table.
+The POST validates the submitted observations against its own computation and rejects anything that does not correspond to the chosen destination. It validates **only that channel**: an observation typed by hand in the editor travels through `PUT /api/bls/:blNumber` and is never checked against the oficio, so the operator can reword the `GRAL` freely.
+
+**Undoing a transit does not delete observations** — they stay as history and the operator removes them by hand if wanted. The LD does go back to the discharge port, because that is a field, not history.
+
+One wrinkle worth knowing: marking a transit on a BL whose `observaciones` is still `NULL` would silently drop the `14 SIN TRB` the fallback had been emitting, because the append moves it out of the fallback. `agregarObservaciones()` therefore materializes the initial state first, and it runs **before** the sentido `UPDATE` so that computation still sees the BL as a non-transit and does not duplicate the oficio entries.
+
+**Dictionary.** The editor's observations section carries a collapsible reference (`OBS_AUTOMATICAS_DOC`, hardcoded next to `OBS_TIPOS`) listing each automatic observation with its code, glosa, when it fires and why it exists — so the operator can understand where they came from and retype one that was deleted. Manual codes are already described in `OBS_TIPOS`, which feeds the autocomplete.
+
+Carga suelta keeps its legacy plain-text branch (`GRAL` + `MOT LISTA DE ENCARGO`), and both `materializarObservaciones()` and `agregarObservaciones()` leave any non-array value untouched. BB and EXPO have no automatic observations.
+
+Out of scope for now: warning before a change ("adding this transbordo will remove observation 14" — no longer applicable), and moving `OBS_TIPOS` into a `tipos_observacion` table.
 
 ### Transit (TR) per BL
 
@@ -177,7 +179,7 @@ Three columns on `bls` carry it:
 
 **The PMS only suggests, it never decides.** `parsePmsTxt()` tests `/SHIPMENT\s+IN\s+TRANSIT/i` over the joined type-47 lines (next to the SOC text fallback) and sets `transito_sugerido`. The destination itself is **not parseable** — it comes split across 30-char columns with sequence numbers interleaved — so the operator picks the port by hand. Ingestion does **not** touch the sentido or `lugar_destino_cod`, which keeps being copied from the discharge port.
 
-**Per the oficio,** PD and LEM stay as they are (the real national port); only LD becomes the foreign destination, declared as an observation. In `calcularObservacionesAuto()`, when `esTránsito`:
+**Per the oficio,** PD and LEM stay as they are (the real national port); only LD becomes the foreign destination, declared as an observation. `observacionesTransito()` owns the mapping:
 
 | País del LD | Código | Glosa |
 |---|---|---|
@@ -185,7 +187,7 @@ Three columns on `bls` carry it:
 | `PE` | `11` | `PERU` |
 | otro | `12` | `PAISES_TRANSITO[país]` (AR/UY/PY/BR) o el prefijo crudo |
 
-plus a `GRAL` with `Por cuenta y riesgo del consignatario`. The country prefix is read from `lugar_destino_codigo_pais` (alias for `ld.codigo`), **never** from `lugar_destino_codigo` — that one is `COALESCE(codigo_sidemar, codigo)` and a SIDEMAR code's prefix is not the country. A manual observation carrying one of these codes is a **conflict**, not a silent override — see **Observations** below.
+plus a `GRAL` with `Por cuenta y riesgo del consignatario`. The country prefix comes from the port's **standard** code, never from a SIDEMAR one — a SIDEMAR code's prefix is not the country. These are **suggested to the operator with checkboxes** when the transit is confirmed, never written automatically; see **Observations** above.
 
 **Validation.** When the resolved sentido is `TR`, both `revalidarBLCompleto()` and `validateBLForXML()` add an `ERROR` if `lugar_destino_cod` is blank or if its country is `CL`. The pre-existing LD validations are untouched, so a blank LD raises both the generic and the transit-specific error.
 
