@@ -5,6 +5,7 @@ import Swal from "sweetalert2";
 import Sidebar from "../components/Sidebar";
 import ComboSelect from "../components/ComboSelect";
 import SearchSelect from "../components/SearchSelect";
+import { esAdmin, eliminarEntidad, escaparHtml } from "../utils/eliminarEntidad";
 
 const formatDateCL = (iso) => {
   if (!iso) return "—";
@@ -42,10 +43,10 @@ const ManifiestoDetalle = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [data, setData] = useState(null);
-  // null = todavía no se sabe cuántos BLs tiene. Arrancaba en 0, que es
-  // indistinguible de "no tiene ninguno", así que el botón Eliminar —que se
-  // muestra justo cuando el manifiesto está vacío— alcanzaba a pintarse en el
-  // primer render y desaparecía al llegar el conteo.
+  // null = todavía no se sabe cuántos BLs tiene. El botón Eliminar ya no
+  // depende del conteo —ahora se muestra según el rol y borra el manifiesto
+  // completo—, pero el modal de advertencia sí lo usa, y distinguir "no sé
+  // todavía" de "no tiene ninguno" evita anunciar un cero que es mentira.
   const [blCount, setBlCount] = useState(null);
   const fileInputRef = useRef(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -319,30 +320,43 @@ const ManifiestoDetalle = () => {
   };
 
   const handleDeleteManifiesto = async () => {
-    const result = await Swal.fire({
-      title: "¿Eliminar manifiesto?",
-      text: "Esta acción no se puede deshacer.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#dc2626",
-      cancelButtonColor: "#64748b",
-      confirmButtonText: "Sí, eliminar",
-      cancelButtonText: "Cancelar",
+    const m = data?.manifiesto;
+    // El mismo fallback que aplica el backend: numero_manifiesto_aduana es
+    // NULL-able, así que cuando viene vacío el token de confirmación es el
+    // viaje. Si acá se desincronizara, el 400 del endpoint trae `esperado` y
+    // `etiqueta` con lo que correspondía.
+    const numero = String(m?.numeroManifiestoAduana || "").trim();
+    const token = numero || String(m?.viaje || "").trim();
+    const etiqueta = numero ? "el número de manifiesto de aduana" : "el viaje";
+
+    // Solo la cantidad de BLs: es lo que la página ya tiene cargado, y no vale
+    // la pena un endpoint de conteo para un texto de advertencia.
+    const detalleBLs =
+      blCount === null
+        ? "sus BLs"
+        : blCount === 0
+          ? "no tiene BLs asociados"
+          : `sus <strong>${blCount}</strong> BL${blCount === 1 ? "" : "s"}`;
+
+    const { eliminado } = await eliminarEntidad({
+      url: `/api/manifiestos/${id}`,
+      titulo: "¿Eliminar manifiesto?",
+      descripcionHtml: `
+        <div style="background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:12px 14px;">
+          <p style="font-weight:700; color:#9a3412; margin-bottom:4px;">
+            Se eliminará el manifiesto ${escaparHtml(token)}
+          </p>
+          <p style="color:#7c2d12; font-size:12px; line-height:1.5;">
+            Junto con ${detalleBLs}, y de cada BL sus items, contenedores, sellos,
+            transbordos y validaciones. También se eliminan su itinerario y sus
+            filas de reportes.
+          </p>
+        </div>`,
+      tokenEsperado: token,
+      etiquetaToken: etiqueta,
     });
 
-    if (!result.isConfirmed) return;
-
-    try {
-      const res = await fetch(`${API_BASE}/api/manifiestos/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-      await Swal.fire({ title: "Eliminado", icon: "success", timer: 1500, showConfirmButton: false });
-      navigate("/manifiestos");
-    } catch (e) {
-      Swal.fire({ title: "Error", text: e?.message || "No se pudo eliminar", icon: "error", confirmButtonColor: "#0F2A44" });
-    }
+    if (eliminado) navigate("/manifiestos");
   };
 
   const handleGoBack = async () => {
@@ -606,17 +620,14 @@ const ManifiestoDetalle = () => {
                   </button>
                 </>
               )}
-              {/* Este bloque de acciones queda fuera del guard de carga, así
-                  que se renderiza con blCount todavía sin resolver. La
-                  comparación estricta con 0 es la que mantiene el botón oculto
-                  hasta que llega el conteo: un chequeo laxo (!blCount) lo haría
-                  parpadear en cada carga. */}
-              {blCount === 0 && (
+              {/* Ocultarlo a quien no es admin es solo cosmético: la
+                  restricción real es soloAdmin en el backend. */}
+              {esAdmin() && (
                 <button
                   onClick={handleDeleteManifiesto}
-                  className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700"
+                  className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 whitespace-nowrap"
                 >
-                  Eliminar
+                  Eliminar manifiesto
                 </button>
               )}
               <button

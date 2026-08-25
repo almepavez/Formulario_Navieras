@@ -6,6 +6,7 @@ import Sidebar from "../components/Sidebar";
 import ComboSelect from "../components/ComboSelect";
 import SearchSelect from "../components/SearchSelect";
 import PuertoAutocomplete from "../components/PuertoAutocomplete";
+import { esAdmin, eliminarEntidad, escaparHtml } from "../utils/eliminarEntidad";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -731,6 +732,31 @@ const ExpoBLEdit = () => {
         setCurrentStep(targetStep);
     };
 
+    const handleDeleteBL = async () => {
+        const numero = formData.bl_number || blNumber;
+        const { eliminado } = await eliminarEntidad({
+            url: `/api/bls/${encodeURIComponent(numero)}`,
+            titulo: "¿Eliminar BL?",
+            descripcionHtml: `
+                <div style="background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:12px 14px;">
+                  <p style="font-weight:700; color:#9a3412; margin-bottom:4px;">
+                    Se eliminará el BL ${escaparHtml(numero)}
+                  </p>
+                  <p style="color:#7c2d12; font-size:12px; line-height:1.5;">
+                    Junto con sus <strong>${items.length}</strong> item${items.length === 1 ? "" : "s"},
+                    <strong>${contenedores.length}</strong> contenedor${contenedores.length === 1 ? "" : "es"}
+                    y <strong>${transbordos.length}</strong> transbordo${transbordos.length === 1 ? "" : "s"},
+                    más sus sellos, datos IMO, validaciones y filas de reportes.
+                    Los cambios que tengas sin guardar se descartan.
+                  </p>
+                </div>`,
+            tokenEsperado: numero,
+            etiquetaToken: "el número de BL",
+        });
+
+        if (eliminado) navigate("/expo-bl");
+    };
+
     const handleSave = async () => {
         for (let s = 1; s <= steps.length - 1; s++) if (!validateStep(s)) return;
         const result = await Swal.fire({
@@ -1149,26 +1175,42 @@ const ExpoBLEdit = () => {
                         if (returnTo === "xml-preview" && manifestId) navigate(`/manifiestos/${manifestId}/generar-xml`);
                         else navigate(`/expo/detail/${blNumber}`);
                     }} className="text-sm text-slate-500 hover:text-slate-800 mb-2">← Volver</button>
-                    <div className="flex items-center gap-3">
-                        <h1 className="text-2xl font-semibold text-slate-900">Editar BL: {formData.bl_number}</h1>
-                        {esTransito ? (
-                            // El badge muestra el sentido REAL del BL, no el del
-                            // manifiesto: un tránsito vive dentro de un manifiesto
-                            // de importación y hasta ahora se veía como "IMPO".
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">
-                                <ArrowDownLeft size={11} /> TRÁNSITO
-                            </span>
-                        ) : esImpo ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-indigo-100 text-indigo-700">
-                                <ArrowDownLeft size={11} /> IMPO
-                            </span>
-                        ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-700">
-                                <ArrowUpRight size={11} /> EXPO
-                            </span>
+                    <div className="flex items-start justify-between gap-6">
+                        <div>
+                            <div className="flex items-center gap-3">
+                                <h1 className="text-2xl font-semibold text-slate-900">Editar BL: {formData.bl_number}</h1>
+                                {esTransito ? (
+                                    // El badge muestra el sentido REAL del BL, no el del
+                                    // manifiesto: un tránsito vive dentro de un manifiesto
+                                    // de importación y hasta ahora se veía como "IMPO".
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">
+                                        <ArrowDownLeft size={11} /> TRÁNSITO
+                                    </span>
+                                ) : esImpo ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-indigo-100 text-indigo-700">
+                                        <ArrowDownLeft size={11} /> IMPO
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-700">
+                                        <ArrowUpRight size={11} /> EXPO
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-sm text-slate-500 mt-1">Viaje: <strong>{formData.viaje || "—"}</strong></p>
+                        </div>
+
+                        {/* Ocultarlo a quien no es admin es solo cosmético: la
+                            restricción real es soloAdmin en el backend. */}
+                        {esAdmin() && (
+                            <button
+                                type="button"
+                                onClick={handleDeleteBL}
+                                className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 whitespace-nowrap flex-shrink-0"
+                            >
+                                Eliminar BL
+                            </button>
                         )}
                     </div>
-                    <p className="text-sm text-slate-500 mt-1">Viaje: <strong>{formData.viaje || "—"}</strong></p>
                 </div>
 
                 {/* Stepper */}

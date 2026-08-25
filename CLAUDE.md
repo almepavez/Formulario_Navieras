@@ -55,7 +55,8 @@ Formulario_Navieras/
     └── src/
         ├── App.jsx            # Route definitions
         ├── pages/             # Full-page components
-        └── components/        # Shared UI components
+        ├── components/        # Shared UI components
+        └── utils/             # Non-component helpers shared across pages
 ```
 
 ---
@@ -117,6 +118,7 @@ One large Express file — all routes, middleware, and business logic live here.
 - **XML Generation** (lines ~5573–5815): Calls `buildXML()` from `xmlBuilder.js`. Can generate a single BL XML or a `.zip` of all BLs in a manifest.
 - **Validation** (lines ~5856–6551): `revalidarBLCompleto(conn, blId)` wipes and rewrites `bl_validaciones` for a BL. Errors and observations are classified at four levels: `BL`, `ITEM`, `CONTENEDOR`, `TRANSBORDO`, with severities `ERROR` or `OBS`.
 - **Mantenedores** (lines ~992–2500): CRUD for reference tables — puertos, naves, servicios, almacenistas, tipos-bulto, empaque-contenedores, participantes, and the `traductor_pil_bms` mapping table.
+- **Eliminación física** (lines ~4850–5155): `DELETE /api/manifiestos/:id` and `DELETE /api/bls/:blNumber`, the only two admin-gated write endpoints outside `/api/usuarios`. See **Physical deletion** below.
 
 **Never return from a handler with an open transaction.** MySQL runs at `REPEATABLE READ` and `pool.release()` does **not** close an open transaction: the connection goes back to the pool still inside it, and every later query that happens to grab it reads from a snapshot frozen at that moment. This is silent — no error, just stale rows. It already shipped wrong XMLs: BLs whose `sentido_operacion` had been set to `'TR'` came out as `I` because the export's per-BL `pool.query()` landed on a poisoned connection. `POST`/`PUT /api/mantenedores/puertos` were the culprits (they opened the transaction before validating the body, then early-returned on a 400). The rule: **validate first, `beginTransaction()` last**, and make sure every exit path commits or rolls back.
 
@@ -234,6 +236,33 @@ Consequences worth knowing:
 - **`bls.volumen` no longer determines the emitted total**, but it is not unused: `detectarTipo()` (line ~102) still derives `sinVolumen` from it, which decides whether `<total-volumen>` and `<unidad-volumen>` are emitted **at all**. It gates the tag's presence, not its value. It also still drives the editor, the BL detail view, and a `revalidarBLCompleto` check (`index.js` line ~6227).
 - **`bls.volumen` can drift out of sync with its items.** It is a derived total that no editing endpoint recalculates: `PUT /api/bls/:blNumber/items` writes item volumes without touching it, while `PUT /api/bls/:blNumber`, `PATCH /api/bls/:blNumber` and `PATCH /api/bls/bulk-update` write it without touching the items. Only the carga-suelta endpoints recompute it from the items. `ExpoBLEdit` **warns** about the mismatch and offers a one-click fill, but never corrects it silently — deliberately, so the stored value stays the operator's decision.
 
+### Physical deletion
+
+`DELETE /api/manifiestos/:id` and `DELETE /api/bls/:blNumber` delete for real — no soft delete, no `eliminado` column anywhere. Both are gated by `verificarToken + soloAdmin`. Before this existed, deleting a manifest that had BLs was done by hand in SQL against production.
+
+**The cascade does the work.** Every FK on the delete path is `ON DELETE CASCADE`, and InnoDB propagates recursively, so deleting the root is enough:
+
+```
+manifiestos ─┬─ itinerarios
+             ├─ reportes
+             └─ bls ─┬─ bl_items
+                     ├─ bl_transbordos
+                     ├─ bl_validaciones
+                     ├─ bl_validaciones_pms
+                     └─ bl_contenedores ─┬─ bl_contenedor_sellos
+                                         └─ bl_contenedor_imo
+```
+
+**`reportes` is the one exception.** It references the manifiesto by FK but the BL only by the plain string `bl`, with no FK. Deleting a manifest takes its `reportes` rows with it; deleting a single **BL** does not, so the endpoint deletes them explicitly inside the same transaction, scoped by `manifiesto_id` so it can't touch another manifest reusing the same string. Leaving them would not just orphan rows — `uk_bl_cnt (bl, n_contenedor)` is **global**, so an orphan blocks reinserting that same pair if the BL is later reloaded from the PMS.
+
+**`bl_number` is not globally unique.** The UNIQUE on `bls` is `(manifiesto_id, bl_number)`. `GET /api/bls/:blNumber` resolves with `LIMIT 1`; the DELETE deliberately does not, and responds **409 without deleting anything** if more than one row matches. There are no duplicates today, but resolving a physical delete by "whichever comes first" is not acceptable.
+
+**Confirmation token.** The body is `{ confirmacion, motivo }`. `confirmacion` must match exactly: `bl_number` for a BL, and for a manifest `numero_manifiesto_aduana` — or `viaje` when the former is empty, since the column is NULL-able. On mismatch the 400 carries `esperado`, `campo` and `etiqueta` so the frontend can name the field instead of making the operator guess; `utils/eliminarEntidad.js` computes the same fallback locally to label the modal.
+
+**Audit.** The row goes into `auditoria_eliminaciones` inside the same transaction, **before** the DELETE, so a failed delete rolls the log back with it. The manifest snapshot carries the full array of `bl_number` alongside the row and the child counts — physical deletion has no undo, and without that array there is no way to reconstruct what the manifest held. The BL snapshot also carries `reportes_otro_manifiesto`, a data-drift diagnostic that is kept out of the response's `eliminados`.
+
+The migration (`expo-bl-api/migrations/2026-08-25-auditoria-eliminaciones.sql`) is applied by hand and must land **before** the code: the endpoints insert into that table from the first request.
+
 ### Database (MySQL)
 
 Key tables and relationships:
@@ -242,10 +271,11 @@ Key tables and relationships:
 - `bls` stores port FKs (`puerto_embarque_id`, `puerto_descarga_id`, `lugar_destino_id`, `lugar_entrega_id`, `lugar_recepcion_id`, `lugar_emision_id`) and also their codes (`*_cod`). During re-validation, FKs are re-resolved from codes via `getPuertoIdByCodigo()`.
 - `traductor_pil_bms` — maps PIL shipping line codes to internal BMS codes and optionally links to a `participantes` record. Used during PMS ingestion to auto-resolve participantes.
 - `usuarios` — supports both Google OAuth (`google_id`) and email/password (`password` bcrypt hash).
+- `auditoria_eliminaciones` — log of physical deletions. `usuario_id`/`usuario_email` are denormalized with **no FK** to `usuarios`, on purpose: the log must survive the deletion of the user who made it. See **Physical deletion** below.
 
 ### Auth
 
-Access is controlled by a hardcoded whitelist `EMAILS_PERMITIDOS` in `index.js` (lines ~111–122). Only emails in that map can log in via Google OAuth. Roles are `admin` or `usuario`. Most endpoints have no auth middleware; `verificarToken` is only applied where explicitly added. Admin-only routes also apply `soloAdmin`.
+Access is controlled by a hardcoded whitelist `EMAILS_PERMITIDOS` in `index.js` (lines ~111–122). Only emails in that map can log in via Google OAuth. `usuarios.rol` is an enum of `admin`, `usuario` and `operador`, but only `admin` and `usuario` are handed out by the UI. Most endpoints have no auth middleware; `verificarToken` is only applied where explicitly added. Admin-only routes also apply `soloAdmin`, which admits `admin` and nothing else — `operador` is **not** privileged.
 
 ### Frontend (`expo-bl-frontend/`)
 
