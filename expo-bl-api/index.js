@@ -4847,124 +4847,308 @@ async function refreshResumenValidacionBL(conn, blId) {
   `, [status, err, obs, blId]);
 }
 
-// Si tus FK están con ON DELETE CASCADE desde bl_items/bl_contenedores -> bls,
-// esto limpia todo automáticamente.
+// ============================================
+// ELIMINACIÓN FÍSICA DE MANIFIESTOS Y BLs
+// ============================================
+// Borrado real —DELETE, no borrado lógico—, restringido a rol admin y
+// registrado en `auditoria_eliminaciones` con un snapshot de lo eliminado.
+// Antes esto se hacía a mano por SQL en producción, sin dejar rastro de quién
+// lo hizo ni de qué había adentro.
+//
+// El árbol entero cae solo por los ON DELETE CASCADE del esquema:
+//
+//   manifiestos ─┬─ itinerarios
+//                ├─ reportes
+//                └─ bls ─┬─ bl_items
+//                        ├─ bl_transbordos
+//                        ├─ bl_validaciones
+//                        ├─ bl_validaciones_pms
+//                        └─ bl_contenedores ─┬─ bl_contenedor_sellos
+//                                            └─ bl_contenedor_imo
+//
+// InnoDB propaga el CASCADE de forma recursiva, así que basta con borrar la
+// raíz. La única excepción es `reportes` al borrar un BL suelto: esa tabla
+// referencia al manifiesto por FK pero al BL solo por el string `bl`, sin FK.
+// Ver el endpoint de BL.
 
-app.delete("/api/manifiestos/eliminar-multiples", async (req, res) => {
-  const { ids } = req.body;
+// Token que el usuario debe escribir para confirmar el borrado de un
+// manifiesto. `numero_manifiesto_aduana` es NULL-able, así que cae al `viaje`,
+// que es NOT NULL. Se devuelve al frontend junto con el campo del que salió,
+// para que el modal pueda etiquetar el input en vez de hacer adivinar.
+function tokenConfirmacionManifiesto(m) {
+  const numero = String(m.numero_manifiesto_aduana ?? "").trim();
+  if (numero) {
+    return { valor: numero, campo: "numero_manifiesto_aduana", etiqueta: "el número de manifiesto de aduana" };
+  }
+  return { valor: String(m.viaje ?? "").trim(), campo: "viaje", etiqueta: "el viaje" };
+}
 
-  if (!Array.isArray(ids) || ids.length === 0) {
-    return res.status(400).json({ error: "Debe seleccionar al menos un manifiesto" });
+// El `motivo` es opcional. Se acota a 1000 caracteres para rechazar de frente
+// en vez de truncar en silencio contra el TEXT de la tabla.
+function normalizarMotivo(motivo) {
+  if (motivo === undefined || motivo === null) return { ok: true, valor: null };
+  const txt = String(motivo).trim();
+  if (!txt) return { ok: true, valor: null };
+  if (txt.length > 1000) {
+    return { ok: false, error: "El motivo no puede superar los 1000 caracteres" };
+  }
+  return { ok: true, valor: txt };
+}
+
+// Inserta la fila de auditoría. Se llama SIEMPRE dentro de la transacción del
+// borrado, antes del DELETE: si el DELETE falla, el log se va con el rollback.
+async function registrarEliminacion(conn, { tipoEntidad, entidadId, identificador, snapshot, usuario, motivo }) {
+  await conn.query(
+    `INSERT INTO auditoria_eliminaciones
+       (tipo_entidad, entidad_id, identificador, snapshot, usuario_id, usuario_email, motivo)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      tipoEntidad,
+      entidadId,
+      identificador,
+      JSON.stringify(snapshot),
+      usuario?.id ?? null,
+      usuario?.email ?? null,
+      motivo,
+    ]
+  );
+}
+
+// DELETE /api/manifiestos/:id
+// Body: { confirmacion, motivo }
+app.delete("/api/manifiestos/:id", verificarToken, soloAdmin, async (req, res) => {
+  // ── Validación previa, antes de abrir la transacción ──
+  // La regla del proyecto es validar todo primero y dejar beginTransaction()
+  // al final: una conexión devuelta al pool con la transacción abierta
+  // envenena las queries posteriores que la tomen.
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: "Id de manifiesto inválido" });
   }
 
+  const motivoNorm = normalizarMotivo(req.body?.motivo);
+  if (!motivoNorm.ok) {
+    return res.status(400).json({ error: motivoNorm.error });
+  }
+
+  let manifiesto;
+  try {
+    const [mRows] = await pool.query("SELECT * FROM manifiestos WHERE id = ?", [id]);
+    if (mRows.length === 0) {
+      return res.status(404).json({ error: "Manifiesto no encontrado" });
+    }
+    manifiesto = mRows[0];
+  } catch (err) {
+    console.error("Error al buscar el manifiesto a eliminar:", err);
+    return res.status(500).json({ error: "Error al buscar el manifiesto", details: err?.message });
+  }
+
+  const token = tokenConfirmacionManifiesto(manifiesto);
+  const confirmacion = String(req.body?.confirmacion ?? "").trim();
+  if (!token.valor) {
+    // Ni número de aduana ni viaje: no hay nada que el usuario pueda escribir
+    // para confirmar, así que el borrado no se ofrece por esta vía.
+    return res.status(409).json({
+      error: "El manifiesto no tiene número de aduana ni viaje, así que no puede confirmarse su eliminación desde el sistema",
+    });
+  }
+  if (confirmacion !== token.valor) {
+    return res.status(400).json({
+      error: `La confirmación no coincide. Debes escribir ${token.etiqueta}: ${token.valor}`,
+      esperado: token.valor,
+      campo: token.campo,
+      etiqueta: token.etiqueta,
+    });
+  }
+
+  // ── Borrado ──
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
 
-    const resultados = {
-      eliminados: [],
-      conBLs: [],
-      noEncontrados: []
-    };
+    // Los conteos se calculan dentro de la transacción para que el snapshot y
+    // la respuesta describan exactamente lo que se borró.
+    const params = Array(10).fill(id);
+    const [cRows] = await conn.query(
+      `SELECT
+         (SELECT COUNT(*) FROM bls WHERE manifiesto_id = ?) AS bls,
+         (SELECT COUNT(*) FROM bl_items i
+            JOIN bls b ON b.id = i.bl_id WHERE b.manifiesto_id = ?) AS items,
+         (SELECT COUNT(*) FROM bl_contenedores c
+            JOIN bls b ON b.id = c.bl_id WHERE b.manifiesto_id = ?) AS contenedores,
+         (SELECT COUNT(*) FROM bl_transbordos t
+            JOIN bls b ON b.id = t.bl_id WHERE b.manifiesto_id = ?) AS transbordos,
+         (SELECT COUNT(*) FROM bl_validaciones v
+            JOIN bls b ON b.id = v.bl_id WHERE b.manifiesto_id = ?) AS validaciones,
+         (SELECT COUNT(*) FROM bl_validaciones_pms v
+            JOIN bls b ON b.id = v.bl_id WHERE b.manifiesto_id = ?) AS validaciones_pms,
+         (SELECT COUNT(*) FROM bl_contenedor_sellos s
+            JOIN bl_contenedores c ON c.id = s.contenedor_id
+            JOIN bls b ON b.id = c.bl_id WHERE b.manifiesto_id = ?) AS sellos,
+         (SELECT COUNT(*) FROM bl_contenedor_imo o
+            JOIN bl_contenedores c ON c.id = o.contenedor_id
+            JOIN bls b ON b.id = c.bl_id WHERE b.manifiesto_id = ?) AS imo,
+         (SELECT COUNT(*) FROM itinerarios WHERE manifiesto_id = ?) AS itinerarios,
+         (SELECT COUNT(*) FROM reportes WHERE manifiesto_id = ?) AS reportes`,
+      params
+    );
+    const conteos = cRows[0];
 
-    for (const id of ids) {
-      // Verificar existencia
-      const [mRows] = await conn.query(
-        "SELECT id FROM manifiestos WHERE id = ?",
-        [id]
-      );
+    // El arreglo de bl_number va completo al snapshot: es borrado físico sin
+    // vuelta atrás y sin esto no hay forma de reconstruir qué contenía el
+    // manifiesto.
+    const [blRows] = await conn.query(
+      "SELECT bl_number FROM bls WHERE manifiesto_id = ? ORDER BY bl_number",
+      [id]
+    );
 
-      if (mRows.length === 0) {
-        resultados.noEncontrados.push(id);
-        continue;
-      }
+    await registrarEliminacion(conn, {
+      tipoEntidad: "MANIFIESTO",
+      entidadId: id,
+      identificador: token.valor,
+      snapshot: {
+        manifiesto,
+        bl_numbers: blRows.map((r) => r.bl_number),
+        conteos,
+      },
+      usuario: req.usuario,
+      motivo: motivoNorm.valor,
+    });
 
-      // Verificar BLs
-      const [blRows] = await conn.query(
-        "SELECT COUNT(*) as total FROM bls WHERE manifiesto_id = ?",
-        [id]
-      );
-
-      if (blRows[0].total > 0) {
-        resultados.conBLs.push({ id, totalBLs: blRows[0].total });
-        continue;
-      }
-
-      // Eliminar itinerario y manifiesto
-      await conn.query("DELETE FROM itinerarios WHERE manifiesto_id = ?", [id]);
-      await conn.query("DELETE FROM manifiestos WHERE id = ?", [id]);
-      resultados.eliminados.push(id);
+    const [del] = await conn.query("DELETE FROM manifiestos WHERE id = ?", [id]);
+    if (del.affectedRows === 0) {
+      // Alguien lo borró entre la validación y la transacción.
+      await conn.rollback();
+      return res.status(404).json({ error: "Manifiesto no encontrado" });
     }
 
     await conn.commit();
-
-    res.json({
-      success: true,
-      resultados,
-      mensaje: `${resultados.eliminados.length} manifiesto(s) eliminado(s)`
-    });
-
+    res.json({ ok: true, eliminados: conteos });
   } catch (err) {
     await conn.rollback();
-    console.error("Error al eliminar manifiestos:", err);
-    res.status(500).json({
-      error: "Error al eliminar manifiestos",
-      details: err?.message
-    });
+    console.error("Error al eliminar manifiesto:", err);
+    res.status(500).json({ error: "Error al eliminar manifiesto", details: err?.message });
   } finally {
     conn.release();
   }
 });
 
+// DELETE /api/bls/:blNumber
+// Body: { confirmacion, motivo }
+app.delete("/api/bls/:blNumber", verificarToken, soloAdmin, async (req, res) => {
+  // ── Validación previa, antes de abrir la transacción ──
+  const blNumber = String(req.params.blNumber ?? "").trim();
+  if (!blNumber) {
+    return res.status(400).json({ error: "Falta el número de BL" });
+  }
 
-app.delete("/api/manifiestos/:id", async (req, res) => {
-  const { id } = req.params;
+  const motivoNorm = normalizarMotivo(req.body?.motivo);
+  if (!motivoNorm.ok) {
+    return res.status(400).json({ error: motivoNorm.error });
+  }
 
+  let bl;
+  let manifiesto;
+  try {
+    // Sin LIMIT 1, a diferencia del GET: el UNIQUE de `bls` es
+    // (manifiesto_id, bl_number), o sea que el bl_number NO es único a nivel
+    // de esquema. Hoy no hay duplicados, pero para un borrado físico resolver
+    // por el primero que aparezca sería borrar a ciegas.
+    const [rows] = await pool.query(
+      "SELECT id, manifiesto_id FROM bls WHERE bl_number = ?",
+      [blNumber]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "BL no encontrado" });
+    }
+    if (rows.length > 1) {
+      return res.status(409).json({
+        error: `Hay ${rows.length} BLs con el número ${blNumber} en distintos manifiestos. No se elimina ninguno: resuélvelo con soporte.`,
+        manifiestos: rows.map((r) => r.manifiesto_id),
+      });
+    }
+
+    const [blFull] = await pool.query("SELECT * FROM bls WHERE id = ?", [rows[0].id]);
+    bl = blFull[0];
+    const [mRows] = await pool.query(
+      "SELECT id, numero_manifiesto_aduana, viaje, tipo_operacion FROM manifiestos WHERE id = ?",
+      [bl.manifiesto_id]
+    );
+    manifiesto = mRows[0] ?? null;
+  } catch (err) {
+    console.error("Error al buscar el BL a eliminar:", err);
+    return res.status(500).json({ error: "Error al buscar el BL", details: err?.message });
+  }
+
+  const confirmacion = String(req.body?.confirmacion ?? "").trim();
+  if (confirmacion !== bl.bl_number) {
+    return res.status(400).json({
+      error: `La confirmación no coincide. Debes escribir el número de BL: ${bl.bl_number}`,
+      esperado: bl.bl_number,
+      campo: "bl_number",
+      etiqueta: "el número de BL",
+    });
+  }
+
+  // ── Borrado ──
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
 
-    // 1️⃣ Verificar que el manifiesto existe
-    const [mRows] = await conn.query(
-      "SELECT id FROM manifiestos WHERE id = ?",
-      [id]
+    const [cRows] = await conn.query(
+      `SELECT
+         (SELECT COUNT(*) FROM bl_items WHERE bl_id = ?) AS items,
+         (SELECT COUNT(*) FROM bl_contenedores WHERE bl_id = ?) AS contenedores,
+         (SELECT COUNT(*) FROM bl_transbordos WHERE bl_id = ?) AS transbordos,
+         (SELECT COUNT(*) FROM bl_validaciones WHERE bl_id = ?) AS validaciones,
+         (SELECT COUNT(*) FROM bl_validaciones_pms WHERE bl_id = ?) AS validaciones_pms,
+         (SELECT COUNT(*) FROM bl_contenedor_sellos s
+            JOIN bl_contenedores c ON c.id = s.contenedor_id WHERE c.bl_id = ?) AS sellos,
+         (SELECT COUNT(*) FROM bl_contenedor_imo o
+            JOIN bl_contenedores c ON c.id = o.contenedor_id WHERE c.bl_id = ?) AS imo,
+         (SELECT COUNT(*) FROM reportes WHERE manifiesto_id = ? AND bl = ?) AS reportes,
+         (SELECT COUNT(*) FROM reportes WHERE bl = ? AND manifiesto_id <> ?) AS reportes_otro_manifiesto`,
+      [bl.id, bl.id, bl.id, bl.id, bl.id, bl.id, bl.id,
+       bl.manifiesto_id, bl.bl_number, bl.bl_number, bl.manifiesto_id]
     );
+    const conteos = cRows[0];
+    // `reportes_otro_manifiesto` es un diagnóstico de deriva de datos, no algo
+    // que se haya borrado: queda en el snapshot pero fuera de la respuesta.
+    const { reportes_otro_manifiesto, ...eliminados } = conteos;
 
-    if (mRows.length === 0) {
+    await registrarEliminacion(conn, {
+      tipoEntidad: "BL",
+      entidadId: bl.id,
+      identificador: bl.bl_number,
+      snapshot: { bl, manifiesto, conteos },
+      usuario: req.usuario,
+      motivo: motivoNorm.valor,
+    });
+
+    // `reportes` es el único hijo sin FK al BL: referencia al manifiesto por
+    // FK, pero al BL solo por el string `bl`. Un DELETE del BL dejaría filas
+    // huérfanas que además bloquean la reinserción del par (bl, n_contenedor)
+    // por el UNIQUE `uk_bl_cnt`, que es global. Se borra acotado por
+    // manifiesto para no tocar otro manifiesto que reutilice el mismo string;
+    // si quedaran filas con ese bl bajo otro manifiesto, el conteo
+    // `reportes_otro_manifiesto` del snapshot las deja visibles.
+    await conn.query("DELETE FROM reportes WHERE manifiesto_id = ? AND bl = ?", [
+      bl.manifiesto_id,
+      bl.bl_number,
+    ]);
+
+    const [del] = await conn.query("DELETE FROM bls WHERE id = ?", [bl.id]);
+    if (del.affectedRows === 0) {
       await conn.rollback();
-      return res.status(404).json({ error: "Manifiesto no encontrado" });
+      return res.status(404).json({ error: "BL no encontrado" });
     }
-
-    // 2️⃣ Verificar que NO tenga BLs asociados
-    const [blRows] = await conn.query(
-      "SELECT COUNT(*) as total FROM bls WHERE manifiesto_id = ?",
-      [id]
-    );
-
-    if (blRows[0].total > 0) {
-      await conn.rollback();
-      return res.status(400).json({
-        error: "No se puede eliminar",
-        message: `Este manifiesto tiene ${blRows[0].total} BL(s) asociado(s). Elimina primero los BLs.`
-      });
-    }
-
-    // 3️⃣ Eliminar itinerario (FK constraint)
-    await conn.query("DELETE FROM itinerarios WHERE manifiesto_id = ?", [id]);
-
-    // 4️⃣ Eliminar manifiesto
-    await conn.query("DELETE FROM manifiestos WHERE id = ?", [id]);
 
     await conn.commit();
-    res.json({ success: true, message: "Manifiesto eliminado correctamente" });
-
+    res.json({ ok: true, eliminados });
   } catch (err) {
     await conn.rollback();
-    console.error("Error al eliminar manifiesto:", err);
-    res.status(500).json({
-      error: "Error al eliminar manifiesto",
-      details: err?.message
-    });
+    console.error("Error al eliminar BL:", err);
+    res.status(500).json({ error: "Error al eliminar BL", details: err?.message });
   } finally {
     conn.release();
   }
