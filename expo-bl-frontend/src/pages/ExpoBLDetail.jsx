@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import { AlertCircle, Ship, AlertTriangle, RefreshCw } from "lucide-react";
+import { esAdmin, eliminarEntidad, escaparHtml } from "../utils/eliminarEntidad";
 
 
 const API_BASE = import.meta.env.VITE_API_URL;
@@ -107,6 +108,29 @@ const ExpoBLDetail = () => {
         }
     }, [blNumber]);
 
+    const handleDeleteBL = async () => {
+        const { eliminado } = await eliminarEntidad({
+            url: `/api/bls/${encodeURIComponent(bl.bl_number)}`,
+            titulo: "¿Eliminar BL?",
+            descripcionHtml: `
+                <div style="background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:12px 14px;">
+                  <p style="font-weight:700; color:#9a3412; margin-bottom:4px;">
+                    Se eliminará el BL ${escaparHtml(bl.bl_number)}
+                  </p>
+                  <p style="color:#7c2d12; font-size:12px; line-height:1.5;">
+                    Junto con sus <strong>${items.length}</strong> item${items.length === 1 ? "" : "s"},
+                    <strong>${contenedores.length}</strong> contenedor${contenedores.length === 1 ? "" : "es"}
+                    y <strong>${transbordos.length}</strong> transbordo${transbordos.length === 1 ? "" : "s"},
+                    más sus sellos, datos IMO, validaciones y filas de reportes.
+                  </p>
+                </div>`,
+            tokenEsperado: bl.bl_number,
+            etiquetaToken: "el número de BL",
+        });
+
+        if (eliminado) navigate("/expo-bl");
+    };
+
     const getValidacionTransbordo = (sec) => {
         return validaciones.find(v =>
             v.nivel === "TRANSBORDO" &&
@@ -202,6 +226,17 @@ const ExpoBLDetail = () => {
                             >
                                 Editar BL
                             </button>
+
+                            {/* Ocultarlo a quien no es admin es solo cosmético:
+                                la restricción real es soloAdmin en el backend. */}
+                            {esAdmin() && (
+                                <button
+                                    onClick={handleDeleteBL}
+                                    className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors whitespace-nowrap"
+                                >
+                                    Eliminar BL
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
