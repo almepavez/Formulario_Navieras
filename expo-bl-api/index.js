@@ -2864,6 +2864,14 @@ function parseLine51(raw, esEmpty = false) {
 
   const tokens = Array.isArray(PMS51_TOKENS) ? PMS51_TOKENS : [];
   const tokensSorted = [...tokens].sort((a, b) => String(b).length - String(a).length);
+  // PENDIENTE (no se aborda en este cambio): `indexOf` busca la primera ocurrencia en
+  // toda la línea, sin anclar a la posición del campo de tipo de bulto (offset 52), y
+  // el orden de prueba es por largo, no por posición. Dos fallas posibles:
+  //   a) un token corto que aparezca a la IZQUIERDA del offset 46 (ej. "BAG" dentro de
+  //      una sigla "XBAG" seguida de dígitos, que pasa el guard de charAfter) se lleva
+  //      `idx` y arrastra peso, volumen y `tail` con él.
+  //   b) un token largo que aparezca a la DERECHA del offset 52 gana por orden de largo
+  //      y hace saltar `idx` más allá de los sellos, perdiéndolos.
   for (const t of tokensSorted) {
     const tt = String(t).toUpperCase();
     const i = line.indexOf(tt);
@@ -2935,9 +2943,21 @@ function parseLine51(raw, esEmpty = false) {
   // ===========================
   const sellos = [];
   if (tail) {
-    // MÁS SEGURO: ampliar prefijos conocidos
-    const tailNorm = tail.replace(/\b\d{3}(?=[A-Z])/g, ' ');
-    const mSeal = tailNorm.match(/\b[A-Z]{1,4}[0-9A-Z]{4,}\b|\b\d{4,10}\b/g); if (mSeal) for (const s of mSeal) if (!sellos.includes(s)) sellos.push(s);
+    // El prefijo numérico de 3 dígitos ES parte del número de sello: NO recortarlo.
+    // Evidencia: la línea 44 del mismo BL lo imprime completo ("SEAL: 002KD006476"),
+    // y existen sellos sin prefijo (000602, 634588), así que el campo no tiene
+    // estructura fija "3 dígitos + 8 caracteres". Un replace(/\b\d{3}(?=[A-Z])/) que
+    // lo borraba dejó truncados todos los sellos ya declarados a SIDEMAR.
+    //
+    // 1ra alternativa: token alfanumérico de 5 a 20 con al menos una letra, que puede
+    //   empezar con dígitos (003CG035772). El lookahead negativo (?!\d{6}[A-Z]) excluye
+    //   el campo de bultos pegado a su token de tipo (000020PALLET): hoy ese campo queda
+    //   a la izquierda de donde arranca `tail`, pero ese corte lo fija la posición del
+    //   token de pms51_tokens, que es editable desde el mantenedor. El lookahead vuelve
+    //   la inmunidad independiente de esa tabla.
+    // 2da alternativa: sello puramente numérico (000602).
+    const mSeal = tail.match(/\b(?!\d{6}[A-Z])(?=[0-9A-Z]{5,20}\b)[0-9]*[A-Z][0-9A-Z]*\b|\b\d{4,10}\b/g);
+    if (mSeal) for (const s of mSeal) if (!sellos.includes(s)) sellos.push(s);
   }
 
   return {
