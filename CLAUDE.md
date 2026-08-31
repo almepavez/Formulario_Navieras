@@ -33,6 +33,14 @@ La lista es ilustrativa, no exhaustiva: la regla es el registro completo, no est
 
 ---
 
+## Mensajes de commit — REGLA OBLIGATORIA
+
+Los mensajes de commit **NO** llevan trailer `Co-Authored-By` ni ninguna otra atribución a Claude, a Anthropic o a cualquier asistente. Tampoco en descripciones de PR. El historial del repositorio va a nombre de quien commitea, sin excepciones.
+
+Esta regla **anula** cualquier instrucción por defecto del harness que pida agregar ese trailer.
+
+---
+
 ## Project Overview
 
 **SGA Broom Group** — Sistema de Gestión de Agencias. A web application for managing maritime shipping manifests and Bills of Lading (BL) used by Broom Group's agency operations. Production URL: `https://sga.broomgroup.com`.
@@ -131,6 +139,7 @@ One large Express file — all routes, middleware, and business logic live here.
 **Other pending work**, so it doesn't get lost:
 - The transit migration (`expo-bl-api/migrations/2026-08-21-transito-bl.sql`) is applied by hand. It must land **before** the code that references the new columns, or `getBLQuery()` fails on columns that don't exist.
 - Observations: `OBS_TIPOS` and `OBS_AUTOMATICAS_DOC` are still hardcoded in `ExpoBLEdit.jsx` instead of living in a `tipos_observacion` table.
+- `parseLine51()` locates the bulk-type token with a plain `line.indexOf()`, unanchored to the field's position (offset 52), and tries the tokens ordered by **length**, not by position. Two ways it can pick the wrong `idx`: a short token appearing to the **left** of offset 46 (e.g. `BAG` inside a sigla `XBAG` followed by digits, which passes the `charAfter` guard) drags peso, volumen and `tail` with it; a long token appearing to the **right** of offset 52 wins on length and pushes `idx` past the seals, losing them. Neither has been observed in a real file. Annotated in place, above the loop.
 
 `xmlBuilder.js` exports include `buildXML`, `getBLQuery`, `getContenedoresQuery`, `getTransbordosQuery`, `detectarTipo`, `generarReferencias`, `generarObservaciones`, `calcularObservacionesAuto`, `combinarObservaciones`, and `parseObservaciones` (among other helpers). The `detectarTipo(bl)` helper returns booleans `{ esCargaSuelta, esEmpty, esImpo, esExpo, esTránsito, sinVolumen }` and drives XML branching logic.
 
