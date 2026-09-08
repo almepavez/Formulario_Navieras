@@ -1,12 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
-import logoFiestasPatrias from "../img/logo-login-fiestas-700.png";
-import navieraWebp from "../img/naviera-login-1600.webp";
-import navieraJpg from "../img/naviera-login-1600.jpg";
-
-// Logo estacional de fiestas patrias. Después del 18 de septiembre basta con
-// apuntar esta constante al logo habitual (../img/SGA Logo Oscuro.png).
-const LOGO_LOGIN = logoFiestasPatrias;
+import logoBroom from "../img/SGA Logo Oscuro.png";
+import Naviera from "../img/naviera.jpg";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -87,53 +82,47 @@ const Login = () => {
   };
 
   return (
-    <div className="h-screen supports-[height:100dvh]:h-dvh w-full overflow-hidden bg-white grid grid-rows-[auto_1fr] lg:grid-rows-none lg:grid-cols-2">
+    <div className="min-h-screen bg-[#0F2A44] flex items-center justify-center px-6">
+      <div className="w-full max-w-6xl bg-white rounded-3xl shadow-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-2">
 
-      {/* ============ ZONA DE MARCA ============ */}
-      <aside className="overflow-hidden bg-slate-50 border-b border-slate-200 lg:border-b-0 lg:border-r grid grid-rows-[auto] lg:grid-rows-[auto_1fr]">
-
-        {/* LOGO */}
-        <div className="flex justify-center px-6 pt-6 pb-4 lg:pt-12 lg:pb-8">
+        {/* PANEL IZQUIERDO */}
+        <div className="relative hidden lg:block">
           <img
-            src={LOGO_LOGIN}
-            alt="SGA · Sistema de Gestión Aduanera"
-            className="w-[200px] lg:w-[300px] h-auto"
+            src={Naviera}
+            alt="Imagen logística naviera"
+            className="absolute inset-0 w-full h-full object-cover"
           />
+          <div className="absolute inset-0 bg-[#0F2A44]/70" />
+          <div className="relative z-10 p-10 text-white flex flex-col justify-end h-full">
+            <span className="text-xs opacity-70">
+              © Broom Group · Uso interno
+            </span>
+          </div>
         </div>
 
-        {/* La foto solo existe en desktop: en móvil la marca se reduce al logo */}
-        <div className="hidden lg:block relative overflow-hidden">
-          <picture>
-            <source srcSet={navieraWebp} type="image/webp" />
+        {/* PANEL DERECHO */}
+        <div className="p-10 md:p-14 flex flex-col justify-center">
+
+          {/* LOGO */}
+          <div className="flex justify-center mb-6">
             <img
-              src={navieraJpg}
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover"
+              src={logoBroom}
+              alt="Broom Group"
+              className="w-full max-w-[250px] h-auto object-contain"
             />
-          </picture>
-        </div>
-      </aside>
-
-      {/* ============ ZONA DE FORMULARIO ============ */}
-      <main className="flex flex-col overflow-y-auto bg-white">
-
-        {/* my-auto centra el bloque sin recortarlo cuando la ventana es baja */}
-        <div className="w-full max-w-[400px] mx-auto my-auto px-6 py-10">
+          </div>
 
           {/* TÍTULOS */}
-          <h1 className="text-2xl font-semibold text-[#0F2A44]">
+          <h1 className="text-2xl font-semibold text-[#0F2A44] text-center">
             Inicio de Sesión
           </h1>
-          <p className="text-sm text-slate-500 mt-2 mb-8">
-            Sistema de Gestión Aduanera
+          <p className="text-sm text-slate-500 text-center mt-2 mb-8">
+            Acceso a sistema · Generador XML BL
           </p>
 
           {/* MENSAJE DE ERROR */}
           {error && (
-            <div
-              role="alert"
-              className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm"
-            >
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
               {error}
             </div>
           )}
@@ -142,9 +131,9 @@ const Login = () => {
           <button
             onClick={handleGoogleLogin}
             type="button"
-            className="w-full mb-6 px-4 py-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 transition flex items-center justify-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+            className="w-full mb-6 bg-white border-2 border-slate-200 text-slate-700 rounded-full py-3 font-medium hover:bg-slate-50 transition flex items-center justify-center gap-3"
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
+            <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -176,23 +165,18 @@ const Login = () => {
           </div>
 
           {/* FORM */}
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-6">
 
             {/* EMAIL */}
             <div>
-              <label
-                htmlFor="login-email"
-                className="block text-sm font-medium text-slate-600 mb-1"
-              >
+              <label className="block text-sm font-medium text-slate-600 mb-1">
                 Correo electrónico
               </label>
               <input
-                id="login-email"
                 type="email"
-                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-slate-500 focus:outline-none"
+                className="w-full rounded-full border border-slate-300 px-4 py-3 text-sm focus:ring-2 focus:ring-[#0F2A44] focus:outline-none"
                 placeholder="usuario@broomgroup.cl"
                 required
                 disabled={loading}
@@ -201,30 +185,30 @@ const Login = () => {
 
             {/* PASSWORD */}
             <div>
-              <label
-                htmlFor="login-password"
-                className="block text-sm font-medium text-slate-600 mb-1"
-              >
+              <label className="block text-sm font-medium text-slate-600 mb-1">
                 Contraseña
               </label>
               <input
-                id="login-password"
                 type="password"
-                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-slate-500 focus:outline-none"
+                className="w-full rounded-full border border-slate-300 px-4 py-3 text-sm focus:ring-2 focus:ring-[#0F2A44] focus:outline-none"
                 placeholder="••••••••"
                 required
                 disabled={loading}
               />
             </div>
 
-            {/* RECUPERACIÓN */}
-            <div className="text-right">
+            {/* OPCIONES */}
+            <div className="flex items-center justify-between text-sm">
+              <label className="flex items-center gap-2 text-slate-500">
+                <input type="checkbox" className="rounded" />
+                Recuérdame
+              </label>
+
               <Link
                 to="/forgot-password"
-                className="text-sm text-[#0F2A44] hover:underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+                className="text-[#0F2A44] hover:underline"
               >
                 ¿Olvidaste tu contraseña?
               </Link>
@@ -234,7 +218,7 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full px-4 py-2.5 rounded-lg bg-[#0F2A44] text-white text-sm font-medium hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2A44] focus-visible:ring-offset-2"
+              className="w-full bg-[#0F2A44] text-white rounded-full py-3 font-medium hover:opacity-95 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
             </button>
@@ -242,13 +226,7 @@ const Login = () => {
           </form>
         </div>
 
-        {/* PIE */}
-        <footer className="shrink-0 px-6 pb-5 text-right">
-          <span className="text-xs text-slate-400">
-            © Broom Group · Uso interno
-          </span>
-        </footer>
-      </main>
+      </div>
     </div>
   );
 };
