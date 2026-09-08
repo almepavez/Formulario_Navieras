@@ -1,7 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
-import logoBroom from "../img/SGA Logo Oscuro.png";
-import Naviera from "../img/naviera.jpg";
+import logoFiestasPatrias from "../img/logo-login-fiestas-700.png";
+import navieraWebp from "../img/naviera-login-1600.webp";
+import navieraJpg from "../img/naviera-login-1600.jpg";
+
+// Logo estacional de fiestas patrias. Hay que revertirlo después del 18 de
+// septiembre: basta apuntar esta constante al logo habitual, que es
+// ../img/SGA Logo Oscuro.png.
+const LOGO_LOGIN = logoFiestasPatrias;
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -87,11 +93,14 @@ const Login = () => {
 
         {/* PANEL IZQUIERDO */}
         <div className="relative hidden lg:block">
-          <img
-            src={Naviera}
-            alt="Imagen logística naviera"
-            className="absolute inset-0 w-full h-full object-cover"
-          />
+          <picture>
+            <source srcSet={navieraWebp} type="image/webp" />
+            <img
+              src={navieraJpg}
+              alt="Imagen logística naviera"
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          </picture>
           <div className="absolute inset-0 bg-[#0F2A44]/70" />
           <div className="relative z-10 p-10 text-white flex flex-col justify-end h-full">
             <span className="text-xs opacity-70">
@@ -106,8 +115,8 @@ const Login = () => {
           {/* LOGO */}
           <div className="flex justify-center mb-6">
             <img
-              src={logoBroom}
-              alt="Broom Group"
+              src={LOGO_LOGIN}
+              alt="SGA · Sistema de Gestión Aduanera"
               className="w-full max-w-[250px] h-auto object-contain"
             />
           </div>
@@ -117,7 +126,7 @@ const Login = () => {
             Inicio de Sesión
           </h1>
           <p className="text-sm text-slate-500 text-center mt-2 mb-8">
-            Acceso a sistema · Generador XML BL
+            Sistema de Gestión Aduanera
           </p>
 
           {/* MENSAJE DE ERROR */}
