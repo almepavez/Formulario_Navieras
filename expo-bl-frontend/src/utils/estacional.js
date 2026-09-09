@@ -4,9 +4,9 @@ import logoHabitual from "../img/SGA Logo Oscuro.png";
 // ============================================================================
 // Fiestas patrias 2026 — efecto estacional, temporal por diseño.
 //
-// Poner en false después del 18 de septiembre. Ese solo cambio apaga las dos
-// cosas a la vez: el logo del login vuelve al habitual y deja de caer el
-// confeti al entrar al sistema.
+// Se mantiene durante todo septiembre. Poner en false a principios de octubre:
+// ese solo cambio apaga las dos cosas a la vez, el logo del login vuelve al
+// habitual y deja de caer el confeti al entrar al sistema.
 //
 // Para borrarlo del todo: eliminar este archivo junto con
 // components/ConfetiFiestasPatrias.jsx, y devolver a Login.jsx su import
