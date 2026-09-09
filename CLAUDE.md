@@ -43,7 +43,7 @@ Esta regla **anula** cualquier instrucción por defecto del harness que pida agr
 
 ## Project Overview
 
-**SGA Broom Group** — Sistema de Gestión de Agencias. A web application for managing maritime shipping manifests and Bills of Lading (BL) used by Broom Group's agency operations. Production URL: `https://sga.broomgroup.com`.
+**SGA Broom Group** — Sistema de Gestión Aduanera. A web application for managing maritime shipping manifests and Bills of Lading (BL) used by Broom Group's agency operations. Production URL: `https://sga.broomgroup.com`.
 
 The system handles three operation types (`tipo_operacion`): `S` (Salida/Export), `I` (Importación), `TR`/`TRB` (Tránsito), and three service types (`tipo_servicio_codigo`): `FF` (FCL/FCL containers), `MM` (EMPTY containers), `BB` (Carga Suelta / Break Bulk).
 
