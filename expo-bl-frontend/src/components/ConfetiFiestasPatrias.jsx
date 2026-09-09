@@ -13,35 +13,17 @@ const COLORES = ["#D52B1E", "#FFFFFF", "#0039A6"];
 // margen para que ninguna se corte a media caída.
 const DURACION_MS = 6500;
 
-// Estado a nivel de módulo, no de componente: la decisión debe sobrevivir a
-// los montajes y desmontajes de React.
-//   decision    — resultado de evaluar la bandera; se cachea para que el doble
-//                 render de StrictMode en desarrollo no se coma la bandera al
-//                 consumirla en el primer pase y quede en nada en el segundo.
-//   reproducido — ya se montó y cayó; impide que se repita al navegar a otro
-//                 módulo y volver a Manifiestos.
-let decision = null;
-let reproducido = false;
-
 const prefiereMenosMovimiento = () =>
   typeof window !== "undefined" &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-const evaluar = () => {
-  if (!FIESTAS_PATRIAS) return false;
-  if (sessionStorage.getItem(CLAVE_CONFETI) !== "1") return false;
-
-  // La bandera se consume igual, así que un usuario con animaciones
-  // reducidas tampoco la arrastra a la siguiente pantalla.
-  sessionStorage.removeItem(CLAVE_CONFETI);
-  return !prefiereMenosMovimiento();
-};
-
-const debeCaer = () => {
-  if (reproducido) return false;
-  if (decision === null) decision = evaluar();
-  return decision;
-};
+// Solo lee: no consume la bandera ni toca nada. Que StrictMode llame dos veces
+// al inicializador en desarrollo es inocuo, porque las dos veces devuelve lo
+// mismo. El consumo va en el efecto, después del montaje real.
+const hayBandera = () =>
+  FIESTAS_PATRIAS &&
+  sessionStorage.getItem(CLAVE_CONFETI) === "1" &&
+  !prefiereMenosMovimiento();
 
 const crearParticulas = () =>
   Array.from({ length: PARTICULAS }, (_, i) => {
@@ -60,14 +42,18 @@ const crearParticulas = () =>
   });
 
 const ConfetiFiestasPatrias = () => {
-  // La decisión se toma una sola vez, en el inicializador: así no hay un
-  // render inicial vacío ni un setState dentro de un efecto.
-  const [activo, setActivo] = useState(debeCaer);
+  // La decisión se toma en el inicializador: así no hay un render inicial
+  // vacío ni un setState dentro de un efecto.
+  const [activo, setActivo] = useState(hayBandera);
   const particulas = useMemo(() => crearParticulas(), []);
 
   useEffect(() => {
     if (!activo) return;
-    reproducido = true;
+    // Borrar la bandera es lo único que impide que se repita: al navegar a
+    // otro módulo y volver, o al recargar, ya no la encuentra. No hace falta
+    // ninguna variable de módulo, y de hecho tenerla rompía el segundo login
+    // en la misma pestaña, porque cerrar sesión no recarga la página.
+    sessionStorage.removeItem(CLAVE_CONFETI);
     const id = setTimeout(() => setActivo(false), DURACION_MS);
     return () => clearTimeout(id);
   }, [activo]);
