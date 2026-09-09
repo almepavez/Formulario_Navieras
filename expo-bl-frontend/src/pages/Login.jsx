@@ -88,8 +88,10 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0F2A44] flex items-center justify-center px-6">
-      <div className="w-full max-w-6xl bg-white rounded-3xl shadow-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-2">
+    <div className="min-h-screen bg-[#0F2A44] flex items-center justify-center px-6 py-6">
+      {/* max-h evita que la tarjeta desborde la ventana: en pantallas bajas el
+          contenido se desplaza dentro del panel derecho, no en la página */}
+      <div className="w-full max-w-[830px] bg-white rounded-3xl shadow-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-2 grid-rows-1 max-h-[calc(100vh-3rem)] supports-[height:100dvh]:max-h-[calc(100dvh-3rem)]">
 
         {/* PANEL IZQUIERDO */}
         <div className="relative hidden lg:block">
@@ -98,7 +100,7 @@ const Login = () => {
             <img
               src={navieraJpg}
               alt="Imagen logística naviera"
-              className="absolute inset-0 w-full h-full object-cover"
+              className="absolute inset-0 w-full h-full object-cover [object-position:42%_50%]"
             />
           </picture>
           <div className="absolute inset-0 bg-[#0F2A44]/70" />
@@ -109,29 +111,34 @@ const Login = () => {
           </div>
         </div>
 
-        {/* PANEL DERECHO */}
-        <div className="p-10 md:p-14 flex flex-col justify-center">
+        {/* PANEL DERECHO — es el contenedor con scroll. Sin justify-center:
+            centrar con flex recorta el borde superior cuando no cabe, así que
+            el bloque se centra con my-auto */}
+        {/* min-h-0: como ítem de grid tiene min-height:auto y se negaría a
+            encogerse, desbordando la tarjeta en vez de activar su scroll */}
+        <div className="p-9 flex flex-col overflow-y-auto min-h-0">
+          <div className="w-full my-auto">
 
           {/* LOGO */}
-          <div className="flex justify-center mb-6">
+          <div className="flex justify-center mb-4">
             <img
               src={LOGO_LOGIN}
               alt="SGA · Sistema de Gestión Aduanera"
-              className="w-full max-w-[250px] h-auto object-contain"
+              className="w-full max-w-[170px] h-auto object-contain"
             />
           </div>
 
           {/* TÍTULOS */}
-          <h1 className="text-2xl font-semibold text-[#0F2A44] text-center">
+          <h1 className="text-xl font-semibold text-[#0F2A44] text-center">
             Inicio de Sesión
           </h1>
-          <p className="text-sm text-slate-500 text-center mt-2 mb-8">
+          <p className="text-xs text-slate-500 text-center mt-2 mb-6">
             Sistema de Gestión Aduanera
           </p>
 
           {/* MENSAJE DE ERROR */}
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs">
               {error}
             </div>
           )}
@@ -140,9 +147,9 @@ const Login = () => {
           <button
             onClick={handleGoogleLogin}
             type="button"
-            className="w-full mb-6 bg-white border-2 border-slate-200 text-slate-700 rounded-full py-3 font-medium hover:bg-slate-50 transition flex items-center justify-center gap-3"
+            className="w-full mb-4 bg-white border-2 border-slate-200 text-slate-700 rounded-full py-2 text-sm font-medium hover:bg-slate-50 transition flex items-center justify-center gap-3"
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -164,28 +171,28 @@ const Login = () => {
           </button>
 
           {/* DIVISOR */}
-          <div className="relative mb-6">
+          <div className="relative mb-4">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-slate-200"></div>
             </div>
-            <div className="relative flex justify-center text-sm">
+            <div className="relative flex justify-center text-xs">
               <span className="px-4 bg-white text-slate-500">O continúa con</span>
             </div>
           </div>
 
           {/* FORM */}
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
 
             {/* EMAIL */}
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">
+              <label className="block text-xs font-medium text-slate-600 mb-1">
                 Correo electrónico
               </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-full border border-slate-300 px-4 py-3 text-sm focus:ring-2 focus:ring-[#0F2A44] focus:outline-none"
+                className="w-full rounded-full border border-slate-300 px-4 py-2 text-xs focus:ring-2 focus:ring-[#0F2A44] focus:outline-none"
                 placeholder="usuario@broomgroup.cl"
                 required
                 disabled={loading}
@@ -194,14 +201,14 @@ const Login = () => {
 
             {/* PASSWORD */}
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">
+              <label className="block text-xs font-medium text-slate-600 mb-1">
                 Contraseña
               </label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-full border border-slate-300 px-4 py-3 text-sm focus:ring-2 focus:ring-[#0F2A44] focus:outline-none"
+                className="w-full rounded-full border border-slate-300 px-4 py-2 text-xs focus:ring-2 focus:ring-[#0F2A44] focus:outline-none"
                 placeholder="••••••••"
                 required
                 disabled={loading}
@@ -209,7 +216,7 @@ const Login = () => {
             </div>
 
             {/* OPCIONES */}
-            <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center justify-between text-xs">
               <label className="flex items-center gap-2 text-slate-500">
                 <input type="checkbox" className="rounded" />
                 Recuérdame
@@ -227,12 +234,13 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#0F2A44] text-white rounded-full py-3 font-medium hover:opacity-95 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-[#0F2A44] text-white rounded-full py-2 text-sm font-medium hover:opacity-95 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
             </button>
 
           </form>
+          </div>
         </div>
 
       </div>
