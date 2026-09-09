@@ -10,7 +10,7 @@ import {
   ChevronRight,
   LogOut
 } from "lucide-react";
-import logo from "../img/SGA Logo 3.png";
+import { LOGO_SIDEBAR } from "../utils/estacional";
 
 const Sidebar = () => {
   const location = useLocation();
@@ -37,11 +37,16 @@ const Sidebar = () => {
     >
       {/* Header con logo y botón */}
       <div className="p-6 border-b border-white/10 relative">
+        {/* Ojo: h-25 y w-15 NO existen en Tailwind y no generan ninguna regla
+            CSS. El tamaño real lo fija el flex-shrink del contenedor contra el
+            ancho disponible: 208x139 expandido y 120x80 colapsado. Quitar esas
+            clases no cambia nada, pero tampoco sirve editarlas para
+            redimensionar el logo. */}
         <div className="flex justify-center mb-2">
           {isExpanded ? (
-            <img src={logo} alt="Broom Group" className="h-25" />
+            <img src={LOGO_SIDEBAR} alt="SGA · Sistema de Gestión Aduanera" className="h-25" />
           ) : (
-            <img src={logo} alt="Broom Group" className="h-20 w-15 object-contain" />
+            <img src={LOGO_SIDEBAR} alt="SGA · Sistema de Gestión Aduanera" className="h-20 w-15 object-contain" />
           )}
         </div>
 
