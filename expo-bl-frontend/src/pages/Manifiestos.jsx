@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import Sidebar from "../components/Sidebar";
 import ComboSelect from "../components/ComboSelect";
+import ConfetiFiestasPatrias from "../components/ConfetiFiestasPatrias";
 import { FileText, ArrowUpRight, ArrowDownLeft, X } from "lucide-react";
 
 
@@ -232,6 +233,7 @@ const Manifiestos = () => {
 
   return (
     <div className="flex min-h-screen">
+      <ConfetiFiestasPatrias />
       <Sidebar />
       <main className="flex-1 p-10 min-h-screen bg-slate-100">
 

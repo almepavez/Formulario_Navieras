@@ -1,13 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
-import logoFiestasPatrias from "../img/logo-login-fiestas-700.png";
 import navieraWebp from "../img/naviera-login-1600.webp";
 import navieraJpg from "../img/naviera-login-1600.jpg";
-
-// Logo estacional de fiestas patrias. Hay que revertirlo después del 18 de
-// septiembre: basta apuntar esta constante al logo habitual, que es
-// ../img/SGA Logo Oscuro.png.
-const LOGO_LOGIN = logoFiestasPatrias;
+import { LOGO_LOGIN, CLAVE_CONFETI } from "../utils/estacional";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -39,6 +34,7 @@ const Login = () => {
         .then(data => {
           if (data.success) {
             localStorage.setItem('usuario', JSON.stringify(data.usuario));
+            sessionStorage.setItem(CLAVE_CONFETI, '1');
             navigate('/manifiestos');
           }
         })
@@ -74,6 +70,7 @@ const Login = () => {
 
       localStorage.setItem("token", data.token);
       localStorage.setItem("usuario", JSON.stringify(data.usuario));
+      sessionStorage.setItem(CLAVE_CONFETI, "1");
 
       navigate("/manifiestos");
     } catch (err) {
