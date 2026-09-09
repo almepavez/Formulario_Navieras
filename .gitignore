@@ -4,3 +4,5 @@ backend/.env
 backend/.env
 node_modules/
 dist.tar.gz
+# Configuración local de Claude Code
+.claude/
