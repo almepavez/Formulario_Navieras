@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import logoBroom from "../img/SGA Logo Oscuro.png";
+import logoBroom from "../img/logo-sga-oscuro-420.png";
 import { useSearchParams } from "react-router-dom";
 
 const API_BASE = import.meta.env.VITE_API_URL;
