@@ -79,6 +79,10 @@ const TATC_COLUMNS = [
   { key: "puerto_desembarque", label: "Puerto descarga" },  // ← nuevo (al final, nombre exacto)
 ];
 
+// En la plantilla TATC el estado de embarque de los vacíos (servicio MM) va como "MTY",
+// no con el nombre que tiene en la tabla tipos_servicio ("EMPTY").
+const ESTADO_EMB_TATC = { EMPTY: "MTY" };
+
 function exportTATC(rowsToExport, filename) {
   const headerStyle = {
     fill: { patternType: "solid", fgColor: { rgb: "F4801A" } },
@@ -94,6 +98,10 @@ function exportTATC(rowsToExport, filename) {
         const raw = r[c.key] ?? "";
         // Normalizar: "CIPU 201120-7" → "CIPU2011207"
         return raw.replace(/\s+/g, "").replace(/-/g, "");
+      }
+      if (c.key === "estado_emb") {
+        const estado = (r[c.key] ?? "").toString().trim().toUpperCase();
+        return ESTADO_EMB_TATC[estado] ?? (r[c.key] ?? "");
       }
       return r[c.key] ?? "";
     })),
