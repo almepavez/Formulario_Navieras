@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { FIESTAS_PATRIAS, CLAVE_CONFETI } from "../utils/estacional";
+import { HAY_TEMA, COLORES_CONFETI, CLAVE_CONFETI } from "../utils/estacional";
 
 // Cantidad de partículas. Subir si queda pobre, bajar si carga la pantalla.
 const PARTICULAS = 40;
 
-// Rojo, blanco y azul de la bandera chilena.
-const COLORES = ["#D52B1E", "#FFFFFF", "#0039A6"];
+// Los colores vienen del tema activo en utils/estacional.js.
 
 // Cuánto vive el efecto. La partícula más lenta termina a los 5 s (2 s de
 // retardo máximo + 3 s de caída mínima... la más lenta, 2 + 5 = 7 s no se
@@ -21,13 +20,13 @@ const prefiereMenosMovimiento = () =>
 // al inicializador en desarrollo es inocuo, porque las dos veces devuelve lo
 // mismo. El consumo va en el efecto, después del montaje real.
 const hayBandera = () =>
-  FIESTAS_PATRIAS &&
+  HAY_TEMA &&
   sessionStorage.getItem(CLAVE_CONFETI) === "1" &&
   !prefiereMenosMovimiento();
 
 const crearParticulas = () =>
   Array.from({ length: PARTICULAS }, (_, i) => {
-    const color = COLORES[i % COLORES.length];
+    const color = COLORES_CONFETI[i % COLORES_CONFETI.length];
     return {
       id: i,
       color,
@@ -41,7 +40,7 @@ const crearParticulas = () =>
     };
   });
 
-const ConfetiFiestasPatrias = () => {
+const ConfetiEstacional = () => {
   // La decisión se toma en el inicializador: así no hay un render inicial
   // vacío ni un setState dentro de un efecto.
   const [activo, setActivo] = useState(hayBandera);
@@ -83,11 +82,11 @@ const ConfetiFiestasPatrias = () => {
           animation-name: sga-confeti-caer;
           animation-timing-function: linear;
           animation-fill-mode: both;
-          /* Sombra suave: despega también las rojas y azules del fondo claro */
+          /* Sombra suave: despega las partículas de color del fondo claro */
           box-shadow: 0 1px 2px rgba(15, 42, 68, 0.18);
         }
-        /* El blanco de la bandera se pierde sobre el slate-100 de Manifiestos
-           (1,1:1 de contraste), así que lleva además un filete azul corporativo */
+        /* El blanco se pierde sobre el slate-100 de Manifiestos (1,1:1 de
+           contraste), así que lleva además un filete azul corporativo */
         .sga-confeti--blanca {
           box-shadow: 0 0 0 1px rgba(15, 42, 68, 0.35), 0 1px 2px rgba(15, 42, 68, 0.18);
         }
@@ -115,4 +114,4 @@ const ConfetiFiestasPatrias = () => {
   );
 };
 
-export default ConfetiFiestasPatrias;
+export default ConfetiEstacional;
